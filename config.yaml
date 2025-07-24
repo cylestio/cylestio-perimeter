@@ -1,0 +1,120 @@
+# LLM Proxy Server Configuration
+# This is a comprehensive example showing all available configuration options
+
+# Server configuration
+server:
+  port: 3000
+  host: "0.0.0.0"
+  workers: 1
+
+# LLM provider configuration
+llm:
+  base_url: "https://api.openai.com"
+  type: "openai"
+  api_key: "sk-your-openai-api-key-here"
+  timeout: 30
+  max_retries: 3
+
+# Middleware configuration (processed in order)
+middlewares:
+  # Request/response tracing middleware
+  - type: "trace"
+    enabled: true
+    config:
+      directory: "./traces"
+      include_headers: true
+      include_body: true
+      max_body_size: 1048576  # 1MB in bytes
+      file_rotation: false
+      max_files: 100
+
+  # Rate limiting middleware (future enhancement)
+  - type: "rate_limit"
+    enabled: false
+    config:
+      requests_per_minute: 60
+      requests_per_hour: 1000
+      burst_size: 10
+      key_extractor: "ip"  # "ip", "header", or "custom"
+      header_name: null  # Required if key_extractor is "header"
+
+  # Authentication middleware (future enhancement)
+  - type: "auth"
+    enabled: false
+    config:
+      required_header: "X-API-Key"
+      valid_keys:
+        - "client-key-1"
+        - "client-key-2"
+      bearer_token: false
+      case_sensitive: true
+
+  # Custom middleware example
+  - type: "custom_logging"
+    enabled: false
+    config:
+      log_requests: true
+      log_responses: false
+      sensitive_headers:
+        - "authorization"
+        - "x-api-key"
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "text"  # "text" or "json"
+  file: null  # Optional log file path
+  max_file_size: "10MB"
+  backup_count: 5
+
+# Example configurations for different scenarios:
+
+# Minimal configuration (equivalent to CLI: --base-url https://api.openai.com --type openai)
+# server:
+#   port: 3000
+# llm:
+#   base_url: "https://api.openai.com"
+#   type: "openai"
+
+# Production configuration with full tracing
+# server:
+#   port: 8080
+#   host: "0.0.0.0"
+#   workers: 4
+# llm:
+#   base_url: "https://api.openai.com"
+#   type: "openai"
+#   api_key: "${OPENAI_API_KEY}"  # Environment variable
+#   timeout: 60
+#   max_retries: 5
+# middlewares:
+#   - type: "trace"
+#     enabled: true
+#     config:
+#       directory: "/var/log/llm-proxy/traces"
+#       include_headers: true
+#       include_body: true
+#       file_rotation: true
+#       max_files: 1000
+#   - type: "rate_limit"
+#     enabled: true
+#     config:
+#       requests_per_minute: 100
+#       requests_per_hour: 5000
+# logging:
+#   level: "INFO"
+#   format: "json"
+#   file: "/var/log/llm-proxy/app.log"
+
+# Development configuration (tracing disabled)
+# server:
+#   port: 3001
+# llm:
+#   base_url: "https://api.openai.com"
+#   type: "openai"
+# middlewares:
+#   - type: "trace"
+#     enabled: false
+# logging:
+#   level: "DEBUG"
+#   format: "text" 

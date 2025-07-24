@@ -1,0 +1,7 @@
+# Development and testing dependencies
+-r requirements.txt
+
+# Additional dev tools
+ipython==8.19.0
+pre-commit==3.6.0
+coverage==7.4.0

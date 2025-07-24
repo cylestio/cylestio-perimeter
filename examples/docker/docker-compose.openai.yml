@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  llm-proxy-openai:
+    build: 
+      context: ../..
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - LLM_BASE_URL=https://api.openai.com
+      - LLM_TYPE=openai
+      - LLM_API_KEY=${OPENAI_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount traces directory for persistence
+      - ../../traces:/app/traces
+      # Mount OpenAI config
+      - ../configs/openai-with-tracing.yaml:/app/config.yaml:ro
+    command: python -m src.main --config /app/config.yaml
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - llm-proxy
+
+networks:
+  llm-proxy:
+    driver: bridge

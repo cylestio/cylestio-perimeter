@@ -1,0 +1,37 @@
+# OpenAI Configuration with Full Tracing
+# Usage: python -m src.main --config examples/configs/openai-with-tracing.yaml
+
+server:
+  port: 3000
+  host: "0.0.0.0"
+  workers: 1
+
+llm:
+  base_url: "https://api.openai.com"
+  type: "openai"
+  api_key: "${OPENAI_API_KEY}"
+  timeout: 60
+  max_retries: 3
+
+middlewares:
+  # Trace middleware captures all requests/responses
+  - type: "trace"
+    enabled: true
+    config:
+      directory: "./traces"
+      include_headers: true
+      include_body: true
+      max_body_size: 1048576  # 1MB limit
+      
+  # Printer middleware for console logging
+  - type: "printer"
+    enabled: true
+    config:
+      log_requests: true
+      log_responses: true
+      log_body: true
+
+logging:
+  level: "INFO"
+  format: "text"
+  file: null
