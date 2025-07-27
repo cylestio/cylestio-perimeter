@@ -50,6 +50,10 @@ class PrinterInterceptor(BaseInterceptor):
         # Print request info
         self._print_request(request_data)
         
+        # Print tool results if present
+        if request_data.has_tool_results and self.show_tools:
+            self._print_tool_results(request_data)
+        
         return None
     
     async def after_response(
@@ -70,6 +74,10 @@ class PrinterInterceptor(BaseInterceptor):
             return None
         
         self._print_response(request_data, response_data)
+        
+        # Print tool uses if present
+        if response_data.has_tool_requests and self.show_tools:
+            self._print_tool_uses(response_data)
         
         return None
     
@@ -192,6 +200,51 @@ class PrinterInterceptor(BaseInterceptor):
                 
         except Exception as e:
             logger.debug(f"Error printing response body: {e}")
+    
+    def _print_tool_uses(self, response_data: LLMResponseData) -> None:
+        """Print tool uses from LLM response.
+        
+        Args:
+            response_data: Response data container
+        """
+        try:
+            for tool_use in response_data.tool_uses_request:
+                tool_name = tool_use.get("name", "unknown")
+                tool_id = tool_use.get("id", "")[:8]  # Short ID
+                tool_input = tool_use.get("input", {})
+                
+                print(f"   🔧 TOOL USE: {tool_name} [{tool_id}]")
+                
+                # Print input parameters in a compact format
+                if tool_input:
+                    input_str = ", ".join([f"{k}={v}" for k, v in tool_input.items()])
+                    print(f"      Input: {input_str}")
+                    
+        except Exception as e:
+            logger.debug(f"Error printing tool uses: {e}")
+    
+    def _print_tool_results(self, request_data: LLMRequestData) -> None:
+        """Print tool results from user request.
+        
+        Args:
+            request_data: Request data container
+        """
+        try:
+            for tool_result in request_data.tool_results:
+                tool_id = tool_result.get("tool_use_id", "")[:8]  # Short ID
+                content = tool_result.get("content", "")
+                is_error = tool_result.get("is_error", False)
+                
+                status_emoji = "❌" if is_error else "✅"
+                print(f"   🔧 TOOL RESULT [{tool_id}] {status_emoji}")
+                
+                # Print result content (truncated)
+                if content:
+                    content_preview = str(content)[:100] + "..." if len(str(content)) > 100 else str(content)
+                    print(f"      Result: {content_preview}")
+                    
+        except Exception as e:
+            logger.debug(f"Error printing tool results: {e}")
     
     async def on_error(self, request_data: LLMRequestData, error: Exception) -> None:
         """Print error information.
