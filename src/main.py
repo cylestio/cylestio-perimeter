@@ -16,7 +16,6 @@ from src.proxy.middleware import LLMMiddleware
 from src.proxy.interceptor_manager import interceptor_manager
 from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
-from src.interceptors.cylestio import CylestioSessionInterceptor
 from src.proxy.handler import ProxyHandler
 from src.utils.logger import get_logger, setup_logging
 
@@ -70,17 +69,23 @@ def create_app(config: Settings) -> FastAPI:
     # Register interceptor types
     interceptor_manager.register_interceptor("printer", PrinterInterceptor)
     interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
-    interceptor_manager.register_interceptor("cylestio_session", CylestioSessionInterceptor)
     
     # Create interceptors from configuration
     interceptors = interceptor_manager.create_interceptors(config.interceptors)
     
-    # Register the LLM middleware with interceptors
-    if interceptors:
-        fast_app.add_middleware(LLMMiddleware, interceptors=interceptors)
-        logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors")
-    else:
-        logger.info("No interceptors enabled")
+    # Prepare session configuration for middleware
+    session_config = None
+    if config.session:
+        session_config = config.session.model_dump()
+        logger.info("Session detection enabled", extra={"session_config": session_config})
+    
+    # Register the LLM middleware with interceptors and session management
+    fast_app.add_middleware(
+        LLMMiddleware, 
+        interceptors=interceptors,
+        session_config=session_config
+    )
+    logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors")
     
     # Health check endpoint
     @fast_app.get("/health")

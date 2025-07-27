@@ -14,18 +14,6 @@ llm:
   max_retries: 3
 
 interceptors:
-  # Cylestio smart session management - must be first!
-  - type: "cylestio_session"
-    enabled: true
-    config:
-      max_sessions: 10000  # Maximum number of sessions to track
-      session_ttl_seconds: 3600  # Session timeout in seconds
-      enable_fuzzy_matching: true  # Smart session continuation
-      similarity_threshold: 0.85  # Fuzzy matching threshold (0-1)
-      track_session_metrics: true  # Enable session metrics
-      include_client_info: true  # Include client IP, user-agent etc
-      log_session_events: true  # Log session start/end events
-
   - type: "printer"
     enabled: true
     config:
@@ -52,4 +40,20 @@ logging:
   level: "INFO"
   format: "text"
 
-# Session management is now handled by the cylestio_session interceptor above
+# Session management configuration (built into core platform)
+session:
+  enabled: true
+  max_sessions: 10000  # Maximum number of sessions to track in memory
+  session_ttl_seconds: 3600  # Sessions expire after 1 hour of inactivity
+  enable_fuzzy_matching: true  # Try to match continued conversations
+  similarity_threshold: 0.85  # Similarity score needed for fuzzy matching (0-1)
+  max_messages_for_new_session: 3  # Conversations with <= 3 messages may be new sessions
+  reset_phrases:  # Phrases that trigger a new session
+    - "start over"
+    - "new conversation"
+    - "reset"
+    - "clear"
+    - "begin again"
+    - "fresh start"
+    - "new session"
+    - "new chat"

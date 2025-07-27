@@ -7,6 +7,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
+from src.proxy.session import SessionDetector
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -16,16 +17,35 @@ class LLMMiddleware(BaseHTTPMiddleware):
     """Core middleware that handles LLM request/response detection and runs interceptors."""
     
     def __init__(self, app, **kwargs):
-        """Initialize LLM middleware with interceptors.
+        """Initialize LLM middleware with interceptors and session management.
         
         Args:
             app: FastAPI application
-            **kwargs: Contains 'interceptors' key with list of interceptor instances
+            **kwargs: Contains 'interceptors' and 'session_config' keys
         """
         super().__init__(app)
         interceptors = kwargs.get('interceptors', [])
         self.interceptors = [i for i in interceptors if i.enabled]
+        
+        # Initialize session detector with configuration
+        session_config = kwargs.get('session_config')
+        if session_config:
+            from src.proxy.session.manager import SessionManager
+            session_manager = SessionManager(
+                max_sessions=session_config.get('max_sessions', 10000),
+                session_ttl_seconds=session_config.get('session_ttl_seconds', 3600),
+                enable_fuzzy_matching=session_config.get('enable_fuzzy_matching', True),
+                similarity_threshold=session_config.get('similarity_threshold', 0.85)
+            )
+            self.session_detector = SessionDetector(session_manager)
+        else:
+            self.session_detector = None
+        
         logger.info(f"LLM Middleware initialized with {len(self.interceptors)} interceptors")
+        if self.session_detector:
+            logger.info("  - Session detection: enabled")
+        else:
+            logger.info("  - Session detection: disabled")
         
         for interceptor in self.interceptors:
             logger.info(f"  - {interceptor.name}: enabled")
@@ -121,10 +141,23 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     logger.warning("Failed to parse request body as JSON")
                     return None
             
-            # Session information will be populated by Cylestio interceptor
+            # Detect session information using core platform session detection
             session_id = None
             provider = None
             model = None
+            
+            if self.session_detector:
+                try:
+                    trace_id = f"middleware_{int(time.time() * 1000)}"
+                    monitoring_event, llm_event = await self.session_detector.analyze_request(request, trace_id)
+                    if llm_event:
+                        session_id = llm_event.session_id
+                        provider = llm_event.provider
+                    if monitoring_event:
+                        provider = monitoring_event.provider
+                        model = monitoring_event.model
+                except Exception as e:
+                    logger.debug(f"Failed to analyze session: {e}")
             
             # Create request data
             return LLMRequestData(

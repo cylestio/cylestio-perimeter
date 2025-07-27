@@ -10,7 +10,7 @@ from src.models.events import EventType, MonitoringEvent, LLMEvent
 from src.providers.registry import registry
 from src.providers.base import SessionInfo
 from src.utils.logger import get_logger
-from .session_manager import SessionManager
+from .manager import SessionManager
 
 logger = get_logger(__name__)
 

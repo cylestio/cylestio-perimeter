@@ -46,17 +46,15 @@ class PrinterInterceptor(BaseInterceptor):
         if not self.log_requests:
             return None
         
-        # Check if this is a new session from Cylestio session interceptor
-        cylestio_session = request_data.metadata.get("cylestio_session")
-        if cylestio_session and cylestio_session.get("is_new_session") and self.show_sessions:
+        # Check if this is a new session (detected by core platform)
+        if request_data.session_id and request_data.session_id not in self._active_sessions and self.show_sessions:
             self._print_new_session(request_data)
-            if request_data.session_id:
-                self._active_sessions[request_data.session_id] = {
-                    "provider": request_data.provider or cylestio_session.get("provider"),
-                    "model": request_data.model or cylestio_session.get("model"),
-                    "start_time": datetime.now(),
-                    "request_count": 0
-                }
+            self._active_sessions[request_data.session_id] = {
+                "provider": request_data.provider,
+                "model": request_data.model,
+                "start_time": datetime.now(),
+                "request_count": 0
+            }
         
         # Update request count
         if request_data.session_id and request_data.session_id in self._active_sessions:

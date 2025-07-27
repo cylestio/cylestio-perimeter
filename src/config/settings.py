@@ -80,8 +80,7 @@ class Settings(BaseModel):
     llm: LLMConfig
     interceptors: List[InterceptorConfig] = Field(default_factory=list)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    # Session config is deprecated - use cylestio_session interceptor instead
-    session: Optional[SessionConfig] = Field(default=None)
+    session: SessionConfig = Field(default_factory=SessionConfig)
     
     @classmethod
     def from_yaml(cls, config_path: str) -> "Settings":
