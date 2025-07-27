@@ -1,7 +1,6 @@
 """Session detection utility for LLM conversations."""
 import asyncio
 import json
-import uuid
 from typing import Any, Dict, Optional
 
 from fastapi import Request
@@ -37,7 +36,7 @@ class SessionDetector:
         provider = registry.get_provider(request)
         if not provider:
             logger.debug(f"No provider found for request: {request.url.path}")
-            return None, None
+            return None
         
         # TODO: OpenAI Response might have a session id built in the request
         
@@ -58,7 +57,7 @@ class SessionDetector:
             body = json.loads(body_bytes) if body_bytes else {}
         except (json.JSONDecodeError, Exception) as e:
             logger.warning(f"Failed to parse request body: {e}")
-            return None, None
+            return None
         
         # Get session info from provider
         session_info = await provider.detect_session_info(request, body)
@@ -101,30 +100,6 @@ class SessionDetector:
         return result
     
     
-    def create_response_info(self, session_id: str, status_code: int, duration_ms: float, 
-                            provider: str, tokens_used: Optional[int] = None) -> Dict[str, Any]:
-        """Create response information.
-        
-        Args:
-            session_id: Session identifier
-            status_code: HTTP status code
-            duration_ms: Request duration in milliseconds
-            provider: Provider name
-            tokens_used: Number of tokens used
-            
-        Returns:
-            Dictionary with response information
-        """
-        return {
-            "session_id": session_id,
-            "provider": provider,
-            "status_code": status_code,
-            "duration_ms": duration_ms,
-            "response_tokens": tokens_used,
-            "success": 200 <= status_code < 300
-        }
-    
-    
     def _extract_client_info(self, request: Request) -> Dict[str, Any]:
         """Extract client information from request.
         
@@ -165,12 +140,8 @@ class SessionDetector:
     
 
 
-# Global instance (will be initialized with config)
-session_detector: Optional[SessionDetector] = None
-
-
 def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> SessionDetector:
-    """Initialize or reconfigure the global session detector.
+    """Initialize a session detector with optional configuration.
     
     Args:
         config: Session configuration dictionary
@@ -178,8 +149,6 @@ def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> Sess
     Returns:
         Configured SessionDetector instance
     """
-    global session_detector
-    
     if config:
         # Extract session manager configuration
         session_manager = SessionManager(
@@ -187,13 +156,7 @@ def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> Sess
             session_ttl_seconds=config.get("session_ttl_seconds", 3600)
         )
         
-        session_detector = SessionDetector(session_manager=session_manager)
+        return SessionDetector(session_manager=session_manager)
     else:
         # Use default configuration
-        session_detector = SessionDetector()
-    
-    return session_detector
-
-
-# Initialize with defaults on import
-session_detector = initialize_session_detector()
+        return SessionDetector()
