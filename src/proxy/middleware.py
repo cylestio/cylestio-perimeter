@@ -175,12 +175,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
             provider = None
             
             # Enrich the LLMRequestData with session information
+            is_new_session = False
             if self.session_detector:
                 try:
                     session_info = await self.session_detector.analyze_request(request)
                     if session_info:
                         session_id = session_info.get("session_id")
                         provider = session_info.get("provider")
+                        is_new_session = session_info.get("is_new_session", False)
                         # Use model from session detection if not found in body
                         if not model and session_info.get("model"):
                             model = session_info["model"]
@@ -199,7 +201,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 is_streaming=is_streaming,
                 session_id=session_id,
                 provider=provider,
-                model=model
+                model=model,
+                is_new_session=is_new_session
             )
             
         except Exception as e:

@@ -25,9 +25,6 @@ class PrinterInterceptor(BaseInterceptor):
         self.show_sessions = config.get("show_sessions", True)
         self.show_llm_calls = config.get("show_llm_calls", True)
         self.show_tools = config.get("show_tools", True)
-        
-        # Track active sessions for better display
-        self._active_sessions: Dict[str, Dict[str, Any]] = {}
     
     @property
     def name(self) -> str:
@@ -46,19 +43,9 @@ class PrinterInterceptor(BaseInterceptor):
         if not self.log_requests:
             return None
         
-        # Check if this is a new session (detected by core platform)
-        if request_data.session_id and request_data.session_id not in self._active_sessions and self.show_sessions:
+        # Print new session header if this is a new session
+        if request_data.is_new_session and self.show_sessions:
             self._print_new_session(request_data)
-            self._active_sessions[request_data.session_id] = {
-                "provider": request_data.provider,
-                "model": request_data.model,
-                "start_time": datetime.now(),
-                "request_count": 0
-            }
-        
-        # Update request count
-        if request_data.session_id and request_data.session_id in self._active_sessions:
-            self._active_sessions[request_data.session_id]["request_count"] += 1
         
         # Print request info
         self._print_request(request_data)

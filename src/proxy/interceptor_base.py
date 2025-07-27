@@ -4,9 +4,6 @@ from typing import Any, Dict, Optional
 
 from fastapi import Request, Response
 
-from src.models.events import EventType
-
-
 class LLMRequestData:
     """Container for parsed LLM request data."""
     
@@ -17,7 +14,8 @@ class LLMRequestData:
         is_streaming: bool = False,
         session_id: Optional[str] = None,
         provider: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        is_new_session: bool = False
     ):
         self.request = request
         self.body = body
@@ -25,6 +23,7 @@ class LLMRequestData:
         self.session_id = session_id
         self.provider = provider
         self.model = model
+        self.is_new_session = is_new_session
         self.metadata: Dict[str, Any] = {}
 
 

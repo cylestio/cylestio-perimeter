@@ -23,7 +23,6 @@ class SessionDetector:
             max_sessions=10000,
             session_ttl_seconds=3600
         )
-        self._active_sessions: Dict[str, Dict[str, Any]] = {}
     
     async def analyze_request(self, request: Request) -> Optional[Dict[str, Any]]:
         """Analyze request for session information.
@@ -99,37 +98,8 @@ class SessionDetector:
             "url": str(request.url)
         }
         
-        # Track session in our local cache if new
-        if is_new_session:
-            self._active_sessions[session_id] = {
-                "provider": provider.name,
-                "conversation_id": session_info.conversation_id,
-                "model": session_info.model,
-                "start_time": None,  # Will be set by caller if needed
-                "message_count": session_info.message_count
-            }
-            
-            logger.debug(f"Session started: {session_id} ({provider.name})")
-        
         return result
     
-    def end_session(self, session_id: str, success: bool = True) -> Optional[Dict[str, Any]]:
-        """End a session and return its data.
-        
-        Args:
-            session_id: Session identifier
-            success: Whether session ended successfully
-            
-        Returns:
-            Session data or None if session not found
-        """
-        if session_id not in self._active_sessions:
-            return None
-        
-        session_data = self._active_sessions.pop(session_id)
-        
-        logger.debug(f"Session ended: {session_id} ({'success' if success else 'error'})")
-        return session_data
     
     def create_response_info(self, session_id: str, status_code: int, duration_ms: float, 
                             provider: str, tokens_used: Optional[int] = None) -> Dict[str, Any]:
