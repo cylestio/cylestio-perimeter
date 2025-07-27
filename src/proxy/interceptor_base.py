@@ -1,11 +1,8 @@
 """Base interceptor interface for the new middleware system."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import Request, Response
-
-from src.models.events import EventType
-
 
 class LLMRequestData:
     """Container for parsed LLM request data."""
@@ -17,7 +14,9 @@ class LLMRequestData:
         is_streaming: bool = False,
         session_id: Optional[str] = None,
         provider: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        is_new_session: bool = False,
+        tool_results: Optional[List[Dict[str, Any]]] = None
     ):
         self.request = request
         self.body = body
@@ -25,8 +24,13 @@ class LLMRequestData:
         self.session_id = session_id
         self.provider = provider
         self.model = model
+        self.is_new_session = is_new_session
         self.metadata: Dict[str, Any] = {}
-
+        
+        # Set tool information from parsed data
+        self.tool_results = tool_results or []
+        self.has_tool_results = bool(self.tool_results)
+    
 
 class LLMResponseData:
     """Container for parsed LLM response data."""
@@ -37,7 +41,8 @@ class LLMResponseData:
         body: Optional[Dict[str, Any]] = None,
         duration_ms: float = 0.0,
         session_id: Optional[str] = None,
-        status_code: int = 200
+        status_code: int = 200,
+        tool_uses_request: Optional[List[Dict[str, Any]]] = None
     ):
         self.response = response
         self.body = body
@@ -45,7 +50,11 @@ class LLMResponseData:
         self.session_id = session_id
         self.status_code = status_code
         self.metadata: Dict[str, Any] = {}
-
+        
+        # Set tool information from parsed data
+        self.tool_uses_request = tool_uses_request or []
+        self.has_tool_requests = bool(self.tool_uses_request)
+    
 
 class BaseInterceptor(ABC):
     """Base class for all interceptors."""

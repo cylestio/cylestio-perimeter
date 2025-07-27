@@ -8,6 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.proxy.session import SessionDetector
+from src.proxy.tools import ToolParser
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +27,9 @@ class LLMMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         interceptors = kwargs.get('interceptors', [])
         self.interceptors = [i for i in interceptors if i.enabled]
+        
+        # Initialize tool parser
+        self.tool_parser = ToolParser()
         
         # Initialize session detector with configuration
         session_config = kwargs.get('session_config')
@@ -111,13 +115,17 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     media_type=response.media_type
                 )
             
+            # Parse tool information from response
+            tool_uses_request = self.tool_parser.parse_tool_requests(response_body)
+            
             # Create response data with parsed body
             response_data = LLMResponseData(
                 response=response,
                 body=response_body,
                 duration_ms=duration_ms,
                 session_id=request_data.session_id,
-                status_code=response.status_code
+                status_code=response.status_code,
+                tool_uses_request=tool_uses_request
             )
             
             # Run after_response interceptors
@@ -175,12 +183,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
             provider = None
             
             # Enrich the LLMRequestData with session information
+            is_new_session = False
             if self.session_detector:
                 try:
                     session_info = await self.session_detector.analyze_request(request)
                     if session_info:
                         session_id = session_info.get("session_id")
                         provider = session_info.get("provider")
+                        is_new_session = session_info.get("is_new_session", False)
                         # Use model from session detection if not found in body
                         if not model and session_info.get("model"):
                             model = session_info["model"]
@@ -190,6 +200,9 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 except Exception as e:
                     logger.debug(f"Failed to analyze session: {e}")
 
+            # Parse tool information from request
+            tool_results = self.tool_parser.parse_tool_results(body)
+            
             # TODO: Event Data
             
             # Create request data
@@ -199,7 +212,9 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 is_streaming=is_streaming,
                 session_id=session_id,
                 provider=provider,
-                model=model
+                model=model,
+                is_new_session=is_new_session,
+                tool_results=tool_results
             )
             
         except Exception as e:
