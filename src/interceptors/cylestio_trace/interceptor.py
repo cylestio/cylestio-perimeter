@@ -131,6 +131,14 @@ class CylestioTraceInterceptor(BaseInterceptor):
                 for item in anthropic_content:
                     if item.get("type") == "text":
                         content.append({"text": item.get("text", "")})
+                    elif item.get("type") == "tool_use":
+                        content.append({
+                            "tool_use": {
+                                "id": item.get("id"),
+                                "name": item.get("name"),
+                                "input": item.get("input")
+                            }
+                        })
                 return content if content else None
             elif isinstance(anthropic_content, str):
                 return [{"text": anthropic_content}]
