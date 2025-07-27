@@ -32,7 +32,7 @@ interceptors:
       filename: "message_log.jsonl"
       include_system_prompts: true
       include_metadata: true
-      buffer_size: 10  # Buffer 10 messages before writing to disk
+      buffer_size: 1  # Buffer 1 message before writing to disk (for testing)
 
       
 

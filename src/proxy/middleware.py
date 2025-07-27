@@ -91,8 +91,36 @@ class LLMMiddleware(BaseHTTPMiddleware):
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
             
-            # Create response data
-            response_data = await self._create_response_data(response, duration_ms, request_data.session_id)
+            # For JSON responses, capture the body before sending
+            response_body = None
+            if response.headers.get("content-type", "").startswith("application/json"):
+                # Read the response body
+                body_bytes = b""
+                async for chunk in response.body_iterator:
+                    body_bytes += chunk
+                
+                # Parse JSON
+                try:
+                    response_body = json.loads(body_bytes.decode('utf-8'))
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    logger.debug("Failed to parse response body as JSON")
+                
+                # Create new response with the same body
+                response = Response(
+                    content=body_bytes,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=response.media_type
+                )
+            
+            # Create response data with parsed body
+            response_data = LLMResponseData(
+                response=response,
+                body=response_body,
+                duration_ms=duration_ms,
+                session_id=request_data.session_id,
+                status_code=response.status_code
+            )
             
             # Run after_response interceptors
             for interceptor in self.interceptors:
@@ -141,10 +169,12 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     logger.warning("Failed to parse request body as JSON")
                     return None
             
+            # Extract model from request body first
+            model = body.get("model") if body else None
+            
             # Detect session information using core platform session detection
             session_id = None
             provider = None
-            model = None
             
             if self.session_detector:
                 try:
@@ -153,9 +183,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     if llm_event:
                         session_id = llm_event.session_id
                         provider = llm_event.provider
+                        # Use model from session detection if not found in body
+                        if not model and llm_event.model:
+                            model = llm_event.model
                     if monitoring_event:
                         provider = monitoring_event.provider
-                        model = monitoring_event.model
+                        # Use model from session detection if not found in body
+                        if not model and monitoring_event.model:
+                            model = monitoring_event.model
                 except Exception as e:
                     logger.debug(f"Failed to analyze session: {e}")
             
@@ -173,38 +208,6 @@ class LLMMiddleware(BaseHTTPMiddleware):
             logger.error(f"Error creating request data: {e}", exc_info=True)
             return None
     
-    async def _create_response_data(
-        self, 
-        response: Response, 
-        duration_ms: float, 
-        session_id: Optional[str]
-    ) -> LLMResponseData:
-        """Parse response and create LLMResponseData.
-        
-        Args:
-            response: FastAPI response object
-            duration_ms: Request duration in milliseconds
-            session_id: Session ID from request
-            
-        Returns:
-            LLMResponseData
-        """
-        body = None
-        
-        # Try to parse response body if it's JSON
-        if hasattr(response, 'body') and response.headers.get("content-type", "").startswith("application/json"):
-            try:
-                body = json.loads(response.body)
-            except (json.JSONDecodeError, AttributeError):
-                logger.debug("Could not parse response body as JSON")
-        
-        return LLMResponseData(
-            response=response,
-            body=body,
-            duration_ms=duration_ms,
-            session_id=session_id,
-            status_code=response.status_code
-        )
     
     def _is_llm_request(self, request: Request) -> bool:
         """Check if request is for LLM processing.
