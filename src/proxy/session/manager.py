@@ -89,35 +89,38 @@ class SessionManager:
             # Clean up expired sessions
             self._cleanup_expired_sessions()
             
-            # Compute conversation signature
-            signature = self._compute_signature(messages, system_prompt)
+            # For single message, this is a new session
+            if len(messages) <= 1:
+                session_id = str(uuid.uuid4())
+                signature = self._compute_signature(messages, system_prompt)
+                self._create_session(session_id, signature, messages, metadata or {})
+                logger.info(f"New session created: {session_id[:8]} (first message)")
+                return session_id, True
             
-            # Check for exact match
-            if signature in self._signature_to_session:
-                session_id = self._signature_to_session[signature]
-                self._update_session_access(session_id)
+            # For multiple messages, compute signature without the last exchange
+            # This allows us to find the previous session state
+            previous_messages = self._get_messages_without_last_exchange(messages)
+            lookup_signature = self._compute_signature(previous_messages, system_prompt)
+            
+            # Check if we can find a session with this previous state
+            if lookup_signature in self._signature_to_session:
+                session_id = self._signature_to_session[lookup_signature]
+                
+                # Update the session with the new complete signature
+                full_signature = self._compute_signature(messages, system_prompt)
+                self._update_session_signature(session_id, full_signature)
+                
                 self._metrics["cache_hits"] += 1
-                logger.debug(f"Session cache hit: {session_id[:8]} (signature: {signature[:8]})")
+                logger.debug(f"Session continued: {session_id[:8]} (lookup sig: {lookup_signature[:8]}, new sig: {full_signature[:8]})")
                 return session_id, False
             
             self._metrics["cache_misses"] += 1
             
-            # Check if this is a new session
-            is_new_session = self._is_session_start(messages)
-            
-            if not is_new_session and self.enable_fuzzy_matching:
-                # Try fuzzy matching for continued conversations
-                similar_session_id = self._find_similar_session(messages, system_prompt)
-                if similar_session_id:
-                    self._metrics["fuzzy_matches"] += 1
-                    logger.debug(f"Fuzzy match found: {similar_session_id[:8]}")
-                    return similar_session_id, False
-            
-            # Create new session
+            # If we can't find a previous session, create a new one
             session_id = str(uuid.uuid4())
+            signature = self._compute_signature(messages, system_prompt)
             self._create_session(session_id, signature, messages, metadata or {})
-            logger.info(f"New session created: {session_id[:8]} (signature: {signature[:8]}, "
-                       f"messages: {len(messages)}, is_start: {is_new_session})")
+            logger.info(f"New session created: {session_id[:8]} (no previous match found)")
             return session_id, True
     
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
@@ -370,3 +373,58 @@ class SessionManager:
             del self._signature_to_session[session_info.signature]
             self._metrics["sessions_expired"] += 1
             logger.debug(f"Expired session: {session_id[:8]}")
+    
+    def _get_messages_without_last_exchange(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Get messages without the last user-assistant exchange.
+        
+        Args:
+            messages: List of messages
+            
+        Returns:
+            Messages without the last exchange
+        """
+        if len(messages) <= 2:
+            return []
+        
+        # Find the second-to-last user message index
+        user_indices = []
+        for i, msg in enumerate(messages):
+            if msg.get('role') == 'user':
+                user_indices.append(i)
+        
+        if len(user_indices) < 2:
+            # If there's only one user message, return empty
+            return []
+        
+        # Get the second-to-last user message index
+        cutoff_index = user_indices[-2]
+        
+        # Return all messages up to and including that user message
+        return messages[:cutoff_index + 1]
+    
+    def _update_session_signature(self, session_id: str, new_signature: str):
+        """Update a session's signature.
+        
+        Args:
+            session_id: Session identifier
+            new_signature: New signature to set
+        """
+        if session_id not in self._sessions:
+            return
+        
+        session_info = self._sessions[session_id]
+        old_signature = session_info.signature
+        
+        # Remove old signature mapping
+        if old_signature in self._signature_to_session:
+            del self._signature_to_session[old_signature]
+        
+        # Update signature
+        session_info.signature = new_signature
+        self._signature_to_session[new_signature] = session_id
+        
+        # Update access time and message count
+        session_info.last_accessed = datetime.utcnow()
+        
+        # Move to end of OrderedDict to maintain LRU order
+        self._sessions.move_to_end(session_id)
