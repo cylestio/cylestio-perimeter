@@ -13,14 +13,35 @@ llm:
   timeout: 30
   max_retries: 3
 
-middlewares:
+interceptors:
   - type: "printer"
     enabled: true
     config:
       log_requests: true
       log_responses: true
-      log_body: false
+      log_body: true  # Required to count messages
+      show_sessions: true
+      show_llm_calls: true
+      show_tools: true
+
+  # Message logger for LLM conversations
+  - type: "message_logger"
+    enabled: true
+    config:
+      directory: "./message_logs"
+      filename: "message_log.jsonl"
+      include_system_prompts: true
+      include_metadata: true
+      buffer_size: 1  # Buffer 1 message before writing to disk (for testing)
+
+      
 
 logging:
   level: "INFO"
   format: "text"
+
+# Session management configuration (built into core platform)
+session:
+  enabled: true
+  max_sessions: 10000  # Maximum number of sessions to track in memory
+  session_ttl_seconds: 3600  # Sessions expire after 1 hour of inactivity

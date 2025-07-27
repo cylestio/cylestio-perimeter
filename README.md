@@ -7,9 +7,11 @@ A configurable Python proxy server for LLM API requests with middleware support,
 - **LLM Provider Support**: Proxy requests to OpenAI, Anthropic, and other LLM providers
 - **Streaming Support**: Handle Server-Sent Events (SSE) for real-time responses
 - **Request Tracing**: Capture and save request/response data to JSON files
+- **Session Management**: Intelligent session detection using message history hashing
 - **Middleware System**: Extensible middleware for cross-cutting concerns
 - **CLI Interface**: Simple command-line interface with configuration file support
 - **Docker Support**: Ready-to-use Docker containers
+- **Metrics Endpoint**: Monitor proxy performance and session statistics
 
 ## Quick Start
 
@@ -17,7 +19,7 @@ A configurable Python proxy server for LLM API requests with middleware support,
 
 1. **Clone and set up environment:**
    ```bash
-   cd cylestio-controller
+   cd cylestio-gateway
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
@@ -167,7 +169,42 @@ pytest tests/test_config.py -v
 ## API Endpoints
 
 - `GET /health` - Health check endpoint
+- `GET /metrics` - Metrics endpoint with session statistics
+- `GET /config` - Current server configuration and middleware status
 - `/{path:path}` - Catch-all proxy route (all HTTP methods)
+
+## Session Management
+
+The proxy includes intelligent session detection that tracks conversations across multiple requests:
+
+- **Hash-based Tracking**: Uses message history hashing to identify unique conversations
+- **LRU Cache**: Maintains up to 10,000 sessions with automatic eviction
+- **Session TTL**: Sessions expire after 1 hour of inactivity
+- **Fuzzy Matching**: Detects continued conversations even with slight variations
+- **Multiple Heuristics**: Identifies new sessions based on message count and reset phrases
+
+### Session Configuration
+
+```yaml
+session:
+  enabled: true
+  max_sessions: 10000
+  session_ttl_seconds: 3600
+```
+
+### Monitoring Sessions
+
+Access session metrics via the `/metrics` endpoint:
+
+```bash
+curl http://localhost:3000/metrics
+```
+
+Response includes:
+- Active sessions count
+- Cache hit/miss rates
+- Session creation rate
+- Fuzzy match statistics
 
 ## Environment Variables
 

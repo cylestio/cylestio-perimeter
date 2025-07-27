@@ -13,12 +13,7 @@ llm:
   timeout: 30
   max_retries: 1  # Fail fast in development
 
-middlewares:
-  # Disabled tracing for development speed
-  - type: "trace"
-    enabled: false
-    config:
-      directory: "./dev-traces"
+interceptors:
       
   # Verbose printer middleware
   - type: "printer"

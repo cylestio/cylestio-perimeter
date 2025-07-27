@@ -15,18 +15,8 @@ llm:
   timeout: 30
   max_retries: 3
 
-# Middleware configuration (processed in order)
-middlewares:
-  # Request/response tracing middleware
-  - type: "trace"
-    enabled: true
-    config:
-      directory: "./traces"
-      include_headers: true
-      include_body: true
-      max_body_size: 1048576  # 1MB in bytes
-      file_rotation: false
-      max_files: 100
+# Interceptor configuration (processed in order)
+interceptors:
 
   # Rate limiting middleware (future enhancement)
   - type: "rate_limit"

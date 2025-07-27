@@ -13,17 +13,7 @@ llm:
   timeout: 60
   max_retries: 5
 
-middlewares:
-  # Trace middleware with file rotation
-  - type: "trace"
-    enabled: true
-    config:
-      directory: "/var/log/llm-proxy/traces"
-      include_headers: true
-      include_body: true
-      max_body_size: 2097152  # 2MB limit
-      file_rotation: true
-      max_files: 1000
+interceptors:
       
   # Minimal printer middleware for production
   - type: "printer"

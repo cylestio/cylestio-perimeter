@@ -13,15 +13,7 @@ llm:
   timeout: 60
   max_retries: 3
 
-middlewares:
-  # Trace middleware captures all requests/responses
-  - type: "trace"
-    enabled: true
-    config:
-      directory: "./traces"
-      include_headers: true
-      include_body: true
-      max_body_size: 1048576  # 1MB limit
+interceptors:
       
   # Printer middleware for console logging
   - type: "printer"

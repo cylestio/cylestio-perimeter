@@ -35,11 +35,11 @@ class LLMConfig(BaseModel):
         return v
 
 
-class MiddlewareConfig(BaseModel):
-    """Individual middleware configuration."""
+class InterceptorConfig(BaseModel):
+    """Individual interceptor configuration."""
     
-    type: str = Field(..., description="Middleware identifier")
-    enabled: bool = Field(default=True, description="Enable/disable middleware")
+    type: str = Field(..., description="Interceptor identifier")
+    enabled: bool = Field(default=True, description="Enable/disable interceptor")
     config: Dict[str, Any] = Field(default_factory=dict, description="Type-specific configuration")
 
 
@@ -53,13 +53,23 @@ class LoggingConfig(BaseModel):
     backup_count: int = Field(default=5, ge=0, description="Number of backup files to keep")
 
 
+class SessionConfig(BaseModel):
+    """Session management configuration."""
+    
+    enabled: bool = Field(default=True, description="Enable session detection")
+    max_sessions: int = Field(default=10000, ge=100, description="Maximum number of sessions to track")
+    session_ttl_seconds: int = Field(default=3600, ge=60, description="Session time-to-live in seconds")
+    
+
+
 class Settings(BaseModel):
     """Main settings configuration."""
     
     server: ServerConfig = Field(default_factory=ServerConfig)
     llm: LLMConfig
-    middlewares: List[MiddlewareConfig] = Field(default_factory=list)
+    interceptors: List[InterceptorConfig] = Field(default_factory=list)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    session: SessionConfig = Field(default_factory=SessionConfig)
     
     @classmethod
     def from_yaml(cls, config_path: str) -> "Settings":

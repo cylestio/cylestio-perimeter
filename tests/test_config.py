@@ -56,7 +56,7 @@ class TestSettings:
         assert settings.llm.type == "openai"
         assert settings.server.port == 3000
         assert settings.server.host == "0.0.0.0"
-        assert len(settings.middlewares) == 0
+        assert len(settings.interceptors) == 0
     
     def test_from_yaml(self, tmp_path):
         """Test loading settings from YAML."""
@@ -69,12 +69,12 @@ class TestSettings:
             "server": {
                 "port": 8080
             },
-            "middlewares": [
+            "interceptors": [
                 {
-                    "type": "trace",
+                    "type": "printer",
                     "enabled": True,
                     "config": {
-                        "directory": "/tmp/traces"
+                        "log_requests": True
                     }
                 }
             ]
@@ -88,8 +88,8 @@ class TestSettings:
         assert settings.llm.base_url == "https://api.openai.com"
         assert settings.llm.api_key == "sk-test"
         assert settings.server.port == 8080
-        assert len(settings.middlewares) == 1
-        assert settings.middlewares[0].type == "trace"
+        assert len(settings.interceptors) == 1
+        assert settings.interceptors[0].type == "printer"
     
     def test_merge_cli_args(self):
         """Test merging CLI arguments."""
