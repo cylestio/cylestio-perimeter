@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional
 
 from fastapi import Request
 
-from src.models.events import EventType, MonitoringEvent, LLMEvent
 from src.providers.registry import registry
 from src.providers.base import SessionInfo
 from src.utils.logger import get_logger
@@ -28,21 +27,22 @@ class SessionDetector:
         )
         self._active_sessions: Dict[str, Dict[str, Any]] = {}
     
-    async def analyze_request(self, request: Request, trace_id: str) -> tuple[Optional[MonitoringEvent], Optional[LLMEvent]]:
-        """Analyze request for session and LLM events.
+    async def analyze_request(self, request: Request) -> Optional[Dict[str, Any]]:
+        """Analyze request for session information.
         
         Args:
             request: FastAPI request object
-            trace_id: Trace identifier
             
         Returns:
-            Tuple of (monitoring_event, llm_event) or (None, None)
+            Dictionary with session info or None if no session detected
         """
         # Get provider for this request
         provider = registry.get_provider(request)
         if not provider:
             logger.debug(f"No provider found for request: {request.url.path}")
             return None, None
+        
+        # TODO: OpenAI Response might have a session id built in the request
         
         # Parse request body
         try:
@@ -87,104 +87,74 @@ class SessionDetector:
             metadata=metadata
         )
         
-        # Create events
-        monitoring_event = None
-        llm_event = None
+        # Prepare session info result
+        result = {
+            "session_id": session_id,
+            "is_new_session": is_new_session,
+            "provider": provider.name,
+            "conversation_id": session_info.conversation_id,
+            "model": session_info.model,
+            "is_streaming": session_info.is_streaming,
+            "message_count": session_info.message_count,
+            "client_info": self._extract_client_info(request),
+            "method": request.method,
+            "url": str(request.url)
+        }
         
-        # Create monitoring event if new session
+        # Track session in our local cache if new
         if is_new_session:
-            monitoring_event = MonitoringEvent(
-                event_type=EventType.MONITORING_START,
-                session_id=session_id,
-                provider=provider.name,
-                trace_id=trace_id,
-                client_info=self._extract_client_info(request),
-                conversation_id=session_info.conversation_id,
-                message_count=session_info.message_count,
-                model=session_info.model
-            )
-            
-            # Track session in our local cache for compatibility
             self._active_sessions[session_id] = {
                 "provider": provider.name,
                 "conversation_id": session_info.conversation_id,
                 "model": session_info.model,
-                "start_time": monitoring_event.timestamp,
+                "start_time": None,  # Will be set by caller if needed
                 "message_count": session_info.message_count
             }
             
             logger.debug(f"Session started: {session_id} ({provider.name})")
         
-        # Always create LLM event for API calls
-        llm_event = LLMEvent(
-            event_type=EventType.LLM_CALL_START,
-            session_id=session_id,
-            provider=provider.name,
-            trace_id=trace_id,
-            method=request.method,
-            url=str(request.url),
-            model=session_info.model,
-            is_streaming=session_info.is_streaming
-        )
-        
-        return monitoring_event, llm_event
+        return result
     
-    def create_session_end_event(self, session_id: str, trace_id: str, success: bool = True) -> Optional[MonitoringEvent]:
-        """Create session end event.
+    def end_session(self, session_id: str, success: bool = True) -> Optional[Dict[str, Any]]:
+        """End a session and return its data.
         
         Args:
             session_id: Session identifier
-            trace_id: Trace identifier
             success: Whether session ended successfully
             
         Returns:
-            MonitoringEvent for session end or None
+            Session data or None if session not found
         """
         if session_id not in self._active_sessions:
             return None
         
         session_data = self._active_sessions.pop(session_id)
         
-        event = MonitoringEvent(
-            event_type=EventType.MONITORING_STOP,
-            session_id=session_id,
-            provider=session_data["provider"],
-            trace_id=trace_id,
-            conversation_id=session_data["conversation_id"],
-            model=session_data["model"]
-        )
-        
         logger.debug(f"Session ended: {session_id} ({'success' if success else 'error'})")
-        return event
+        return session_data
     
-    def create_llm_finish_event(self, session_id: str, trace_id: str, status_code: int, duration_ms: float, 
-                               provider: str, tokens_used: Optional[int] = None) -> LLMEvent:
-        """Create LLM call finish event.
+    def create_response_info(self, session_id: str, status_code: int, duration_ms: float, 
+                            provider: str, tokens_used: Optional[int] = None) -> Dict[str, Any]:
+        """Create response information.
         
         Args:
             session_id: Session identifier
-            trace_id: Trace identifier
             status_code: HTTP status code
             duration_ms: Request duration in milliseconds
             provider: Provider name
             tokens_used: Number of tokens used
             
         Returns:
-            LLMEvent for call completion
+            Dictionary with response information
         """
-        event_type = EventType.LLM_CALL_FINISH if 200 <= status_code < 300 else EventType.LLM_CALL_ERROR
-        
-        return LLMEvent(
-            event_type=event_type,
-            session_id=session_id,
-            provider=provider,
-            trace_id=trace_id,
-            method="",  # Not available in response
-            url="",     # Not available in response
-            status_code=status_code,
-            duration_ms=duration_ms,
-            response_tokens=tokens_used
-        )
+        return {
+            "session_id": session_id,
+            "provider": provider,
+            "status_code": status_code,
+            "duration_ms": duration_ms,
+            "response_tokens": tokens_used,
+            "success": 200 <= status_code < 300
+        }
     
     
     def _extract_client_info(self, request: Request) -> Dict[str, Any]:

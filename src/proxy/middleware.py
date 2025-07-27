@@ -176,23 +176,23 @@ class LLMMiddleware(BaseHTTPMiddleware):
             session_id = None
             provider = None
             
+            # Enrich the LLMRequestData with session information
             if self.session_detector:
                 try:
-                    trace_id = f"middleware_{int(time.time() * 1000)}"
-                    monitoring_event, llm_event = await self.session_detector.analyze_request(request, trace_id)
-                    if llm_event:
-                        session_id = llm_event.session_id
-                        provider = llm_event.provider
+                    session_info = await self.session_detector.analyze_request(request)
+                    if session_info:
+                        session_id = session_info.get("session_id")
+                        provider = session_info.get("provider")
                         # Use model from session detection if not found in body
-                        if not model and llm_event.model:
-                            model = llm_event.model
-                    if monitoring_event:
-                        provider = monitoring_event.provider
-                        # Use model from session detection if not found in body
-                        if not model and monitoring_event.model:
-                            model = monitoring_event.model
+                        if not model and session_info.get("model"):
+                            model = session_info["model"]
+                        # Also update streaming info if available
+                        if session_info.get("is_streaming") is not None:
+                            is_streaming = session_info["is_streaming"]
                 except Exception as e:
                     logger.debug(f"Failed to analyze session: {e}")
+
+            # TODO: Event Data
             
             # Create request data
             return LLMRequestData(
