@@ -45,15 +45,3 @@ session:
   enabled: true
   max_sessions: 10000  # Maximum number of sessions to track in memory
   session_ttl_seconds: 3600  # Sessions expire after 1 hour of inactivity
-  enable_fuzzy_matching: true  # Try to match continued conversations
-  similarity_threshold: 0.85  # Similarity score needed for fuzzy matching (0-1)
-  max_messages_for_new_session: 3  # Conversations with <= 3 messages may be new sessions
-  reset_phrases:  # Phrases that trigger a new session
-    - "start over"
-    - "new conversation"
-    - "reset"
-    - "clear"
-    - "begin again"
-    - "fresh start"
-    - "new session"
-    - "new chat"

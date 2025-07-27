@@ -21,9 +21,7 @@ class SessionDetector:
         # Use provided session manager or create default one
         self._session_manager = session_manager or SessionManager(
             max_sessions=10000,
-            session_ttl_seconds=3600,
-            enable_fuzzy_matching=True,
-            similarity_threshold=0.85
+            session_ttl_seconds=3600
         )
         self._active_sessions: Dict[str, Dict[str, Any]] = {}
     
@@ -216,16 +214,8 @@ def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> Sess
         # Extract session manager configuration
         session_manager = SessionManager(
             max_sessions=config.get("max_sessions", 10000),
-            session_ttl_seconds=config.get("session_ttl_seconds", 3600),
-            enable_fuzzy_matching=config.get("enable_fuzzy_matching", True),
-            similarity_threshold=config.get("similarity_threshold", 0.85)
+            session_ttl_seconds=config.get("session_ttl_seconds", 3600)
         )
-        
-        # Update reset phrases if provided
-        if "reset_phrases" in config:
-            # This would require adding a method to SessionManager to update reset phrases
-            # For now, we'll use the default ones
-            pass
         
         session_detector = SessionDetector(session_manager=session_manager)
     else:

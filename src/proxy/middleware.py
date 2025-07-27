@@ -34,8 +34,6 @@ class LLMMiddleware(BaseHTTPMiddleware):
             session_manager = SessionManager(
                 max_sessions=session_config.get('max_sessions', 10000),
                 session_ttl_seconds=session_config.get('session_ttl_seconds', 3600),
-                enable_fuzzy_matching=session_config.get('enable_fuzzy_matching', True),
-                similarity_threshold=session_config.get('similarity_threshold', 0.85)
             )
             self.session_detector = SessionDetector(session_manager)
         else:

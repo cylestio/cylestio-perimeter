@@ -19,9 +19,7 @@ class TestSessionDetector:
         """Create a session detector instance."""
         session_manager = SessionManager(
             max_sessions=10000,
-            session_ttl_seconds=3600,
-            enable_fuzzy_matching=True,
-            similarity_threshold=0.85
+            session_ttl_seconds=3600
         )
         return SessionDetector(session_manager=session_manager)
     

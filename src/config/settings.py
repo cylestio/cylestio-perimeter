@@ -59,18 +59,7 @@ class SessionConfig(BaseModel):
     enabled: bool = Field(default=True, description="Enable session detection")
     max_sessions: int = Field(default=10000, ge=100, description="Maximum number of sessions to track")
     session_ttl_seconds: int = Field(default=3600, ge=60, description="Session time-to-live in seconds")
-    enable_fuzzy_matching: bool = Field(default=True, description="Enable fuzzy matching for continued conversations")
-    similarity_threshold: float = Field(default=0.85, ge=0.0, le=1.0, description="Similarity threshold for fuzzy matching (0-1)")
     
-    # Heuristic configuration
-    max_messages_for_new_session: int = Field(default=3, ge=1, description="Maximum messages to consider as new session")
-    reset_phrases: List[str] = Field(
-        default=[
-            "start over", "new conversation", "reset", "clear",
-            "begin again", "fresh start", "new session", "new chat"
-        ],
-        description="Phrases that trigger a new session"
-    )
 
 
 class Settings(BaseModel):

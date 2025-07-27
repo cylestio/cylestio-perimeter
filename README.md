@@ -190,12 +190,6 @@ session:
   enabled: true
   max_sessions: 10000
   session_ttl_seconds: 3600
-  enable_fuzzy_matching: true
-  similarity_threshold: 0.85
-  reset_phrases:
-    - "start over"
-    - "new conversation"
-    - "reset"
 ```
 
 ### Monitoring Sessions
