@@ -24,17 +24,13 @@ interceptors:
       show_llm_calls: true
       show_tools: true
 
-  # Message logger for LLM conversations
-  - type: "message_logger"
+  # Cylestio trace interceptor
+  - type: "cylestio_trace"
     enabled: true
     config:
-      directory: "./message_logs"
-      filename: "message_log.jsonl"
-      include_system_prompts: true
-      include_metadata: true
-      buffer_size: 1  # Buffer 1 message before writing to disk (for testing)
-
-      
+      api_url: "http://localhost:8000"
+      access_key: "${CYLESTIO_ACCESS_KEY}"  # Set this environment variable
+      timeout: 10
 
 logging:
   level: "INFO"

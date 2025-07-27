@@ -16,6 +16,7 @@ from src.proxy.middleware import LLMMiddleware
 from src.proxy.interceptor_manager import interceptor_manager
 from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
+from src.interceptors.cylestio_trace import CylestioTraceInterceptor
 from src.proxy.handler import ProxyHandler
 from src.utils.logger import get_logger, setup_logging
 
@@ -69,6 +70,7 @@ def create_app(config: Settings) -> FastAPI:
     # Register interceptor types
     interceptor_manager.register_interceptor("printer", PrinterInterceptor)
     interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
+    interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
     
     # Create interceptors from configuration
     interceptors = interceptor_manager.create_interceptors(config.interceptors)
@@ -233,6 +235,15 @@ def generate_example_config(output_path: str):
                     "log_requests": True,
                     "log_responses": True,
                     "log_body": True
+                }
+            },
+            {
+                "type": "cylestio_trace",
+                "enabled": False,
+                "config": {
+                    "api_url": "https://api.cylestio.com",
+                    "access_key": "your-cylestio-access-key-here",
+                    "timeout": 10
                 }
             }
         ],
