@@ -67,16 +67,21 @@ class LLMCallStartEvent(CylestioEvent):
         session_id: Optional[str] = None
     ) -> "LLMCallStartEvent":
         """Create LLM call start event."""
+        attributes = {
+            "llm.vendor": vendor,
+            "llm.model": model,
+            "llm.request.data": request_data
+        }
+        
+        if session_id:
+            attributes["session.id"] = session_id
+            
         return cls(
             trace_id=trace_id,
             span_id=span_id,
             agent_id=agent_id,
             session_id=session_id,
-            attributes={
-                "llm.vendor": vendor,
-                "llm.model": model,
-                "llm.request.data": request_data
-            }
+            attributes=attributes
         )
 
 
@@ -115,6 +120,8 @@ class LLMCallFinishEvent(CylestioEvent):
             attributes["llm.usage.total_tokens"] = total_tokens
         if response_content is not None:
             attributes["llm.response.content"] = response_content
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
@@ -152,6 +159,8 @@ class LLMCallErrorEvent(CylestioEvent):
         
         if error_type:
             attributes["error.type"] = error_type
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
@@ -186,6 +195,8 @@ class ToolExecutionEvent(CylestioEvent):
         
         if framework_name:
             attributes["framework.name"] = framework_name
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
@@ -225,6 +236,8 @@ class ToolResultEvent(CylestioEvent):
             attributes["tool.result"] = result
         if error_message:
             attributes["error.message"] = error_message
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,

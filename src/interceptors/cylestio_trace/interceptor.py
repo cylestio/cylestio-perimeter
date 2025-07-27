@@ -64,7 +64,7 @@ class CylestioTraceInterceptor(BaseInterceptor):
         
         # Generate agent ID as hash of system prompt
         hash_obj = hashlib.md5(system_prompt.encode())
-        return f"agent-{hash_obj.hexdigest()[:12]}"
+        return f"prompt-{hash_obj.hexdigest()[:12]}"
     
     def _session_to_trace_span_id(self, session_id: str) -> str:
         """Convert session ID to OpenTelemetry-compatible trace/span ID (32-char hex).
