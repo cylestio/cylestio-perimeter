@@ -116,3 +116,4 @@ Currently implementing based on INSTRUCTIONS.md checklist:
 - Make sure to add documentation only if it is really important, let's not over document
 - Only export things you want to expose as interface or required by other files
 - **Important**: When planning, before implementing - review what you planned and make sure it makes sense and written efficiently
+- Once task is completed. Do a code-review on the code and fix it if needed - when reviewing make sure to maintain funcioncality and API (unless some unused API found)
