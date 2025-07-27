@@ -13,14 +13,43 @@ llm:
   timeout: 30
   max_retries: 3
 
-middlewares:
+interceptors:
+  # Cylestio smart session management - must be first!
+  - type: "cylestio_session"
+    enabled: true
+    config:
+      max_sessions: 10000  # Maximum number of sessions to track
+      session_ttl_seconds: 3600  # Session timeout in seconds
+      enable_fuzzy_matching: true  # Smart session continuation
+      similarity_threshold: 0.85  # Fuzzy matching threshold (0-1)
+      track_session_metrics: true  # Enable session metrics
+      include_client_info: true  # Include client IP, user-agent etc
+      log_session_events: true  # Log session start/end events
+
   - type: "printer"
     enabled: true
     config:
       log_requests: true
       log_responses: true
-      log_body: false
+      log_body: true  # Required to count messages
+      show_sessions: true
+      show_llm_calls: true
+      show_tools: true
+
+  # Message logger for LLM conversations
+  - type: "message_logger"
+    enabled: true
+    config:
+      directory: "./message_logs"
+      filename: "message_log.jsonl"
+      include_system_prompts: true
+      include_metadata: true
+      buffer_size: 10  # Buffer 10 messages before writing to disk
+
+      
 
 logging:
   level: "INFO"
   format: "text"
+
+# Session management is now handled by the cylestio_session interceptor above

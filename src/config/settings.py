@@ -35,11 +35,11 @@ class LLMConfig(BaseModel):
         return v
 
 
-class MiddlewareConfig(BaseModel):
-    """Individual middleware configuration."""
+class InterceptorConfig(BaseModel):
+    """Individual interceptor configuration."""
     
-    type: str = Field(..., description="Middleware identifier")
-    enabled: bool = Field(default=True, description="Enable/disable middleware")
+    type: str = Field(..., description="Interceptor identifier")
+    enabled: bool = Field(default=True, description="Enable/disable interceptor")
     config: Dict[str, Any] = Field(default_factory=dict, description="Type-specific configuration")
 
 
@@ -53,13 +53,35 @@ class LoggingConfig(BaseModel):
     backup_count: int = Field(default=5, ge=0, description="Number of backup files to keep")
 
 
+class SessionConfig(BaseModel):
+    """Session management configuration."""
+    
+    enabled: bool = Field(default=True, description="Enable session detection")
+    max_sessions: int = Field(default=10000, ge=100, description="Maximum number of sessions to track")
+    session_ttl_seconds: int = Field(default=3600, ge=60, description="Session time-to-live in seconds")
+    enable_fuzzy_matching: bool = Field(default=True, description="Enable fuzzy matching for continued conversations")
+    similarity_threshold: float = Field(default=0.85, ge=0.0, le=1.0, description="Similarity threshold for fuzzy matching (0-1)")
+    
+    # Heuristic configuration
+    max_messages_for_new_session: int = Field(default=3, ge=1, description="Maximum messages to consider as new session")
+    reset_phrases: List[str] = Field(
+        default=[
+            "start over", "new conversation", "reset", "clear",
+            "begin again", "fresh start", "new session", "new chat"
+        ],
+        description="Phrases that trigger a new session"
+    )
+
+
 class Settings(BaseModel):
     """Main settings configuration."""
     
     server: ServerConfig = Field(default_factory=ServerConfig)
     llm: LLMConfig
-    middlewares: List[MiddlewareConfig] = Field(default_factory=list)
+    interceptors: List[InterceptorConfig] = Field(default_factory=list)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    # Session config is deprecated - use cylestio_session interceptor instead
+    session: Optional[SessionConfig] = Field(default=None)
     
     @classmethod
     def from_yaml(cls, config_path: str) -> "Settings":

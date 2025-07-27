@@ -13,7 +13,7 @@ llm:
   timeout: 30
   max_retries: 3
 
-middlewares:
+interceptors:
   - type: "printer"
     enabled: true
     config:

@@ -1,6 +1,7 @@
 """Main entry point for LLM Proxy Server."""
 import sys
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 
@@ -11,8 +12,11 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse
 
 from src.config.settings import Settings, load_settings
-from src.middlewares.printer import PrinterMiddleware
-from src.middlewares.trace import TraceMiddleware
+from src.proxy.middleware import LLMMiddleware
+from src.proxy.interceptor_manager import interceptor_manager
+from src.interceptors.printer import PrinterInterceptor
+from src.interceptors.message_logger import MessageLoggerInterceptor
+from src.interceptors.cylestio import CylestioSessionInterceptor
 from src.proxy.handler import ProxyHandler
 from src.utils.logger import get_logger, setup_logging
 
@@ -41,6 +45,7 @@ def create_app(config: Settings) -> FastAPI:
     setup_logging(config.logging)
     logger.info("Starting LLM Proxy Server", extra={"config": config.model_dump()})
     
+    
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         """Manage application lifespan events."""
@@ -62,26 +67,69 @@ def create_app(config: Settings) -> FastAPI:
         lifespan=lifespan
     )
     
-    # Register middlewares in reverse order (last registered is executed first)
-    middleware_types = {
-        "trace": TraceMiddleware,
-        "printer": PrinterMiddleware,
-    }
+    # Register interceptor types
+    interceptor_manager.register_interceptor("printer", PrinterInterceptor)
+    interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
+    interceptor_manager.register_interceptor("cylestio_session", CylestioSessionInterceptor)
     
-    for middleware_config in reversed(config.middlewares):
-        if middleware_config.enabled and middleware_config.type in middleware_types:
-            middleware_class = middleware_types[middleware_config.type]
-            fast_app.add_middleware(
-                middleware_class,
-                config=middleware_config.config
-            )
-            logger.info(f"Registered middleware: {middleware_config.type}")
+    # Create interceptors from configuration
+    interceptors = interceptor_manager.create_interceptors(config.interceptors)
+    
+    # Register the LLM middleware with interceptors
+    if interceptors:
+        fast_app.add_middleware(LLMMiddleware, interceptors=interceptors)
+        logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors")
+    else:
+        logger.info("No interceptors enabled")
     
     # Health check endpoint
     @fast_app.get("/health")
     async def health_check():
         """Health check endpoint."""
         return {"status": "healthy", "service": "llm-proxy"}
+    
+    # Metrics endpoint
+    @fast_app.get("/metrics")
+    async def metrics():
+        """Metrics endpoint for monitoring."""
+        metrics_data = {
+            "service": "llm-proxy",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Add session metrics from Cylestio interceptor if available
+        # TODO: Get session metrics from active Cylestio interceptor instance
+        
+        return metrics_data
+    
+    # Configuration endpoint
+    @fast_app.get("/config")
+    async def get_config():
+        """Get current server configuration."""
+        config_data = {
+            "service": "llm-proxy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "server": config.server.model_dump(),
+            "llm": {
+                "base_url": config.llm.base_url,
+                "type": config.llm.type,
+                "timeout": config.llm.timeout,
+                "max_retries": config.llm.max_retries,
+                "api_key_configured": bool(config.llm.api_key)
+            },
+            "interceptors": [
+                {
+                    "type": ic.type,
+                    "enabled": ic.enabled,
+                    "config": ic.config
+                }
+                for ic in config.interceptors
+            ],
+            "session": config.session.model_dump(),
+            "logging": config.logging.model_dump()
+        }
+        
+        return config_data
     
     # Catch-all proxy route
     @fast_app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
@@ -172,15 +220,14 @@ def generate_example_config(output_path: str):
             "timeout": 30,
             "max_retries": 3
         },
-        "middlewares": [
+        "interceptors": [
             {
-                "type": "trace",
+                "type": "printer",
                 "enabled": True,
                 "config": {
-                    "directory": "./traces",
-                    "include_headers": True,
-                    "include_body": True,
-                    "max_body_size": 1048576
+                    "log_requests": True,
+                    "log_responses": True,
+                    "log_body": True
                 }
             }
         ],
@@ -209,7 +256,7 @@ def validate_configuration(config_path: str):
         typer.echo(f"✓ Configuration is valid: {config_path}")
         typer.echo(f"  - Server: {settings.server.host}:{settings.server.port}")
         typer.echo(f"  - LLM: {settings.llm.type} @ {settings.llm.base_url}")
-        typer.echo(f"  - Middlewares: {len(settings.middlewares)} configured")
+        typer.echo(f"  - Interceptors: {len(settings.interceptors)} configured")
     except Exception as e:
         typer.echo(f"✗ Configuration is invalid: {e}", err=True)
         raise typer.Exit(1)
