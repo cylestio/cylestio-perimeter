@@ -179,6 +179,24 @@ class CylestioTraceInterceptor(BaseInterceptor):
             await self._send_event_safe(session_start_event)
             self._session_event_counts[session_id] += 1
         
+        # Handle tool result events if present (when request contains tool results from previous execution)
+        if request_data.has_tool_results:
+            for tool_result in request_data.tool_results:
+                tool_result_event = ToolResultEvent.create(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    agent_id=self._get_agent_id(request_data),
+                    tool_name=tool_result.get("name", "unknown"),
+                    status="success",  # Assume success since result is present
+                    execution_time_ms=0.0,  # Not available in request
+                    result=tool_result.get("result"),
+                    session_id=session_id
+                )
+                await self._send_event_safe(tool_result_event)
+                
+                if session_id in self._session_event_counts:
+                    self._session_event_counts[session_id] += 1
+        
         # Send LLM call start event
         if request_data.provider and request_data.model:
             llm_start_event = LLMCallStartEvent.create(
@@ -194,22 +212,6 @@ class CylestioTraceInterceptor(BaseInterceptor):
             
             if session_id in self._session_event_counts:
                 self._session_event_counts[session_id] += 1
-        
-        # Handle tool execution events if present
-        if request_data.has_tool_results:
-            for tool_result in request_data.tool_results:
-                tool_event = ToolExecutionEvent.create(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    agent_id=self._get_agent_id(request_data),
-                    tool_name=tool_result.get("name", "unknown"),
-                    tool_params=tool_result.get("params", {}),
-                    session_id=session_id
-                )
-                await self._send_event_safe(tool_event)
-                
-                if session_id in self._session_event_counts:
-                    self._session_event_counts[session_id] += 1
         
         # Store trace/span ID for use in response (they're the same now)
         request_data.metadata["cylestio_trace_span_id"] = trace_span_id
@@ -259,20 +261,18 @@ class CylestioTraceInterceptor(BaseInterceptor):
             if session_id in self._session_event_counts:
                 self._session_event_counts[session_id] += 1
         
-        # Handle tool result events if present
+        # Handle tool execution events if present (when LLM response contains tool use requests)
         if response_data.has_tool_requests:
             for tool_request in response_data.tool_uses_request:
-                tool_result_event = ToolResultEvent.create(
+                tool_execution_event = ToolExecutionEvent.create(
                     trace_id=trace_id,
                     span_id=span_id,
                     agent_id=self._get_agent_id(request_data),
                     tool_name=tool_request.get("name", "unknown"),
-                    status="success",  # Assume success for now
-                    execution_time_ms=0.0,  # Not available
-                    result=tool_request.get("result"),
+                    tool_params=tool_request.get("input", {}),
                     session_id=session_id
                 )
-                await self._send_event_safe(tool_result_event)
+                await self._send_event_safe(tool_execution_event)
                 
                 if session_id in self._session_event_counts:
                     self._session_event_counts[session_id] += 1
