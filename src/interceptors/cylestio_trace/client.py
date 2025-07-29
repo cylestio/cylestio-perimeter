@@ -83,7 +83,7 @@ class CylestioClient:
             
             # Log the event being sent (at debug level)
             logger.debug(f"Sending event to Cylestio: {event.name} for session {event.session_id}")
-            
+
             # Send HTTP POST request with JWT token
             response = await self._client.post(
                 f"{self.api_url}/v1/telemetry",
