@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .system_info import get_cached_system_info
+
 
 class EventLevel(str, Enum):
     """Event level enumeration."""
@@ -48,7 +50,11 @@ class CylestioEvent(BaseModel):
     agent_id: str = Field(..., description="Agent identifier")
     session_id: Optional[str] = Field(default=None, description="Session identifier")
     attributes: Dict[str, Any] = Field(default_factory=dict, description="Event-specific attributes")
-
+    
+    def model_post_init(self, __context: Any) -> None:
+        """Post-initialization to enrich with system information."""
+        system_info = get_cached_system_info()
+        self.attributes.update(system_info)
 
 class LLMCallStartEvent(CylestioEvent):
     """LLM call start event."""
