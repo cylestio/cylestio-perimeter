@@ -10,18 +10,13 @@ from .base import BaseProvider, SessionInfo
 class AnthropicProvider(BaseProvider):
     """Anthropic API provider implementation."""
     
+    def __init__(self, settings=None):
+        """Initialize Anthropic provider."""
+        super().__init__(settings)
+    
     @property
     def name(self) -> str:
         return "anthropic"
-    
-    def can_handle(self, request: Request) -> bool:
-        """Check if this is an Anthropic API request."""
-        path = request.url.path
-        return (
-            path.startswith("/v1/messages") or
-            "anthropic" in request.headers.get("user-agent", "").lower() or
-            "anthropic-version" in request.headers
-        )
     
     async def detect_session_info(self, request: Request, body: Dict[str, Any]) -> SessionInfo:
         """Detect session info from Anthropic request."""

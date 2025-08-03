@@ -18,6 +18,8 @@ from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
 from src.interceptors.cylestio_trace import CylestioTraceInterceptor
 from src.proxy.handler import ProxyHandler
+from src.providers.openai import OpenAIProvider
+from src.providers.anthropic import AnthropicProvider
 from src.utils.logger import get_logger, setup_logging
 
 # CLI app
@@ -51,8 +53,8 @@ def create_app(config: Settings) -> FastAPI:
         """Manage application lifespan events."""
         global proxy_handler
         
-        # Startup
-        proxy_handler = ProxyHandler(config)
+        # Startup - use the same provider instance created for middleware
+        proxy_handler = ProxyHandler(config, provider)
         yield
         
         # Shutdown
@@ -81,13 +83,22 @@ def create_app(config: Settings) -> FastAPI:
         session_config = config.session.model_dump()
         logger.info("Session detection enabled", extra={"session_config": session_config})
     
-    # Register the LLM middleware with interceptors and session management
+    # Create provider based on config type
+    if config.llm.type.lower() == "openai":
+        provider = OpenAIProvider(config)
+    elif config.llm.type.lower() == "anthropic":
+        provider = AnthropicProvider(config)
+    else:
+        raise ValueError(f"Unsupported provider type: {config.llm.type}. Supported: openai, anthropic")
+    
+    # Register the LLM middleware with provider, interceptors and session management
     fast_app.add_middleware(
         LLMMiddleware, 
+        provider=provider,
         interceptors=interceptors,
         session_config=session_config
     )
-    logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors")
+    logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors and provider: {provider.name}")
     
     # Health check endpoint
     @fast_app.get("/health")

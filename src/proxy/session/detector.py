@@ -5,8 +5,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import Request
 
-from src.providers.registry import registry
-from src.providers.base import SessionInfo
+from src.providers.base import BaseProvider, SessionInfo
 from src.utils.logger import get_logger
 from .manager import SessionManager
 
@@ -16,7 +15,14 @@ logger = get_logger(__name__)
 class SessionDetector:
     """Detects and tracks LLM conversation sessions."""
     
-    def __init__(self, session_manager: Optional[SessionManager] = None):
+    def __init__(self, provider: BaseProvider, session_manager: Optional[SessionManager] = None):
+        """Initialize session detector with a provider.
+        
+        Args:
+            provider: The provider instance to use for session detection
+            session_manager: Optional session manager, creates default if not provided
+        """
+        self.provider = provider
         # Use provided session manager or create default one
         self._session_manager = session_manager or SessionManager(
             max_sessions=10000,
@@ -24,7 +30,7 @@ class SessionDetector:
         )
     
     async def analyze_request(self, request: Request) -> Optional[Dict[str, Any]]:
-        """Analyze request for session information.
+        """Analyze request for session information using the configured provider.
         
         Args:
             request: FastAPI request object
@@ -32,14 +38,6 @@ class SessionDetector:
         Returns:
             Dictionary with session info or None if no session detected
         """
-        # Get provider for this request
-        provider = registry.get_provider(request)
-        if not provider:
-            logger.debug(f"No provider found for request: {request.url.path}")
-            return None
-        
-        # TODO: OpenAI Response might have a session id built in the request
-        
         # Parse request body
         try:
             # Handle both real requests and mocks
@@ -52,50 +50,29 @@ class SessionDetector:
                 body_bytes = request.body
             
             if not body_bytes:
-                return None, None
+                return None
             
             body = json.loads(body_bytes) if body_bytes else {}
         except (json.JSONDecodeError, Exception) as e:
             logger.warning(f"Failed to parse request body: {e}")
             return None
         
-        # Get session info from provider
-        session_info = await provider.detect_session_info(request, body)
+        # Get session info from the configured provider
+        session_info = await self.provider.detect_session_info(request, body)
         
         # Debug logging (can be enabled for troubleshooting)
         logger.debug(f"Session analysis: conversation_id={session_info.conversation_id}, "
                     f"is_start={session_info.is_session_start}, "
                     f"message_count={session_info.message_count}")
         
-        # Use SessionManager to detect session, but respect provider's session detection
-        # for stateful APIs like /v1/responses
-        messages = body.get("messages", [])
-        system_prompt = body.get("system")
-        metadata = {
-            "provider": provider.name,
-            "conversation_id": session_info.conversation_id,
-            "model": session_info.model,
-            "client_info": self._extract_client_info(request)
-        }
-        
-        # For stateful APIs like /v1/responses, trust the provider's session detection
-        if request.url.path.startswith("/responses") and not session_info.is_session_start and session_info.conversation_id:
-            # Use the provider's conversation_id as the session_id and mark as continuing session
-            session_id = session_info.conversation_id
-            is_new_session = False
-        else:
-            # Use traditional SessionManager detection for other endpoints
-            session_id, is_new_session = self._session_manager.detect_session(
-                messages=messages,
-                system_prompt=system_prompt,
-                metadata=metadata
-            )
+        # Determine session ID based on provider's session detection
+        session_id, is_new_session = self._determine_session(request, body, session_info)
         
         # Prepare session info result
         result = {
             "session_id": session_id,
             "is_new_session": is_new_session,
-            "provider": provider.name,
+            "provider": self.provider.name,
             "conversation_id": session_info.conversation_id,
             "model": session_info.model,
             "is_streaming": session_info.is_streaming,
@@ -106,6 +83,38 @@ class SessionDetector:
         }
         
         return result
+    
+    def _determine_session(self, request: Request, body: Dict[str, Any], session_info: SessionInfo) -> tuple[str, bool]:
+        """Determine session ID and whether it's new, delegating provider-specific logic to the provider.
+        
+        Args:
+            request: FastAPI request object
+            body: Parsed request body
+            session_info: Session information from provider
+            
+        Returns:
+            Tuple of (session_id, is_new_session)
+        """
+        # For provider-specific stateful detection, use provider's conversation_id when appropriate
+        if session_info.conversation_id and not session_info.is_session_start:
+            # Provider indicates this is a continuing session
+            return session_info.conversation_id, False
+        
+        # Use traditional SessionManager detection for regular message-based sessions
+        messages = body.get("messages", [])
+        system_prompt = body.get("system")
+        metadata = {
+            "provider": self.provider.name,
+            "conversation_id": session_info.conversation_id,
+            "model": session_info.model,
+            "client_info": self._extract_client_info(request)
+        }
+        
+        return self._session_manager.detect_session(
+            messages=messages,
+            system_prompt=system_prompt,
+            metadata=metadata
+        )
     
     
     def _extract_client_info(self, request: Request) -> Dict[str, Any]:
@@ -148,10 +157,14 @@ class SessionDetector:
     
 
 
-def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> SessionDetector:
-    """Initialize a session detector with optional configuration.
+def initialize_session_detector(
+    provider: BaseProvider, 
+    config: Optional[Dict[str, Any]] = None
+) -> SessionDetector:
+    """Initialize a session detector with a provider and optional configuration.
     
     Args:
+        provider: The provider instance to use for session detection
         config: Session configuration dictionary
         
     Returns:
@@ -164,7 +177,7 @@ def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> Sess
             session_ttl_seconds=config.get("session_ttl_seconds", 3600)
         )
         
-        return SessionDetector(session_manager=session_manager)
+        return SessionDetector(provider=provider, session_manager=session_manager)
     else:
         # Use default configuration
-        return SessionDetector()
+        return SessionDetector(provider=provider)

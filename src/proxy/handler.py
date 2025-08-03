@@ -7,6 +7,7 @@ from fastapi import Request, Response
 from fastapi.responses import StreamingResponse
 
 from src.config.settings import Settings
+from src.providers.base import BaseProvider
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,13 +16,15 @@ logger = get_logger(__name__)
 class ProxyHandler:
     """Handles proxying requests to LLM providers."""
     
-    def __init__(self, settings: Settings):
-        """Initialize proxy handler with settings.
+    def __init__(self, settings: Settings, provider: BaseProvider):
+        """Initialize proxy handler with settings and provider.
         
         Args:
             settings: Application settings
+            provider: Provider instance for this proxy
         """
         self.settings = settings
+        self.provider = provider
         self.client = httpx.AsyncClient(
             timeout=httpx.Timeout(settings.llm.timeout),
             follow_redirects=True,
@@ -48,9 +51,10 @@ class ProxyHandler:
             if k.lower() not in excluded_headers
         }
         
-        # Add API key if configured
-        if self.settings.llm.api_key:
-            headers["Authorization"] = f"Bearer {self.settings.llm.api_key}"
+        # Add API key from provider
+        api_key = self.provider.get_api_key()
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         
         return headers
     
@@ -64,7 +68,7 @@ class ProxyHandler:
             True if streaming is requested
         """
         if isinstance(body, dict):
-            return body.get("stream", False) is True
+            return self.provider.extract_streaming_from_body(body)
         return False
     
     async def handle_request(self, request: Request, path: str) -> Response:
@@ -77,8 +81,9 @@ class ProxyHandler:
         Returns:
             Response object
         """
-        # Build target URL
-        target_url = f"{self.settings.llm.base_url}/{path}"
+        # Build target URL using provider
+        base_url = self.provider.get_base_url()
+        target_url = f"{base_url}/{path}"
         if request.url.query:
             target_url += f"?{request.url.query}"
         

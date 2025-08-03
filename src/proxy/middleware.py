@@ -9,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.proxy.session import SessionDetector
 from src.proxy.tools import ToolParser
+from src.providers.base import BaseProvider
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,21 +18,23 @@ logger = get_logger(__name__)
 class LLMMiddleware(BaseHTTPMiddleware):
     """Core middleware that handles LLM request/response detection and runs interceptors."""
     
-    def __init__(self, app, **kwargs):
-        """Initialize LLM middleware with interceptors and session management.
+    def __init__(self, app, provider: BaseProvider, **kwargs):
+        """Initialize LLM middleware with provider, interceptors and session management.
         
         Args:
             app: FastAPI application
+            provider: The provider instance for this middleware
             **kwargs: Contains 'interceptors' and 'session_config' keys
         """
         super().__init__(app)
+        self.provider = provider
         interceptors = kwargs.get('interceptors', [])
         self.interceptors = [i for i in interceptors if i.enabled]
         
         # Initialize tool parser
         self.tool_parser = ToolParser()
         
-        # Initialize session detector with configuration
+        # Initialize session detector with provider and configuration
         session_config = kwargs.get('session_config')
         if session_config:
             from src.proxy.session.manager import SessionManager
@@ -39,11 +42,12 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 max_sessions=session_config.get('max_sessions', 10000),
                 session_ttl_seconds=session_config.get('session_ttl_seconds', 3600),
             )
-            self.session_detector = SessionDetector(session_manager)
+            self.session_detector = SessionDetector(provider, session_manager)
         else:
-            self.session_detector = None
+            self.session_detector = SessionDetector(provider)
         
         logger.info(f"LLM Middleware initialized with {len(self.interceptors)} interceptors")
+        logger.info(f"  - Provider: {self.provider.name}")
         if self.session_detector:
             logger.info("  - Session detection: enabled")
         else:
@@ -138,16 +142,13 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     logger.error(f"Error in {interceptor.name}.after_response: {e}", exc_info=True)
             
             # Notify provider of response if we have session info
-            if request_data.provider and request_data.session_id and response_body:
+            if request_data.session_id and response_body:
                 try:
-                    from src.providers.registry import registry
-                    provider = registry.get_provider_by_name(request_data.provider)
-                    if provider:
-                        await provider.notify_response(
-                            session_id=request_data.session_id,
-                            request=request_data.request,
-                            response_body=response_body
-                        )
+                    await self.provider.notify_response(
+                        session_id=request_data.session_id,
+                        request=request_data.request,
+                        response_body=response_body
+                    )
                 except Exception as e:
                     logger.debug(f"Error notifying provider of response: {e}")
             
@@ -189,12 +190,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     logger.warning("Failed to parse request body as JSON")
                     return None
             
-            # Extract model from request body first
-            model = body.get("model") if body else None
+            # Extract model from request body first, then use provider if needed
+            model = None
+            if body:
+                model = self.provider.extract_model_from_body(body)
             
-            # Detect session information using core platform session detection
+            # Detect session information using provider-aware session detection
             session_id = None
-            provider = None
+            provider_name = self.provider.name
             
             # Enrich the LLMRequestData with session information
             is_new_session = False
@@ -203,7 +206,6 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     session_info = await self.session_detector.analyze_request(request)
                     if session_info:
                         session_id = session_info.get("session_id")
-                        provider = session_info.get("provider")
                         is_new_session = session_info.get("is_new_session", False)
                         # Use model from session detection if not found in body
                         if not model and session_info.get("model"):
@@ -225,7 +227,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 body=body,
                 is_streaming=is_streaming,
                 session_id=session_id,
-                provider=provider,
+                provider=provider_name,
                 model=model,
                 is_new_session=is_new_session,
                 tool_results=tool_results

@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple
 
 from fastapi import Request
+from src.config.settings import Settings
 
 
 class SessionInfo:
@@ -30,22 +31,18 @@ class SessionInfo:
 class BaseProvider(ABC):
     """Base class for LLM provider session detection."""
     
+    def __init__(self, settings: Optional[Settings] = None):
+        """Initialize provider with settings.
+        
+        Args:
+            settings: Application settings (optional for backward compatibility)
+        """
+        self.settings = settings
+    
     @property
     @abstractmethod
     def name(self) -> str:
         """Provider name identifier."""
-        pass
-    
-    @abstractmethod
-    def can_handle(self, request: Request) -> bool:
-        """Check if this provider can handle the request.
-        
-        Args:
-            request: FastAPI request object
-            
-        Returns:
-            True if provider can handle this request
-        """
         pass
     
     @abstractmethod
@@ -109,3 +106,23 @@ class BaseProvider(ABC):
             response_body: The parsed response body (if JSON)
         """
         pass
+    
+    def get_base_url(self) -> str:
+        """Get the base URL for this provider.
+        
+        Returns:
+            Base URL from settings or default
+        """
+        if self.settings:
+            return self.settings.llm.base_url
+        return ""
+    
+    def get_api_key(self) -> Optional[str]:
+        """Get the API key for this provider.
+        
+        Returns:
+            API key from settings if available
+        """
+        if self.settings:
+            return self.settings.llm.api_key
+        return None

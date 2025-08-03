@@ -10,24 +10,14 @@ from .base import BaseProvider, SessionInfo
 class OpenAIProvider(BaseProvider):
     """OpenAI API provider implementation."""
     
-    def __init__(self):
+    def __init__(self, settings=None):
         """Initialize OpenAI provider."""
-        super().__init__()
+        super().__init__(settings)
         self.response_sessions: Dict[str, str] = {}  # response_id → session_id
     
     @property
     def name(self) -> str:
         return "openai"
-    
-    def can_handle(self, request: Request) -> bool:
-        """Check if this is an OpenAI API request."""
-        path = request.url.path
-        return (
-            path.startswith("/v1/chat/completions") or
-            path.startswith("/v1/completions") or
-            path.startswith("/v1/responses") or
-            "openai" in request.headers.get("user-agent", "").lower()
-        )
     
     async def detect_session_info(self, request: Request, body: Dict[str, Any]) -> SessionInfo:
         """Detect session info from OpenAI request."""
