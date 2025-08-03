@@ -42,6 +42,20 @@ class ProviderRegistry:
                 return provider
         return None
     
+    def get_provider_by_name(self, name: str) -> Optional[BaseProvider]:
+        """Get a provider by its name.
+        
+        Args:
+            name: Provider name
+            
+        Returns:
+            Provider instance or None if not found
+        """
+        for provider in self._providers:
+            if provider.name == name:
+                return provider
+        return None
+    
     def list_providers(self) -> List[str]:
         """List all registered provider names.
         

@@ -137,6 +137,20 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 except Exception as e:
                     logger.error(f"Error in {interceptor.name}.after_response: {e}", exc_info=True)
             
+            # Notify provider of response if we have session info
+            if request_data.provider and request_data.session_id and response_body:
+                try:
+                    from src.providers.registry import registry
+                    provider = registry.get_provider_by_name(request_data.provider)
+                    if provider:
+                        await provider.notify_response(
+                            session_id=request_data.session_id,
+                            request=request_data.request,
+                            response_body=response_body
+                        )
+                except Exception as e:
+                    logger.debug(f"Error notifying provider of response: {e}")
+            
             return response_data.response
             
         except Exception as e:

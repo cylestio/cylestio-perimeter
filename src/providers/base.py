@@ -95,3 +95,17 @@ class BaseProvider(ABC):
             Dictionary of metadata
         """
         return {}
+    
+    async def notify_response(self, session_id: str, request: Request, 
+                            response_body: Optional[Dict[str, Any]]) -> None:
+        """Notify provider of response data.
+        
+        Called after a response is received from the LLM API.
+        Providers can use this to track response IDs or other stateful information.
+        
+        Args:
+            session_id: The session ID associated with this request
+            request: The original request object
+            response_body: The parsed response body (if JSON)
+        """
+        pass

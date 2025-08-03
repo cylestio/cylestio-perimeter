@@ -67,7 +67,8 @@ class SessionDetector:
                     f"is_start={session_info.is_session_start}, "
                     f"message_count={session_info.message_count}")
         
-        # Use SessionManager to detect session
+        # Use SessionManager to detect session, but respect provider's session detection
+        # for stateful APIs like /v1/responses
         messages = body.get("messages", [])
         system_prompt = body.get("system")
         metadata = {
@@ -77,11 +78,18 @@ class SessionDetector:
             "client_info": self._extract_client_info(request)
         }
         
-        session_id, is_new_session = self._session_manager.detect_session(
-            messages=messages,
-            system_prompt=system_prompt,
-            metadata=metadata
-        )
+        # For stateful APIs like /v1/responses, trust the provider's session detection
+        if request.url.path.startswith("/responses") and not session_info.is_session_start and session_info.conversation_id:
+            # Use the provider's conversation_id as the session_id and mark as continuing session
+            session_id = session_info.conversation_id
+            is_new_session = False
+        else:
+            # Use traditional SessionManager detection for other endpoints
+            session_id, is_new_session = self._session_manager.detect_session(
+                messages=messages,
+                system_prompt=system_prompt,
+                metadata=metadata
+            )
         
         # Prepare session info result
         result = {
