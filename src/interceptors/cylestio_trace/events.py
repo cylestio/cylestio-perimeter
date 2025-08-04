@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .system_info import get_cached_system_info
+
 
 class EventLevel(str, Enum):
     """Event level enumeration."""
@@ -48,7 +50,11 @@ class CylestioEvent(BaseModel):
     agent_id: str = Field(..., description="Agent identifier")
     session_id: Optional[str] = Field(default=None, description="Session identifier")
     attributes: Dict[str, Any] = Field(default_factory=dict, description="Event-specific attributes")
-
+    
+    def model_post_init(self, __context: Any) -> None:
+        """Post-initialization to enrich with system information."""
+        system_info = get_cached_system_info()
+        self.attributes.update(system_info)
 
 class LLMCallStartEvent(CylestioEvent):
     """LLM call start event."""
@@ -67,16 +73,21 @@ class LLMCallStartEvent(CylestioEvent):
         session_id: Optional[str] = None
     ) -> "LLMCallStartEvent":
         """Create LLM call start event."""
+        attributes = {
+            "llm.vendor": vendor,
+            "llm.model": model,
+            "llm.request.data": request_data
+        }
+        
+        if session_id:
+            attributes["session.id"] = session_id
+            
         return cls(
             trace_id=trace_id,
             span_id=span_id,
             agent_id=agent_id,
             session_id=session_id,
-            attributes={
-                "llm.vendor": vendor,
-                "llm.model": model,
-                "llm.request.data": request_data
-            }
+            attributes=attributes
         )
 
 
@@ -115,6 +126,8 @@ class LLMCallFinishEvent(CylestioEvent):
             attributes["llm.usage.total_tokens"] = total_tokens
         if response_content is not None:
             attributes["llm.response.content"] = response_content
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
@@ -152,6 +165,8 @@ class LLMCallErrorEvent(CylestioEvent):
         
         if error_type:
             attributes["error.type"] = error_type
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
@@ -186,6 +201,8 @@ class ToolExecutionEvent(CylestioEvent):
         
         if framework_name:
             attributes["framework.name"] = framework_name
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
@@ -225,6 +242,8 @@ class ToolResultEvent(CylestioEvent):
             attributes["tool.result"] = result
         if error_message:
             attributes["error.message"] = error_message
+        if session_id:
+            attributes["session.id"] = session_id
             
         return cls(
             trace_id=trace_id,
