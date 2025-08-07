@@ -29,7 +29,6 @@ build/
 # Project specific
 traces/
 message_logs/
-events/
 *.log
 .env
 .env.local
