@@ -38,7 +38,7 @@ class CylestioClient:
         # Initialize Descope authenticator for JWT token generation
         self._authenticator = DescopeAuthenticator.get_instance(access_key=access_key)
     
-    async def __aenter__(self):
+    async def __aenter__(self) -> "CylestioClient":
         """Async context manager entry."""
         # Create client without Authorization header initially
         self._client = httpx.AsyncClient(
@@ -50,7 +50,7 @@ class CylestioClient:
         )
         return self
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         if self._client:
             await self._client.aclose()

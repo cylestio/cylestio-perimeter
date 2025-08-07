@@ -31,7 +31,7 @@ class ProxyHandler:
             limits=httpx.Limits(max_keepalive_connections=25, max_connections=100)
         )
     
-    async def close(self):
+    async def close(self) -> None:
         """Close the HTTP client."""
         await self.client.aclose()
     

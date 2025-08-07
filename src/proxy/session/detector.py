@@ -29,33 +29,35 @@ class SessionDetector:
             session_ttl_seconds=3600
         )
     
-    async def analyze_request(self, request: Request) -> Optional[Dict[str, Any]]:
+    async def analyze_request(self, request: Request, body: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         """Analyze request for session information using the configured provider.
         
         Args:
             request: FastAPI request object
+            body: Parsed request body if already available
             
         Returns:
             Dictionary with session info or None if no session detected
         """
-        # Parse request body
-        try:
-            # Handle both real requests and mocks
-            if hasattr(request.body, '__call__'):
-                if asyncio.iscoroutinefunction(request.body):
-                    body_bytes = await request.body()
+        # Use provided parsed body when available to avoid duplicate parsing
+        if body is None:
+            try:
+                # Handle both real requests and mocks
+                if hasattr(request.body, '__call__'):
+                    if asyncio.iscoroutinefunction(request.body):
+                        body_bytes = await request.body()
+                    else:
+                        body_bytes = request.body()
                 else:
-                    body_bytes = request.body()
-            else:
-                body_bytes = request.body
-            
-            if not body_bytes:
+                    body_bytes = request.body
+                
+                if not body_bytes:
+                    return None
+                
+                body = json.loads(body_bytes) if body_bytes else {}
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"Failed to parse request body: {e}")
                 return None
-            
-            body = json.loads(body_bytes) if body_bytes else {}
-        except (json.JSONDecodeError, Exception) as e:
-            logger.warning(f"Failed to parse request body: {e}")
-            return None
         
         # Get session info from the configured provider
         session_info = await self.provider.detect_session_info(request, body)

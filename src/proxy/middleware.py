@@ -225,7 +225,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
             is_new_session = False
             if self.session_detector:
                 try:
-                    session_info = await self.session_detector.analyze_request(request)
+                    session_info = await self.session_detector.analyze_request(request, body)
                     if session_info:
                         session_id = session_info.get("session_id")
                         is_new_session = session_info.get("is_new_session", False)

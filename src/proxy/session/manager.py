@@ -18,7 +18,7 @@ SIGNATURE_CONTENT_MAX_CHARS = 100
 SYSTEM_PROMPT_MAX_CHARS = 100
 
 
-class SessionInfo:
+class SessionRecord:
     """Information about a tracked session."""
     
     def __init__(
@@ -57,7 +57,7 @@ class SessionManager:
         
         # Thread-safe session storage
         self._lock = RLock()
-        self._sessions: OrderedDict[str, SessionInfo] = OrderedDict()
+        self._sessions: OrderedDict[str, SessionRecord] = OrderedDict()
         self._signature_to_session: Dict[str, str] = {}  # signature -> session_id
         
         # Metrics
@@ -153,7 +153,7 @@ class SessionManager:
         logger.debug(f"Session continued: {session_id[:8]}")
         return session_id, False
     
-    def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
+    def get_session_info(self, session_id: str) -> Optional[SessionRecord]:
         """Get information about a session.
         
         Args:
@@ -263,7 +263,7 @@ class SessionManager:
         
         # Create session info
         now = datetime.utcnow()
-        session_info = SessionInfo(
+        session_info = SessionRecord(
             session_id=session_id,
             signature=signature,
             created_at=now,
