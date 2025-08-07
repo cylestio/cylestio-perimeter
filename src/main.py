@@ -74,22 +74,22 @@ def create_app(config: Settings) -> FastAPI:
     interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
     interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
     
-    # Create interceptors from configuration
-    interceptors = interceptor_manager.create_interceptors(config.interceptors)
-    
-    # Prepare session configuration for middleware
-    session_config = None
-    if config.session:
-        session_config = config.session.model_dump()
-        logger.info("Session detection enabled", extra={"session_config": session_config})
-    
-    # Create provider based on config type
+    # Create provider based on config type first (needed for interceptors)
     if config.llm.type.lower() == "openai":
         provider = OpenAIProvider(config)
     elif config.llm.type.lower() == "anthropic":
         provider = AnthropicProvider(config)
     else:
         raise ValueError(f"Unsupported provider type: {config.llm.type}. Supported: openai, anthropic")
+    
+    # Create interceptors from configuration with provider info
+    interceptors = interceptor_manager.create_interceptors(config.interceptors, provider.name)
+    
+    # Prepare session configuration for middleware
+    session_config = None
+    if config.session:
+        session_config = config.session.model_dump()
+        logger.info("Session detection enabled", extra={"session_config": session_config})
     
     # Register the LLM middleware with provider, interceptors and session management
     fast_app.add_middleware(

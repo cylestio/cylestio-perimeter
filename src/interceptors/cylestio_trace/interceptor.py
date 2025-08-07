@@ -12,6 +12,7 @@ from .events import (
     SessionStartEvent, SessionEndEvent,
     generate_span_id
 )
+from .parsers import get_parser_for_provider
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,10 @@ class CylestioTraceInterceptor(BaseInterceptor):
         # Track sessions for session events
         self._active_sessions: Dict[str, float] = {}  # session_id -> start_time
         self._session_event_counts: Dict[str, int] = {}  # session_id -> event_count
+        
+        # Create parser for the provider we're working with
+        provider_name = config.get("provider_name")
+        self.parser = get_parser_for_provider(provider_name)
     
     @property
     def name(self) -> str:
@@ -47,20 +52,7 @@ class CylestioTraceInterceptor(BaseInterceptor):
     
     def _get_agent_id(self, request_data: LLMRequestData) -> str:
         """Get agent ID derived from system prompt hash (calculated per request)."""
-        # Extract system prompt from request body (TODO: is this OpenAI?)
-        system_prompt = ""
-        if request_data.body:
-            messages = request_data.body.get("messages", [])
-            for message in messages:
-                if message.get("role") == "system":
-                    content = message.get("content", "")
-                    if isinstance(content, str):
-                        system_prompt = content
-                    break
-        
-        # Fallback to default if no system prompt found
-        if not system_prompt:
-            system_prompt = request_data.body.get("system", "default-agent")
+        system_prompt = self.parser.extract_system_prompt(request_data.body)
         
         # Generate agent ID as hash of system prompt
         hash_obj = hashlib.md5(system_prompt.encode())
@@ -84,66 +76,11 @@ class CylestioTraceInterceptor(BaseInterceptor):
         Returns:
             Tuple of (input_tokens, output_tokens, total_tokens)
         """
-        if not response_body:
-            return None, None, None
-        
-        # Check for OpenAI format
-        usage = response_body.get("usage", {})
-        if usage:
-            return (
-                usage.get("prompt_tokens"),
-                usage.get("completion_tokens"),
-                usage.get("total_tokens")
-            )
-        
-        # Check for Anthropic format
-        if "usage" in response_body:
-            usage = response_body["usage"]
-            return (
-                usage.get("input_tokens"),
-                usage.get("output_tokens"),
-                usage.get("input_tokens", 0) + usage.get("output_tokens", 0) if 
-                usage.get("input_tokens") and usage.get("output_tokens") else None
-            )
-        
-        return None, None, None
+        return self.parser.extract_usage_tokens(response_body)
     
     def _extract_response_content(self, response_body: Optional[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
         """Extract response content from response body."""
-        if not response_body:
-            return None
-        
-        # OpenAI format
-        choices = response_body.get("choices", [])
-        if choices:
-            content = []
-            for choice in choices:
-                message = choice.get("message", {})
-                if "content" in message:
-                    content.append({"text": message["content"]})
-            return content if content else None
-        
-        # Anthropic format
-        if "content" in response_body:
-            anthropic_content = response_body["content"]
-            if isinstance(anthropic_content, list):
-                content = []
-                for item in anthropic_content:
-                    if item.get("type") == "text":
-                        content.append({"text": item.get("text", "")})
-                    elif item.get("type") == "tool_use":
-                        content.append({
-                            "tool_use": {
-                                "id": item.get("id"),
-                                "name": item.get("name"),
-                                "input": item.get("input")
-                            }
-                        })
-                return content if content else None
-            elif isinstance(anthropic_content, str):
-                return [{"text": anthropic_content}]
-        
-        return None
+        return self.parser.extract_response_content(response_body)
     
     async def _send_event_safe(self, event) -> bool:
         """Send event with error handling."""

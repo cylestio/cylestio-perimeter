@@ -120,7 +120,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 )
             
             # Parse tool information from response
-            tool_uses_request = self.tool_parser.parse_tool_requests(response_body)
+            tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
             
             # Create response data with parsed body
             response_data = LLMResponseData(
@@ -217,7 +217,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     logger.debug(f"Failed to analyze session: {e}")
 
             # Parse tool information from request
-            tool_results = self.tool_parser.parse_tool_results(body)
+            tool_results = self.tool_parser.parse_tool_results(body, provider_name)
             
             # TODO: Event Data
             
