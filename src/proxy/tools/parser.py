@@ -69,14 +69,31 @@ class ToolParser:
         if "messages" not in body:
             return []
         
+        # First, collect all tool_use blocks to map tool_use_id to tool name
+        tool_use_map = {}
+        for message in body["messages"]:
+            if message.get("role") == "assistant" and isinstance(message.get("content"), list):
+                for content_item in message["content"]:
+                    if isinstance(content_item, dict) and content_item.get("type") == "tool_use":
+                        tool_use_id = content_item.get("id")
+                        tool_name = content_item.get("name")
+                        if tool_use_id and tool_name:
+                            tool_use_map[tool_use_id] = tool_name
+        
+        # Now parse tool results and match them with tool names
         tool_results = []
         for message in body["messages"]:
             if message.get("role") == "user" and isinstance(message.get("content"), list):
                 for content_item in message["content"]:
                     if isinstance(content_item, dict) and content_item.get("type") == "tool_result":
+                        tool_use_id = content_item.get("tool_use_id")
+                        tool_name = tool_use_map.get(tool_use_id, "unknown")
+                        
                         tool_results.append({
-                            "tool_use_id": content_item.get("tool_use_id"),
-                            "content": content_item.get("content"),
+                            "tool_use_id": tool_use_id,
+                            "name": tool_name,  # Add the tool name!
+                            "result": content_item.get("content"),
+                            "content": content_item.get("content"),  # Keep for backward compatibility
                             "is_error": content_item.get("is_error", False)
                         })
         
@@ -126,10 +143,20 @@ class ToolParser:
             
             for tool_call in tool_calls:
                 function = tool_call.get("function", {})
+                
+                # Parse arguments if it's a JSON string (OpenAI format)
+                args = function.get("arguments", {})
+                if isinstance(args, str):
+                    try:
+                        import json
+                        args = json.loads(args)
+                    except (json.JSONDecodeError, TypeError):
+                        args = {"raw_arguments": args}
+                
                 tool_uses.append({
                     "id": tool_call.get("id"),
                     "name": function.get("name"),
-                    "input": function.get("arguments", {})
+                    "input": args
                 })
         
         return tool_uses

@@ -1,6 +1,7 @@
 """OpenAI provider for session detection."""
 import hashlib
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import Request
@@ -120,7 +121,10 @@ class OpenAIProvider(BaseProvider):
         return metadata
     
     def _generate_conversation_id(self, messages: list) -> str:
-        """Generate a conversation ID from message history."""
+        """Generate a conversation ID from message history.
+        
+        Note: Tool messages are excluded to maintain stable conversation IDs across tool interactions.
+        """
         if not messages:
             return "empty"
         
@@ -132,15 +136,28 @@ class OpenAIProvider(BaseProvider):
             if isinstance(content, str):
                 conversation_text += f"system:{content[:100]}"
         
-        # Use first user message to create stable ID (this defines the conversation)
-        first_user_msg = next((msg for msg in messages if msg.get("role") == "user"), None)
+        # Use first user message (excluding tool messages) to create stable ID
+        # Skip tool messages to maintain conversation stability
+        first_user_msg = next(
+            (msg for msg in messages 
+             if msg.get("role") == "user"), 
+            None
+        )
         if first_user_msg:
             content = first_user_msg.get("content", "")
             if isinstance(content, str):
                 conversation_text += f"user:{content[:100]}"  # First 100 chars
         
-        # Create short hash
-        return hashlib.md5(conversation_text.encode()).hexdigest()[:8]
+        # Create stable hash - use full UUID format for better uniqueness
+        if conversation_text:
+            # Generate a proper UUID-like session ID from the conversation
+            hash_value = hashlib.md5(conversation_text.encode()).hexdigest()
+            # Format as UUID-like string (8-4-4-4-12 format)
+            return f"{hash_value[:8]}-{hash_value[8:12]}-{hash_value[12:16]}-{hash_value[16:20]}-{hash_value[20:32]}"
+        else:
+            # If no valid conversation text, generate a new UUID
+            import uuid
+            return str(uuid.uuid4())
     
     def _generate_conversation_id_from_instructions(self, instructions: str) -> str:
         """Generate a conversation ID from instructions field (for /v1/responses)."""
@@ -151,8 +168,10 @@ class OpenAIProvider(BaseProvider):
         # Take first 200 chars of instructions for hashing to ensure stability
         instructions_text = f"instructions:{instructions[:200]}"
         
-        # Create short hash
-        return hashlib.md5(instructions_text.encode()).hexdigest()[:8]
+        # Create stable hash - use full UUID format for better uniqueness
+        hash_value = hashlib.md5(instructions_text.encode()).hexdigest()
+        # Format as UUID-like string (8-4-4-4-12 format)
+        return f"{hash_value[:8]}-{hash_value[8:12]}-{hash_value[12:16]}-{hash_value[16:20]}-{hash_value[20:32]}"
     
     async def notify_response(self, session_id: str, request: Request,
                             response_body: Optional[Dict[str, Any]]) -> None:
