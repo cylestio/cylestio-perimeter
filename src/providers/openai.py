@@ -1,10 +1,16 @@
 """OpenAI provider for session detection."""
 import hashlib
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Dict, List, Optional
 
 from fastapi import Request
 
 from .base import BaseProvider, SessionInfo
+from src.events.types import (
+    SessionStartEvent, LLMCallStartEvent, ToolResultEvent, 
+    LLMCallFinishEvent, ToolExecutionEvent, LLMCallErrorEvent
+)
+from src.events.base import generate_span_id
 
 
 class OpenAIProvider(BaseProvider):
@@ -179,3 +185,191 @@ class OpenAIProvider(BaseProvider):
             oldest_entries = list(self.response_sessions.items())[:1000]
             for old_id, _ in oldest_entries:
                 del self.response_sessions[old_id]
+    
+    def _get_agent_id(self, body: Dict[str, Any]) -> str:
+        """Get agent ID derived from system prompt hash (calculated per request)."""
+        system_prompt = self._extract_system_prompt(body)
+        
+        # Generate agent ID as hash of system prompt
+        hash_obj = hashlib.md5(system_prompt.encode())
+        return f"prompt-{hash_obj.hexdigest()[:12]}"
+    
+    def _extract_system_prompt(self, body: Dict[str, Any]) -> str:
+        """Extract system prompt from OpenAI request body."""
+        messages = body.get("messages", [])
+        
+        # Look for system message
+        for message in messages:
+            if message.get("role") == "system":
+                content = message.get("content", "")
+                return content if isinstance(content, str) else str(content)
+        
+        # For /v1/responses endpoint, use instructions as system prompt
+        if "instructions" in body:
+            return body["instructions"]
+        
+        # Default if no system message found
+        return "default-system"
+    
+    def _session_to_trace_span_id(self, session_id: str) -> str:
+        """Convert session ID to OpenTelemetry-compatible trace/span ID (32-char hex).
+        
+        For now, trace_id and span_id are identical and derived from session_id.
+        """
+        if not session_id:
+            return generate_span_id() + generate_span_id()  # 32 chars
+        
+        # Create deterministic ID from session ID
+        hash_obj = hashlib.md5(session_id.encode())
+        return hash_obj.hexdigest()  # 32-char hex string
+    
+    def _extract_usage_tokens(self, response_body: Optional[Dict[str, Any]]) -> tuple[Optional[int], Optional[int], Optional[int]]:
+        """Extract token usage from response body.
+        
+        Returns:
+            Tuple of (input_tokens, output_tokens, total_tokens)
+        """
+        if not response_body:
+            return None, None, None
+        
+        usage = response_body.get("usage", {})
+        if not usage:
+            return None, None, None
+        
+        return (
+            usage.get("prompt_tokens"),
+            usage.get("completion_tokens"),
+            usage.get("total_tokens")
+        )
+    
+    def _extract_response_content(self, response_body: Optional[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+        """Extract response content from response body."""
+        if not response_body:
+            return None
+        
+        choices = response_body.get("choices", [])
+        if not choices:
+            return None
+        
+        content = []
+        for choice in choices:
+            message = choice.get("message", {})
+            if message:
+                content.append(message)
+        
+        return content if content else None
+    
+    def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
+                             session_id: str, is_new_session: bool, 
+                             tool_results: List[Dict[str, Any]]) -> List[Any]:
+        """Extract and create events from request data using original interceptor logic."""
+        events = []
+        
+        if not session_id:
+            return events
+        
+        # Use same ID for both trace and span (derived from session)
+        trace_span_id = self._session_to_trace_span_id(session_id)
+        trace_id = trace_span_id
+        span_id = trace_span_id
+        agent_id = self._get_agent_id(body)
+        
+        # Handle session start event
+        if is_new_session:
+            session_start_event = SessionStartEvent.create(
+                trace_id=trace_id,
+                span_id=span_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                client_type="gateway"
+            )
+            events.append(session_start_event)
+        
+        # Handle tool result events if present (when request contains tool results from previous execution)
+        if tool_results:
+            for tool_result in tool_results:
+                tool_result_event = ToolResultEvent.create(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    agent_id=agent_id,
+                    tool_name=tool_result.get("name", "unknown"),
+                    status="success",  # Assume success since result is present
+                    execution_time_ms=0.0,  # Not available in request
+                    result=tool_result.get("result"),
+                    session_id=session_id
+                )
+                events.append(tool_result_event)
+        
+        # Send LLM call start event
+        if session_info.model:
+            llm_start_event = LLMCallStartEvent.create(
+                trace_id=trace_id,
+                span_id=span_id,
+                agent_id=agent_id,
+                vendor=self.name,
+                model=session_info.model,
+                request_data=body or {},
+                session_id=session_id
+            )
+            events.append(llm_start_event)
+        
+        return events
+    
+    def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
+                              session_id: str, duration_ms: float, 
+                              tool_uses: List[Dict[str, Any]], 
+                              request_metadata: Dict[str, Any]) -> List[Any]:
+        """Extract and create events from response data using original interceptor logic."""
+        events = []
+        
+        if not session_id:
+            return events
+        
+        # Get trace/span ID from request metadata (they're the same)
+        trace_span_id = request_metadata.get("cylestio_trace_span_id")
+        
+        if not trace_span_id:
+            return events
+        
+        trace_id = trace_span_id
+        span_id = trace_span_id
+        
+        # Get agent_id and model from metadata
+        agent_id = request_metadata.get("agent_id", "unknown")
+        model = request_metadata.get("model", "unknown")
+        
+        # Extract token usage and response content
+        input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(response_body)
+        response_content = self._extract_response_content(response_body)
+        
+        # Send LLM call finish event
+        if model:
+            llm_finish_event = LLMCallFinishEvent.create(
+                trace_id=trace_id,
+                span_id=span_id,
+                agent_id=agent_id,
+                vendor=self.name,
+                model=model,
+                duration_ms=duration_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                response_content=response_content,
+                session_id=session_id
+            )
+            events.append(llm_finish_event)
+        
+        # Handle tool execution events if present (when LLM response contains tool use requests)
+        if tool_uses:
+            for tool_request in tool_uses:
+                tool_execution_event = ToolExecutionEvent.create(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                    agent_id=agent_id,
+                    tool_name=tool_request.get("name", "unknown"),
+                    tool_params=tool_request.get("input", {}),
+                    session_id=session_id
+                )
+                events.append(tool_execution_event)
+        
+        return events

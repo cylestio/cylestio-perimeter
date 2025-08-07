@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 import httpx
 
-from .events import CylestioEvent
+from src.events.base import BaseEvent
 from .api_authentication import DescopeAuthenticator
 
 logger = logging.getLogger(__name__)
@@ -56,11 +56,11 @@ class CylestioClient:
             await self._client.aclose()
             self._client = None
     
-    async def send_event(self, event: CylestioEvent) -> bool:
+    async def send_event(self, event: BaseEvent) -> bool:
         """Send a single event to Cylestio API.
         
         Args:
-            event: CylestioEvent to send
+            event: BaseEvent to send
             
         Returns:
             True if successful, False otherwise
@@ -115,11 +115,11 @@ class CylestioClient:
             logger.error(f"Unexpected error sending event {event.name}: {e}")
             return False
     
-    async def send_events_batch(self, events: list[CylestioEvent]) -> Dict[str, int]:
+    async def send_events_batch(self, events: list[BaseEvent]) -> Dict[str, int]:
         """Send multiple events in a batch.
         
         Args:
-            events: List of CylestioEvent objects to send
+            events: List of BaseEvent objects to send
             
         Returns:
             Dict with 'success' and 'failed' counts

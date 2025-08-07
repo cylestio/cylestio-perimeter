@@ -1,6 +1,6 @@
 """Base provider interface for session detection."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Request
 from src.config.settings import Settings
@@ -126,3 +126,38 @@ class BaseProvider(ABC):
         if self.settings:
             return self.settings.llm.api_key
         return None
+    
+    def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
+                             session_id: str, is_new_session: bool, 
+                             tool_results: List[Dict[str, Any]]) -> List[Any]:
+        """Extract and create events from request data.
+        
+        Args:
+            body: Request body
+            session_info: Session information
+            session_id: Session identifier
+            is_new_session: Whether this is a new session
+            tool_results: Any tool results from request
+            
+        Returns:
+            List of event objects to be sent
+        """
+        return []
+    
+    def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
+                              session_id: str, duration_ms: float, 
+                              tool_uses: List[Dict[str, Any]], 
+                              request_metadata: Dict[str, Any]) -> List[Any]:
+        """Extract and create events from response data.
+        
+        Args:
+            response_body: Response body
+            session_id: Session identifier
+            duration_ms: Response duration
+            tool_uses: Any tool uses from response
+            request_metadata: Metadata from request processing
+            
+        Returns:
+            List of event objects to be sent
+        """
+        return []

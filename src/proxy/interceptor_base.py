@@ -16,7 +16,8 @@ class LLMRequestData:
         provider: Optional[str] = None,
         model: Optional[str] = None,
         is_new_session: bool = False,
-        tool_results: Optional[List[Dict[str, Any]]] = None
+        tool_results: Optional[List[Dict[str, Any]]] = None,
+        events: Optional[List[Any]] = None
     ):
         self.request = request
         self.body = body
@@ -30,6 +31,9 @@ class LLMRequestData:
         # Set tool information from parsed data
         self.tool_results = tool_results or []
         self.has_tool_results = bool(self.tool_results)
+        
+        # Set events from parsed data
+        self.events = events or []
     
 
 class LLMResponseData:
@@ -42,7 +46,8 @@ class LLMResponseData:
         duration_ms: float = 0.0,
         session_id: Optional[str] = None,
         status_code: int = 200,
-        tool_uses_request: Optional[List[Dict[str, Any]]] = None
+        tool_uses_request: Optional[List[Dict[str, Any]]] = None,
+        events: Optional[List[Any]] = None
     ):
         self.response = response
         self.body = body
@@ -54,6 +59,9 @@ class LLMResponseData:
         # Set tool information from parsed data
         self.tool_uses_request = tool_uses_request or []
         self.has_tool_requests = bool(self.tool_uses_request)
+        
+        # Set events from parsed data
+        self.events = events or []
     
 
 class BaseInterceptor(ABC):

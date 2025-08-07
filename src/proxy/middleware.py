@@ -122,6 +122,27 @@ class LLMMiddleware(BaseHTTPMiddleware):
             # Parse tool information from response
             tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
             
+            # Extract events from response using provider
+            response_events = []
+            if request_data.session_id and response_body:
+                try:
+                    # Get metadata from request state
+                    request_metadata = {
+                        'cylestio_trace_span_id': getattr(request_data.request.state, 'cylestio_trace_span_id', None),
+                        'agent_id': getattr(request_data.request.state, 'agent_id', 'unknown'),
+                        'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown')
+                    }
+                    
+                    response_events = self.provider.extract_response_events(
+                        response_body=response_body,
+                        session_id=request_data.session_id,
+                        duration_ms=duration_ms,
+                        tool_uses=tool_uses_request,
+                        request_metadata=request_metadata
+                    )
+                except Exception as e:
+                    logger.debug(f"Error extracting response events: {e}")
+            
             # Create response data with parsed body
             response_data = LLMResponseData(
                 response=response,
@@ -129,7 +150,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 duration_ms=duration_ms,
                 session_id=request_data.session_id,
                 status_code=response.status_code,
-                tool_uses_request=tool_uses_request
+                tool_uses_request=tool_uses_request,
+                events=response_events
             )
             
             # Run after_response interceptors
@@ -219,7 +241,34 @@ class LLMMiddleware(BaseHTTPMiddleware):
             # Parse tool information from request
             tool_results = self.tool_parser.parse_tool_results(body, provider_name)
             
-            # TODO: Event Data
+            # Extract events from request using provider
+            events = []
+            if session_id and body:
+                try:
+                    # Get session info from session detector for event creation
+                    session_info_obj = None
+                    if self.session_detector and hasattr(self.session_detector, 'provider'):
+                        session_info_obj = await self.session_detector.provider.detect_session_info(request, body)
+                    
+                    if session_info_obj:
+                        events = self.provider.extract_request_events(
+                            body=body,
+                            session_info=session_info_obj,
+                            session_id=session_id,
+                            is_new_session=is_new_session,
+                            tool_results=tool_results
+                        )
+                        
+                        # Store trace/span ID and other metadata for response events
+                        if events and hasattr(self.provider, '_session_to_trace_span_id'):
+                            trace_span_id = self.provider._session_to_trace_span_id(session_id)
+                            agent_id = self.provider._get_agent_id(body)
+                            request.state.cylestio_trace_span_id = trace_span_id
+                            request.state.agent_id = agent_id
+                            request.state.model = model
+                            
+                except Exception as e:
+                    logger.debug(f"Error extracting request events: {e}")
             
             # Create request data
             return LLMRequestData(
@@ -230,7 +279,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 provider=provider_name,
                 model=model,
                 is_new_session=is_new_session,
-                tool_results=tool_results
+                tool_results=tool_results,
+                events=events
             )
             
         except Exception as e:
