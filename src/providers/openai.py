@@ -31,7 +31,7 @@ class OpenAIProvider(BaseProvider):
         path = request.url.path
 
         # Handle the new /v1/responses endpoint differently
-        if path.startswith("/responses"):
+        if "/responses" in path:
             # Check for previous_response_id to maintain session continuity
             previous_response_id = body.get("previous_response_id")
             if previous_response_id and previous_response_id in self.response_sessions:
@@ -293,8 +293,8 @@ class OpenAIProvider(BaseProvider):
         span_id = trace_span_id
         agent_id = self._get_agent_id(body)
         
-        # Handle session start event
-        if is_new_session:
+        # Handle session start event (Responses API may signal start via instructions)
+        if is_new_session or session_info.is_session_start:
             session_start_event = SessionStartEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,

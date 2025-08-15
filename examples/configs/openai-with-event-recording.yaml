@@ -1,5 +1,5 @@
-# Basic OpenAI Configuration
-# Usage: python -m src.main --config examples/configs/openai-basic.yaml
+# OpenAI Configuration with Event Recording
+# Usage: python -m src.main --config examples/configs/openai-with-event-recording.yaml
 
 server:
   port: 3000
@@ -20,14 +20,6 @@ interceptors:
       log_responses: true
       log_body: false
 
-  # Cylestio trace interceptor
-  - type: "cylestio_trace"
-    enabled: true
-    config:
-      api_url: "http://localhost:8000"
-      access_key: "${CYLESTIO_ACCESS_KEY}"  # Set this environment variable
-      timeout: 10
-
   # Event recorder - saves raw events to disk per session
   - type: "event_recorder"
     enabled: true
@@ -37,6 +29,13 @@ interceptors:
       pretty_print: false               # Pretty-print JSON (only for "json" format)
       include_metadata: true            # Include file metadata
       
+  # Cylestio trace interceptor
+  - type: "cylestio_trace"
+    enabled: true
+    config:
+      api_url: "http://localhost:8000"
+      access_key: "${CYLESTIO_ACCESS_KEY}"  # Set this environment variable
+      timeout: 10
       
 logging:
   level: "INFO"
