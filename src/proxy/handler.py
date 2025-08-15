@@ -25,15 +25,10 @@ class ProxyHandler:
         """
         self.settings = settings
         self.provider = provider
-        self.client = httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.llm.timeout),
-            follow_redirects=True,
-            limits=httpx.Limits(max_keepalive_connections=25, max_connections=100)
-        )
     
     async def close(self) -> None:
-        """Close the HTTP client."""
-        await self.client.aclose()
+        """No-op: clients are created per request."""
+        return None
     
     def _prepare_headers(self, request_headers: Dict[str, str]) -> Dict[str, str]:
         """Prepare headers for the proxied request.
@@ -161,12 +156,17 @@ class ProxyHandler:
         Returns:
             Response object
         """
-        response = await self.client.request(
-            method=method,
-            url=url,
-            headers=headers,
-            content=content
-        )
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(self.settings.llm.timeout),
+            follow_redirects=True,
+            limits=httpx.Limits(max_keepalive_connections=0, keepalive_expiry=0, max_connections=100),
+        ) as client:
+            response = await client.request(
+                method=method,
+                url=url,
+                headers=headers,
+                content=content,
+            )
         
         # Copy response headers, excluding some
         excluded_response_headers = {"content-encoding", "content-length", "transfer-encoding"}
@@ -201,18 +201,23 @@ class ProxyHandler:
         """
         async def stream_generator():
             """Generate streaming response chunks."""
-            async with self.client.stream(
-                method=method,
-                url=url,
-                headers=headers,
-                content=content
-            ) as response:
-                # Log response status
-                logger.info(f"Streaming response status: {response.status_code}")
-                
-                # Stream the response
-                async for chunk in response.aiter_bytes(chunk_size=1024):
-                    yield chunk
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.settings.llm.timeout),
+                follow_redirects=True,
+                limits=httpx.Limits(max_keepalive_connections=0, keepalive_expiry=0, max_connections=100),
+            ) as client:
+                async with client.stream(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    content=content,
+                ) as response:
+                    # Log response status
+                    logger.info(f"Streaming response status: {response.status_code}")
+                    
+                    # Stream the response
+                    async for chunk in response.aiter_bytes(chunk_size=1024):
+                        yield chunk
         
         # For SSE responses, use text/event-stream
         media_type = "text/event-stream"

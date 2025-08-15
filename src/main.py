@@ -17,6 +17,7 @@ from src.proxy.interceptor_manager import interceptor_manager
 from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
 from src.interceptors.cylestio_trace import CylestioTraceInterceptor
+from src.interceptors.event_recorder import EventRecorderInterceptor
 from src.proxy.handler import ProxyHandler
 from src.providers.openai import OpenAIProvider
 from src.providers.anthropic import AnthropicProvider
@@ -51,6 +52,7 @@ def create_app(config: Settings) -> FastAPI:
     interceptor_manager.register_interceptor("printer", PrinterInterceptor)
     interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
     interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
+    interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
     
     # Create provider based on config type first (needed for interceptors and lifespan)
     if config.llm.type.lower() == "openai":

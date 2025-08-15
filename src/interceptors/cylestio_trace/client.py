@@ -70,7 +70,7 @@ class CylestioClient:
         """
         if not self._client:
             raise RuntimeError("Client not initialized. Use async context manager.")
-        
+                
         try:
             # Get JWT token for authorization
             jwt_token = self._authenticator.get_jwt_token()
