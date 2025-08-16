@@ -1,12 +1,11 @@
 """OpenAI provider for session detection."""
 import hashlib
-import time
-import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import Request
 
 from .base import BaseProvider, SessionInfo
+from .session_utils import create_session_utility
 from src.events.types import (
     SessionStartEvent, LLMCallStartEvent, ToolResultEvent, 
     LLMCallFinishEvent, ToolExecutionEvent, LLMCallErrorEvent
@@ -21,6 +20,9 @@ class OpenAIProvider(BaseProvider):
         """Initialize OpenAI provider."""
         super().__init__(settings)
         self.response_sessions: Dict[str, str] = {}  # response_id → session_id
+
+        # Initialize session utility for message-based detection
+        self._session_utility = create_session_utility()
     
     @property
     def name(self) -> str:
@@ -39,32 +41,57 @@ class OpenAIProvider(BaseProvider):
                 conversation_id = self.response_sessions[previous_response_id]
                 is_session_start = False
             else:
-                # New session - generate ID from instructions
-                instructions = body.get("instructions", "")
-                conversation_id = self._generate_conversation_id_from_instructions(instructions)
-                is_session_start = bool(instructions)
-            
+                # New session - extract conversation history from input field
+                input_data = body.get("input", [])
+                
+                if isinstance(input_data, list) and input_data:
+                    # The input field contains the conversation history
+                    messages = input_data
+                else:
+                    # Fallback: use existing system prompt extraction logic
+                    system_prompt = self._extract_system_prompt(body)
+                    messages = [{"role": "system", "content": system_prompt}] if system_prompt else []
+                
+                # Extract system prompt for session detection using existing method
+                system_prompt = self._extract_system_prompt(body)
+                
+                # Use shared session utility for consistent session detection
+                conversation_id, is_session_start, is_fragmented = self._session_utility.detect_session(
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    metadata={
+                        "provider": self.name,
+                        "model": body.get("model"),
+                        "endpoint": "responses"
+                    }
+                )
+
+
             is_session_end = False
             message_count = 1  # Responses API is stateful, count individual requests
-            
+        
+        # Chat completions and completions endpoints
         else:
-            # Original logic for chat completions and completions endpoints
+            # Use shared session detection utility for message-based sessions
             messages = body.get("messages", [])
             message_count = len(messages)
             
-            # Generate conversation ID from message history
-            conversation_id = self._generate_conversation_id(messages)
+            # Extract system prompt for session detection
+            system_prompt = self._extract_system_prompt(body)
             
-            # Count user and assistant messages
-            user_messages = [m for m in messages if m.get("role") == "user"]
-            assistant_messages = [m for m in messages if m.get("role") == "assistant"]
-            
-            # Session start: Only user messages and no assistant responses (truly new conversation)
-            is_session_start = (
-                len(user_messages) >= 1 and 
-                len(assistant_messages) == 0
+            # Use shared session utility to detect/continue session
+            conversation_id, is_session_start, is_fragmented = self._session_utility.detect_session(
+                messages=messages,
+                system_prompt=system_prompt,
+                metadata={
+                    "provider": self.name,
+                    "model": body.get("model"),
+                    "endpoint": "chat_completions"
+                }
             )
             
+            
+
             # Session end: determined by response success/failure, not request
             is_session_end = False
         
@@ -120,59 +147,6 @@ class OpenAIProvider(BaseProvider):
         
         return metadata
     
-    def _generate_conversation_id(self, messages: list) -> str:
-        """Generate a conversation ID from message history.
-        
-        Note: Tool messages are excluded to maintain stable conversation IDs across tool interactions.
-        """
-        if not messages:
-            return "empty"
-        
-        # Start with system message if present
-        conversation_text = ""
-        system_msg = next((msg for msg in messages if msg.get("role") == "system"), None)
-        if system_msg:
-            content = system_msg.get("content", "")
-            if isinstance(content, str):
-                conversation_text += f"system:{content[:100]}"
-        
-        # Use first user message (excluding tool messages) to create stable ID
-        # Skip tool messages to maintain conversation stability
-        first_user_msg = next(
-            (msg for msg in messages 
-             if msg.get("role") == "user"), 
-            None
-        )
-        if first_user_msg:
-            content = first_user_msg.get("content", "")
-            if isinstance(content, str):
-                conversation_text += f"user:{content[:100]}"  # First 100 chars
-        
-        # Create stable hash - use full UUID format for better uniqueness
-        if conversation_text:
-            # Generate a proper UUID-like session ID from the conversation
-            hash_value = hashlib.md5(conversation_text.encode()).hexdigest()
-            # Format as UUID-like string (8-4-4-4-12 format)
-            return f"{hash_value[:8]}-{hash_value[8:12]}-{hash_value[12:16]}-{hash_value[16:20]}-{hash_value[20:32]}"
-        else:
-            # If no valid conversation text, generate a new UUID
-            import uuid
-            return str(uuid.uuid4())
-    
-    def _generate_conversation_id_from_instructions(self, instructions: str) -> str:
-        """Generate a conversation ID from instructions field (for /v1/responses)."""
-        if not instructions:
-            return "empty-instructions"
-        
-        # Use the instructions field to create a stable conversation ID
-        # Take first 200 chars of instructions for hashing to ensure stability
-        instructions_text = f"instructions:{instructions[:200]}"
-        
-        # Create stable hash - use full UUID format for better uniqueness
-        hash_value = hashlib.md5(instructions_text.encode()).hexdigest()
-        # Format as UUID-like string (8-4-4-4-12 format)
-        return f"{hash_value[:8]}-{hash_value[8:12]}-{hash_value[12:16]}-{hash_value[16:20]}-{hash_value[20:32]}"
-    
     async def notify_response(self, session_id: str, request: Request,
                             response_body: Optional[Dict[str, Any]]) -> None:
         """Track response IDs for session continuity.
@@ -183,7 +157,11 @@ class OpenAIProvider(BaseProvider):
             response_body: The parsed response body
         """
 
-        if not response_body or not request.url.path.startswith("/responses"):
+        if not response_body:
+            return
+        
+        # Only process responses from the /v1/responses endpoint  
+        if not request.url.path.endswith("/responses"):
             return
         
         # Extract response_id from the response
@@ -192,10 +170,9 @@ class OpenAIProvider(BaseProvider):
         if not response_id:
             return
         
-        # Store the mapping using the short session ID (first 8 chars)
-        # The session_id here is the full UUID, but conversation_id uses first 8 chars
-        short_session_id = session_id.split('-')[0] if '-' in session_id else session_id
-        self.response_sessions[response_id] = short_session_id
+        # Store the mapping using the full session ID
+        # This ensures session continuity when previous_response_id is used
+        self.response_sessions[response_id] = session_id
         
         # Optional: Clean up old entries to prevent memory growth
         # In production, you might want to use a TTL cache or similar

@@ -1,10 +1,10 @@
 """Core session management for the proxy layer.
 
-This package provides platform-level session detection and management
-that enriches all LLM requests with session information.
+This package provides platform-level session detection that enriches
+all LLM requests with session information. Session logic is now handled
+by providers using shared utilities.
 """
 
-from .manager import SessionManager
 from .detector import SessionDetector
 
-__all__ = ["SessionManager", "SessionDetector"]
+__all__ = ["SessionDetector"]

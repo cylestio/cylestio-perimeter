@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import Request
 
 from .base import BaseProvider, SessionInfo
+from .session_utils import create_session_utility
 from src.events.types import (
     SessionStartEvent, LLMCallStartEvent, ToolResultEvent, 
     LLMCallFinishEvent, ToolExecutionEvent, LLMCallErrorEvent
@@ -20,6 +21,9 @@ class AnthropicProvider(BaseProvider):
     def __init__(self, settings=None):
         """Initialize Anthropic provider."""
         super().__init__(settings)
+        
+        # Initialize session utility for message-based detection
+        self._session_utility = create_session_utility()
     
     @property
     def name(self) -> str:
@@ -30,17 +34,18 @@ class AnthropicProvider(BaseProvider):
         messages = body.get("messages", [])
         message_count = len(messages)
         
-        # Generate conversation ID from message history
-        conversation_id = self._generate_conversation_id(messages, body.get("system"))
+        # Extract system prompt for session detection
+        system_prompt = self._extract_system_prompt(body)
         
-        # Count user and assistant messages
-        user_messages = [m for m in messages if m.get("role") == "user"]
-        assistant_messages = [m for m in messages if m.get("role") == "assistant"]
-        
-        # Session start: Only user messages and no assistant responses (truly new conversation)
-        is_session_start = (
-            len(user_messages) >= 1 and 
-            len(assistant_messages) == 0
+        # Use shared session utility to detect/continue session
+        conversation_id, is_session_start, is_fragmented = self._session_utility.detect_session(
+            messages=messages,
+            system_prompt=system_prompt,
+            metadata={
+                "provider": self.name,
+                "model": body.get("model"),
+                "endpoint": "messages"
+            }
         )
         
         # Session end: determined by response success/failure, not request
@@ -89,61 +94,7 @@ class AnthropicProvider(BaseProvider):
         
         return metadata
     
-    def _generate_conversation_id(self, messages: list, system_message: Optional[str] = None) -> str:
-        """Generate a conversation ID from message history and system message.
-        
-        Note: Tool results are excluded to maintain stable conversation IDs across tool interactions.
-        """
-        if not messages:
-            return "empty"
-        
-        # Start with system message if present
-        conversation_text = ""
-        if system_message:
-            conversation_text += f"system:{system_message[:100]}"
-        
-        # Use first user message (excluding tool results) to create stable ID
-        first_user_msg = None
-        for msg in messages:
-            if msg.get("role") == "user":
-                content = msg.get("content", "")
-                # Skip messages that only contain tool results
-                if isinstance(content, list):
-                    # Check if this message contains non-tool-result content
-                    has_non_tool_content = any(
-                        item.get("type") != "tool_result" 
-                        for item in content 
-                        if isinstance(item, dict)
-                    )
-                    if has_non_tool_content:
-                        first_user_msg = msg
-                        break
-                elif isinstance(content, str) and content:
-                    first_user_msg = msg
-                    break
-        
-        if first_user_msg:
-            content = first_user_msg.get("content", "")
-            if isinstance(content, str):
-                conversation_text += f"user:{content[:100]}"  # First 100 chars
-            elif isinstance(content, list):
-                # Handle Claude's structured content format
-                # Only use text content, not tool results
-                for item in content:
-                    if isinstance(item, dict) and item.get("type") == "text":
-                        conversation_text += f"user:{item.get('text', '')[:100]}"
-                        break
-        
-        # Create stable hash - use full UUID format for better uniqueness
-        if conversation_text:
-            # Generate a proper UUID-like session ID from the conversation
-            hash_value = hashlib.md5(conversation_text.encode()).hexdigest()
-            # Format as UUID-like string (8-4-4-4-12 format)
-            return f"{hash_value[:8]}-{hash_value[8:12]}-{hash_value[12:16]}-{hash_value[16:20]}-{hash_value[20:32]}"
-        else:
-            # If no valid conversation text, generate a new UUID
-            import uuid
-            return str(uuid.uuid4())
+
     
     def _get_agent_id(self, body: Dict[str, Any]) -> str:
         """Get agent ID derived from system prompt hash (calculated per request)."""

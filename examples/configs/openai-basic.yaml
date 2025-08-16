@@ -13,12 +13,12 @@ llm:
   max_retries: 3
 
 interceptors:
-  - type: "printer"
-    enabled: true
-    config:
-      log_requests: true
-      log_responses: true
-      log_body: false
+  # - type: "printer"
+  #   enabled: true
+  #   config:
+  #     log_requests: true
+  #     log_responses: true
+  #     log_body: false
 
   # Cylestio trace interceptor
   - type: "cylestio_trace"

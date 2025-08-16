@@ -34,17 +34,9 @@ class LLMMiddleware(BaseHTTPMiddleware):
         # Initialize tool parser
         self.tool_parser = ToolParser()
         
-        # Initialize session detector with provider and configuration
-        session_config = kwargs.get('session_config')
-        if session_config:
-            from src.proxy.session.manager import SessionManager
-            session_manager = SessionManager(
-                max_sessions=session_config.get('max_sessions', 10000),
-                session_ttl_seconds=session_config.get('session_ttl_seconds', 3600),
-            )
-            self.session_detector = SessionDetector(provider, session_manager)
-        else:
-            self.session_detector = SessionDetector(provider)
+        # Initialize session detector with provider
+        # Session configuration is now handled by providers via session_utils
+        self.session_detector = SessionDetector(provider)
         
         logger.info(f"LLM Middleware initialized with {len(self.interceptors)} interceptors")
         logger.info(f"  - Provider: {self.provider.name}")
@@ -220,6 +212,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
             # Detect session information using provider-aware session detection
             session_id = None
             provider_name = self.provider.name
+            session_info_obj = None  # Store the full session info object
             
             # Enrich the LLMRequestData with session information
             is_new_session = False
@@ -235,6 +228,9 @@ class LLMMiddleware(BaseHTTPMiddleware):
                         # Also update streaming info if available
                         if session_info.get("is_streaming") is not None:
                             is_streaming = session_info["is_streaming"]
+                        
+                        # Extract the full session info object for event extraction
+                        session_info_obj = session_info.get("session_info_obj")
                 except Exception as e:
                     logger.debug(f"Failed to analyze session: {e}")
 
@@ -245,11 +241,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
             events = []
             if session_id and body:
                 try:
-                    # Get session info from session detector for event creation
-                    session_info_obj = None
-                    if self.session_detector and hasattr(self.session_detector, 'provider'):
-                        session_info_obj = await self.session_detector.provider.detect_session_info(request, body)
-                    
+                    # Use the session info object we already obtained (no duplicate call)
                     if session_info_obj:
                         events = self.provider.extract_request_events(
                             body=body,
@@ -268,7 +260,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                             request.state.model = model
                             
                 except Exception as e:
-                    logger.debug(f"Error extracting request events: {e}")
+                    logger.error(f"Error extracting request events: {e}", exc_info=True)
             
             # Create request data
             return LLMRequestData(
