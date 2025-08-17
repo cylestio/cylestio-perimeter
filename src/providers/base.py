@@ -17,7 +17,8 @@ class SessionInfo:
         message_count: int = 0,
         model: Optional[str] = None,
         is_streaming: bool = False,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        last_processed_index: int = 0
     ):
         self.is_session_start = is_session_start
         self.is_session_end = is_session_end
@@ -26,6 +27,7 @@ class SessionInfo:
         self.model = model
         self.is_streaming = is_streaming
         self.metadata = metadata or {}
+        self.last_processed_index = last_processed_index
 
 
 class BaseProvider(ABC):
@@ -129,7 +131,7 @@ class BaseProvider(ABC):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             tool_results: List[Dict[str, Any]]) -> List[Any]:
+                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
         """Extract and create events from request data.
         
         Args:
@@ -137,12 +139,12 @@ class BaseProvider(ABC):
             session_info: Session information
             session_id: Session identifier
             is_new_session: Whether this is a new session
-            tool_results: Any tool results from request
+            last_processed_index: Index of last processed message
             
         Returns:
-            List of event objects to be sent
+            Tuple of (events, new_last_processed_index)
         """
-        return []
+        return [], last_processed_index
     
     def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
                               session_id: str, duration_ms: float, 

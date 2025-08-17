@@ -2,12 +2,13 @@
 import hashlib
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Request
 
 from .base import BaseProvider, SessionInfo
 from .session_utils import create_session_utility
+from ..proxy.tools.parser import ToolParser
 from src.events.types import (
     SessionStartEvent, LLMCallStartEvent, ToolResultEvent, 
     LLMCallFinishEvent, ToolExecutionEvent, LLMCallErrorEvent
@@ -24,6 +25,9 @@ class AnthropicProvider(BaseProvider):
         
         # Initialize session utility for message-based detection
         self._session_utility = create_session_utility()
+        
+        # Initialize tool parser for processing tool results
+        self.tool_parser = ToolParser()
     
     @property
     def name(self) -> str:
@@ -38,7 +42,7 @@ class AnthropicProvider(BaseProvider):
         system_prompt = self._extract_system_prompt(body)
         
         # Use shared session utility to detect/continue session
-        conversation_id, is_session_start, is_fragmented = self._session_utility.detect_session(
+        conversation_id, is_session_start, is_fragmented, last_processed_index = self._session_utility.detect_session(
             messages=messages,
             system_prompt=system_prompt,
             metadata={
@@ -58,7 +62,8 @@ class AnthropicProvider(BaseProvider):
             message_count=message_count,
             model=self.extract_model_from_body(body),
             is_streaming=self.extract_streaming_from_body(body),
-            metadata=self.extract_conversation_metadata(body)
+            metadata=self.extract_conversation_metadata(body),
+            last_processed_index=last_processed_index
         )
     
     def extract_model_from_body(self, body: Dict[str, Any]) -> Optional[str]:
@@ -158,12 +163,34 @@ class AnthropicProvider(BaseProvider):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             tool_results: List[Dict[str, Any]]) -> List[Any]:
-        """Extract and create events from request data using original interceptor logic."""
+                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
+        """Extract and create events from request data, processing only new messages.
+        
+        Args:
+            body: Request body
+            session_info: Session information
+            session_id: Session identifier
+            is_new_session: Whether this is a new session
+            last_processed_index: Index of last processed message
+            
+        Returns:
+            Tuple of (events, new_last_processed_index)
+        """
         events = []
         
         if not session_id:
-            return events
+            return events, last_processed_index
+        
+        # Get all messages from request
+        messages = body.get("messages", [])
+        
+        # Only process new messages since last processed index
+        new_messages = messages[last_processed_index:]
+        new_last_processed_index = len(messages)
+        
+        # If no new messages, no events to create
+        if not new_messages:
+            return events, last_processed_index
         
         # Use same ID for both trace and span (derived from session)
         trace_span_id = self._session_to_trace_span_id(session_id)
@@ -171,8 +198,8 @@ class AnthropicProvider(BaseProvider):
         span_id = trace_span_id
         agent_id = self._get_agent_id(body)
         
-        # Handle session start event
-        if is_new_session:
+        # Handle session start event (only for new sessions)
+        if is_new_session or session_info.is_session_start:
             session_start_event = SessionStartEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -182,35 +209,49 @@ class AnthropicProvider(BaseProvider):
             )
             events.append(session_start_event)
         
-        # Handle tool result events if present (when request contains tool results from previous execution)
-        if tool_results:
-            for tool_result in tool_results:
-                tool_result_event = ToolResultEvent.create(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                    agent_id=agent_id,
-                    tool_name=tool_result.get("name", "unknown"),
-                    status="success",  # Assume success since result is present
-                    execution_time_ms=0.0,  # Not available in request
-                    result=tool_result.get("result"),
-                    session_id=session_id
-                )
-                events.append(tool_result_event)
+        # Parse tool results only from NEW messages
+        new_body_for_tools = {"messages": new_messages}
+        tool_results = self.tool_parser.parse_tool_results(new_body_for_tools, self.name)
         
-        # Send LLM call start event
-        if session_info.model:
+        # Handle tool result events (all are new since we're only processing new messages)
+        for tool_result in tool_results:
+            tool_result_event = ToolResultEvent.create(
+                trace_id=trace_id,
+                span_id=span_id,
+                agent_id=agent_id,
+                tool_name=tool_result.get("name", "unknown"),
+                status="success",  # Assume success since result is present
+                execution_time_ms=0.0,  # Not available in request
+                result=tool_result.get("result"),
+                session_id=session_id
+            )
+            events.append(tool_result_event)
+        
+        # Send LLM call start event with only NEW messages
+        if session_info.model and new_messages:
+            # Create a modified body with only new messages
+            new_request_data = {
+                **body,
+                "messages": new_messages,
+                "_cylestio_metadata": {
+                    "total_messages": len(messages),
+                    "new_messages": len(new_messages),
+                    "from_index": last_processed_index
+                }
+            }
+            
             llm_start_event = LLMCallStartEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
                 agent_id=agent_id,
                 vendor=self.name,
                 model=session_info.model,
-                request_data=body or {},
+                request_data=new_request_data,
                 session_id=session_id
             )
             events.append(llm_start_event)
         
-        return events
+        return events, new_last_processed_index
     
     def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
                               session_id: str, duration_ms: float, 

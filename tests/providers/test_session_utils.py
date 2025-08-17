@@ -21,7 +21,7 @@ def broadcast_conversation(detector, conversation):
     
     for message in conversation:
         messages.append(message)
-        session_id, is_new, is_fragmented = detector.detect_session(messages)
+        session_id, is_new, is_fragmented, processed_tool_ids = detector.detect_session(messages)
         yield session_id
     
     return session_id
@@ -58,7 +58,7 @@ def test_single_conversation_session_consistency():
     # Simulate real LLM requests as they would arrive
     # Request 1: User starts conversation
     request1 = [{"role": "user", "content": "Hello"}]
-    session_id1, is_new1, is_fragmented1 = detector.detect_session(request1)
+    session_id1, is_new1, is_fragmented1, _ = detector.detect_session(request1)
     assert is_new1 is True
     assert is_fragmented1 is False
     
@@ -68,7 +68,7 @@ def test_single_conversation_session_consistency():
         {"role": "assistant", "content": "Hi there!"},
         {"role": "user", "content": "How are you?"}
     ]
-    session_id2, is_new2, is_fragmented2 = detector.detect_session(request2)
+    session_id2, is_new2, is_fragmented2, _ = detector.detect_session(request2)
     assert is_new2 is False  # Should continue existing session
     assert is_fragmented2 is False
     assert session_id2 == session_id1
@@ -81,7 +81,7 @@ def test_single_conversation_session_consistency():
         {"role": "assistant", "content": "I'm good!"},
         {"role": "user", "content": "Great!"}
     ]
-    session_id3, is_new3, is_fragmented3 = detector.detect_session(request3)
+    session_id3, is_new3, is_fragmented3, _ = detector.detect_session(request3)
     assert is_new3 is False  # Should continue same session
     assert is_fragmented3 is False
     assert session_id3 == session_id1
@@ -158,7 +158,7 @@ def test_conversation_with_tool_calls():
     
     # Call 1: User asks for weather
     call1 = [{"role": "user", "content": "What's the weather in NYC?"}]
-    session_id1, is_new1, is_fragmented1 = detector.detect_session(call1)
+    session_id1, is_new1, is_fragmented1, _ = detector.detect_session(call1)
     assert is_new1 is True
     assert is_fragmented1 is False
     
@@ -168,7 +168,7 @@ def test_conversation_with_tool_calls():
         {"role": "assistant", "content": "I'll check the weather for you.", "tool_calls": [{"id": "call_123", "function": {"name": "get_weather", "arguments": '{"city": "NYC"}'}}]},
         {"role": "tool", "tool_call_id": "call_123", "content": "Sunny, 75°F"}
     ]
-    session_id2, is_new2, is_fragmented2 = detector.detect_session(call2)
+    session_id2, is_new2, is_fragmented2, _ = detector.detect_session(call2)
     assert is_new2 is False  # Should continue existing session
     assert is_fragmented2 is False
     assert session_id2 == session_id1
@@ -181,7 +181,7 @@ def test_conversation_with_tool_calls():
         {"role": "assistant", "content": "It's sunny and 75°F in NYC today!"},
         {"role": "user", "content": "Thanks! What about Boston?"}
     ]
-    session_id3, is_new3, is_fragmented3 = detector.detect_session(call3)
+    session_id3, is_new3, is_fragmented3, _ = detector.detect_session(call3)
     assert is_new3 is False  # Should continue same session
     assert is_fragmented3 is False
     assert session_id3 == session_id1
@@ -196,7 +196,7 @@ def test_conversation_with_tool_calls():
         {"role": "assistant", "content": "Let me check Boston weather.", "tool_calls": [{"id": "call_456", "function": {"name": "get_weather", "arguments": '{"city": "Boston"}'}}]},
         {"role": "tool", "tool_call_id": "call_456", "content": "Cloudy, 68°F"}
     ]
-    session_id4, is_new4, is_fragmented4 = detector.detect_session(call4)
+    session_id4, is_new4, is_fragmented4, _ = detector.detect_session(call4)
     assert is_new4 is False  # Should continue same session
     assert is_fragmented4 is False
     assert session_id4 == session_id1
@@ -208,7 +208,7 @@ def test_multiple_consecutive_user_messages():
     
     # Request 1: User starts
     request1 = [{"role": "user", "content": "Hello"}]
-    session_id1, is_new1, is_fragmented1 = detector.detect_session(request1)
+    session_id1, is_new1, is_fragmented1, _ = detector.detect_session(request1)
     assert is_new1 is True
     assert is_fragmented1 is False
     
@@ -218,7 +218,7 @@ def test_multiple_consecutive_user_messages():
         {"role": "assistant", "content": "Hi!"},
         {"role": "user", "content": "How are you?"}
     ]
-    session_id2, is_new2, is_fragmented2 = detector.detect_session(request2)
+    session_id2, is_new2, is_fragmented2, _ = detector.detect_session(request2)
     assert is_new2 is False
     assert is_fragmented2 is False
     assert session_id2 == session_id1
@@ -232,7 +232,7 @@ def test_multiple_consecutive_user_messages():
         {"role": "user", "content": "How are you?"},
         {"role": "user", "content": "Are you there?"}
     ]
-    session_id3, is_new3, is_fragmented3 = detector.detect_session(request3)
+    session_id3, is_new3, is_fragmented3, _ = detector.detect_session(request3)
     
     # Should continue the same session successfully
     assert is_new3 is False
@@ -398,7 +398,7 @@ def test_math_assistant_conversation():
     session_ids = []
     
     for i, test_case in enumerate(test_cases):
-        session_id, is_new, is_fragmented = detector.detect_session(test_case)
+        session_id, is_new, is_fragmented, _ = detector.detect_session(test_case)
         session_ids.append(session_id)
         
         if i == 0:

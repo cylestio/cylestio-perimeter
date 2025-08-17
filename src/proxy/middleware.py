@@ -234,8 +234,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 except Exception as e:
                     logger.debug(f"Failed to analyze session: {e}")
 
-            # Parse tool information from request
-            tool_results = self.tool_parser.parse_tool_results(body, provider_name)
+            # Tool results are now parsed within extract_request_events based on new messages only
             
             # Extract events from request using provider
             events = []
@@ -243,13 +242,19 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 try:
                     # Use the session info object we already obtained (no duplicate call)
                     if session_info_obj:
-                        events = self.provider.extract_request_events(
+                        events, new_processed_index = self.provider.extract_request_events(
                             body=body,
                             session_info=session_info_obj,
                             session_id=session_id,
                             is_new_session=is_new_session,
-                            tool_results=tool_results
+                            last_processed_index=session_info_obj.last_processed_index
                         )
+                        
+                        # Update session with new processed index
+                        if new_processed_index > session_info_obj.last_processed_index and hasattr(self.provider, '_session_utility'):
+                            self.provider._session_utility.update_processed_index(
+                                session_id, new_processed_index
+                            )
                         
                         # Store trace/span ID and other metadata for response events
                         if events and hasattr(self.provider, '_session_to_trace_span_id'):
@@ -271,7 +276,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 provider=provider_name,
                 model=model,
                 is_new_session=is_new_session,
-                tool_results=tool_results,
+                tool_results=[],  # Tool results are now processed within extract_request_events
                 events=events
             )
             

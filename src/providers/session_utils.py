@@ -27,7 +27,8 @@ class SessionRecord:
         created_at: datetime,
         last_accessed: datetime,
         message_count: int,
-        metadata: Dict[str, Any]
+        metadata: Dict[str, Any],
+        last_processed_index: int = 0
     ):
         self.session_id = session_id
         self.signature = signature
@@ -35,6 +36,7 @@ class SessionRecord:
         self.last_accessed = last_accessed
         self.message_count = message_count
         self.metadata = metadata
+        self.last_processed_index = last_processed_index
 
 
 class SessionDetectionUtility:
@@ -73,7 +75,7 @@ class SessionDetectionUtility:
         messages: List[Dict[str, Any]],
         system_prompt: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
-    ) -> Tuple[str, bool, bool]:
+    ) -> Tuple[str, bool, bool, int]:
         """Detect session from message history using hash-based lookup.
         
         This method implements a hash-based session detection algorithm:
@@ -87,10 +89,11 @@ class SessionDetectionUtility:
             metadata: Optional metadata to store with session
             
         Returns:
-            Tuple of (session_id, is_new_session, is_fragmented)
+            Tuple of (session_id, is_new_session, is_fragmented, last_processed_index)
             - session_id: The session identifier
             - is_new_session: True if this is genuinely a new conversation  
             - is_fragmented: True if we created a new session but it's likely a continuation
+            - last_processed_index: Index of last processed message in this session
         """
         with self._lock:
             self._cleanup_expired_sessions()
@@ -179,7 +182,7 @@ class SessionDetectionUtility:
         system_prompt: Optional[str], 
         metadata: Optional[Dict[str, Any]],
         is_fragmented: bool = False
-    ) -> Tuple[str, bool, bool]:
+    ) -> Tuple[str, bool, bool, int]:
         """Create a new session for this conversation."""
         session_id = str(uuid.uuid4())
         signature = self._compute_signature(messages, system_prompt)
@@ -191,7 +194,8 @@ class SessionDetectionUtility:
             logger.warning(f"Fragmented session created: {session_id[:8]}")
         else:
             logger.info(f"New session created: {session_id[:8]}")
-        return session_id, True, is_fragmented
+        # New sessions start with index 0 (nothing processed yet)
+        return session_id, True, is_fragmented, 0
     
     def _find_existing_session(
         self, 
@@ -214,14 +218,18 @@ class SessionDetectionUtility:
         session_id: str, 
         messages: List[Dict[str, Any]], 
         system_prompt: Optional[str]
-    ) -> Tuple[str, bool, bool]:
+    ) -> Tuple[str, bool, bool, int]:
         """Continue an existing session with new message."""
         full_signature = self._compute_signature(messages, system_prompt)
         self._update_session_signature(session_id, full_signature, len(messages))
         
+        # Get last processed index from existing session
+        session_record = self._sessions.get(session_id)
+        last_processed_index = session_record.last_processed_index if session_record else 0
+        
         self._metrics["cache_hits"] += 1
         logger.debug(f"Session continued: {session_id[:8]}")
-        return session_id, False, False
+        return session_id, False, False, last_processed_index
     
     def _compute_signature(self, messages: List[Dict[str, Any]], system_prompt: Optional[str] = None) -> str:
         """Compute signature for conversation using message hashing.
@@ -442,6 +450,24 @@ class SessionDetectionUtility:
         session_info.message_count = message_count
         session_info.last_accessed = datetime.utcnow()
         self._signature_to_session[new_signature] = session_id
+        
+        # Move to end of OrderedDict to maintain LRU order
+        self._sessions.move_to_end(session_id)
+    
+    def update_processed_index(self, session_id: str, new_index: int):
+        """Update the last processed message index for a session.
+        
+        Args:
+            session_id: Session identifier
+            new_index: New index of last processed message
+        """
+        if session_id not in self._sessions:
+            logger.warning(f"Attempted to update processed index for non-existent session: {session_id[:8]}")
+            return
+        
+        session_info = self._sessions[session_id]
+        session_info.last_processed_index = new_index
+        session_info.last_accessed = datetime.utcnow()
         
         # Move to end of OrderedDict to maintain LRU order
         self._sessions.move_to_end(session_id)
