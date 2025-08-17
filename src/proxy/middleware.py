@@ -1,6 +1,7 @@
 """Core LLM middleware with interceptor support."""
 import json
 import time
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import Request, Response
@@ -9,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.proxy.session import SessionDetector
 from src.proxy.tools import ToolParser
-from src.providers.base import BaseProvider
+from src.providers.base import BaseProvider, SessionInfo
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -209,30 +210,66 @@ class LLMMiddleware(BaseHTTPMiddleware):
             if body:
                 model = self.provider.extract_model_from_body(body)
             
-            # Detect session information using provider-aware session detection
+            # Check for external session/agent IDs from headers
+            external_session_id = request.headers.get("x-cylestio-session-id")
+            external_agent_id = request.headers.get("x-cylestio-agent-id")
+            
+            # Detect session information using provider-aware session detection or external ID
             session_id = None
             provider_name = self.provider.name
             session_info_obj = None  # Store the full session info object
-            
-            # Enrich the LLMRequestData with session information
             is_new_session = False
-            if self.session_detector:
-                try:
-                    session_info = await self.session_detector.analyze_request(request, body)
-                    if session_info:
-                        session_id = session_info.get("session_id")
-                        is_new_session = session_info.get("is_new_session", False)
-                        # Use model from session detection if not found in body
-                        if not model and session_info.get("model"):
-                            model = session_info["model"]
-                        # Also update streaming info if available
-                        if session_info.get("is_streaming") is not None:
-                            is_streaming = session_info["is_streaming"]
-                        
-                        # Extract the full session info object for event extraction
-                        session_info_obj = session_info.get("session_info_obj")
-                except Exception as e:
-                    logger.debug(f"Failed to analyze session: {e}")
+            
+            if external_session_id:
+                # Use external session ID directly
+                session_id = external_session_id
+                
+                # Check if this session already exists
+                session_record = self.provider._session_utility.get_session_info(external_session_id)
+                if session_record:
+                    # Continue existing session
+                    is_new_session = False
+                    last_processed_index = session_record.last_processed_index
+                else:
+                    # First time seeing this external session ID
+                    is_new_session = True
+                    last_processed_index = 0
+                    # Register it with the utility
+                    now = datetime.utcnow()
+                    self.provider._session_utility._create_session(
+                        session_id=external_session_id,
+                        signature=f"external-{external_session_id}",
+                        messages=[],
+                        metadata={"external": True, "provider": provider_name}
+                    )
+                
+                # Create session info object directly
+                session_info_obj = SessionInfo(
+                    conversation_id=external_session_id,
+                    is_session_start=is_new_session,
+                    last_processed_index=last_processed_index,
+                    model=self.provider.extract_model_from_body(body) if body else None,
+                    is_streaming=self.provider.extract_streaming_from_body(body) if body else False
+                )
+            else:
+                # Normal session detection flow
+                if self.session_detector:
+                    try:
+                        session_info = await self.session_detector.analyze_request(request, body)
+                        if session_info:
+                            session_id = session_info.get("session_id")
+                            is_new_session = session_info.get("is_new_session", False)
+                            # Use model from session detection if not found in body
+                            if not model and session_info.get("model"):
+                                model = session_info["model"]
+                            # Also update streaming info if available
+                            if session_info.get("is_streaming") is not None:
+                                is_streaming = session_info["is_streaming"]
+                            
+                            # Extract the full session info object for event extraction
+                            session_info_obj = session_info.get("session_info_obj")
+                    except Exception as e:
+                        logger.debug(f"Failed to analyze session: {e}")
 
             # Tool results are now parsed within extract_request_events based on new messages only
             
@@ -259,7 +296,11 @@ class LLMMiddleware(BaseHTTPMiddleware):
                         # Store trace/span ID and other metadata for response events
                         if events and hasattr(self.provider, '_session_to_trace_span_id'):
                             trace_span_id = self.provider._session_to_trace_span_id(session_id)
-                            agent_id = self.provider._get_agent_id(body)
+                            # Use external agent ID if provided, otherwise compute from body
+                            if external_agent_id:
+                                agent_id = external_agent_id
+                            else:
+                                agent_id = self.provider._get_agent_id(body)
                             request.state.cylestio_trace_span_id = trace_span_id
                             request.state.agent_id = agent_id
                             request.state.model = model
