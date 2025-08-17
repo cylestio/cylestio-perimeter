@@ -122,6 +122,10 @@ Currently implementing based on INSTRUCTIONS.md checklist:
 
 - When explicitly asked for a refactor always maintain functionality (don't remove) and ask if you think it is important
 
+## Test Organization
+
+When writing tests for provider methods, create separate test files for methods with more than 3 test cases using the naming convention `test_{provider}_{method_name}.py`, while keeping core provider tests (≤3 cases) in the main `test_{provider}.py` file.
+
 ## Development Warnings
 
 - Dont use TYPE_CHECKING
