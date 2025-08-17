@@ -192,13 +192,20 @@ class OpenAIProvider(BaseProvider):
     
     def _extract_system_prompt(self, body: Dict[str, Any]) -> str:
         """Extract system prompt from OpenAI request body."""
+        # Look for system message in messages array (Chat Completions API)
         messages = body.get("messages", [])
-        
-        # Look for system message
         for message in messages:
             if message.get("role") == "system":
                 content = message.get("content", "")
                 return content if isinstance(content, str) else str(content)
+        
+        # Look for system message in input array (Responses API)
+        input_data = body.get("input", [])
+        if isinstance(input_data, list):
+            for message in input_data:
+                if message.get("role") == "system":
+                    content = message.get("content", "")
+                    return content if isinstance(content, str) else str(content)
         
         # For /v1/responses endpoint, use instructions as system prompt
         if "instructions" in body:
