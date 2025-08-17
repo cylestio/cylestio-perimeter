@@ -48,19 +48,47 @@ class ToolParser:
     
     def _parse_openai_tool_results(self, body: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Parse tool results from OpenAI request format."""
-        if "messages" not in body:
-            return []
-        
         tool_results = []
-        for message in body["messages"]:
-            # OpenAI tool results come in "tool" role messages
-            if message.get("role") == "tool":
-                tool_results.append({
-                    "tool_use_id": message.get("tool_call_id"),
-                    "content": message.get("content"),
-                    "name": message.get("name"),
-                    "is_error": False  # OpenAI doesn't have explicit error flag
-                })
+        
+        # Chat Completions API: tool results in messages array
+        if "messages" in body:
+            for message in body["messages"]:
+                # OpenAI tool results come in "tool" role messages
+                if message.get("role") == "tool":
+                    tool_results.append({
+                        "tool_use_id": message.get("tool_call_id"),
+                        "content": message.get("content"),
+                        "name": message.get("name"),
+                        "is_error": False  # OpenAI doesn't have explicit error flag
+                    })
+        
+        # Responses API: tool results in input array
+        if "input" in body:
+            input_data = body["input"]
+            if isinstance(input_data, list):
+                # First pass: collect tool names from function_call entries
+                tool_name_map = {}
+                for item in input_data:
+                    if (isinstance(item, dict) and 
+                        item.get("type") == "function_call"):
+                        call_id = item.get("call_id")
+                        tool_name = item.get("name")
+                        if call_id and tool_name:
+                            tool_name_map[call_id] = tool_name
+                
+                # Second pass: collect tool results with names
+                for item in input_data:
+                    # Look for function_call_output entries
+                    if (isinstance(item, dict) and 
+                        item.get("type") == "function_call_output"):
+                        call_id = item.get("call_id")
+                        tool_name = tool_name_map.get(call_id)
+                        tool_results.append({
+                            "tool_use_id": call_id,
+                            "content": item.get("output"),
+                            "name": tool_name,
+                            "is_error": False
+                        })
         
         return tool_results
     

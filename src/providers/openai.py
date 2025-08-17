@@ -267,7 +267,7 @@ class OpenAIProvider(BaseProvider):
                              tool_results: List[Dict[str, Any]]) -> List[Any]:
         """Extract and create events from request data using original interceptor logic."""
         events = []
-        
+
         if not session_id:
             return events
         
