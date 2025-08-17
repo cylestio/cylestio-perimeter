@@ -1,8 +1,6 @@
 """Provider registry for managing LLM providers."""
 from typing import Dict, List, Optional
 
-from fastapi import Request
-
 from .base import BaseProvider
 from .anthropic import AnthropicProvider
 from .openai import OpenAIProvider
@@ -28,17 +26,17 @@ class ProviderRegistry:
         """
         self._providers.append(provider)
     
-    def get_provider(self, request: Request) -> Optional[BaseProvider]:
-        """Get the appropriate provider for a request.
+    def get_provider_by_name(self, name: str) -> Optional[BaseProvider]:
+        """Get a provider by its name.
         
         Args:
-            request: FastAPI request object
+            name: Provider name
             
         Returns:
-            Provider instance that can handle the request, or None
+            Provider instance or None if not found
         """
         for provider in self._providers:
-            if provider.can_handle(request):
+            if provider.name == name:
                 return provider
         return None
     

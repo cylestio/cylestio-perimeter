@@ -1,62 +1,12 @@
-"""Event models for Cylestio API integration."""
-import uuid
-from datetime import datetime
-from enum import Enum
+"""Platform event types for LLM operations."""
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from .system_info import get_cached_system_info
-
-
-class EventLevel(str, Enum):
-    """Event level enumeration."""
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
+from .base import BaseEvent, EventName, EventLevel, validate_required_string
 
 
-class EventName(str, Enum):
-    """Cylestio event name enumeration."""
-    LLM_CALL_START = "llm.call.start"
-    LLM_CALL_FINISH = "llm.call.finish"
-    LLM_CALL_ERROR = "llm.call.error"
-    TOOL_EXECUTION = "tool.execution"
-    TOOL_RESULT = "tool.result"
-    SESSION_START = "session.start"
-    SESSION_END = "session.end"
-
-
-def generate_trace_id() -> str:
-    """Generate OpenTelemetry-compatible trace ID (32-char hex)."""
-    return uuid.uuid4().hex + uuid.uuid4().hex[:16]
-
-
-def generate_span_id() -> str:
-    """Generate OpenTelemetry-compatible span ID (16-char hex)."""
-    return uuid.uuid4().hex[:16]
-
-
-class CylestioEvent(BaseModel):
-    """Base Cylestio event model matching API schema."""
-    
-    schema_version: str = Field(default="1.0", description="Event schema version")
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat() + "Z")
-    trace_id: str = Field(..., description="OpenTelemetry trace ID")
-    span_id: str = Field(..., description="OpenTelemetry span ID")
-    name: EventName = Field(..., description="Event name")
-    level: EventLevel = Field(default=EventLevel.INFO, description="Event level")
-    agent_id: str = Field(..., description="Agent identifier")
-    session_id: Optional[str] = Field(default=None, description="Session identifier")
-    attributes: Dict[str, Any] = Field(default_factory=dict, description="Event-specific attributes")
-    
-    def model_post_init(self, __context: Any) -> None:
-        """Post-initialization to enrich with system information."""
-        system_info = get_cached_system_info()
-        self.attributes.update(system_info)
-
-class LLMCallStartEvent(CylestioEvent):
+class LLMCallStartEvent(BaseEvent):
     """LLM call start event."""
     
     name: EventName = Field(default=EventName.LLM_CALL_START, frozen=True)
@@ -72,7 +22,17 @@ class LLMCallStartEvent(CylestioEvent):
         request_data: Dict[str, Any],
         session_id: Optional[str] = None
     ) -> "LLMCallStartEvent":
-        """Create LLM call start event."""
+        """Create LLM call start event.
+        
+        Raises:
+            ValueError: If required parameters are missing or invalid
+        """
+        # Input validation
+        validate_required_string(trace_id, "trace_id")
+        validate_required_string(span_id, "span_id")
+        validate_required_string(agent_id, "agent_id")
+        validate_required_string(vendor, "vendor")
+        validate_required_string(model, "model")
         attributes = {
             "llm.vendor": vendor,
             "llm.model": model,
@@ -91,7 +51,7 @@ class LLMCallStartEvent(CylestioEvent):
         )
 
 
-class LLMCallFinishEvent(CylestioEvent):
+class LLMCallFinishEvent(BaseEvent):
     """LLM call finish event."""
     
     name: EventName = Field(default=EventName.LLM_CALL_FINISH, frozen=True)
@@ -138,7 +98,7 @@ class LLMCallFinishEvent(CylestioEvent):
         )
 
 
-class LLMCallErrorEvent(CylestioEvent):
+class LLMCallErrorEvent(BaseEvent):
     """LLM call error event."""
     
     name: EventName = Field(default=EventName.LLM_CALL_ERROR, frozen=True)
@@ -177,7 +137,7 @@ class LLMCallErrorEvent(CylestioEvent):
         )
 
 
-class ToolExecutionEvent(CylestioEvent):
+class ToolExecutionEvent(BaseEvent):
     """Tool execution event."""
     
     name: EventName = Field(default=EventName.TOOL_EXECUTION, frozen=True)
@@ -213,7 +173,7 @@ class ToolExecutionEvent(CylestioEvent):
         )
 
 
-class ToolResultEvent(CylestioEvent):
+class ToolResultEvent(BaseEvent):
     """Tool result event."""
     
     name: EventName = Field(default=EventName.TOOL_RESULT, frozen=True)
@@ -254,7 +214,7 @@ class ToolResultEvent(CylestioEvent):
         )
 
 
-class SessionStartEvent(CylestioEvent):
+class SessionStartEvent(BaseEvent):
     """Session start event."""
     
     name: EventName = Field(default=EventName.SESSION_START, frozen=True)
@@ -288,7 +248,7 @@ class SessionStartEvent(CylestioEvent):
         )
 
 
-class SessionEndEvent(CylestioEvent):
+class SessionEndEvent(BaseEvent):
     """Session end event."""
     
     name: EventName = Field(default=EventName.SESSION_END, frozen=True)

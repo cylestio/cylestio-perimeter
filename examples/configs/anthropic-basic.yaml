@@ -32,6 +32,15 @@ interceptors:
       access_key: "${CYLESTIO_ACCESS_KEY}"  # Set this environment variable
       timeout: 10
 
+  # Event recorder - saves raw events to disk per session
+  - type: "event_recorder"
+    enabled: true
+    config:
+      output_dir: "./event_logs"        # Directory to save event files
+      file_format: "jsonl"              # "json" or "jsonl" format
+      pretty_print: false               # Pretty-print JSON (only for "json" format)
+      include_metadata: true            # Include file metadata
+
 logging:
   level: "INFO"
   format: "text"

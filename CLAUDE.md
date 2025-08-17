@@ -117,3 +117,15 @@ Currently implementing based on INSTRUCTIONS.md checklist:
 - Only export things you want to expose as interface or required by other files
 - **Important**: When planning, before implementing - review what you planned and make sure it makes sense and written efficiently
 - Once task is completed. Do a code-review on the code and fix it if needed - when reviewing make sure to maintain funcioncality and API (unless some unused API found)
+
+## Claude's Principles
+
+- When explicitly asked for a refactor always maintain functionality (don't remove) and ask if you think it is important
+
+## Test Organization
+
+When writing tests for provider methods, create separate test files for methods with more than 3 test cases using the naming convention `test_{provider}_{method_name}.py`, while keeping core provider tests (≤3 cases) in the main `test_{provider}.py` file.
+
+## Development Warnings
+
+- Dont use TYPE_CHECKING

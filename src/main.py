@@ -17,7 +17,10 @@ from src.proxy.interceptor_manager import interceptor_manager
 from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
 from src.interceptors.cylestio_trace import CylestioTraceInterceptor
+from src.interceptors.event_recorder import EventRecorderInterceptor
 from src.proxy.handler import ProxyHandler
+from src.providers.openai import OpenAIProvider
+from src.providers.anthropic import AnthropicProvider
 from src.utils.logger import get_logger, setup_logging
 
 # CLI app
@@ -45,19 +48,35 @@ def create_app(config: Settings) -> FastAPI:
     setup_logging(config.logging)
     logger.info("Starting LLM Proxy Server", extra={"config": config.model_dump()})
     
+    # Register interceptor types
+    interceptor_manager.register_interceptor("printer", PrinterInterceptor)
+    interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
+    interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
+    interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
+    
+    # Create provider based on config type first (needed for interceptors and lifespan)
+    if config.llm.type.lower() == "openai":
+        provider = OpenAIProvider(config)
+    elif config.llm.type.lower() == "anthropic":
+        provider = AnthropicProvider(config)
+    else:
+        raise ValueError(f"Unsupported provider type: {config.llm.type}. Supported: openai, anthropic")
+    
+    # Create proxy handler
+    proxy_handler_instance = ProxyHandler(config, provider)
     
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         """Manage application lifespan events."""
         global proxy_handler
         
-        # Startup
-        proxy_handler = ProxyHandler(config)
+        # Startup - set global proxy_handler for the route function
+        proxy_handler = proxy_handler_instance
         yield
         
         # Shutdown
-        if proxy_handler:
-            await proxy_handler.close()
+        if proxy_handler_instance:
+            await proxy_handler_instance.close()
     
     # Create FastAPI app with lifespan
     fast_app = FastAPI(
@@ -67,13 +86,11 @@ def create_app(config: Settings) -> FastAPI:
         lifespan=lifespan
     )
     
-    # Register interceptor types
-    interceptor_manager.register_interceptor("printer", PrinterInterceptor)
-    interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
-    interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
+    # Store proxy handler in app state for access in routes
+    fast_app.state.proxy_handler = proxy_handler_instance
     
-    # Create interceptors from configuration
-    interceptors = interceptor_manager.create_interceptors(config.interceptors)
+    # Create interceptors from configuration with provider info
+    interceptors = interceptor_manager.create_interceptors(config.interceptors, provider.name)
     
     # Prepare session configuration for middleware
     session_config = None
@@ -81,13 +98,14 @@ def create_app(config: Settings) -> FastAPI:
         session_config = config.session.model_dump()
         logger.info("Session detection enabled", extra={"session_config": session_config})
     
-    # Register the LLM middleware with interceptors and session management
+    # Register the LLM middleware with provider, interceptors and session management
     fast_app.add_middleware(
         LLMMiddleware, 
+        provider=provider,
         interceptors=interceptors,
         session_config=session_config
     )
-    logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors")
+    logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors and provider: {provider.name}")
     
     # Health check endpoint
     @fast_app.get("/health")
@@ -142,7 +160,11 @@ def create_app(config: Settings) -> FastAPI:
     @fast_app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
     async def proxy_request(request: Request, path: str):
         """Proxy all requests to the configured LLM backend."""
-        return await proxy_handler.handle_request(request, path)
+        # Use proxy handler from app state (more reliable for testing than global)
+        proxy_handler_to_use = getattr(request.app.state, 'proxy_handler', None) or proxy_handler
+        if proxy_handler_to_use is None:
+            raise RuntimeError("Proxy handler not initialized")
+        return await proxy_handler_to_use.handle_request(request, path)
     
     return fast_app
 

@@ -1,8 +1,9 @@
 """Base provider interface for session detection."""
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Request
+from src.config.settings import Settings
 
 
 class SessionInfo:
@@ -16,7 +17,8 @@ class SessionInfo:
         message_count: int = 0,
         model: Optional[str] = None,
         is_streaming: bool = False,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        last_processed_index: int = 0
     ):
         self.is_session_start = is_session_start
         self.is_session_end = is_session_end
@@ -25,27 +27,24 @@ class SessionInfo:
         self.model = model
         self.is_streaming = is_streaming
         self.metadata = metadata or {}
+        self.last_processed_index = last_processed_index
 
 
 class BaseProvider(ABC):
     """Base class for LLM provider session detection."""
     
+    def __init__(self, settings: Optional[Settings] = None):
+        """Initialize provider with settings.
+        
+        Args:
+            settings: Application settings (optional for backward compatibility)
+        """
+        self.settings = settings
+    
     @property
     @abstractmethod
     def name(self) -> str:
         """Provider name identifier."""
-        pass
-    
-    @abstractmethod
-    def can_handle(self, request: Request) -> bool:
-        """Check if this provider can handle the request.
-        
-        Args:
-            request: FastAPI request object
-            
-        Returns:
-            True if provider can handle this request
-        """
         pass
     
     @abstractmethod
@@ -95,3 +94,72 @@ class BaseProvider(ABC):
             Dictionary of metadata
         """
         return {}
+    
+    async def notify_response(self, session_id: str, request: Request, 
+                            response_body: Optional[Dict[str, Any]]) -> None:
+        """Notify provider of response data.
+        
+        Called after a response is received from the LLM API.
+        Providers can use this to track response IDs or other stateful information.
+        
+        Args:
+            session_id: The session ID associated with this request
+            request: The original request object
+            response_body: The parsed response body (if JSON)
+        """
+        pass
+    
+    def get_base_url(self) -> str:
+        """Get the base URL for this provider.
+        
+        Returns:
+            Base URL from settings or default
+        """
+        if self.settings:
+            return self.settings.llm.base_url
+        return ""
+    
+    def get_api_key(self) -> Optional[str]:
+        """Get the API key for this provider.
+        
+        Returns:
+            API key from settings if available
+        """
+        if self.settings:
+            return self.settings.llm.api_key
+        return None
+    
+    def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
+                             session_id: str, is_new_session: bool, 
+                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
+        """Extract and create events from request data.
+        
+        Args:
+            body: Request body
+            session_info: Session information
+            session_id: Session identifier
+            is_new_session: Whether this is a new session
+            last_processed_index: Index of last processed message
+            
+        Returns:
+            Tuple of (events, new_last_processed_index)
+        """
+        return [], last_processed_index
+    
+    def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
+                              session_id: str, duration_ms: float, 
+                              tool_uses: List[Dict[str, Any]], 
+                              request_metadata: Dict[str, Any]) -> List[Any]:
+        """Extract and create events from response data.
+        
+        Args:
+            response_body: Response body
+            session_id: Session identifier
+            duration_ms: Response duration
+            tool_uses: Any tool uses from response
+            request_metadata: Metadata from request processing
+            
+        Returns:
+            List of event objects to be sent
+        """
+        return []

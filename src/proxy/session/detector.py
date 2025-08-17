@@ -5,10 +5,8 @@ from typing import Any, Dict, Optional
 
 from fastapi import Request
 
-from src.providers.registry import registry
-from src.providers.base import SessionInfo
+from src.providers.base import BaseProvider, SessionInfo
 from src.utils.logger import get_logger
-from .manager import SessionManager
 
 logger = get_logger(__name__)
 
@@ -16,85 +14,69 @@ logger = get_logger(__name__)
 class SessionDetector:
     """Detects and tracks LLM conversation sessions."""
     
-    def __init__(self, session_manager: Optional[SessionManager] = None):
-        # Use provided session manager or create default one
-        self._session_manager = session_manager or SessionManager(
-            max_sessions=10000,
-            session_ttl_seconds=3600
-        )
+    def __init__(self, provider: BaseProvider):
+        """Initialize session detector with a provider.
+        
+        Args:
+            provider: The provider instance to use for session detection
+        """
+        self.provider = provider
     
-    async def analyze_request(self, request: Request) -> Optional[Dict[str, Any]]:
-        """Analyze request for session information.
+    async def analyze_request(self, request: Request, body: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        """Analyze request for session information using the configured provider.
         
         Args:
             request: FastAPI request object
+            body: Parsed request body if already available
             
         Returns:
             Dictionary with session info or None if no session detected
         """
-        # Get provider for this request
-        provider = registry.get_provider(request)
-        if not provider:
-            logger.debug(f"No provider found for request: {request.url.path}")
-            return None
-        
-        # TODO: OpenAI Response might have a session id built in the request
-        
-        # Parse request body
-        try:
-            # Handle both real requests and mocks
-            if hasattr(request.body, '__call__'):
-                if asyncio.iscoroutinefunction(request.body):
-                    body_bytes = await request.body()
+        # Use provided parsed body when available to avoid duplicate parsing
+        if body is None:
+            try:
+                # Handle both real requests and mocks
+                if hasattr(request.body, '__call__'):
+                    if asyncio.iscoroutinefunction(request.body):
+                        body_bytes = await request.body()
+                    else:
+                        body_bytes = request.body()
                 else:
-                    body_bytes = request.body()
-            else:
-                body_bytes = request.body
-            
-            if not body_bytes:
-                return None, None
-            
-            body = json.loads(body_bytes) if body_bytes else {}
-        except (json.JSONDecodeError, Exception) as e:
-            logger.warning(f"Failed to parse request body: {e}")
-            return None
+                    body_bytes = request.body
+                
+                if not body_bytes:
+                    return None
+                
+                body = json.loads(body_bytes) if body_bytes else {}
+            except (json.JSONDecodeError, Exception) as e:
+                logger.warning(f"Failed to parse request body: {e}")
+                return None
         
-        # Get session info from provider
-        session_info = await provider.detect_session_info(request, body)
+        # Get session info from the configured provider
+        session_info = await self.provider.detect_session_info(request, body)
         
         # Debug logging (can be enabled for troubleshooting)
         logger.debug(f"Session analysis: conversation_id={session_info.conversation_id}, "
                     f"is_start={session_info.is_session_start}, "
                     f"message_count={session_info.message_count}")
         
-        # Use SessionManager to detect session
-        messages = body.get("messages", [])
-        system_prompt = body.get("system")
-        metadata = {
-            "provider": provider.name,
-            "conversation_id": session_info.conversation_id,
-            "model": session_info.model,
-            "client_info": self._extract_client_info(request)
-        }
-        
-        session_id, is_new_session = self._session_manager.detect_session(
-            messages=messages,
-            system_prompt=system_prompt,
-            metadata=metadata
-        )
+        # Use provider's session detection directly
+        session_id = session_info.conversation_id
+        is_new_session = session_info.is_session_start
         
         # Prepare session info result
         result = {
             "session_id": session_id,
             "is_new_session": is_new_session,
-            "provider": provider.name,
+            "provider": self.provider.name,
             "conversation_id": session_info.conversation_id,
             "model": session_info.model,
             "is_streaming": session_info.is_streaming,
             "message_count": session_info.message_count,
             "client_info": self._extract_client_info(request),
             "method": request.method,
-            "url": str(request.url)
+            "url": str(request.url),
+            "session_info_obj": session_info  # Include the full SessionInfo object
         }
         
         return result
@@ -130,33 +112,20 @@ class SessionDetector:
         
         return client_info
     
-    def get_session_metrics(self) -> Dict[str, Any]:
-        """Get metrics from the session manager.
-        
-        Returns:
-            Dictionary of session metrics
-        """
-        return self._session_manager.get_metrics()
-    
 
 
-def initialize_session_detector(config: Optional[Dict[str, Any]] = None) -> SessionDetector:
-    """Initialize a session detector with optional configuration.
+def initialize_session_detector(
+    provider: BaseProvider, 
+    config: Optional[Dict[str, Any]] = None
+) -> SessionDetector:
+    """Initialize a session detector with a provider.
     
     Args:
-        config: Session configuration dictionary
+        provider: The provider instance to use for session detection
+        config: Session configuration dictionary (ignored, kept for backward compatibility)
         
     Returns:
         Configured SessionDetector instance
     """
-    if config:
-        # Extract session manager configuration
-        session_manager = SessionManager(
-            max_sessions=config.get("max_sessions", 10000),
-            session_ttl_seconds=config.get("session_ttl_seconds", 3600)
-        )
-        
-        return SessionDetector(session_manager=session_manager)
-    else:
-        # Use default configuration
-        return SessionDetector()
+    # Config is ignored since providers now handle their own session logic
+    return SessionDetector(provider=provider)

@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 import httpx
 
-from .events import CylestioEvent
+from src.events.base import BaseEvent
 from .api_authentication import DescopeAuthenticator
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class CylestioClient:
         # Initialize Descope authenticator for JWT token generation
         self._authenticator = DescopeAuthenticator.get_instance(access_key=access_key)
     
-    async def __aenter__(self):
+    async def __aenter__(self) -> "CylestioClient":
         """Async context manager entry."""
         # Create client without Authorization header initially
         self._client = httpx.AsyncClient(
@@ -50,17 +50,17 @@ class CylestioClient:
         )
         return self
     
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         if self._client:
             await self._client.aclose()
             self._client = None
     
-    async def send_event(self, event: CylestioEvent) -> bool:
+    async def send_event(self, event: BaseEvent) -> bool:
         """Send a single event to Cylestio API.
         
         Args:
-            event: CylestioEvent to send
+            event: BaseEvent to send
             
         Returns:
             True if successful, False otherwise
@@ -70,7 +70,7 @@ class CylestioClient:
         """
         if not self._client:
             raise RuntimeError("Client not initialized. Use async context manager.")
-        
+                
         try:
             # Get JWT token for authorization
             jwt_token = self._authenticator.get_jwt_token()
@@ -115,11 +115,11 @@ class CylestioClient:
             logger.error(f"Unexpected error sending event {event.name}: {e}")
             return False
     
-    async def send_events_batch(self, events: list[CylestioEvent]) -> Dict[str, int]:
+    async def send_events_batch(self, events: list[BaseEvent]) -> Dict[str, int]:
         """Send multiple events in a batch.
         
         Args:
-            events: List of CylestioEvent objects to send
+            events: List of BaseEvent objects to send
             
         Returns:
             Dict with 'success' and 'failed' counts

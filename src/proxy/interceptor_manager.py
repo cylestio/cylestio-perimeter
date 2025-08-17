@@ -24,11 +24,12 @@ class InterceptorManager:
         self._interceptor_types[name] = interceptor_class
         logger.debug(f"Registered interceptor: {name}")
     
-    def create_interceptors(self, interceptor_configs) -> List[BaseInterceptor]:
+    def create_interceptors(self, interceptor_configs, provider_name: str = None) -> List[BaseInterceptor]:
         """Create interceptor instances from configuration.
         
         Args:
             interceptor_configs: List of interceptor configurations (Pydantic models or dicts)
+            provider_name: Name of the LLM provider (e.g., 'openai', 'anthropic')
             
         Returns:
             List of created interceptor instances
@@ -62,6 +63,10 @@ class InterceptorManager:
                 # Add enabled flag to config
                 interceptor_config = dict(interceptor_config)  # Convert to dict if needed
                 interceptor_config["enabled"] = enabled
+                
+                # Add provider name for interceptors that need it
+                if provider_name:
+                    interceptor_config["provider_name"] = provider_name
                 
                 interceptor = interceptor_class(interceptor_config)
                 interceptors.append(interceptor)
