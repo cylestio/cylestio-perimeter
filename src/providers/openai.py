@@ -269,7 +269,7 @@ class OpenAIProvider(BaseProvider):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
+                             last_processed_index: int = 0, external_agent_id: Optional[str] = None) -> Tuple[List[Any], int]:
         """Extract and create events from request data, processing only new messages.
         
         Args:
@@ -278,6 +278,7 @@ class OpenAIProvider(BaseProvider):
             session_id: Session identifier
             is_new_session: Whether this is a new session
             last_processed_index: Index of last processed message
+            external_agent_id: External agent ID from header (overrides computed agent ID)
             
         Returns:
             Tuple of (events, new_last_processed_index)
@@ -304,7 +305,8 @@ class OpenAIProvider(BaseProvider):
         trace_span_id = self._session_to_trace_span_id(session_id)
         trace_id = trace_span_id
         span_id = trace_span_id
-        agent_id = self._get_agent_id(body)
+        # Use external agent ID if provided, otherwise compute from body
+        agent_id = external_agent_id if external_agent_id else self._get_agent_id(body)
         
         # Handle session start event (only for new sessions)
         if is_new_session or session_info.is_session_start:

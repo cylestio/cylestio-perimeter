@@ -284,7 +284,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                             session_info=session_info_obj,
                             session_id=session_id,
                             is_new_session=is_new_session,
-                            last_processed_index=session_info_obj.last_processed_index
+                            last_processed_index=session_info_obj.last_processed_index,
+                            external_agent_id=external_agent_id
                         )
                         
                         # Update session with new processed index
