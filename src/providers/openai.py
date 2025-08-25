@@ -431,6 +431,10 @@ class OpenAIProvider(BaseProvider):
         
         return events
     
+
+
+
+
     def get_auth_headers(self) -> Dict[str, str]:
         """Return OpenAI-specific auth headers.
         

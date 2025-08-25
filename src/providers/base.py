@@ -129,6 +129,8 @@ class BaseProvider(ABC):
             return self.settings.llm.api_key
         return None
     
+
+    
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
                              last_processed_index: int = 0, external_agent_id: Optional[str] = None) -> Tuple[List[Any], int]:

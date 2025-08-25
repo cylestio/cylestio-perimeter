@@ -314,6 +314,10 @@ class AnthropicProvider(BaseProvider):
         
         return events
 
+
+
+
+
     def get_auth_headers(self) -> Dict[str, str]:
         """Return Anthropic-specific auth headers.
         
