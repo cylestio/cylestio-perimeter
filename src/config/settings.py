@@ -53,13 +53,6 @@ class LoggingConfig(BaseModel):
     backup_count: int = Field(default=5, ge=0, description="Number of backup files to keep")
 
 
-class SessionConfig(BaseModel):
-    """Session management configuration."""
-    
-    enabled: bool = Field(default=True, description="Enable session detection")
-    max_sessions: int = Field(default=10000, ge=100, description="Maximum number of sessions to track")
-    session_ttl_seconds: int = Field(default=3600, ge=60, description="Session time-to-live in seconds")
-    
 
 
 class CylestioConfig(BaseModel):
@@ -87,7 +80,6 @@ class Settings(BaseModel):
     llm: LLMConfig
     interceptors: List[InterceptorConfig] = Field(default_factory=list)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    session: SessionConfig = Field(default_factory=SessionConfig)
     cylestio: Optional[CylestioConfig] = Field(default=None, description="Cylestio tracing configuration")
     
     @classmethod

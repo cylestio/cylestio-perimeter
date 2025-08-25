@@ -92,18 +92,11 @@ def create_app(config: Settings) -> FastAPI:
     # Create interceptors from configuration with provider info
     interceptors = interceptor_manager.create_interceptors(config.interceptors, provider.name)
     
-    # Prepare session configuration for middleware
-    session_config = None
-    if config.session:
-        session_config = config.session.model_dump()
-        logger.info("Session detection enabled", extra={"session_config": session_config})
-    
-    # Register the LLM middleware with provider, interceptors and session management
+    # Register the LLM middleware with provider and interceptors
     fast_app.add_middleware(
         LLMMiddleware, 
         provider=provider,
-        interceptors=interceptors,
-        session_config=session_config
+        interceptors=interceptors
     )
     logger.info(f"LLM Middleware registered with {len(interceptors)} interceptors and provider: {provider.name}")
     
@@ -150,7 +143,7 @@ def create_app(config: Settings) -> FastAPI:
                 }
                 for ic in config.interceptors
             ],
-            "session": config.session.model_dump(),
+
             "logging": config.logging.model_dump()
         }
         

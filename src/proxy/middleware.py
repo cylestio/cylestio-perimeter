@@ -20,12 +20,12 @@ class LLMMiddleware(BaseHTTPMiddleware):
     """Core middleware that handles LLM request/response detection and runs interceptors."""
     
     def __init__(self, app, provider: BaseProvider, **kwargs):
-        """Initialize LLM middleware with provider, interceptors and session management.
+        """Initialize LLM middleware with provider and interceptors.
         
         Args:
             app: FastAPI application
             provider: The provider instance for this middleware
-            **kwargs: Contains 'interceptors' and 'session_config' keys
+            **kwargs: Contains 'interceptors' key
         """
         super().__init__(app)
         self.provider = provider
@@ -36,7 +36,6 @@ class LLMMiddleware(BaseHTTPMiddleware):
         self.tool_parser = ToolParser()
         
         # Initialize session detector with provider
-        # Session configuration is now handled by providers via session_utils
         self.session_detector = SessionDetector(provider)
         
         logger.info(f"LLM Middleware initialized with {len(self.interceptors)} interceptors")

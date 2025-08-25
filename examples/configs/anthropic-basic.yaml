@@ -45,8 +45,4 @@ logging:
   level: "INFO"
   format: "text"
 
-# Session management configuration (built into core platform)
-session:
-  enabled: true
-  max_sessions: 10000  # Maximum number of sessions to track in memory
-  session_ttl_seconds: 3600  # Sessions expire after 1 hour of inactivity
+
