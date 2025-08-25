@@ -95,6 +95,62 @@ class BaseProvider(ABC):
         """
         return {}
     
+    async def create_or_get_session(self, session_id: str, body: Dict[str, Any], 
+                                  metadata: Optional[Dict[str, Any]] = None) -> SessionInfo:
+        """Create or get session with given ID, returning SessionInfo object."""
+        # Check if session already exists
+        session_record = self._session_utility.get_session_info(session_id)
+        
+        if session_record:
+            # Continue existing session
+            return SessionInfo(
+                conversation_id=session_id,
+                is_session_start=False,
+                last_processed_index=session_record.last_processed_index,
+                model=self.extract_model_from_body(body),
+                is_streaming=self.extract_streaming_from_body(body)
+            )
+        else:
+            # Create new external session
+            from datetime import datetime
+            now = datetime.utcnow()
+            self._session_utility._create_session(
+                session_id=session_id,
+                signature=f"external-{session_id}",
+                messages=[],
+                metadata=metadata or {}
+            )
+            
+            return SessionInfo(
+                conversation_id=session_id,
+                is_session_start=True,
+                last_processed_index=0,
+                model=self.extract_model_from_body(body),
+                is_streaming=self.extract_streaming_from_body(body)
+            )
+
+    def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
+        """Get session information by ID."""
+        session_record = self._session_utility.get_session_info(session_id)
+        if not session_record:
+            return None
+        
+        return SessionInfo(
+            conversation_id=session_id,
+            is_session_start=False,
+            last_processed_index=session_record.last_processed_index,
+            model=None,  # Would need to be set from context
+            is_streaming=False  # Would need to be set from context
+        )
+
+    def update_session_processed_index(self, session_id: str, new_index: int) -> None:
+        """Update the last processed message index for a session."""
+        self._session_utility.update_processed_index(session_id, new_index)
+
+    def get_trace_span_id(self, session_id: str) -> str:
+        """Get trace/span ID for a session."""
+        return self._session_to_trace_span_id(session_id)
+    
     async def notify_response(self, session_id: str, request: Request, 
                             response_body: Optional[Dict[str, Any]]) -> None:
         """Notify provider of response data.
