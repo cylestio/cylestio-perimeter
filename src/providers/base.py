@@ -189,7 +189,7 @@ class BaseProvider(ABC):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             last_processed_index: int = 0, external_agent_id: Optional[str] = None) -> Tuple[List[Any], int]:
+                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
         """Extract and create events from request data.
         
         Args:
@@ -198,7 +198,6 @@ class BaseProvider(ABC):
             session_id: Session identifier
             is_new_session: Whether this is a new session
             last_processed_index: Index of last processed message
-            external_agent_id: External agent ID from header (overrides computed agent ID)
             
         Returns:
             Tuple of (events, new_last_processed_index)
@@ -219,6 +218,58 @@ class BaseProvider(ABC):
             return {}
         # Base provider does not assume header format; concrete providers should override
         return {}
+    
+    def _get_agent_id(self, body: Dict[str, Any]) -> str:
+        """Get agent ID derived from system prompt hash (calculated per request).
+        
+        This is a base implementation that should be overridden by concrete providers
+        to handle their specific system prompt extraction logic.
+        
+        Args:
+            body: Request body
+            
+        Returns:
+            Agent ID string
+        """
+        system_prompt = self._extract_system_prompt(body)
+        
+        # Generate agent ID as hash of system prompt
+        import hashlib
+        hash_obj = hashlib.md5(system_prompt.encode())
+        return f"prompt-{hash_obj.hexdigest()[:12]}"
+    
+    def _extract_system_prompt(self, body: Dict[str, Any]) -> str:
+        """Extract system prompt from request body.
+        
+        This is a base implementation that should be overridden by concrete providers
+        to handle their specific message format.
+        
+        Args:
+            body: Request body
+            
+        Returns:
+            System prompt string
+        """
+        # Default implementation - concrete providers should override
+        return "default-system"
+    
+    def evaluate_agent_id(self, body: Dict[str, Any], external_agent_id: Optional[str] = None) -> str:
+        """Evaluate and return the appropriate agent ID for a request.
+        
+        This method provides a consistent interface for agent ID evaluation across
+        all providers. It prioritizes external agent ID if provided, otherwise
+        falls back to computed agent ID from the request body.
+        
+        Args:
+            body: Request body
+            external_agent_id: Optional external agent ID from headers
+            
+        Returns:
+            The agent ID to use for this request
+        """
+        if external_agent_id:
+            return external_agent_id
+        return self._get_agent_id(body)
     
     def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
                               session_id: str, duration_ms: float, 

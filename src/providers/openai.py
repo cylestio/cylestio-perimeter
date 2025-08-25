@@ -187,14 +187,6 @@ class OpenAIProvider(BaseProvider):
             for old_id, _ in oldest_entries:
                 del self.response_sessions[old_id]
     
-    def _get_agent_id(self, body: Dict[str, Any]) -> str:
-        """Get agent ID derived from system prompt hash (calculated per request)."""
-        system_prompt = self._extract_system_prompt(body)
-        
-        # Generate agent ID as hash of system prompt
-        hash_obj = hashlib.md5(system_prompt.encode())
-        return f"prompt-{hash_obj.hexdigest()[:12]}"
-    
     def _extract_system_prompt(self, body: Dict[str, Any]) -> str:
         """Extract system prompt from OpenAI request body."""
         # Look for system message in messages array (Chat Completions API)
@@ -269,16 +261,15 @@ class OpenAIProvider(BaseProvider):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             last_processed_index: int = 0, external_agent_id: Optional[str] = None) -> Tuple[List[Any], int]:
+                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
         """Extract and create events from request data, processing only new messages.
         
         Args:
             body: Request body
             session_info: Session information
             session_id: Session identifier
-            is_new_session: Whether this is a new session
+            is_new_session: bool
             last_processed_index: Index of last processed message
-            external_agent_id: External agent ID from header (overrides computed agent ID)
             
         Returns:
             Tuple of (events, new_last_processed_index)
@@ -301,12 +292,12 @@ class OpenAIProvider(BaseProvider):
         if not new_messages:
             return events, last_processed_index
         
-        # Use same ID for both trace and span (derived from session)
+        # Use same ID for last_processed_index
         trace_span_id = self._session_to_trace_span_id(session_id)
         trace_id = trace_span_id
         span_id = trace_span_id
-        # Use external agent ID if provided, otherwise compute from body
-        agent_id = external_agent_id if external_agent_id else self._get_agent_id(body)
+        # Agent ID is now evaluated centrally in middleware
+        agent_id = self._get_agent_id(body)
         
         # Handle session start event (only for new sessions)
         if is_new_session or session_info.is_session_start:

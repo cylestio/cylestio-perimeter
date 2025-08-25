@@ -224,6 +224,25 @@ class LLMMiddleware(BaseHTTPMiddleware):
         # Fallback: no session detected
         return None, None, False
 
+    def _evaluate_agent_id(self, request: Request, body: Dict[str, Any]) -> str:
+        """Evaluate and return the appropriate agent ID for a request.
+        
+        This method centralizes agent ID evaluation logic, checking for external
+        agent ID from headers first, then falling back to provider-computed agent ID.
+        
+        Args:
+            request: FastAPI request object
+            body: Parsed request body
+            
+        Returns:
+            The agent ID to use for this request
+        """
+        # Check for external agent ID in headers
+        external_agent_id = request.headers.get("x-cylestio-agent-id")
+        
+        # Use provider's evaluation method which handles the fallback logic
+        return self.provider.evaluate_agent_id(body, external_agent_id)
+    
     async def _create_request_data(self, request: Request) -> Optional[LLMRequestData]:
         """Parse request and create LLMRequestData.
         
@@ -265,17 +284,13 @@ class LLMMiddleware(BaseHTTPMiddleware):
             events = []
             if session_id and body and session_info_obj:
                 try:
-                    # Get external agent ID from request headers
-                    external_agent_id = request.headers.get("x-cylestio-agent-id")
-                    
                     # Extract events from request
                     events, new_processed_index = self.provider.extract_request_events(
                         body=body,
                         session_info=session_info_obj,
                         session_id=session_id,
                         is_new_session=is_new_session,
-                        last_processed_index=session_info_obj.last_processed_index,
-                        external_agent_id=external_agent_id
+                        last_processed_index=session_info_obj.last_processed_index
                     )
                     
                     # Update session with new processed index using provider interface
@@ -285,11 +300,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     # Store trace/span ID and other metadata for response events
                     if events:
                         trace_span_id = self.provider.get_trace_span_id(session_id)
-                        # Use external agent ID if provided, otherwise compute from body
-                        if external_agent_id:
-                            agent_id = external_agent_id
-                        else:
-                            agent_id = self.provider._get_agent_id(body)
+                        # Use centralized agent ID evaluation
+                        agent_id = self._evaluate_agent_id(request, body)
                         request.state.cylestio_trace_span_id = trace_span_id
                         request.state.agent_id = agent_id
                         request.state.model = model
