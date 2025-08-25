@@ -101,14 +101,6 @@ class AnthropicProvider(BaseProvider):
     
 
     
-    def _get_agent_id(self, body: Dict[str, Any]) -> str:
-        """Get agent ID derived from system prompt hash (calculated per request)."""
-        system_prompt = self._extract_system_prompt(body)
-        
-        # Generate agent ID as hash of system prompt
-        hash_obj = hashlib.md5(system_prompt.encode())
-        return f"prompt-{hash_obj.hexdigest()[:12]}"
-    
     def _extract_system_prompt(self, body: Dict[str, Any]) -> str:
         """Extract system prompt from Anthropic request body."""
         # Look for system message in body
@@ -170,7 +162,7 @@ class AnthropicProvider(BaseProvider):
             body: Request body
             session_info: Session information
             session_id: Session identifier
-            is_new_session: Whether this is a new session
+            is_new_session: bool
             last_processed_index: Index of last processed message
             
         Returns:
@@ -196,6 +188,7 @@ class AnthropicProvider(BaseProvider):
         trace_span_id = self._session_to_trace_span_id(session_id)
         trace_id = trace_span_id
         span_id = trace_span_id
+        # Agent ID is now evaluated centrally in middleware
         agent_id = self._get_agent_id(body)
         
         # Handle session start event (only for new sessions)
@@ -311,6 +304,10 @@ class AnthropicProvider(BaseProvider):
                 events.append(tool_execution_event)
         
         return events
+
+
+
+
 
     def get_auth_headers(self) -> Dict[str, str]:
         """Return Anthropic-specific auth headers.

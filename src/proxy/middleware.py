@@ -1,7 +1,8 @@
 """Core LLM middleware with interceptor support."""
 import json
 import time
-from typing import Any, Callable, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -9,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.proxy.session import SessionDetector
 from src.proxy.tools import ToolParser
-from src.providers.base import BaseProvider
+from src.providers.base import BaseProvider, SessionInfo
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -181,6 +182,67 @@ class LLMMiddleware(BaseHTTPMiddleware):
             # Re-raise the original error
             raise
     
+    async def _evaluate_session_id(self, request: Request, body: Dict[str, Any]) -> Tuple[str, SessionInfo, bool]:
+        """Evaluate and determine session ID using either external headers or auto-generation.
+        
+        This function encapsulates all the complex logic for deciding how to handle session IDs:
+        - Check for external session ID header
+        - Fall back to normal session detection
+        - Handle session creation/continuation logic
+        
+        Args:
+            request: FastAPI request object
+            body: Parsed request body
+            
+        Returns:
+            Tuple of (session_id, session_info_obj, is_new_session)
+        """
+        # Check for external session ID header
+        external_session_id = request.headers.get("x-cylestio-session-id")
+        
+        # If external session ID is provided, use it
+        if external_session_id:
+            session_info_obj = await self.provider.create_or_get_session(
+                session_id=external_session_id,
+                body=body,
+                metadata={"external": True, "provider": self.provider.name}
+            )
+            return external_session_id, session_info_obj, session_info_obj.is_session_start
+        
+        # Otherwise, use normal session detection flow
+        if self.session_detector:
+            try:
+                session_info = await self.session_detector.analyze_request(request, body)
+                if session_info:
+                    session_id = session_info.get("session_id")
+                    is_new_session = session_info.get("is_new_session", False)
+                    session_info_obj = session_info.get("session_info_obj")
+                    return session_id, session_info_obj, is_new_session
+            except Exception as e:
+                logger.debug(f"Failed to analyze session: {e}")
+        
+        # Fallback: no session detected
+        return None, None, False
+
+    def _evaluate_agent_id(self, request: Request, body: Dict[str, Any]) -> str:
+        """Evaluate and return the appropriate agent ID for a request.
+        
+        This method centralizes agent ID evaluation logic, checking for external
+        agent ID from headers first, then falling back to provider-computed agent ID.
+        
+        Args:
+            request: FastAPI request object
+            body: Parsed request body
+            
+        Returns:
+            The agent ID to use for this request
+        """
+        # Check for external agent ID in headers
+        external_agent_id = request.headers.get("x-cylestio-agent-id")
+        
+        # Use provider's evaluation method which handles the fallback logic
+        return self.provider.evaluate_agent_id(body, external_agent_id)
+    
     async def _create_request_data(self, request: Request) -> Optional[LLMRequestData]:
         """Parse request and create LLMRequestData.
         
@@ -209,61 +271,41 @@ class LLMMiddleware(BaseHTTPMiddleware):
             if body:
                 model = self.provider.extract_model_from_body(body)
             
-            # Detect session information using provider-aware session detection
-            session_id = None
-            provider_name = self.provider.name
-            session_info_obj = None  # Store the full session info object
+            # Use the dedicated session evaluation function
+            session_id, session_info_obj, is_new_session = await self._evaluate_session_id(request, body)
             
-            # Enrich the LLMRequestData with session information
-            is_new_session = False
-            if self.session_detector:
-                try:
-                    session_info = await self.session_detector.analyze_request(request, body)
-                    if session_info:
-                        session_id = session_info.get("session_id")
-                        is_new_session = session_info.get("is_new_session", False)
-                        # Use model from session detection if not found in body
-                        if not model and session_info.get("model"):
-                            model = session_info["model"]
-                        # Also update streaming info if available
-                        if session_info.get("is_streaming") is not None:
-                            is_streaming = session_info["is_streaming"]
-                        
-                        # Extract the full session info object for event extraction
-                        session_info_obj = session_info.get("session_info_obj")
-                except Exception as e:
-                    logger.debug(f"Failed to analyze session: {e}")
+            # Update model and streaming info from session detection if available
+            if session_info_obj and not model and session_info_obj.model:
+                model = session_info_obj.model
+            if session_info_obj and session_info_obj.is_streaming is not None:
+                is_streaming = session_info_obj.is_streaming
 
-            # Tool results are now parsed within extract_request_events based on new messages only
-            
             # Extract events from request using provider
             events = []
-            if session_id and body:
+            if session_id and body and session_info_obj:
                 try:
-                    # Use the session info object we already obtained (no duplicate call)
-                    if session_info_obj:
-                        events, new_processed_index = self.provider.extract_request_events(
-                            body=body,
-                            session_info=session_info_obj,
-                            session_id=session_id,
-                            is_new_session=is_new_session,
-                            last_processed_index=session_info_obj.last_processed_index
-                        )
+                    # Extract events from request
+                    events, new_processed_index = self.provider.extract_request_events(
+                        body=body,
+                        session_info=session_info_obj,
+                        session_id=session_id,
+                        is_new_session=is_new_session,
+                        last_processed_index=session_info_obj.last_processed_index
+                    )
+                    
+                    # Update session with new processed index using provider interface
+                    if new_processed_index > session_info_obj.last_processed_index:
+                        self.provider.update_session_processed_index(session_id, new_processed_index)
+                    
+                    # Store trace/span ID and other metadata for response events
+                    if events:
+                        trace_span_id = self.provider.get_trace_span_id(session_id)
+                        # Use centralized agent ID evaluation
+                        agent_id = self._evaluate_agent_id(request, body)
+                        request.state.cylestio_trace_span_id = trace_span_id
+                        request.state.agent_id = agent_id
+                        request.state.model = model
                         
-                        # Update session with new processed index
-                        if new_processed_index > session_info_obj.last_processed_index and hasattr(self.provider, '_session_utility'):
-                            self.provider._session_utility.update_processed_index(
-                                session_id, new_processed_index
-                            )
-                        
-                        # Store trace/span ID and other metadata for response events
-                        if events and hasattr(self.provider, '_session_to_trace_span_id'):
-                            trace_span_id = self.provider._session_to_trace_span_id(session_id)
-                            agent_id = self.provider._get_agent_id(body)
-                            request.state.cylestio_trace_span_id = trace_span_id
-                            request.state.agent_id = agent_id
-                            request.state.model = model
-                            
                 except Exception as e:
                     logger.error(f"Error extracting request events: {e}", exc_info=True)
             
@@ -273,7 +315,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 body=body,
                 is_streaming=is_streaming,
                 session_id=session_id,
-                provider=provider_name,
+                provider=self.provider.name,
                 model=model,
                 is_new_session=is_new_session,
                 tool_results=[],  # Tool results are now processed within extract_request_events

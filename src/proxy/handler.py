@@ -39,35 +39,20 @@ class ProxyHandler:
         Returns:
             Modified headers dict
         """
-        # Exclude hop-by-hop and internal headers
-        excluded_headers = {"host", "content-length", "transfer-encoding"}
-        def is_internal_header(key: str) -> bool:
-            return key.lower().startswith("x-cylestio-")
-
-        # Build a case-insensitive map while preserving original casing for non-sensitive headers
-        canonical_headers: Dict[str, str] = {}
-        lower_to_original: Dict[str, str] = {}
-        for key, value in request_headers.items():
-            lower_key = key.lower()
-            if lower_key in excluded_headers or is_internal_header(key):
-                continue
-            # First occurrence preserves the original casing
-            if lower_key not in lower_to_original:
-                lower_to_original[lower_key] = key
-            canonical_headers[lower_to_original[lower_key]] = value
-
-        # Determine if client already supplied any auth header
-        has_client_auth = any(k.lower() in ("authorization", "x-api-key") for k in canonical_headers.keys())
-
-        # Merge provider auth headers only if client did not supply one
-        if not has_client_auth:
-            provider_auth_headers = self.provider.get_auth_headers()
-            for k, v in provider_auth_headers.items():
-                # Avoid duplicates by lower-case comparison
-                if k.lower() not in (key.lower() for key in canonical_headers.keys()):
-                    canonical_headers[k] = v
-
-        return canonical_headers
+        # Copy headers, excluding host-related ones and cylestio control headers
+        excluded_headers = {"host", "content-length"}
+        
+        headers = {
+            k: v for k, v in request_headers.items() 
+            if k.lower() not in excluded_headers and not k.lower().startswith("x-cylestio-")
+        }
+        
+        # Add API key from provider
+        api_key = self.provider.get_api_key()
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        
+        return headers
     
     def _is_streaming_request(self, body: Any) -> bool:
         """Check if request is for streaming response.

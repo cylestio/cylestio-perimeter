@@ -8,6 +8,7 @@ A configurable Python proxy server for LLM API requests with middleware support,
 - **Streaming Support**: Handle Server-Sent Events (SSE) for real-time responses
 - **Request Tracing**: Capture and save request/response data to JSON files
 - **Session Management**: Intelligent session detection using message history hashing
+- **External ID Support**: Custom session and agent IDs via `x-cylestio-*` headers
 - **Middleware System**: Extensible middleware for cross-cutting concerns
 - **CLI Interface**: Simple command-line interface with configuration file support
 - **Docker Support**: Ready-to-use Docker containers
@@ -94,6 +95,32 @@ middlewares:
       include_headers: true
       include_body: true
 ```
+
+### External ID Headers
+The gateway supports custom session and agent identification via headers:
+
+```bash
+# Custom session ID
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "x-cylestio-session-id: my-session-123" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}]}'
+
+# Custom agent ID
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "x-cylestio-agent-id: math-tutor-v2" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "What is 2+2?"}]}'
+
+# Both custom session and agent ID
+curl -X POST http://localhost:3000/v1/chat/completions \
+  -H "x-cylestio-session-id: user-session-456" \
+  -H "x-cylestio-agent-id: customer-support-bot" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Help me reset my password"}]}'
+```
+
+See [External Agent ID Documentation](docs/external-agent-id.md) for complete details.
 
 ## CLI Commands
 
