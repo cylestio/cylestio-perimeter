@@ -41,6 +41,7 @@ class ProxyHandler:
         """
         # Copy headers, excluding host-related ones and cylestio control headers
         excluded_headers = {"host", "content-length"}
+        
         headers = {
             k: v for k, v in request_headers.items() 
             if k.lower() not in excluded_headers and not k.lower().startswith("x-cylestio-")

@@ -430,3 +430,13 @@ class OpenAIProvider(BaseProvider):
                 events.append(tool_execution_event)
         
         return events
+    
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Return OpenAI-specific auth headers.
+        
+        Uses Authorization: Bearer <api_key> when an API key is configured.
+        """
+        api_key = self.get_api_key()
+        if not api_key:
+            return {}
+        return {"Authorization": f"Bearer {api_key}"}

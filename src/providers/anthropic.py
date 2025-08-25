@@ -313,3 +313,13 @@ class AnthropicProvider(BaseProvider):
                 events.append(tool_execution_event)
         
         return events
+
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Return Anthropic-specific auth headers.
+        
+        Uses x-api-key: <api_key> when an API key is configured.
+        """
+        api_key = self.get_api_key()
+        if not api_key:
+            return {}
+        return {"x-api-key": api_key}

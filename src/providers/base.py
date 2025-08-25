@@ -147,6 +147,21 @@ class BaseProvider(ABC):
         """
         return [], last_processed_index
     
+    def get_auth_headers(self) -> Dict[str, str]:
+        """Return provider-specific auth headers if applicable.
+        
+        Default implementation uses `get_api_key` and returns an empty dict
+        when no API key is configured.
+        
+        Returns:
+            Dict of header name to value for authentication
+        """
+        api_key = self.get_api_key()
+        if not api_key:
+            return {}
+        # Base provider does not assume header format; concrete providers should override
+        return {}
+    
     def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
                               session_id: str, duration_ms: float, 
                               tool_uses: List[Dict[str, Any]], 
