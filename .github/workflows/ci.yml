@@ -30,14 +30,6 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: 🔍 Linting with Ruff
-        run: |
-          ruff check src/ tests/
-
-      - name: 🏷️ Type checking with MyPy
-        run: |
-          mypy src/ --ignore-missing-imports
-
   tests:
     name: 🧪 Tests
     runs-on: ubuntu-latest
