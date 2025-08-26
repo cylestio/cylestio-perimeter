@@ -1,0 +1,138 @@
+---
+name: Security Pipeline
+
+on:
+  push:
+    branches: [main, develop, security-scans]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Create security reports directory
+        run: mkdir -p security-reports
+
+      - name: Dependency vulnerability scan
+        run: |
+          pip install pip-audit safety
+          pip-audit --format json \
+            --output security-reports/dependency-audit.json || true
+          safety check --json \
+            --output security-reports/safety-report.json || true
+          echo "Dependency scan completed"
+
+      - name: Secret detection
+        run: |
+          pip install detect-secrets
+          if [ ! -f .secrets.baseline ]; then
+            detect-secrets scan --all-files > .secrets.baseline
+          fi
+          detect-secrets scan --all-files > \
+            security-reports/secrets-scan.json || true
+          echo "Secret detection completed"
+
+      - name: Static code analysis
+        run: |
+          pip install semgrep bandit[toml]
+          semgrep --config=p/python --config=p/security-audit \
+            --json --output=security-reports/semgrep-results.json \
+            src/ || true
+          bandit -r src/ -f json \
+            -o security-reports/bandit-results.json || true
+          echo "Static analysis completed"
+
+      - name: Container security scan
+        run: |
+          docker build -t cylestio-gateway:security-scan .
+          sudo apt-get update
+          sudo apt-get install wget apt-transport-https gnupg -y
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | \
+            sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy -y
+          trivy image --format json \
+            --output security-reports/trivy-results.json \
+            cylestio-gateway:security-scan || true
+          echo "Container scan completed"
+
+      - name: Generate security summary
+        if: always()
+        run: |
+          echo "# Security Scan Summary" > security-reports/SUMMARY.md
+          echo "Generated: $(date -u)" >> security-reports/SUMMARY.md
+          echo "Commit: ${{ github.sha }}" >> security-reports/SUMMARY.md
+          echo "" >> security-reports/SUMMARY.md
+          echo "## Report Files" >> security-reports/SUMMARY.md
+          ls -la security-reports/ | grep -v "^total" | grep -v "^d" | \
+            awk '{print "- " $9}' >> security-reports/SUMMARY.md
+          cat security-reports/SUMMARY.md
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.sha }}
+          path: security-reports/
+          retention-days: 90
+
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: License compliance check
+        run: |
+          pip install pip-licenses
+          mkdir -p security-reports
+          pip-licenses --format=json \
+            --output-file=security-reports/licenses.json
+          pip-licenses --format=plain \
+            --output-file=security-reports/licenses.txt
+          echo "License check completed"
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-reports-${{ github.sha }}
+          path: security-reports/licenses.*
+          retention-days: 90

@@ -1,0 +1,110 @@
+---
+name: 📋 SBOM Generation
+
+on:
+  push:
+    branches: [ main, security-scans ]
+  pull_request:
+    branches: [ main, security-scans ]
+  schedule:
+    # Generate SBOM weekly
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  generate-sbom:
+    name: 📋 Generate Software Bill of Materials
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-licenses pipdeptree
+
+      - name: 📋 Generate SBOM
+        run: |
+          mkdir -p sbom-reports
+          
+          # Generate dependency information
+          echo "📋 Generating dependency lists..."
+          pip list --format=json > sbom-reports/pip-list.json
+          pip list > sbom-reports/pip-list.txt
+          
+          # Generate dependency tree
+          echo "🌳 Generating dependency tree..."
+          pipdeptree --json > sbom-reports/dependency-tree.json
+          pipdeptree > sbom-reports/dependency-tree.txt
+          
+          # Generate license report
+          echo "📜 Generating license report..."
+          pip-licenses --format=json --output-file=sbom-reports/licenses.json
+          pip-licenses --format=plain --output-file=sbom-reports/licenses.txt
+          
+          # Create SBOM summary
+          echo "📋 Creating SBOM summary..."
+          cat > sbom-reports/sbom-summary.json << EOF
+          {
+            "component": "cylestio-gateway",
+            "version": "$(git describe --tags --always 2>/dev/null || echo 'unknown')",
+            "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "generator": "Cylestio Security Pipeline",
+            "total_dependencies": $(cat sbom-reports/pip-list.json | jq length),
+            "python_version": "${{ env.PYTHON_VERSION }}",
+            "files": {
+              "dependencies": "dependency-tree.json",
+              "licenses": "licenses.json",
+              "pip_list": "pip-list.json"
+            }
+          }
+          EOF
+          
+          # Create README for SBOM
+          cat > sbom-reports/README.md << 'EOF'
+          # Software Bill of Materials (SBOM)
+          
+          This directory contains the Software Bill of Materials for cylestio-gateway.
+          
+          ## Files
+          
+          - `sbom-summary.json` - High-level SBOM metadata
+          - `dependency-tree.json` - Complete dependency tree with versions
+          - `licenses.json` - License information for all dependencies
+          - `pip-list.json` - Raw pip list output
+          - `*.txt` - Human-readable versions of the above
+          
+          ## Purpose
+          
+          These files provide transparency about:
+          - All dependencies and their versions
+          - License compliance information
+          - Supply chain composition
+          
+          Generated automatically by the Cylestio Security Pipeline.
+          EOF
+          
+          echo "✅ SBOM generation completed successfully"
+          
+          # Show summary
+          echo "📊 SBOM Summary:"
+          cat sbom-reports/sbom-summary.json | jq .
+
+      - name: 📤 Upload SBOM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-reports-${{ github.sha }}
+          path: sbom-reports/
+          retention-days: 90

@@ -8,6 +8,7 @@ venv/
 env/
 ENV/
 .venv
+test_env/
 
 # Development
 .pytest_cache/
@@ -29,6 +30,7 @@ build/
 # Project specific
 traces/
 message_logs/
+tasks/
 *.log
 .env
 .env.local
