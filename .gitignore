@@ -29,6 +29,7 @@ build/
 # Project specific
 traces/
 message_logs/
+tasks/
 *.log
 .env
 .env.local

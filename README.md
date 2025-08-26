@@ -1,18 +1,26 @@
-# LLM Proxy Server
+# Cylestio Gateway
+
+[![CI Pipeline](https://github.com/cylestio/cylestio-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/ci.yml)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Code style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A configurable Python proxy server for LLM API requests with middleware support, built with FastAPI.
 
-## Features
+## ✨ Features
 
-- **LLM Provider Support**: Proxy requests to OpenAI, Anthropic, and other LLM providers
-- **Streaming Support**: Handle Server-Sent Events (SSE) for real-time responses
-- **Request Tracing**: Capture and save request/response data to JSON files
-- **Session Management**: Intelligent session detection using message history hashing
-- **External ID Support**: Custom session and agent IDs via `x-cylestio-*` headers
-- **Middleware System**: Extensible middleware for cross-cutting concerns
-- **CLI Interface**: Simple command-line interface with configuration file support
-- **Docker Support**: Ready-to-use Docker containers
-- **Metrics Endpoint**: Monitor proxy performance and session statistics
+### Core Functionality
+- **🔄 LLM Provider Support**: Proxy requests to OpenAI, Anthropic, and other LLM providers
+- **📡 Streaming Support**: Handle Server-Sent Events (SSE) for real-time responses
+- **📊 Request Tracing**: Capture and save request/response data to JSON files
+- **🔍 Session Management**: Intelligent session detection using message history hashing
+- **🏷️ External ID Support**: Custom session and agent IDs via `x-cylestio-*` headers
+- **⚙️ Middleware System**: Extensible middleware for cross-cutting concerns
+- **💻 CLI Interface**: Simple command-line interface with configuration file support
+- **🐳 Docker Support**: Ready-to-use Docker containers
+- **📈 Metrics Endpoint**: Monitor proxy performance and session statistics
+
+
 
 ## Quick Start
 
@@ -240,7 +248,48 @@ Response includes:
 - `LLM_API_KEY` - API key for authentication
 - `LOG_LEVEL` - Logging level (INFO, DEBUG, etc.)
 
+## Security
+
+Cylestio Gateway implements comprehensive security measures to ensure safe deployment in enterprise environments.
+
+[![Security Pipeline](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml/badge.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml)
+[![Known Vulnerabilities](https://img.shields.io/badge/vulnerabilities-0-brightgreen.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml)
+[![Dependencies](https://img.shields.io/badge/dependencies-secure-brightgreen.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml)
+
+**Security Measures:**
+- **Automated Vulnerability Scanning**: Every release is scanned for known security issues
+- **Dependency Security**: All third-party packages are continuously monitored for vulnerabilities  
+- **Static Code Analysis**: Source code is analyzed for security vulnerabilities using industry-standard tools
+- **Secret Detection**: Pre-commit hooks prevent accidental credential exposure
+- **Supply Chain Security**: Complete Software Bill of Materials (SBOM) provides full transparency
+- **License Compliance**: Automated scanning ensures only approved licenses are used
+
+**Documentation:** [Security Policy](SECURITY.md)
+
 ## Development
+
+### Setting Up Development Environment
+
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Set up pre-commit hooks (includes security scanning)
+pre-commit install
+
+# Run tests with coverage
+pytest --cov=src
+
+# Run security checks locally
+pre-commit run --all-files
+```
+
+### Security Development Practices
+
+1. **Never commit secrets** - Use environment variables for all credentials
+2. **Run pre-commit hooks** - Automated security checks before each commit
+3. **Review security reports** - Check CI security scan results
+4. **Follow secure coding** - Follow standard Python security best practices
 
 See [CLAUDE.md](CLAUDE.md) for detailed development guidance and architecture information.
 

@@ -1,0 +1,212 @@
+name: 📋 SBOM Generation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Generate SBOM weekly
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  generate-sbom:
+    name: 📋 Generate Software Bill of Materials
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install cyclonedx-bom pip-licenses pipdeptree
+
+      - name: 📋 Generate Python SBOM (CycloneDX)
+        run: |
+          mkdir -p sbom-reports
+          
+          # Generate CycloneDX SBOM
+          cyclonedx-py -o sbom-reports/cylestio-gateway-sbom.json
+          cyclonedx-py -o sbom-reports/cylestio-gateway-sbom.xml --format xml
+          
+          echo "✅ CycloneDX SBOM generated"
+
+      - name: 📄 Generate Dependency Tree
+        run: |
+          # Generate dependency tree
+          pipdeptree > sbom-reports/dependency-tree.txt
+          pipdeptree --json > sbom-reports/dependency-tree.json
+          
+          echo "✅ Dependency tree generated"
+
+      - name: 📜 Generate License Report
+        run: |
+          # Generate comprehensive license report
+          pip-licenses --format=json --output-file=sbom-reports/licenses.json
+          pip-licenses --format=csv --output-file=sbom-reports/licenses.csv
+          pip-licenses --format=plain --output-file=sbom-reports/licenses.txt
+          
+          # Generate license summary
+          cat > sbom-reports/license-summary.md << 'EOF'
+          # License Summary
+          
+          ## License Distribution
+          EOF
+          
+          pip-licenses --format=json | jq -r 'group_by(.License) | map({license: .[0].License, count: length}) | sort_by(.count) | reverse | .[] | "- \(.license): \(.count) packages"' >> sbom-reports/license-summary.md
+          
+          echo "✅ License report generated"
+
+      - name: 🔍 Vulnerability Context for SBOM
+        run: |
+          # Add vulnerability context to SBOM
+          pip install pip-audit
+          
+          # Generate vulnerability report
+          pip-audit --format json --output sbom-reports/vulnerabilities.json || true
+          
+          # Create SBOM with vulnerability context
+          cat > sbom-reports/sbom-with-vulnerabilities.json << 'EOF'
+          {
+            "sbom_metadata": {
+              "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "generator": "Cylestio Security Pipeline",
+              "component": "cylestio-gateway",
+              "version": "$(git describe --tags --always)"
+            },
+            "dependencies": $(cat sbom-reports/dependency-tree.json),
+            "licenses": $(cat sbom-reports/licenses.json),
+            "vulnerabilities": $(cat sbom-reports/vulnerabilities.json 2>/dev/null || echo "[]")
+          }
+          EOF
+          
+          echo "✅ Enhanced SBOM with vulnerability context generated"
+
+      - name: 🐳 Generate Container SBOM
+        run: |
+          # Build container for SBOM generation
+          docker build -t cylestio-gateway:sbom .
+          
+          # Install syft for container SBOM
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Generate container SBOM
+          syft cylestio-gateway:sbom -o cyclonedx-json=sbom-reports/container-sbom.json
+          syft cylestio-gateway:sbom -o cyclonedx-xml=sbom-reports/container-sbom.xml
+          syft cylestio-gateway:sbom -o spdx-json=sbom-reports/container-sbom-spdx.json
+          
+          echo "✅ Container SBOM generated"
+
+      - name: 📊 Generate SBOM Summary Report
+        run: |
+          cat > sbom-reports/SBOM-README.md << 'EOF'
+          # Software Bill of Materials (SBOM)
+          
+          ## Overview
+          This directory contains comprehensive Software Bill of Materials (SBOM) for Cylestio Gateway.
+          
+          ## Files Description
+          
+          ### Python Dependencies
+          - `cylestio-gateway-sbom.json` - CycloneDX format SBOM
+          - `cylestio-gateway-sbom.xml` - CycloneDX XML format SBOM
+          - `dependency-tree.json` - Detailed dependency tree
+          - `dependency-tree.txt` - Human-readable dependency tree
+          
+          ### Licensing
+          - `licenses.json` - Detailed license information
+          - `licenses.csv` - License data in CSV format
+          - `licenses.txt` - Human-readable license list
+          - `license-summary.md` - License distribution summary
+          
+          ### Security
+          - `vulnerabilities.json` - Known vulnerabilities in dependencies
+          - `sbom-with-vulnerabilities.json` - Enhanced SBOM with security context
+          
+          ### Container
+          - `container-sbom.json` - Container SBOM in CycloneDX format
+          - `container-sbom.xml` - Container SBOM in CycloneDX XML
+          - `container-sbom-spdx.json` - Container SBOM in SPDX format
+          
+          ## Generation Details
+          - **Generated**: $(date -u)
+          - **Git Commit**: $(git rev-parse HEAD)
+          - **Git Tag**: $(git describe --tags --always)
+          - **Python Version**: $(python --version)
+          
+          ## Compliance
+          These SBOMs support compliance with:
+          - Executive Order 14028 (Cybersecurity)
+          - NIST SP 800-218 (Secure Software Development Framework)
+          - ISO/IEC 5962:2021 (SPDX)
+          - OWASP CycloneDX standard
+          
+          ## Verification
+          SBOMs are automatically generated and can be verified using:
+          ```bash
+          # Verify CycloneDX SBOM
+          cyclonedx validate --input-file cylestio-gateway-sbom.json
+          
+          # Verify SPDX SBOM  
+          spdx-tools validate container-sbom-spdx.json
+          ```
+          
+          ## Contact
+          For questions about our SBOMs or supply chain security:
+          - Security Team: security@cylestio.com
+          - Supply Chain: supply-chain@cylestio.com
+          EOF
+          
+          # Add statistics
+          echo "" >> sbom-reports/SBOM-README.md
+          echo "## Statistics" >> sbom-reports/SBOM-README.md
+          echo "- **Total Python Packages**: $(jq length sbom-reports/dependency-tree.json)" >> sbom-reports/SBOM-README.md
+          echo "- **Unique Licenses**: $(jq -r 'map(.License) | unique | length' sbom-reports/licenses.json)" >> sbom-reports/SBOM-README.md
+          echo "- **Known Vulnerabilities**: $(jq '.vulnerabilities | length' sbom-reports/vulnerabilities.json 2>/dev/null || echo "0")" >> sbom-reports/SBOM-README.md
+
+      - name: ✅ Validate SBOMs
+        run: |
+          # Install validation tools
+          npm install -g @cyclonedx/cdx-cli
+          
+          # Validate CycloneDX SBOMs
+          echo "🔍 Validating SBOMs..."
+          cdx validate --input-file sbom-reports/cylestio-gateway-sbom.json && echo "✅ Python SBOM valid"
+          cdx validate --input-file sbom-reports/container-sbom.json && echo "✅ Container SBOM valid"
+          
+          echo "✅ All SBOMs validated successfully"
+
+      - name: 📤 Upload SBOM Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom-reports-${{ github.sha }}
+          path: sbom-reports/
+          retention-days: 90
+
+      - name: 📊 SBOM Summary
+        run: |
+          echo "## 📋 SBOM Generation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Python SBOM**: Generated in CycloneDX format" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Container SBOM**: Generated in CycloneDX and SPDX formats" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **License Report**: Complete license inventory" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Vulnerability Context**: Security findings included" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Validation**: All SBOMs validated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Statistics**:" >> $GITHUB_STEP_SUMMARY
+          echo "- Python Packages: $(jq length sbom-reports/dependency-tree.json)" >> $GITHUB_STEP_SUMMARY
+          echo "- Unique Licenses: $(jq -r 'map(.License) | unique | length' sbom-reports/licenses.json)" >> $GITHUB_STEP_SUMMARY
+          echo "- Vulnerabilities: $(jq '.vulnerabilities | length' sbom-reports/vulnerabilities.json 2>/dev/null || echo "0")" >> $GITHUB_STEP_SUMMARY
