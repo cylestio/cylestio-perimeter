@@ -30,7 +30,7 @@ dependencies = [
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
     "pyyaml>=6.0.1",
-    "typer>=0.9.0",
+    "typer>=0.16.0",
     "uvicorn>=0.27.0",
     "python-multipart>=0.0.6",
     "python-dotenv>=1.0.0",
@@ -55,6 +55,10 @@ dev = [
 
 [project.scripts]
 cylestio-gateway = "src.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
 
 [project.urls]
 Homepage = "https://github.com/cylestio/cylestio-gateway"

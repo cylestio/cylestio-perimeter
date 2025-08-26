@@ -10,6 +10,7 @@ import uvicorn
 import yaml
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import StreamingResponse
+import click
 
 from src.config.settings import Settings, load_settings
 from src.proxy.middleware import LLMMiddleware
@@ -163,41 +164,33 @@ def create_app(config: Settings) -> FastAPI:
 
 
 @cli.command()
-def main(
-    base_url: Optional[str] = typer.Option(None, "--base-url", help="Base URL of target LLM API"),
-    llm_type: Optional[str] = typer.Option(None, "--type", help="LLM provider type (openai, anthropic, etc.)"),
-    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key to inject into requests"),
-    port: Optional[int] = typer.Option(None, "--port", help="Proxy server port"),
-    host: Optional[str] = typer.Option(None, "--host", help="Server host"),
-    log_level: Optional[str] = typer.Option(None, "--log-level", help="Logging level"),
-    config: Optional[str] = typer.Option(None, "--config", help="Path to YAML configuration file"),
-    validate_config: Optional[str] = typer.Option(None, "--validate-config", help="Validate configuration file"),
-    generate_config: Optional[str] = typer.Option(None, "--generate-config", help="Generate example configuration file"),
+def run(
+    base_url: str = typer.Option(None, "--base-url", help="Base URL of target LLM API"),
+    llm_type: str = typer.Option(None, "--type", help="LLM provider type (openai, anthropic, etc.)"),
+    api_key: str = typer.Option(None, "--api-key", help="API key to inject into requests"),
+    port: int = typer.Option(None, "--port", help="Proxy server port"),
+    host: str = typer.Option(None, "--host", help="Server host"),
+    log_level: str = typer.Option(None, "--log-level", help="Logging level"),
+    config: str = typer.Option(None, "--config", help="Path to YAML configuration file"),
 ):
     """Run the LLM Proxy Server."""
     global settings, app
     
-    # Handle utility commands
-    if generate_config:
-        generate_example_config(generate_config)
-        return
-    
-    if validate_config:
-        validate_configuration(validate_config)
-        return
-    
     # Load settings
     try:
-        cli_args = {
-            "base_url": base_url,
-            "type": llm_type,
-            "api_key": api_key,
-            "port": port,
-            "host": host,
-            "log_level": log_level,
-        }
-        # Remove None values
-        cli_args = {k: v for k, v in cli_args.items() if v is not None}
+        cli_args = {}
+        if base_url:
+            cli_args["base_url"] = base_url
+        if llm_type:
+            cli_args["type"] = llm_type
+        if api_key:
+            cli_args["api_key"] = api_key
+        if port:
+            cli_args["port"] = port
+        if host:
+            cli_args["host"] = host
+        if log_level:
+            cli_args["log_level"] = log_level
         
         settings = load_settings(config_file=config, **cli_args)
         
@@ -223,6 +216,23 @@ def main(
     )
 
 
+@cli.command()
+def validate_config(config_path: str):
+    """Validate a configuration file."""
+    validate_configuration(config_path)
+
+
+@cli.command()
+def generate_config(output_path: str):
+    """Generate example configuration file."""
+    generate_example_config(output_path)
+
+
+def main():
+    """Entry point for the CLI."""
+    cli()
+
+
 def generate_example_config(output_path: str):
     """Generate an example configuration file.
     
@@ -243,15 +253,6 @@ def generate_example_config(output_path: str):
             "max_retries": 3
         },
         "interceptors": [
-            {
-                "type": "printer",
-                "enabled": True,
-                "config": {
-                    "log_requests": True,
-                    "log_responses": True,
-                    "log_body": True
-                }
-            },
             {
                 "type": "cylestio_trace",
                 "enabled": False,
@@ -294,25 +295,4 @@ def validate_configuration(config_path: str):
 
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) == 1:
-        # Show usage when no arguments provided
-        print("LLM Proxy Server")
-        print("\nRequired arguments:")
-        print("  --base-url TEXT    Base URL of target LLM API")
-        print("  --type TEXT        LLM provider type (openai, anthropic, etc.)")
-        print("\nOptional arguments:")
-        print("  --config TEXT      Path to YAML configuration file")
-        print("  --api-key TEXT     API key to inject into requests")
-        print("  --port INTEGER     Proxy server port (default: 3000)")
-        print("  --host TEXT        Server host (default: 0.0.0.0)")
-        print("  --log-level TEXT   Logging level (default: INFO)")
-        print("\nUtility commands:")
-        print("  --validate-config TEXT    Validate configuration file")
-        print("  --generate-config TEXT    Generate example configuration file")
-        print("\nExamples:")
-        print("  python -m src.main --base-url https://api.openai.com --type openai")
-        print("  python -m src.main --config examples/configs/anthropic-basic.yaml")
-        sys.exit(1)
-    
     cli()

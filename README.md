@@ -25,23 +25,35 @@ A configurable Python proxy server for LLM API requests with middleware support,
 
 ### Installation
 
-1. **Clone and set up environment:**
+#### From Source (Development)
+
+1. **Clone and install:**
    ```bash
+   git clone https://github.com/cylestio/cylestio-gateway.git
    cd cylestio-gateway
+   
+   # Create virtual environment
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+   
+   # Install the package in development mode
+   pip install -e .
    ```
 
-2. **Run with CLI arguments:**
+2. **Run the server:**
    ```bash
-   python -m src.main --base-url https://api.openai.com --type openai --api-key sk-your-key
+   # With CLI arguments
+   cylestio-gateway run --base-url https://api.openai.com --type openai --api-key sk-your-key
+   
+   # With config file
+   cylestio-gateway run --config config.yaml
    ```
 
 3. **Or run with config file:**
    ```bash
    python -m src.main --config config.yaml
    ```
+
 
 ### Docker Usage
 
@@ -67,7 +79,7 @@ A configurable Python proxy server for LLM API requests with middleware support,
 ### Basic Proxy Usage
 ```bash
 # Start proxy server
-python -m src.main --base-url https://api.openai.com --type openai --api-key sk-your-key
+cylestio-gateway run --base-url https://api.openai.com --type openai --api-key sk-your-key
 
 # Make requests to the proxy
 curl -X POST http://localhost:3000/v1/chat/completions \
@@ -131,14 +143,28 @@ See [External Agent ID Documentation](docs/external-agent-id.md) for complete de
 
 ## CLI Commands
 
+The CLI supports several subcommands for different operations:
+
+### Run the Server
+```bash
+cylestio-gateway run --base-url https://api.openai.com --type openai --api-key sk-your-key
+cylestio-gateway run --config config.yaml
+```
+
 ### Generate Example Config
 ```bash
-python -m src.main --generate-config example.yaml
+cylestio-gateway generate-config example.yaml
 ```
 
 ### Validate Configuration
 ```bash
-python -m src.main --validate-config config.yaml
+cylestio-gateway validate-config config.yaml
+```
+
+### Get Help
+```bash
+cylestio-gateway --help
+cylestio-gateway run --help
 ```
 
 ### Development Mode
