@@ -27,12 +27,6 @@ repos:
       - id: name-tests-test
         args: [--pytest-test-first]
 
-  # Import sorting
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-
   # Python linting
   - repo: https://github.com/charliermarsh/ruff-pre-commit
     rev: v0.1.11
