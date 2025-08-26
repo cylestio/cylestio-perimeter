@@ -1,3 +1,4 @@
+---
 repos:
   # Secret detection
   - repo: https://github.com/Yelp/detect-secrets
@@ -61,7 +62,7 @@ repos:
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [types-all]
+        additional_dependencies: [types-PyYAML]
         args: [--ignore-missing-imports]
         exclude: ^tests/
 
@@ -70,7 +71,7 @@ repos:
     rev: 6.3.0
     hooks:
       - id: pydocstyle
-        match: '^src/'
+        files: '^src/'
         args: [--convention=google]
 
   # YAML linting
