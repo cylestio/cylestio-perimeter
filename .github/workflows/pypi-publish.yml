@@ -30,9 +30,13 @@ jobs:
       - name: 📋 Get version from pyproject.toml
         id: get-version
         run: |
-          pip install tomli
-          VERSION=$(python -c "import tomli; \
-            print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          VERSION=$(python -c "
+          import re
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+              match = re.search(r'version = \"([^\"]+)\"', content)
+              print(match.group(1) if match else 'unknown')
+          ")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Package version: $VERSION"
 
