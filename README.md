@@ -3,7 +3,6 @@
 [![CI Pipeline](https://github.com/cylestio/cylestio-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Code style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A configurable Python proxy server for LLM API requests with middleware support, built with FastAPI.
 

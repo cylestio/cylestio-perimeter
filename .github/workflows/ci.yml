@@ -30,10 +30,6 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: 🎨 Code formatting with Black
-        run: |
-          black --check --diff src/ tests/
-
       - name: 📐 Import sorting with isort
         run: |
           isort --check-only --diff src/ tests/
