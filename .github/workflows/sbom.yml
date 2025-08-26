@@ -2,9 +2,9 @@ name: 📋 SBOM Generation
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, security-scans ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, security-scans ]
   schedule:
     # Generate SBOM weekly
     - cron: '0 6 * * 1'
