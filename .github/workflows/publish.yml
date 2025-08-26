@@ -10,24 +10,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit to compare
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          # Get current and previous version
+          CURRENT_VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          PREVIOUS_VERSION=$(git show HEAD~1:pyproject.toml | grep '^version = ' | sed 's/version = "\(.*\)"/\1/' || echo "0.0.0")
+          
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "previous-version=$PREVIOUS_VERSION" >> $GITHUB_OUTPUT
+          
+          if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+            echo "version-changed=true" >> $GITHUB_OUTPUT
+            echo "Version changed from $PREVIOUS_VERSION to $CURRENT_VERSION"
+          else
+            echo "version-changed=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $CURRENT_VERSION"
+          fi
 
       - name: Set up Python
+        if: steps.version-check.outputs.version-changed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
       - name: Install dependencies
+        if: steps.version-check.outputs.version-changed == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install build twine
 
       - name: Build
+        if: steps.version-check.outputs.version-changed == 'true'
         run: python -m build
 
       - name: Check
+        if: steps.version-check.outputs.version-changed == 'true'
         run: twine check dist/*
 
       - name: Upload to PyPI
+        if: steps.version-check.outputs.version-changed == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Create Git Tag
+        if: steps.version-check.outputs.version-changed == 'true'
+        run: |
+          VERSION=${{ steps.version-check.outputs.current-version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
