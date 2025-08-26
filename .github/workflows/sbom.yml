@@ -190,7 +190,7 @@ jobs:
           echo "✅ All SBOMs validated successfully"
 
       - name: 📤 Upload SBOM Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sbom-reports-${{ github.sha }}
           path: sbom-reports/
