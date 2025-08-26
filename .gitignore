@@ -8,6 +8,7 @@ venv/
 env/
 ENV/
 .venv
+test_env/
 
 # Development
 .pytest_cache/
