@@ -3,7 +3,7 @@ name: Security Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, security-scans]
   pull_request:
     branches: [main, develop]
   schedule:
