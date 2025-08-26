@@ -51,7 +51,7 @@ config = {
 # ❌ NEVER DO THIS: Hardcoded secrets
 config = {
     "llm": {
-        "api_key": "sk-1234567890abcdef",  # Security violation!
+        "api_key": "sk-1234567890abcdef",  # Security violation! # pragma: allowlist secret
         "base_url": "https://api.openai.com"
     }
 }
@@ -67,7 +67,7 @@ llm:
 
 # ❌ AVOID: Hardcoded credentials in config files
 llm:
-  api_key: "sk-1234567890abcdef"  # Never commit secrets!
+  api_key: "sk-1234567890abcdef"  # Never commit secrets! # pragma: allowlist secret
 ```
 
 ### Network Security

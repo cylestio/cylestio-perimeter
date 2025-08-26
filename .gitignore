@@ -35,6 +35,7 @@ tasks/
 .env
 .env.local
 .env.development
+release-notes.md
 
 # OS
 .DS_Store
