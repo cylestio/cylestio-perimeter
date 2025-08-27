@@ -283,27 +283,28 @@ class LLMMiddleware(BaseHTTPMiddleware):
             events = []
             if session_id and body and session_info_obj:
                 try:
-                    # Extract events from request
+                    # ✅ FIX: Evaluate agent_id BEFORE creating events
+                    trace_span_id = self.provider.get_trace_span_id(session_id)
+                    agent_id = self._evaluate_agent_id(request, body)
+                    
+                    # Store trace/span ID and other metadata for response events
+                    request.state.cylestio_trace_span_id = trace_span_id
+                    request.state.agent_id = agent_id
+                    request.state.model = model
+                    
+                    # Extract events from request with computed agent_id
                     events, new_processed_index = self.provider.extract_request_events(
                         body=body,
                         session_info=session_info_obj,
                         session_id=session_id,
                         is_new_session=is_new_session,
-                        last_processed_index=session_info_obj.last_processed_index
+                        last_processed_index=session_info_obj.last_processed_index,
+                        computed_agent_id=agent_id  # ✅ Pass the correct agent_id
                     )
                     
                     # Update session with new processed index using provider interface
                     if new_processed_index > session_info_obj.last_processed_index:
                         self.provider.update_session_processed_index(session_id, new_processed_index)
-                    
-                    # Store trace/span ID and other metadata for response events
-                    if events:
-                        trace_span_id = self.provider.get_trace_span_id(session_id)
-                        # Use centralized agent ID evaluation
-                        agent_id = self._evaluate_agent_id(request, body)
-                        request.state.cylestio_trace_span_id = trace_span_id
-                        request.state.agent_id = agent_id
-                        request.state.model = model
                         
                 except Exception as e:
                     logger.error(f"Error extracting request events: {e}", exc_info=True)

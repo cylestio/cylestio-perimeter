@@ -155,7 +155,8 @@ class AnthropicProvider(BaseProvider):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
+                             last_processed_index: int = 0,
+                             computed_agent_id: Optional[str] = None) -> Tuple[List[Any], int]:
         """Extract and create events from request data, processing only new messages.
         
         Args:
@@ -188,8 +189,8 @@ class AnthropicProvider(BaseProvider):
         trace_span_id = self._session_to_trace_span_id(session_id)
         trace_id = trace_span_id
         span_id = trace_span_id
-        # Agent ID is now evaluated centrally in middleware
-        agent_id = self._get_agent_id(body)
+        # ✅ FIX: Use computed agent_id from middleware instead of re-computing
+        agent_id = computed_agent_id or self._get_agent_id(body)
         
         # Handle session start event (only for new sessions)
         if is_new_session or session_info.is_session_start:
@@ -220,16 +221,27 @@ class AnthropicProvider(BaseProvider):
             )
             events.append(tool_result_event)
         
-        # Send LLM call start event with only NEW messages
-        if session_info.model and new_messages:
-            # Create a modified body with only new messages
+        # Send LLM call start event for every LLM API call
+        # For explicit external sessions, always generate events regardless of message novelty
+        should_generate_llm_events = session_info.model and (
+            new_messages or  # Standard case: there are new messages
+            (session_info.metadata and session_info.metadata.get("external"))  # External session: always track
+        )
+        
+        if should_generate_llm_events:
+            # For external sessions with no new messages, use the full conversation
+            # to represent this as a complete LLM API call
+            messages_to_include = new_messages if new_messages else messages
+            
+            # Create a modified body with appropriate messages
             new_request_data = {
                 **body,
-                "messages": new_messages,
+                "messages": messages_to_include,
                 "_cylestio_metadata": {
                     "total_messages": len(messages),
                     "new_messages": len(new_messages),
-                    "from_index": last_processed_index
+                    "from_index": last_processed_index,
+                    "external_session": session_info.metadata and session_info.metadata.get("external", False)
                 }
             }
             

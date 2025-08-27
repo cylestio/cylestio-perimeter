@@ -31,6 +31,8 @@ build/
 traces/
 message_logs/
 tasks/
+temp/
+event_logs/
 *.log
 .env
 .env.local
