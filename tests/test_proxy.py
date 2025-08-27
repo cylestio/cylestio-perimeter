@@ -10,7 +10,7 @@ from src.config.settings import Settings
 from src.main import create_app
 
 # Unit tests are currently disabled; focusing on integration coverage
-pytestmark = pytest.mark.skip(reason="Unit tests temporarily disabled")
+# pytestmark = pytest.mark.skip(reason="Unit tests temporarily disabled")
 
 
 @pytest.fixture
@@ -53,8 +53,10 @@ class TestProxyHandler:
     def test_headers_preparation(self, settings):
         """Test header preparation logic."""
         from src.proxy.handler import ProxyHandler
+        from src.providers.openai import OpenAIProvider
         
-        handler = ProxyHandler(settings)
+        provider = OpenAIProvider(settings)
+        handler = ProxyHandler(settings, provider)
         
         original_headers = {
             "host": "localhost",
@@ -66,7 +68,7 @@ class TestProxyHandler:
         
         # Should remove host header
         assert "host" not in prepared
-        # Should add authorization
+        # Should add authorization from provider
         assert prepared["Authorization"] == "Bearer sk-test"
         # Should preserve other headers
         assert prepared["content-type"] == "application/json"
@@ -75,8 +77,10 @@ class TestProxyHandler:
     def test_streaming_detection(self, settings):
         """Test streaming request detection."""
         from src.proxy.handler import ProxyHandler
+        from src.providers.openai import OpenAIProvider
         
-        handler = ProxyHandler(settings)
+        provider = OpenAIProvider(settings)
+        handler = ProxyHandler(settings, provider)
         
         # Should detect streaming
         assert handler._is_streaming_request({"stream": True}) is True
