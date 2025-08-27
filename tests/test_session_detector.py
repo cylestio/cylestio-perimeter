@@ -77,7 +77,7 @@ class TestSessionDetector:
     async def test_session_one_identification(self, session_detector, mock_anthropic_provider):
         """Test that session one properly groups related requests."""
         # Load requests from session one
-        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/one.jsonl")
+        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/one.jsonl")
         
         # First request should create a new session (single message)
         first_request = await self.create_mock_request(requests[0])
@@ -114,7 +114,7 @@ class TestSessionDetector:
     async def test_session_two_identification(self, session_detector, mock_anthropic_provider):
         """Test that session two properly groups related requests."""
         # Load requests from session two
-        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/two.jsonl")
+        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/two.jsonl")
         
         # First request should create a new session (single message)
         first_request = await self.create_mock_request(requests[0])
@@ -160,8 +160,8 @@ class TestSessionDetector:
     async def test_different_sessions_not_mixed(self, session_detector, mock_anthropic_provider):
         """Test that sessions from different files remain separate."""
         # Load requests from both sessions
-        requests1 = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/one.jsonl")
-        requests2 = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/two.jsonl")
+        requests1 = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/one.jsonl")
+        requests2 = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/two.jsonl")
         
         # Create session from file one
         req1 = await self.create_mock_request(requests1[0])
@@ -196,7 +196,7 @@ class TestSessionDetector:
     async def test_session_metrics(self, session_detector, mock_anthropic_provider):
         """Test session metrics tracking."""
         # Load and process some requests
-        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/one.jsonl")
+        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/one.jsonl")
         
         for req_data in requests[:2]:
             request = await self.create_mock_request(req_data)
@@ -214,7 +214,7 @@ class TestSessionDetector:
     @pytest.mark.asyncio
     async def test_client_info_extraction(self, session_detector, mock_anthropic_provider):
         """Test client info is properly extracted."""
-        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/one.jsonl")
+        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/one.jsonl")
         
         request = await self.create_mock_request(requests[0])
         result = await session_detector.analyze_request(request)
@@ -277,7 +277,7 @@ On every message you receive, the number increases by 1."""
     async def test_longer_conversation_grouping(self, session_detector, mock_anthropic_provider):
         """Test session grouping with a longer conversation from three.jsonl."""
         # Load requests from session three (longer conversation)
-        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-gateway/message_logs/three.jsonl")
+        requests = self.load_session_requests("/Users/eyalben/Projects/cylestio/cylestio-perimeter/message_logs/three.jsonl")
         
         session_ids = []
         for i, req_data in enumerate(requests):

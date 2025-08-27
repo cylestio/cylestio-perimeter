@@ -1,6 +1,6 @@
 # Cylestio Gateway
 
-[![CI Pipeline](https://github.com/cylestio/cylestio-gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/ci.yml)
+[![CI Pipeline](https://github.com/cylestio/cylestio-perimeter/actions/workflows/ci.yml/badge.svg)](https://github.com/cylestio/cylestio-perimeter/actions/workflows/ci.yml)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -25,12 +25,16 @@ A configurable Python proxy server for LLM API requests with middleware support,
 
 ### Installation
 
-#### From Source (Development)
+1. **Install through pip:**
 
-1. **Clone and install:**
    ```bash
-   git clone https://github.com/cylestio/cylestio-gateway.git
-   cd cylestio-gateway
+   pip install cylestio-perimeter
+   ```
+
+1. **For Developers: Install directly from source code:**
+   ```bash
+   git clone https://github.com/cylestio/cylestio-perimeter.git
+   cd cylestio-perimeter
    
    # Create virtual environment
    python -m venv venv
@@ -43,10 +47,10 @@ A configurable Python proxy server for LLM API requests with middleware support,
 2. **Run the server:**
    ```bash
    # With CLI arguments
-   cylestio-gateway run --base-url https://api.openai.com --type openai --api-key sk-your-key
+   cylestio-perimeter run --base-url https://api.openai.com --type openai --api-key sk-your-key
    
    # With config file
-   cylestio-gateway run --config config.yaml
+   cylestio-perimeter run --config config.yaml
    ```
 
 3. **Or run with config file:**
@@ -79,7 +83,7 @@ A configurable Python proxy server for LLM API requests with middleware support,
 ### Basic Proxy Usage
 ```bash
 # Start proxy server
-cylestio-gateway run --base-url https://api.openai.com --type openai --api-key sk-your-key
+cylestio-perimeter run --base-url https://api.openai.com --type openai --api-key sk-your-key
 
 # Make requests to the proxy
 curl -X POST http://localhost:3000/v1/chat/completions \
@@ -147,24 +151,24 @@ The CLI supports several subcommands for different operations:
 
 ### Run the Server
 ```bash
-cylestio-gateway run --base-url https://api.openai.com --type openai --api-key sk-your-key
-cylestio-gateway run --config config.yaml
+cylestio-perimeter run --base-url https://api.openai.com --type openai --api-key sk-your-key
+cylestio-perimeter run --config config.yaml
 ```
 
 ### Generate Example Config
 ```bash
-cylestio-gateway generate-config example.yaml
+cylestio-perimeter generate-config example.yaml
 ```
 
 ### Validate Configuration
 ```bash
-cylestio-gateway validate-config config.yaml
+cylestio-perimeter validate-config config.yaml
 ```
 
 ### Get Help
 ```bash
-cylestio-gateway --help
-cylestio-gateway run --help
+cylestio-perimeter --help
+cylestio-perimeter run --help
 ```
 
 ### Development Mode
@@ -277,9 +281,9 @@ Response includes:
 
 Cylestio Gateway implements comprehensive security measures to ensure safe deployment in enterprise environments.
 
-[![Security Pipeline](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml/badge.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml)
-[![Known Vulnerabilities](https://img.shields.io/badge/vulnerabilities-0-brightgreen.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml)
-[![Dependencies](https://img.shields.io/badge/dependencies-secure-brightgreen.svg)](https://github.com/cylestio/cylestio-gateway/actions/workflows/security.yml)
+[![Security Pipeline](https://github.com/cylestio/cylestio-perimeter/actions/workflows/security.yml/badge.svg)](https://github.com/cylestio/cylestio-perimeter/actions/workflows/security.yml)
+[![Known Vulnerabilities](https://img.shields.io/badge/vulnerabilities-0-brightgreen.svg)](https://github.com/cylestio/cylestio-perimeter/actions/workflows/security.yml)
+[![Dependencies](https://img.shields.io/badge/dependencies-secure-brightgreen.svg)](https://github.com/cylestio/cylestio-perimeter/actions/workflows/security.yml)
 
 **Security Measures:**
 - **Automated Vulnerability Scanning**: Every release is scanned for known security issues
