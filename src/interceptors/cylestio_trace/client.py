@@ -45,7 +45,7 @@ class CylestioClient:
             timeout=httpx.Timeout(self.timeout),
             headers={
                 "Content-Type": "application/json",
-                "User-Agent": "cylestio-gateway/1.0"
+                "User-Agent": "cylestio-perimeter/1.0"
             }
         )
         return self

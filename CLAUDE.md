@@ -23,11 +23,14 @@ pip install -r requirements.txt
 # Development mode with auto-reload
 uvicorn src.main:app --reload --port 3000
 
-# Basic CLI usage (once implemented)
-python -m src.main --base-url https://api.openai.com --type openai
+# Basic CLI usage
+cylestio-perimeter run --base-url https://api.openai.com --type openai
 
 # With configuration file
-python -m src.main --config config.yaml
+cylestio-perimeter run --config config.yaml
+
+# Alternative: using Python module
+python -m src.main run --base-url https://api.openai.com --type openai
 
 # Production mode
 uvicorn src.main:app --host 0.0.0.0 --port 3000 --workers 4
@@ -50,13 +53,13 @@ pytest -v
 
 ### Linting and Type Checking
 ```bash
-# Run linting (once configured)
-ruff check src/
-black src/ --check
-isort src/ --check
+# Run linting using virtual environment
+./venv/bin/python -m ruff check src/
+./venv/bin/python -m black src/ --check
+./venv/bin/python -m isort src/ --check
 
 # Type checking
-mypy src/
+./venv/bin/python -m mypy src/
 ```
 
 ## Architecture
@@ -64,9 +67,10 @@ mypy src/
 ### Project Structure
 - `src/main.py` - FastAPI application entry point
 - `src/config/` - Configuration management using Pydantic
-- `src/proxy/` - Core proxy logic for forwarding requests
-- `src/middlewares/` - Middleware implementations (trace, auth, rate limiting)
-- `src/models/` - Data models for request/response tracing
+- `src/proxy/` - Core proxy logic, middleware, and session management
+- `src/providers/` - LLM provider implementations (OpenAI, Anthropic)
+- `src/interceptors/` - Request/response interceptors for tracing and logging
+- `src/events/` - Event system for request/response tracking
 - `src/utils/` - Utilities for logging and HTTP requests
 
 ### Key Design Patterns
@@ -80,12 +84,16 @@ mypy src/
 - **httpx**: Async HTTP client for proxying requests
 - **pydantic-settings**: Type-safe configuration management
 - **uvicorn**: ASGI server for running the application
+- **typer**: CLI framework for command-line interface
+- **descope**: Authentication service integration
 
-### Middleware System
-The proxy supports configurable middleware specified in config.yaml:
-- **trace**: Captures request/response data to timestamped JSON files
-- **rate_limit**: Rate limiting (future enhancement)
-- **auth**: API key authentication (future enhancement)
+### Interceptor System
+The proxy supports configurable interceptors specified in config.yaml:
+- **printer**: Logs requests and responses to console
+- **message_logger**: Logs messages to files
+- **cylestio_trace**: Traces requests to Cylestio platform
+- **event_recorder**: Records events for analysis and replay
+- **test_recorder**: Records test scenarios
 
 ### Configuration System
 Supports two modes:
@@ -96,19 +104,31 @@ Priority: CLI arguments override config file settings
 
 ### Request Flow
 1. Incoming request → FastAPI router
-2. Middleware pre-processing (if enabled)
-3. Proxy handler forwards to LLM API
-4. Stream or buffer response based on request type
-5. Middleware post-processing (e.g., tracing)
-6. Return response to client
+2. LLM Middleware processes request with interceptors
+3. Provider-specific handling (OpenAI/Anthropic)
+4. Session detection and management (if enabled)
+5. Proxy handler forwards to LLM API
+6. Stream or buffer response based on request type
+7. Interceptor post-processing (e.g., tracing, logging)
+8. Return response to client
 
 ## Implementation Status
-Currently implementing based on INSTRUCTIONS.md checklist:
-- Project structure and config.yaml created
-- Need to implement Python modules following the specified architecture
-- FastAPI application with proxy handler pending
-- Middleware system to be implemented
-- Streaming support for SSE responses required
+✅ **Completed Features:**
+- Project structure and configuration system
+- FastAPI application with proxy handler
+- Provider implementations (OpenAI, Anthropic)
+- Interceptor system with multiple interceptor types
+- Streaming support for SSE responses
+- Session detection and management
+- Event system for request/response tracking
+- CLI interface with Typer
+- Comprehensive test suite
+- Docker support with docker-compose
+
+🔄 **Current Development:**
+- External session/agent ID support
+- Enhanced session management features
+- Performance optimizations
 
 ## Development Style
 
