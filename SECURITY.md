@@ -192,7 +192,7 @@ Our automated security pipeline provides:
 
 - **Security Team**: security@cylestio.com
 - **General Support**: support@cylestio.com
-- **Documentation**: https://github.com/cylestio/cylestio-gateway
+- **Documentation**: https://github.com/cylestio/cylestio-perimeter
 
 ## 📜 Legal
 

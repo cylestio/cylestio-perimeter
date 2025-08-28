@@ -58,7 +58,7 @@ jobs:
           echo "📋 Creating SBOM summary..."
           cat > sbom-reports/sbom-summary.json << EOF
           {
-            "component": "cylestio-gateway",
+            "component": "cylestio-perimeter",
             "version": "$(git describe --tags --always 2>/dev/null || echo 'unknown')",
             "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "generator": "Cylestio Security Pipeline",
@@ -76,7 +76,7 @@ jobs:
           cat > sbom-reports/README.md << 'EOF'
           # Software Bill of Materials (SBOM)
           
-          This directory contains the Software Bill of Materials for cylestio-gateway.
+          This directory contains the Software Bill of Materials for cylestio-perimeter.
           
           ## Files
           

@@ -74,7 +74,7 @@ jobs:
 
       - name: Container security scan
         run: |
-          docker build -t cylestio-gateway:security-scan .
+          docker build -t cylestio-perimeter:security-scan .
           sudo apt-get update
           sudo apt-get install wget apt-transport-https gnupg -y
           wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
@@ -84,7 +84,7 @@ jobs:
           sudo apt-get install trivy -y
           trivy image --format json \
             --output security-reports/trivy-results.json \
-            cylestio-gateway:security-scan || true
+            cylestio-perimeter:security-scan || true
           echo "Container scan completed"
 
       - name: Generate security summary
