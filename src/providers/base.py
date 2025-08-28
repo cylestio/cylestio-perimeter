@@ -108,7 +108,8 @@ class BaseProvider(ABC):
                 is_session_start=False,
                 last_processed_index=session_record.last_processed_index,
                 model=self.extract_model_from_body(body),
-                is_streaming=self.extract_streaming_from_body(body)
+                is_streaming=self.extract_streaming_from_body(body),
+                metadata=session_record.metadata
             )
         else:
             # Create new external session
@@ -126,7 +127,8 @@ class BaseProvider(ABC):
                 is_session_start=True,
                 last_processed_index=0,
                 model=self.extract_model_from_body(body),
-                is_streaming=self.extract_streaming_from_body(body)
+                is_streaming=self.extract_streaming_from_body(body),
+                metadata=metadata  # ✅ FIX: Pass metadata for new external sessions
             )
 
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
@@ -189,7 +191,8 @@ class BaseProvider(ABC):
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
                              session_id: str, is_new_session: bool, 
-                             last_processed_index: int = 0) -> Tuple[List[Any], int]:
+                             last_processed_index: int = 0,
+                             computed_agent_id: Optional[str] = None) -> Tuple[List[Any], int]:
         """Extract and create events from request data.
         
         Args:
