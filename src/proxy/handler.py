@@ -47,10 +47,16 @@ class ProxyHandler:
             if k.lower() not in excluded_headers and not k.lower().startswith("x-cylestio-")
         }
         
-        # Add API key from provider
-        api_key = self.provider.get_api_key()
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        # Get provider-specific auth headers and merge without overwriting client headers
+        provider_auth_headers = self.provider.get_auth_headers()
+        client_headers_lower = {k.lower() for k in headers}
+        
+        # Add provider headers only if client didn't provide them (case-insensitive check)
+        missing_provider_headers = {
+            k: v for k, v in provider_auth_headers.items()
+            if k.lower() not in client_headers_lower
+        }
+        headers.update(missing_provider_headers)
         
         return headers
     
