@@ -109,7 +109,7 @@ class BaseProvider(ABC):
                 last_processed_index=session_record.last_processed_index,
                 model=self.extract_model_from_body(body),
                 is_streaming=self.extract_streaming_from_body(body),
-                metadata=session_record.metadata  # ✅ FIX: Pass stored metadata for external session detection
+                metadata=session_record.metadata
             )
         else:
             # Create new external session

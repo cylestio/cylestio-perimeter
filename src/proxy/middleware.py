@@ -283,7 +283,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
             events = []
             if session_id and body and session_info_obj:
                 try:
-                    # ✅ FIX: Evaluate agent_id BEFORE creating events
+                    # Evaluate agent_id BEFORE creating events
                     trace_span_id = self.provider.get_trace_span_id(session_id)
                     agent_id = self._evaluate_agent_id(request, body)
                     
@@ -299,7 +299,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                         session_id=session_id,
                         is_new_session=is_new_session,
                         last_processed_index=session_info_obj.last_processed_index,
-                        computed_agent_id=agent_id  # ✅ Pass the correct agent_id
+                        computed_agent_id=agent_id
                     )
                     
                     # Update session with new processed index using provider interface

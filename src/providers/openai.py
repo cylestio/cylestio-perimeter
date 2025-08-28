@@ -289,7 +289,7 @@ class OpenAIProvider(BaseProvider):
         new_messages = all_messages[last_processed_index:]
         new_last_processed_index = len(all_messages)
         
-        # MODIFIED: For external sessions, always continue even if no new messages
+        # For external sessions, always continue even if no new messages
         if not new_messages and not (session_info.metadata and session_info.metadata.get("external")):
             return events, last_processed_index
         
@@ -297,7 +297,8 @@ class OpenAIProvider(BaseProvider):
         trace_span_id = self._session_to_trace_span_id(session_id)
         trace_id = trace_span_id
         span_id = trace_span_id
-        # ✅ FIX: Use computed agent_id from middleware instead of re-computing
+        
+        # Use computed agent_id from middleware instead of re-computing
         agent_id = computed_agent_id or self._get_agent_id(body)
         
         # Handle session start event (only for new sessions)
