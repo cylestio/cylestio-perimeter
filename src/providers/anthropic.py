@@ -285,6 +285,24 @@ class AnthropicProvider(BaseProvider):
         input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(response_body)
         response_content = self._extract_response_content(response_body)
         
+        # NEW: Extract additional response fields for risk assessment
+        additional_response_data = {}
+        
+        if response_body:
+            try:
+                # Stop reason - why generation stopped
+                if "stop_reason" in response_body:
+                    additional_response_data["stop_reason"] = response_body["stop_reason"]
+                
+                # Stop sequence - which sequence triggered the stop
+                if "stop_sequence" in response_body and response_body["stop_sequence"]:
+                    additional_response_data["stop_sequence"] = response_body["stop_sequence"]
+                    
+            except Exception as e:
+                # Log but never fail the request
+                # Using debug level as this is enhanced telemetry, not critical
+                pass
+        
         # Send LLM call finish event
         if model:
             llm_finish_event = LLMCallFinishEvent.create(
@@ -300,6 +318,11 @@ class AnthropicProvider(BaseProvider):
                 response_content=response_content,
                 session_id=session_id
             )
+            
+            # Add new fields to event attributes
+            if additional_response_data:
+                llm_finish_event.attributes.update(additional_response_data)
+            
             events.append(llm_finish_event)
         
         # Handle tool execution events if present (when LLM response contains tool use requests)
