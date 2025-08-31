@@ -132,6 +132,35 @@ class OpenAIProvider(BaseProvider):
             if param in body:
                 metadata[param] = body[param]
         
+        # NEW: High-priority required fields for risk assessment
+        # Determinism and reproducibility
+        if "seed" in body:
+            metadata["seed"] = body["seed"]
+        
+        # Structured output control
+        if "response_format" in body:
+            metadata["response_format"] = body["response_format"]
+        
+        # Tool governance
+        if "tool_choice" in body:
+            metadata["tool_choice"] = body["tool_choice"]
+        
+        # Token manipulation detection
+        if "logit_bias" in body:
+            metadata["logit_bias"] = body["logit_bias"]
+        
+        # Resource usage tracking
+        if "n" in body:
+            metadata["n"] = body["n"]
+        
+        # Completion control
+        if "stop" in body:
+            metadata["stop"] = body["stop"]
+        
+        # User identification
+        if "user" in body:
+            metadata["user"] = body["user"]
+        
         # System message extraction (parity with Anthropic provider)
         messages = body.get("messages", [])
         system_messages = [msg for msg in messages if msg.get("role") == "system"]
@@ -368,7 +397,7 @@ class OpenAIProvider(BaseProvider):
             # to represent this as a complete LLM API call
             messages_to_include = new_messages if new_messages else all_messages
             
-            # Create a modified body with appropriate messages
+            # Create a modified body with appropriate messages and enhanced metadata
             new_request_data = {
                 **body,
                 "_cylestio_metadata": {
@@ -378,6 +407,13 @@ class OpenAIProvider(BaseProvider):
                     "external_session": session_info.metadata and session_info.metadata.get("external", False)
                 }
             }
+            
+            # Include enhanced conversation metadata from session_info in the request data
+            if session_info.metadata:
+                # Add session metadata to request data (preserving the required fields we collect)
+                enhanced_metadata = {k: v for k, v in session_info.metadata.items() 
+                                   if k not in new_request_data}  # Don't override existing body fields
+                new_request_data.update(enhanced_metadata)
             
             # Replace messages/input with appropriate messages
             if messages:
