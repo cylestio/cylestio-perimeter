@@ -97,6 +97,19 @@ class AnthropicProvider(BaseProvider):
             metadata["tools_count"] = len(body["tools"])
             metadata["tool_names"] = [tool.get("name") for tool in body["tools"]]
         
+        # NEW: High-priority required fields
+        # User-provided metadata
+        if "metadata" in body and isinstance(body["metadata"], dict):
+            metadata["user_metadata"] = body["metadata"]
+        
+        # Tool governance
+        if "tool_choice" in body and body["tool_choice"] is not None:
+            metadata["tool_choice"] = body["tool_choice"]
+        
+        # Completion control
+        if "stop_sequences" in body and isinstance(body["stop_sequences"], list):
+            metadata["stop_sequences"] = body["stop_sequences"]
+        
         return metadata
     
 
