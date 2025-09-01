@@ -65,7 +65,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         
         # Parse and analyze request
+        logger.info(f"LLM Middleware processing request for path: {request.url.path}")
         request_data = await self._create_request_data(request)
+        if request_data:
+            logger.debug(
+                f"request.session_id={request_data.session_id}, provider={request_data.provider}, model={request_data.model}, events={len(request_data.events)}"
+            )
+        else:
+            logger.info("Request data could not be created; passing through.")
         
         if not request_data:
             # Not an LLM request, pass through
@@ -111,6 +118,15 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     media_type=response.media_type
                 )
             
+            # Store response_id for session continuity (before client can make next request)
+            if (request_data.session_id and response_body and 
+                hasattr(self.provider, 'response_sessions') and 
+                request_data.request.url.path.endswith("/responses")):
+                response_id = response_body.get("id")
+                if response_id:
+                    self.provider.response_sessions[response_id] = request_data.session_id
+                    logger.info(f"Stored response_id mapping: {response_id} -> {request_data.session_id}")
+            
             # Parse tool information from response
             tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
             
@@ -133,7 +149,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                         request_metadata=request_metadata
                     )
                 except Exception as e:
-                    logger.debug(f"Error extracting response events: {e}")
+                    logger.error(f"Error extracting response events: {e}", exc_info=True)
             
             # Create response data with parsed body
             response_data = LLMResponseData(
@@ -210,15 +226,18 @@ class LLMMiddleware(BaseHTTPMiddleware):
         
         # Otherwise, use normal session detection flow
         if self.session_detector:
+            logger.info(f"Using session detector for path: {request.url.path}")
             try:
                 session_info = await self.session_detector.analyze_request(request, body)
+                logger.info(f"Session detection result: {session_info is not None}")
                 if session_info:
                     session_id = session_info.get("session_id")
                     is_new_session = session_info.get("is_new_session", False)
                     session_info_obj = session_info.get("session_info_obj")
+                    logger.info(f"Session detected: id={session_id}, new={is_new_session}")
                     return session_id, session_info_obj, is_new_session
             except Exception as e:
-                logger.debug(f"Failed to analyze session: {e}")
+                logger.error(f"Failed to analyze session: {e}", exc_info=True)
         
         # Fallback: no session detected
         return None, None, False

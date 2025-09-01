@@ -3,6 +3,7 @@ import hashlib
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Request
+from src.utils.logger import get_logger
 
 from .base import BaseProvider, SessionInfo
 from .session_utils import create_session_utility
@@ -27,6 +28,10 @@ class OpenAIProvider(BaseProvider):
         
         # Initialize tool parser for processing tool results
         self.tool_parser = ToolParser()
+        
+        # Initialize module logger
+        global logger
+        logger = get_logger(__name__)
     
     @property
     def name(self) -> str:
@@ -35,15 +40,21 @@ class OpenAIProvider(BaseProvider):
     async def detect_session_info(self, request: Request, body: Dict[str, Any]) -> SessionInfo:
         """Detect session info from OpenAI request."""
         path = request.url.path
+        logger.info(f"OpenAI detect_session_info called for path: {path}")
 
         # Handle the new /v1/responses endpoint differently
         if "/responses" in path:
             # Check for previous_response_id to maintain session continuity
             previous_response_id = body.get("previous_response_id")
+            logger.info(f"Responses API - previous_response_id: {previous_response_id}, response_sessions keys: {list(self.response_sessions.keys())[-5:] if self.response_sessions else 'empty'}")
             if previous_response_id and previous_response_id in self.response_sessions:
                 # Continue existing session based on response ID chain
                 conversation_id = self.response_sessions[previous_response_id]
                 is_session_start = False
+                logger.info(f"Continuing existing session: {conversation_id}")
+                # Get last processed index from existing session record if available
+                session_record = self._session_utility.get_session_info(conversation_id)
+                last_processed_index = session_record.last_processed_index if session_record else 0
             else:
                 # New session - extract conversation history from input field
                 input_data = body.get("input", [])
@@ -280,14 +291,24 @@ class OpenAIProvider(BaseProvider):
         if not session_id:
             return events, last_processed_index
         
-        # Get all messages from request
+        # Determine API type explicitly
+        is_responses_api = ("input" in body) and ("messages" not in body)
+        
+        # Collect request messages according to API type
         messages = body.get("messages", [])
         input_data = body.get("input", [])
-        all_messages = messages or input_data
+        all_messages = input_data if is_responses_api else messages
         
-        # Only process new messages since last processed index
-        new_messages = all_messages[last_processed_index:]
-        new_last_processed_index = len(all_messages)
+        # Compute new messages and processed index strategy
+        if is_responses_api:
+            # For Responses API, treat the entire input array as new for event purposes
+            # and advance processed index cumulatively to preserve ordering across calls
+            new_messages = list(all_messages)
+            new_last_processed_index = last_processed_index + len(all_messages)
+        else:
+            # For Chat Completions, slice by previously processed index
+            new_messages = all_messages[last_processed_index:]
+            new_last_processed_index = len(all_messages)
         
         # For external sessions, always continue even if no new messages
         if not new_messages and not (session_info.metadata and session_info.metadata.get("external")):
@@ -312,21 +333,21 @@ class OpenAIProvider(BaseProvider):
             )
             events.append(session_start_event)
         
-        # Parse tool results only from NEW messages
-        if messages:
-            new_body_for_tools = {"messages": new_messages}
-        else:
+        # Parse tool results according to API type using only the new segment
+        if is_responses_api:
             new_body_for_tools = {"input": new_messages}
+        else:
+            new_body_for_tools = {"messages": new_messages}
         
         tool_results = self.tool_parser.parse_tool_results(new_body_for_tools, self.name)
         
-        # Handle tool result events (all are new since we're only processing new messages)
+        # Handle tool result events (all are new since we're only processing new segment)
         for tool_result in tool_results:
             tool_result_event = ToolResultEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
                 agent_id=agent_id,
-                tool_name=tool_result.get("name", "unknown"),
+                tool_name=(tool_result.get("name") or "unknown"),
                 status="success",  # Assume success since result is present
                 execution_time_ms=0.0,  # Not available in request
                 result=tool_result.get("result"),
@@ -337,7 +358,8 @@ class OpenAIProvider(BaseProvider):
         # Send LLM call start event for every LLM API call
         # For explicit external sessions, always generate events regardless of message novelty
         should_generate_llm_events = session_info.model and (
-            new_messages or  # Standard case: there are new messages
+            (len(new_messages) > 0) or  # Standard case: there are new messages
+            is_responses_api or  # Responses API: each request is a stateful turn
             (session_info.metadata and session_info.metadata.get("external"))  # External session: always track
         )
         
@@ -357,11 +379,11 @@ class OpenAIProvider(BaseProvider):
                 }
             }
             
-            # Replace messages/input with appropriate messages
-            if messages:
-                new_request_data["messages"] = messages_to_include
-            if input_data:
+            # Replace messages/input with appropriate messages based on API type
+            if is_responses_api:
                 new_request_data["input"] = messages_to_include
+            else:
+                new_request_data["messages"] = messages_to_include
             
             llm_start_event = LLMCallStartEvent.create(
                 trace_id=trace_id,

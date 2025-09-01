@@ -55,10 +55,12 @@ class ToolParser:
             for message in body["messages"]:
                 # OpenAI tool results come in "tool" role messages
                 if message.get("role") == "tool":
+                    content_value = message.get("content")
                     tool_results.append({
                         "tool_use_id": message.get("tool_call_id"),
-                        "content": message.get("content"),
                         "name": message.get("name"),
+                        "content": content_value,
+                        "result": content_value,
                         "is_error": False  # OpenAI doesn't have explicit error flag
                     })
         
@@ -83,10 +85,12 @@ class ToolParser:
                         item.get("type") == "function_call_output"):
                         call_id = item.get("call_id")
                         tool_name = tool_name_map.get(call_id)
+                        output_value = item.get("output")
                         tool_results.append({
                             "tool_use_id": call_id,
-                            "content": item.get("output"),
                             "name": tool_name,
+                            "content": output_value,
+                            "result": output_value,
                             "is_error": False
                         })
         
@@ -163,8 +167,9 @@ class ToolParser:
     def _parse_openai_tool_requests(self, body: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Parse tool requests from OpenAI response format."""
         tool_uses = []
-        choices = body.get("choices", [])
         
+        # Handle Chat Completions API format (choices array)
+        choices = body.get("choices", [])
         for choice in choices:
             message = choice.get("message", {})
             tool_calls = message.get("tool_calls", [])
@@ -186,6 +191,26 @@ class ToolParser:
                     "name": function.get("name"),
                     "input": args
                 })
+        
+        # Handle Responses API format (output array)
+        output = body.get("output", [])
+        if isinstance(output, list):
+            for item in output:
+                if isinstance(item, dict) and item.get("type") == "function_call":
+                    # Parse arguments if it's a JSON string
+                    args = item.get("arguments", {})
+                    if isinstance(args, str):
+                        try:
+                            import json
+                            args = json.loads(args)
+                        except (json.JSONDecodeError, TypeError):
+                            args = {"raw_arguments": args}
+                    
+                    tool_uses.append({
+                        "id": item.get("call_id"),
+                        "name": item.get("name"),
+                        "input": args
+                    })
         
         return tool_uses
     
