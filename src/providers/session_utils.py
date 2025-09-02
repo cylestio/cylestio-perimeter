@@ -28,7 +28,8 @@ class SessionRecord:
         last_accessed: datetime,
         message_count: int,
         metadata: Dict[str, Any],
-        last_processed_index: int = 0
+        last_processed_index: int = 0,
+        last_span_id: Optional[str] = None
     ):
         self.session_id = session_id
         self.signature = signature
@@ -37,6 +38,7 @@ class SessionRecord:
         self.message_count = message_count
         self.metadata = metadata
         self.last_processed_index = last_processed_index
+        self.last_span_id = last_span_id
 
 
 class SessionDetectionUtility:
@@ -204,7 +206,6 @@ class SessionDetectionUtility:
     ) -> Optional[str]:
         """Find existing session by looking up previous conversation state."""
         previous_messages = self._get_messages_without_last_exchange(messages)
-        
         if not previous_messages:
             return None
         
@@ -263,7 +264,7 @@ class SessionDetectionUtility:
         signature_string = "|".join(sig_parts)
         signature_hash = hashlib.md5(signature_string.encode()).hexdigest()
         return signature_hash
-    
+
     def _extract_content_text(self, content: Any) -> str:
         """Safely extract text content from various content formats.
         
@@ -323,7 +324,9 @@ class SessionDetectionUtility:
             created_at=now,
             last_accessed=now,
             message_count=len(messages),
-            metadata=metadata
+            metadata=metadata,
+            last_processed_index=0,
+            last_span_id=None
         )
         
         # Store session
@@ -342,7 +345,8 @@ class SessionDetectionUtility:
         
         for session_id in expired_sessions:
             session_info = self._sessions.pop(session_id)
-            del self._signature_to_session[session_info.signature]
+            if session_info.signature in self._signature_to_session:
+                del self._signature_to_session[session_info.signature]
             self._metrics["sessions_expired"] += 1
             logger.debug(f"Expired session: {session_id[:8]}")
     
@@ -471,6 +475,24 @@ class SessionDetectionUtility:
         
         # Move to end of OrderedDict to maintain LRU order
         self._sessions.move_to_end(session_id)
+    
+    def update_span_id(self, session_id: str, new_span_id: str):
+        """Update a session's last span ID.
+        
+        Args:
+            session_id: Session identifier
+            new_span_id: New span ID to store
+        """
+        with self._lock:
+            if session_id not in self._sessions:
+                return
+            
+            session_info = self._sessions[session_id]
+            session_info.last_span_id = new_span_id
+            session_info.last_accessed = datetime.utcnow()
+            
+            # Move to end of OrderedDict to maintain LRU order
+            self._sessions.move_to_end(session_id)
 
 
 def create_session_utility(

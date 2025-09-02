@@ -167,7 +167,7 @@ class TestOpenAIProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "gpt-4"
         }
@@ -198,7 +198,7 @@ class TestOpenAIProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "gpt-4"
         }
@@ -231,7 +231,7 @@ class TestOpenAIProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "gpt-4"
         }
@@ -265,7 +265,7 @@ class TestOpenAIProvider:
         duration_ms = 200.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "gpt-4-turbo"
         }
@@ -303,7 +303,7 @@ class TestOpenAIProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "gpt-4"
         }
@@ -335,7 +335,7 @@ class TestOpenAIProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "gpt-4"
         }

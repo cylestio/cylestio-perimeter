@@ -58,6 +58,10 @@ class EventRecorderInterceptor(BaseInterceptor):
             return None
         
         # Process all events from the request
+        try:
+            logger.debug(f"EventRecorder.before_request: session_id={request_data.session_id}, events={len(request_data.events)}")
+        except Exception:
+            pass
         for event in request_data.events:
             await self._record_event(event, request_data.session_id)
         
@@ -81,6 +85,12 @@ class EventRecorderInterceptor(BaseInterceptor):
             return None
         
         # Process all events from the response
+        try:
+            logger.debug(
+                f"EventRecorder.after_response: session_id={response_data.session_id or request_data.session_id}, events={len(response_data.events)}"
+            )
+        except Exception:
+            pass
         for event in response_data.events:
             await self._record_event(event, response_data.session_id or request_data.session_id)
         
