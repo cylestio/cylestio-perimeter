@@ -341,10 +341,9 @@ class OpenAIProvider(BaseProvider):
         
         # Compute new messages and processed index strategy
         if is_responses_api:
-            # For Responses API, treat the entire input array as new for event purposes
-            # and advance processed index cumulatively to preserve ordering across calls
-            new_messages = list(all_messages)
-            new_last_processed_index = last_processed_index + len(all_messages)
+            # For Responses API, only process new messages since last processed index
+            new_messages = all_messages[last_processed_index:]
+            new_last_processed_index = len(all_messages)
         else:
             # For Chat Completions, slice by previously processed index
             new_messages = all_messages[last_processed_index:]
@@ -504,7 +503,7 @@ class OpenAIProvider(BaseProvider):
                     if "refusal" in message and message["refusal"]:
                         additional_response_data["refusal"] = message["refusal"]
                         
-            except Exception as e:
+            except Exception:
                 # Log but never fail the request
                 # Using debug level as this is enhanced telemetry, not critical
                 pass

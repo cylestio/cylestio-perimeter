@@ -85,7 +85,7 @@ class TestAnthropicProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
@@ -114,7 +114,7 @@ class TestAnthropicProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
@@ -145,7 +145,7 @@ class TestAnthropicProvider:
         duration_ms = 150.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
@@ -177,7 +177,7 @@ class TestAnthropicProvider:
         duration_ms = 200.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-haiku-20240307"
         }
@@ -209,7 +209,7 @@ class TestAnthropicProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
@@ -244,7 +244,7 @@ class TestAnthropicProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
@@ -276,7 +276,7 @@ class TestAnthropicProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
@@ -305,7 +305,7 @@ class TestAnthropicProvider:
         duration_ms = 100.0
         tool_uses = []
         request_metadata = {
-            "cylestio_trace_span_id": "test-trace-span",
+            "cylestio_trace_id": "test-trace-id",
             "agent_id": "test-agent",
             "model": "claude-3-sonnet-20240229"
         }
