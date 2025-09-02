@@ -136,7 +136,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 try:
                     # Get metadata from request state
                     request_metadata = {
-                        'cylestio_trace_span_id': getattr(request_data.request.state, 'cylestio_trace_span_id', None),
+                        'cylestio_trace_id': getattr(request_data.request.state, 'cylestio_trace_id', None),
                         'agent_id': getattr(request_data.request.state, 'agent_id', 'unknown'),
                         'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown')
                     }
@@ -303,13 +303,15 @@ class LLMMiddleware(BaseHTTPMiddleware):
             if session_id and body and session_info_obj:
                 try:
                     # Evaluate agent_id BEFORE creating events
-                    trace_span_id = self.provider.get_trace_span_id(session_id)
+                    trace_id = self.provider.get_trace_id(session_id)
                     agent_id = self._evaluate_agent_id(request, body)
                     
-                    # Store trace/span ID and other metadata for response events
-                    request.state.cylestio_trace_span_id = trace_span_id
+                    # Store trace ID and other metadata for response events
+                    request.state.cylestio_trace_id = trace_id
                     request.state.agent_id = agent_id
                     request.state.model = model
+                    
+                    # Note: span_id will be set by individual events as needed
                     
                     # Extract events from request with computed agent_id
                     events, new_processed_index = self.provider.extract_request_events(

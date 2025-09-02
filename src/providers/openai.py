@@ -222,17 +222,6 @@ class OpenAIProvider(BaseProvider):
         # Default if no system message found
         return "default-system"
     
-    def _session_to_trace_span_id(self, session_id: str) -> str:
-        """Convert session ID to OpenTelemetry-compatible trace/span ID (32-char hex).
-        
-        For now, trace_id and span_id are identical and derived from session_id.
-        """
-        if not session_id:
-            return generate_span_id() + generate_span_id()  # 32 chars
-        
-        # Create deterministic ID from session ID
-        hash_obj = hashlib.md5(session_id.encode())
-        return hash_obj.hexdigest()  # 32-char hex string
     
     def _extract_usage_tokens(self, response_body: Optional[Dict[str, Any]]) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """Extract token usage from response body.
@@ -314,16 +303,18 @@ class OpenAIProvider(BaseProvider):
         if not new_messages and not (session_info.metadata and session_info.metadata.get("external")):
             return events, last_processed_index
         
-        # Use same ID for last_processed_index
-        trace_span_id = self._session_to_trace_span_id(session_id)
-        trace_id = trace_span_id
-        span_id = trace_span_id
+        # Get trace_id (consistent per session)
+        trace_id = self.get_trace_id(session_id)
         
         # Use computed agent_id from middleware instead of re-computing
         agent_id = computed_agent_id or self._get_agent_id(body)
         
         # Handle session start event (only for new sessions)
         if is_new_session or session_info.is_session_start:
+            # Generate NEW span_id for session start and store it
+            span_id = self.generate_new_span_id()
+            self.update_session_span_id(session_id, span_id)
+            
             session_start_event = SessionStartEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -343,6 +334,13 @@ class OpenAIProvider(BaseProvider):
         
         # Handle tool result events (all are new since we're only processing new segment)
         for tool_result in tool_results:
+            # Use EXISTING span_id from last tool execution (if available)
+            span_id = self.get_session_span_id(session_id)
+            if not span_id:
+                # Fallback: generate new span_id if none exists
+                span_id = self.generate_new_span_id()
+                self.update_session_span_id(session_id, span_id)
+                
             tool_result_event = ToolResultEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -385,6 +383,10 @@ class OpenAIProvider(BaseProvider):
             else:
                 new_request_data["messages"] = messages_to_include
             
+            # Generate NEW span_id for LLM call start and store it
+            span_id = self.generate_new_span_id()
+            self.update_session_span_id(session_id, span_id)
+            
             llm_start_event = LLMCallStartEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -408,14 +410,11 @@ class OpenAIProvider(BaseProvider):
         if not session_id:
             return events
         
-        # Get trace/span ID from request metadata (they're the same)
-        trace_span_id = request_metadata.get("cylestio_trace_span_id")
+        # Get trace ID from request metadata
+        trace_id = request_metadata.get("cylestio_trace_id")
         
-        if not trace_span_id:
+        if not trace_id:
             return events
-        
-        trace_id = trace_span_id
-        span_id = trace_span_id
         
         # Get agent_id and model from metadata
         agent_id = request_metadata.get("agent_id", "unknown")
@@ -427,6 +426,12 @@ class OpenAIProvider(BaseProvider):
         
         # Send LLM call finish event
         if model:
+            # Use EXISTING span_id from LLM call start (if available)
+            span_id = self.get_session_span_id(session_id)
+            if not span_id:
+                # Fallback: generate new span_id if none exists
+                span_id = self.generate_new_span_id()
+                
             llm_finish_event = LLMCallFinishEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
@@ -445,6 +450,10 @@ class OpenAIProvider(BaseProvider):
         # Handle tool execution events if present (when LLM response contains tool use requests)
         if tool_uses:
             for tool_request in tool_uses:
+                # Generate NEW span_id for each tool execution and store it
+                span_id = self.generate_new_span_id()
+                self.update_session_span_id(session_id, span_id)
+                
                 tool_execution_event = ToolExecutionEvent.create(
                     trace_id=trace_id,
                     span_id=span_id,

@@ -128,7 +128,7 @@ class BaseProvider(ABC):
                 last_processed_index=0,
                 model=self.extract_model_from_body(body),
                 is_streaming=self.extract_streaming_from_body(body),
-                metadata=metadata  # ✅ FIX: Pass metadata for new external sessions
+                metadata=metadata
             )
 
     def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
@@ -148,10 +148,34 @@ class BaseProvider(ABC):
     def update_session_processed_index(self, session_id: str, new_index: int) -> None:
         """Update the last processed message index for a session."""
         self._session_utility.update_processed_index(session_id, new_index)
+    
+    def update_session_span_id(self, session_id: str, new_span_id: str) -> None:
+        """Update the last span ID for a session."""
+        self._session_utility.update_span_id(session_id, new_span_id)
+    
+    def get_session_span_id(self, session_id: str) -> Optional[str]:
+        """Get the last span ID for a session."""
+        session_record = self._session_utility.get_session_info(session_id)
+        if not session_record:
+            return None
+        return session_record.last_span_id
 
-    def get_trace_span_id(self, session_id: str) -> str:
-        """Get trace/span ID for a session."""
-        return self._session_to_trace_span_id(session_id)
+    def get_trace_id(self, session_id: str) -> str:
+        """Get trace ID for a session (32-char hex from session_id)."""
+        if not session_id:
+            from src.events.base import generate_span_id
+            return generate_span_id() + generate_span_id()  # 32 chars
+        
+        # Create deterministic ID from session ID
+        import hashlib
+        hash_obj = hashlib.md5(session_id.encode())
+        return hash_obj.hexdigest()  # 32-char hex string
+    
+    def generate_new_span_id(self) -> str:
+        """Generate a new 16-char span ID."""
+        from src.events.base import generate_span_id
+        return generate_span_id()  # 16-char hex string
+    
     
     async def notify_response(self, session_id: str, request: Request, 
                             response_body: Optional[Dict[str, Any]]) -> None:
