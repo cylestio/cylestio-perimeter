@@ -428,6 +428,13 @@ class OpenAIProvider(BaseProvider):
                 }
             }
             
+             # Include enhanced conversation metadata from session_info in the request data
+            if session_info.metadata:
+                # Add session metadata to request data (preserving the required fields we collect)
+                enhanced_metadata = {k: v for k, v in session_info.metadata.items() 
+                                   if k not in new_request_data}  # Don't override existing body fields
+                new_request_data.update(enhanced_metadata)
+            
             # Replace messages/input with appropriate messages based on API type
             if is_responses_api:
                 new_request_data["input"] = messages_to_include
