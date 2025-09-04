@@ -1,6 +1,7 @@
 """Cylestio trace interceptor for sending events to Cylestio API."""
 import asyncio
 import logging
+import os
 from typing import Any, Optional
 
 from ...proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
@@ -21,13 +22,13 @@ class CylestioTraceInterceptor(BaseInterceptor):
         super().__init__(config)
 
         # Extract Cylestio configuration
-        self.api_url = config.get("api_url")
-        self.access_key = config.get("access_key")
+        self.api_url = config.get("api_url", "https://api.cylestio.com")
+        self.access_key = config.get("access_key") or os.getenv("CYLESTIO_ACCESS_KEY")
         self.timeout = config.get("timeout", 10)
 
         # Validate required configuration
-        if not all([self.api_url, self.access_key]):
-            raise ValueError("Cylestio interceptor requires api_url and access_key")
+        if not self.access_key:
+            raise ValueError("Cylestio interceptor requires access_key")
 
     @property
     def name(self) -> str:

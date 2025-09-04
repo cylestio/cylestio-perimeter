@@ -9,9 +9,6 @@ server:
 llm:
   base_url: "https://api.anthropic.com"
   type: "anthropic"
-  # api_key: "${ANTHROPIC_API_KEY}"  # Optional - uncomment if you want API key injection
-  timeout: 30
-  max_retries: 3
 
 interceptors:
   - type: "printer"
@@ -27,10 +24,8 @@ interceptors:
   # Cylestio trace interceptor
   - type: "cylestio_trace"
     enabled: true
-    config:
-      api_url: "http://localhost:8000"
-      access_key: "${CYLESTIO_ACCESS_KEY}"  # Set this environment variable
-      timeout: 10
+    # config:
+    #   api_url: "http://localhost:8000"
 
   # Event recorder - saves raw events to disk per session
   - type: "event_recorder"
@@ -40,9 +35,3 @@ interceptors:
       file_format: "jsonl"              # "json" or "jsonl" format
       pretty_print: false               # Pretty-print JSON (only for "json" format)
       include_metadata: true            # Include file metadata
-
-logging:
-  level: "INFO"
-  format: "text"
-
-
