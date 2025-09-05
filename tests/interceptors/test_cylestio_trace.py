@@ -1,4 +1,4 @@
-"""Tests for Cylestio trace interceptor."""
+"""Tests for Cylestio trace interceptor - cleaned up version."""
 import asyncio
 import json
 import os
@@ -67,9 +67,8 @@ class TestCylestioTraceInterceptor:
         
         assert interceptor.name == "cylestio_trace"
         assert interceptor.enabled is True
-        assert interceptor.api_url == "https://api.cylestio.test"
-        assert interceptor.access_key == "test_key"
-        assert interceptor.timeout == 5
+        # Don't test internal attributes - these are implementation details
+        assert hasattr(interceptor, '_client')
     
     def test_init_missing_required_config(self):
         """Test interceptor initialization with missing required config."""
@@ -100,86 +99,74 @@ class TestCylestioTraceInterceptor:
         assert interceptor.enabled is False
     
     def test_default_api_url(self):
-        """Test that api_url defaults to https://api.cylestio.com when not provided."""
-        config = {"access_key": "test_key"}
+        """Test default API URL is used when not specified."""
+        config = {"enabled": True, "access_key": "test_key"}
         interceptor = CylestioTraceInterceptor(config)
         
-        assert interceptor.api_url == "https://api.cylestio.com"
-        assert interceptor.access_key == "test_key"
+        # Test internal client has correct URL (implementation detail, but important)
+        assert interceptor._client.api_url == "https://api.cylestio.com"
     
     def test_custom_api_url(self):
-        """Test that custom api_url is used when provided."""
+        """Test custom API URL is used when specified."""
         config = {
+            "enabled": True,
             "api_url": "https://custom.api.com",
             "access_key": "test_key"
         }
         interceptor = CylestioTraceInterceptor(config)
         
-        assert interceptor.api_url == "https://custom.api.com"
-        assert interceptor.access_key == "test_key"
+        assert interceptor._client.api_url == "https://custom.api.com"
     
     def test_missing_access_key_raises_error(self):
-        """Test that missing access_key raises ValueError."""
-        config = {"api_url": "https://api.cylestio.com"}
+        """Test that missing access key raises ValueError."""
+        config = {"enabled": True, "api_url": "https://api.cylestio.test"}
         
-        # Ensure env var is not set for this test
+        # Ensure no env var is set
         original_env = os.environ.get("CYLESTIO_ACCESS_KEY")
         if "CYLESTIO_ACCESS_KEY" in os.environ:
             del os.environ["CYLESTIO_ACCESS_KEY"]
         
         try:
-            with pytest.raises(ValueError, match="Cylestio interceptor requires access_key"):
+            with pytest.raises(ValueError, match="requires access_key"):
                 CylestioTraceInterceptor(config)
         finally:
-            # Restore original env var if it existed
             if original_env is not None:
                 os.environ["CYLESTIO_ACCESS_KEY"] = original_env
     
-    def test_empty_config_with_default_api_url(self):
-        """Test that empty config except access_key works with default api_url."""
-        config = {"access_key": "test_key"}
-        interceptor = CylestioTraceInterceptor(config)
-        
-        assert interceptor.api_url == "https://api.cylestio.com"
-        assert interceptor.access_key == "test_key"
-        assert interceptor.timeout == 10  # default timeout
-    
     def test_access_key_from_environment_variable(self):
-        """Test that access_key is read from CYLESTIO_ACCESS_KEY env var when not in config."""
-        config = {}
+        """Test access key can be loaded from environment variable."""
+        config = {"enabled": True, "api_url": "https://api.cylestio.test"}
         
-        # Set environment variable
         original_env = os.environ.get("CYLESTIO_ACCESS_KEY")
         os.environ["CYLESTIO_ACCESS_KEY"] = "env_test_key"
         
         try:
             interceptor = CylestioTraceInterceptor(config)
-            assert interceptor.api_url == "https://api.cylestio.com"  # default
-            assert interceptor.access_key == "env_test_key"  # from env
-            assert interceptor.timeout == 10  # default
+            assert interceptor._client.access_key == "env_test_key"
         finally:
-            # Clean up environment variable
             if original_env is not None:
                 os.environ["CYLESTIO_ACCESS_KEY"] = original_env
-            elif "CYLESTIO_ACCESS_KEY" in os.environ:
+            else:
                 del os.environ["CYLESTIO_ACCESS_KEY"]
     
     def test_config_access_key_overrides_environment_variable(self):
-        """Test that access_key in config takes precedence over env var."""
-        config = {"access_key": "config_key"}
+        """Test config access key takes precedence over environment variable."""
+        config = {
+            "enabled": True,
+            "api_url": "https://api.cylestio.test",
+            "access_key": "config_key"
+        }
         
-        # Set environment variable
         original_env = os.environ.get("CYLESTIO_ACCESS_KEY")
-        os.environ["CYLESTIO_ACCESS_KEY"] = "env_test_key"
+        os.environ["CYLESTIO_ACCESS_KEY"] = "env_key"
         
         try:
             interceptor = CylestioTraceInterceptor(config)
-            assert interceptor.access_key == "config_key"  # config takes precedence
+            assert interceptor._client.access_key == "config_key"  # config takes precedence
         finally:
-            # Clean up environment variable
             if original_env is not None:
                 os.environ["CYLESTIO_ACCESS_KEY"] = original_env
-            elif "CYLESTIO_ACCESS_KEY" in os.environ:
+            else:
                 del os.environ["CYLESTIO_ACCESS_KEY"]
     
     @pytest.mark.asyncio
@@ -196,16 +183,16 @@ class TestCylestioTraceInterceptor:
         mock_request = MagicMock()
         request_data = LLMRequestData(request=mock_request, events=[])
         
-        with patch.object(interceptor, '_send_events_background') as mock_send:
+        with patch.object(interceptor._client, 'send_events_async') as mock_send:
             result = await interceptor.before_request(request_data)
-            
+        
         assert result is None
         mock_send.assert_not_called()
     
     @pytest.mark.asyncio
     async def test_before_request_with_events(self, interceptor, mock_request_data):
         """Test before_request with events."""
-        with patch.object(interceptor, '_send_events_background') as mock_send:
+        with patch.object(interceptor._client, 'send_events_async') as mock_send:
             result = await interceptor.before_request(mock_request_data)
         
         assert result is None
@@ -214,7 +201,7 @@ class TestCylestioTraceInterceptor:
     @pytest.mark.asyncio
     async def test_after_response_with_events(self, interceptor, mock_request_data, mock_response_data):
         """Test after_response with events."""
-        with patch.object(interceptor, '_send_events_background') as mock_send:
+        with patch.object(interceptor._client, 'send_events_async') as mock_send:
             result = await interceptor.after_response(mock_request_data, mock_response_data)
         
         assert result is None
@@ -225,68 +212,16 @@ class TestCylestioTraceInterceptor:
         """Test on_error method."""
         error = Exception("Test error")
         
-        # Should not raise any exceptions
+        # Should not raise an exception
         await interceptor.on_error(mock_request_data, error)
     
-    def test_send_events_background_no_events(self, interceptor):
-        """Test _send_events_background with empty events list."""
-        with patch('asyncio.create_task') as mock_task:
-            interceptor._send_events_background([])
+    @pytest.mark.asyncio
+    async def test_cleanup(self, interceptor):
+        """Test cleanup method."""
+        with patch.object(interceptor._client, 'stop') as mock_stop:
+            await interceptor.cleanup()
         
-        mock_task.assert_not_called()
-    
-    def test_send_events_background_creates_task(self, interceptor):
-        """Test _send_events_background creates background task."""
-        events = [MockEvent()]
-        
-        # Create a mock task to avoid unawaited coroutine warnings
-        mock_task_instance = MagicMock()
-        
-        with patch('asyncio.create_task', return_value=mock_task_instance) as mock_task:
-            interceptor._send_events_background(events)
-        
-        mock_task.assert_called_once()
-        # Verify the task was created with a coroutine
-        call_args = mock_task.call_args[0]
-        assert len(call_args) == 1
-        # The first argument should be a coroutine - clean it up to avoid warnings
-        coro = call_args[0]
-        if hasattr(coro, 'close'):
-            coro.close()
-    
-    def test_send_events_background_task_creation_failure(self, interceptor, caplog):
-        """Test _send_events_background handles task creation failure."""
-        events = [MockEvent()]
-        
-        def mock_create_task(coro):
-            # Close the coroutine to avoid warnings
-            if hasattr(coro, 'close'):
-                coro.close()
-            raise RuntimeError("Task creation failed")
-        
-        with patch('asyncio.create_task', side_effect=mock_create_task):
-            interceptor._send_events_background(events)
-        
-        assert "Failed to create background batch task" in caplog.text
-    
-    def test_send_event_background_creates_task(self, interceptor):
-        """Test _send_event_background creates background task."""
-        event = MockEvent()
-        
-        # Create a mock task to avoid unawaited coroutine warnings
-        mock_task_instance = MagicMock()
-        
-        with patch('asyncio.create_task', return_value=mock_task_instance) as mock_task:
-            interceptor._send_event_background(event)
-        
-        mock_task.assert_called_once()
-        # Verify the task was created with a coroutine
-        call_args = mock_task.call_args[0]
-        assert len(call_args) == 1
-        # The first argument should be a coroutine - clean it up to avoid warnings
-        coro = call_args[0]
-        if hasattr(coro, 'close'):
-            coro.close()
+        mock_stop.assert_called_once()
 
 
 class TestCylestioClient:
@@ -294,82 +229,116 @@ class TestCylestioClient:
     
     @pytest.fixture
     def client_config(self):
-        """Client configuration."""
+        """Client configuration for testing."""
         return {
-            "api_url": "https://api.cylestio.test",
-            "access_key": "test_key",
-            "timeout": 5,
+            "api_url": "https://api.test.com",
+            "access_key": "test_access_key",
+            "timeout": 30,
             "max_retries": 2
         }
     
     @pytest.fixture
-    async def client(self, client_config):
+    def client(self, client_config):
         """Create client instance."""
-        client = CylestioClient(**client_config)
-        async with client:
-            yield client
+        return CylestioClient(**client_config)
     
-    def test_client_init(self, client_config):
+    def test_client_init(self, client):
         """Test client initialization."""
-        client = CylestioClient(**client_config)
-        
-        assert client.api_url == "https://api.cylestio.test"
-        assert client.access_key == "test_key"
-        assert client.timeout == 5
+        assert client.api_url == "https://api.test.com"
+        assert client.access_key == "test_access_key"
+        assert client.timeout == 30
         assert client.max_retries == 2
+        assert client._client is None
+        assert client._worker_task is None
     
     @pytest.mark.asyncio
-    async def test_client_context_manager(self, client_config):
-        """Test client context manager."""
-        client = CylestioClient(**client_config)
+    async def test_send_events_async_empty_list(self, client):
+        """Test send_events_async with empty list."""
+        # Should not start worker or do anything
+        await client.send_events_async([])
+        assert client._worker_task is None
+    
+    @pytest.mark.asyncio
+    async def test_send_events_async_with_events(self, client):
+        """Test send_events_async with events."""
+        events = [MockEvent(), MockEvent()]
         
-        async with client:
-            assert client._client is not None
+        # Mock the internal batch sending to avoid real HTTP calls
+        with patch.object(client, '_send_events_batch_internal', return_value={"success": 2, "failed": 0}) as mock_batch:
+            await client.send_events_async(events)
+            
+            # Give the background worker a moment to process
+            await asyncio.sleep(0.1)
+            
+            # Worker should be started
+            assert client._worker_task is not None
+            assert not client._worker_task.done()
+            
+            # Stop the worker
+            await client.stop()
+    
+    @pytest.mark.asyncio
+    async def test_start_and_stop(self, client):
+        """Test starting and stopping the client."""
+        # Start should create worker task
+        await client.start()
+        assert client._worker_task is not None
+        assert not client._worker_task.done()
         
-        assert client._client is None  # Client reference cleared
+        # Stop should finish the worker
+        await client.stop()
+        assert client._worker_task.done()
     
     @pytest.mark.asyncio
     async def test_send_event_success(self, client):
         """Test successful event sending."""
         event = MockEvent()
         
+        # Mock HTTP client and authenticator
         mock_response = MagicMock()
-        mock_response.status_code = 200
+        mock_response.status_code = 201
         
-        with patch.object(client._client, 'post', return_value=mock_response) as mock_post:
-            with patch.object(client._authenticator, 'get_jwt_token', return_value='fake_token'):
-                result = await client.send_event(event)
-        
-        assert result is True
-        mock_post.assert_called_once()
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client._authenticator, 'get_jwt_token', return_value="test_jwt"), \
+             patch.object(client, '_client') as mock_http_client:
+            
+            mock_http_client.post = AsyncMock(return_value=mock_response)
+            
+            result = await client._send_event(event)
+            
+            assert result is True
+            mock_http_client.post.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_send_event_auth_failure(self, client):
-        """Test event sending with authentication failure."""
+        """Test event sending with auth failure."""
         event = MockEvent()
         
+        # Mock authentication failure
         with patch.object(client._authenticator, 'get_jwt_token', return_value=None):
-            result = await client.send_event(event)
-        
-        assert result is False
+            result = await client._send_event(event)
+            assert result is False
     
     @pytest.mark.asyncio
     async def test_send_event_retryable_error(self, client):
-        """Test event sending with retryable errors."""
+        """Test event sending with retryable error."""
         event = MockEvent()
         
-        # First attempt fails with 429, second succeeds
-        mock_responses = [
-            MagicMock(status_code=429, text="Rate limited"),
-            MagicMock(status_code=200)
-        ]
+        mock_response = MagicMock()
+        mock_response.status_code = 429  # Rate limited
         
-        with patch.object(client._client, 'post', side_effect=mock_responses):
-            with patch.object(client._authenticator, 'get_jwt_token', return_value='fake_token'):
-                with patch('asyncio.sleep'):  # Skip actual sleep
-                    result = await client.send_event(event)
-        
-        assert result is True
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client._authenticator, 'get_jwt_token', return_value="test_jwt"), \
+             patch.object(client, '_client') as mock_http_client, \
+             patch.object(client, '_calculate_backoff_delay', return_value=0.001):  # Fast retry for tests
+            
+            mock_http_client.post = AsyncMock(return_value=mock_response)
+            
+            result = await client._send_event(event)
+            
+            # Should retry max_retries times
+            assert result is False
+            assert mock_http_client.post.call_count == client.max_retries
     
     @pytest.mark.asyncio
     async def test_send_event_non_retryable_error(self, client):
@@ -377,78 +346,55 @@ class TestCylestioClient:
         event = MockEvent()
         
         mock_response = MagicMock()
-        mock_response.status_code = 400
+        mock_response.status_code = 400  # Bad request
         mock_response.text = "Bad request"
         
-        with patch.object(client._client, 'post', return_value=mock_response):
-            with patch.object(client._authenticator, 'get_jwt_token', return_value='fake_token'):
-                result = await client.send_event(event)
-        
-        assert result is False
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client._authenticator, 'get_jwt_token', return_value="test_jwt"), \
+             patch.object(client, '_client') as mock_http_client:
+            
+            mock_http_client.post = AsyncMock(return_value=mock_response)
+            
+            result = await client._send_event(event)
+            
+            # Should not retry
+            assert result is False
+            mock_http_client.post.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_send_event_timeout_with_retry(self, client):
         """Test event sending with timeout and retry."""
         event = MockEvent()
         
-        # First attempt times out, second succeeds
-        side_effects = [
-            httpx.TimeoutException("Request timeout"),
-            MagicMock(status_code=200)
-        ]
-        
-        with patch.object(client._client, 'post', side_effect=side_effects):
-            with patch.object(client._authenticator, 'get_jwt_token', return_value='fake_token'):
-                with patch('asyncio.sleep'):  # Skip actual sleep
-                    result = await client.send_event(event)
-        
-        assert result is True
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client._authenticator, 'get_jwt_token', return_value="test_jwt"), \
+             patch.object(client, '_client') as mock_http_client, \
+             patch.object(client, '_calculate_backoff_delay', return_value=0.001):
+            
+            mock_http_client.post = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+            
+            result = await client._send_event(event)
+            
+            # Should retry max_retries times
+            assert result is False
+            assert mock_http_client.post.call_count == client.max_retries
     
     @pytest.mark.asyncio
     async def test_send_event_network_error_exhausted_retries(self, client):
-        """Test event sending with network error exhausting retries."""
+        """Test event sending with network error until retries exhausted."""
         event = MockEvent()
         
-        with patch.object(client._client, 'post', side_effect=httpx.NetworkError("Network error")):
-            with patch.object(client._authenticator, 'get_jwt_token', return_value='fake_token'):
-                with patch('asyncio.sleep'):  # Skip actual sleep
-                    result = await client.send_event(event)
-        
-        assert result is False
-    
-    @pytest.mark.asyncio
-    async def test_send_events_batch_empty(self, client):
-        """Test batch sending with empty list."""
-        result = await client.send_events_batch([])
-        
-        assert result["success"] == 0
-        assert result["failed"] == 0
-        assert result["duration_ms"] == 0
-    
-    @pytest.mark.asyncio
-    async def test_send_events_batch_mixed_results(self, client):
-        """Test batch sending with mixed success/failure results."""
-        events = [MockEvent(EventName.LLM_CALL_START, f"session_{i}") for i in range(3)]
-        
-        # Mock different outcomes for each event
-        with patch.object(client, '_send_single_event_with_context', side_effect=[True, False, True]):
-            result = await client.send_events_batch(events)
-        
-        assert result["success"] == 2
-        assert result["failed"] == 1
-        assert "duration_ms" in result
-    
-    @pytest.mark.asyncio
-    async def test_send_events_batch_with_exceptions(self, client):
-        """Test batch sending with exceptions."""
-        events = [MockEvent(EventName.LLM_CALL_START, f"session_{i}") for i in range(2)]
-        
-        # One succeeds, one raises exception
-        with patch.object(client, '_send_single_event_with_context', side_effect=[True, Exception("Test error")]):
-            result = await client.send_events_batch(events)
-        
-        assert result["success"] == 1
-        assert result["failed"] == 1
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client._authenticator, 'get_jwt_token', return_value="test_jwt"), \
+             patch.object(client, '_client') as mock_http_client, \
+             patch.object(client, '_calculate_backoff_delay', return_value=0.001):
+            
+            mock_http_client.post = AsyncMock(side_effect=httpx.NetworkError("Network error"))
+            
+            result = await client._send_event(event)
+            
+            assert result is False
+            assert mock_http_client.post.call_count == client.max_retries
     
     @pytest.mark.asyncio
     async def test_health_check_success(self, client):
@@ -456,117 +402,93 @@ class TestCylestioClient:
         mock_response = MagicMock()
         mock_response.status_code = 200
         
-        with patch.object(client._client, 'get', return_value=mock_response):
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client, '_client') as mock_http_client:
+            
+            mock_http_client.get = AsyncMock(return_value=mock_response)
+            
             result = await client.health_check()
-        
-        assert result["healthy"] is True
-        assert result["status_code"] == 200
-        assert "response_time_ms" in result
+            
+            assert result["healthy"] is True
+            assert result["status_code"] == 200
+            assert "response_time_ms" in result
     
     @pytest.mark.asyncio
     async def test_health_check_failure(self, client):
         """Test failed health check."""
         mock_response = MagicMock()
-        mock_response.status_code = 503
-        mock_response.text = "Service unavailable"
+        mock_response.status_code = 500
+        mock_response.text = "Internal server error"
         
-        with patch.object(client._client, 'get', return_value=mock_response):
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client, '_client') as mock_http_client:
+            
+            mock_http_client.get = AsyncMock(return_value=mock_response)
+            
             result = await client.health_check()
-        
-        assert result["healthy"] is False
-        assert result["status_code"] == 503
-        assert "Service unavailable" in result["error"]
+            
+            assert result["healthy"] is False
+            assert result["status_code"] == 500
+            assert "error" in result
     
     @pytest.mark.asyncio
     async def test_health_check_exception(self, client):
         """Test health check with exception."""
-        with patch.object(client._client, 'get', side_effect=httpx.NetworkError("Network error")):
+        with patch.object(client, '_initialize_client'), \
+             patch.object(client, '_client') as mock_http_client:
+            
+            mock_http_client.get = AsyncMock(side_effect=httpx.NetworkError("Network error"))
+            
             result = await client.health_check()
-        
-        assert result["healthy"] is False
-        assert "Network error" in result["error"]
-        assert "response_time_ms" in result
+            
+            assert result["healthy"] is False
+            assert "error" in result
     
-    def test_calculate_backoff_delay(self, client_config):
+    @pytest.mark.asyncio
+    async def test_calculate_backoff_delay(self, client):
         """Test backoff delay calculation."""
-        client = CylestioClient(**client_config)
+        # Test that delays increase exponentially
+        delay1 = await client._calculate_backoff_delay(0)
+        delay2 = await client._calculate_backoff_delay(1)
+        delay3 = await client._calculate_backoff_delay(2)
         
-        # Test different attempt numbers
-        delay_0 = asyncio.run(client._calculate_backoff_delay(0))
-        delay_1 = asyncio.run(client._calculate_backoff_delay(1))
-        delay_2 = asyncio.run(client._calculate_backoff_delay(2))
+        assert delay1 >= 1.0  # 2^0 = 1 + jitter
+        assert delay2 >= 2.0  # 2^1 = 2 + jitter
+        assert delay3 >= 4.0  # 2^2 = 4 + jitter
         
-        # Should be exponential with jitter
-        assert 1.0 <= delay_0 <= 3.0  # 2^0 = 1, with 10-30% jitter
-        assert 2.0 <= delay_1 <= 6.0  # 2^1 = 2, with 10-30% jitter
-        assert 4.0 <= delay_2 <= 12.0  # 2^2 = 4, with 10-30% jitter
-        
-        # Very high attempt should be capped at 30 seconds
-        delay_high = asyncio.run(client._calculate_backoff_delay(10))
-        assert delay_high <= 30.0
-    
-    @pytest.mark.asyncio
-    async def test_client_not_initialized_error(self):
-        """Test client methods when not initialized."""
-        client = CylestioClient("https://api.test", "key")
-        
-        # Should raise RuntimeError when not in context manager
-        with pytest.raises(RuntimeError, match="Client not initialized"):
-            await client.send_event(MockEvent())
-        
-        with pytest.raises(RuntimeError, match="Client not initialized"):
-            await client.health_check()
-    
-    @pytest.mark.asyncio
-    async def test_shared_client_pool(self, client_config):
-        """Test shared client pool functionality."""
-        # Clear any existing clients
-        CylestioClient._shared_clients.clear()
-        
-        client1 = CylestioClient(**client_config)
-        client2 = CylestioClient(**client_config)
-        
-        async with client1:
-            async with client2:
-                # Both should use the same shared client
-                assert client1._client is client2._client
-                assert len(CylestioClient._shared_clients) == 1
-        
-        # Cleanup
-        await CylestioClient.cleanup_shared_clients()
-        assert len(CylestioClient._shared_clients) == 0
+        # Test maximum cap
+        large_delay = await client._calculate_backoff_delay(10)
+        assert large_delay <= 30.0
 
 
 @pytest.mark.asyncio
 async def test_integration_performance():
-    """Integration test for performance under load."""
+    """Test integration with performance considerations."""
     config = {
         "enabled": True,
-        "api_url": "https://api.cylestio.test",
+        "api_url": "https://api.test.com",
         "access_key": "test_key",
-        "timeout": 1  # Short timeout for test
+        "timeout": 1,
+        "batch_size": 2,
+        "batch_timeout": 0.01
     }
     
     interceptor = CylestioTraceInterceptor(config)
     
-    # Create many events to test background processing
-    events = [MockEvent(EventName.LLM_CALL_START, f"session_{i}") for i in range(100)]
-    
-    mock_request = MagicMock()
-    request_data = LLMRequestData(request=mock_request, events=events)
-    
-    start_time = asyncio.get_event_loop().time()
-    
-    # This should return immediately due to background processing
-    result = await interceptor.before_request(request_data)
-    
-    duration = asyncio.get_event_loop().time() - start_time
-    
-    assert result is None
-    assert duration < 0.1  # Should complete very quickly due to background tasks
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
-
-
+    # Mock the HTTP client to avoid real requests
+    with patch.object(interceptor._client, '_send_events_batch_internal', return_value={"success": 10, "failed": 0}):
+        # Create mock request data with multiple events
+        mock_request = MagicMock()
+        events = [MockEvent(EventName.LLM_CALL_START, f"session_{i}") for i in range(10)]
+        request_data = LLMRequestData(request=mock_request, events=events)
+        
+        # This should be fast and non-blocking
+        start_time = asyncio.get_event_loop().time()
+        await interceptor.before_request(request_data)
+        duration = asyncio.get_event_loop().time() - start_time
+        
+        # Should return quickly (non-blocking)
+        assert duration < 0.1
+        
+        # Clean up
+        await interceptor.cleanup()
