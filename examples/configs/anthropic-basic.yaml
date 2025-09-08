@@ -24,8 +24,8 @@ interceptors:
   # Cylestio trace interceptor
   - type: "cylestio_trace"
     enabled: true
-    # config:
-    #   api_url: "http://localhost:8000"
+    config:
+      api_url: "http://localhost:8000"
 
   # Event recorder - saves raw events to disk per session
   - type: "event_recorder"

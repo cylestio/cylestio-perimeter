@@ -288,26 +288,92 @@ class OpenAIProvider(BaseProvider):
             usage.get("total_tokens")
         )
     
+    def _is_responses_api_request(self, body: Dict[str, Any]) -> bool:
+        """Determine if this is a Responses API request based on body structure."""
+        return ("input" in body) and ("messages" not in body)
+    
+    def _is_responses_api_response(self, response_body: Dict[str, Any]) -> bool:
+        """Determine if this is a Responses API response based on response structure."""
+        return "output" in response_body and "choices" not in response_body
+    
     def _extract_response_content(self, response_body: Optional[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
-        """Extract response content from response body."""
+        """Extract response content from response body (Chat Completions or Responses API)."""
         if not response_body:
             return None
         
         try:
-            choices = response_body.get("choices", [])
-            if not choices or not isinstance(choices, list):
-                return None
+            # Handle Responses API format
+            is_responses_api = self._is_responses_api_response(response_body)
+            if is_responses_api:
+                output = response_body.get("output", [])
+                logger.debug(f"Output array length: {len(output) if output else 0}")
+                if not output or not isinstance(output, list):
+                    return None
+                
+                content = []
+                text_parts = []
+                
+                # Extract text content from output blocks
+                for i, item in enumerate(output):
+                    if not isinstance(item, dict):
+                        continue
+                    
+                    item_type = item.get("type")
+                    logger.debug(f"Output item {i}: type={item_type}, keys={list(item.keys())}")
+                    
+                    if item_type == "text":
+                        # For text blocks, content is in "text" field
+                        text_content = item.get("text", "")
+                        if text_content:
+                            text_parts.append(text_content)
+                    elif item_type == "message":
+                        # Handle message blocks in output
+                        message_content = item.get("content")
+                        if isinstance(message_content, str):
+                            text_parts.append(message_content)
+                        elif isinstance(message_content, list):
+                            for part in message_content:
+                                if isinstance(part, dict):
+                                    part_type = part.get("type")
+                                    # Handle both "text" and "output_text" types
+                                    if part_type in ["text", "output_text"]:
+                                        text_parts.append(part.get("text", ""))
+                    # Also handle any other text-containing blocks
+                    elif "content" in item and isinstance(item["content"], str):
+                        text_parts.append(item["content"])
+                
+                logger.debug(f"Extracted text parts: {text_parts}")
+                
+                # Convert collected text into a message-like structure
+                if text_parts:
+                    combined_content = "\n".join(text_parts).strip()
+                    if combined_content:
+                        content.append({
+                            "role": "assistant",
+                            "content": combined_content
+                        })
+                
+                logger.debug(f"Final content: {content}")
+                return content if content else None
             
-            content = []
-            for choice in choices:
-                if isinstance(choice, dict):
-                    message = choice.get("message", {})
-                    if message:
-                        content.append(message)
+            # Handle Chat Completions API format
+            else:
+                choices = response_body.get("choices", [])
+                if not choices or not isinstance(choices, list):
+                    return None
+                
+                content = []
+                for choice in choices:
+                    if isinstance(choice, dict):
+                        message = choice.get("message", {})
+                        if message:
+                            content.append(message)
+                
+                return content if content else None
             
-            return content if content else None
-        except Exception:
+        except Exception as e:
             # Gracefully handle any malformed response data
+            logger.error(f"Error extracting response content: {e}")
             return None
     
     def extract_request_events(self, body: Dict[str, Any], session_info: SessionInfo, 
@@ -332,7 +398,7 @@ class OpenAIProvider(BaseProvider):
             return events, last_processed_index
         
         # Determine API type explicitly
-        is_responses_api = ("input" in body) and ("messages" not in body)
+        is_responses_api = self._is_responses_api_request(body)
         
         # Collect request messages according to API type
         messages = body.get("messages", [])
@@ -465,6 +531,7 @@ class OpenAIProvider(BaseProvider):
         events = []
         
         if not session_id:
+            print("DEBUG: No session_id, returning empty events")
             return events
         
         # Get trace ID from request metadata
