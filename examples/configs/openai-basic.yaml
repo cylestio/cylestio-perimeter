@@ -25,3 +25,13 @@ interceptors:
       file_format: "jsonl"              # "json" or "jsonl" format
       pretty_print: false               # Pretty-print JSON (only for "json" format)
       include_metadata: true            # Include file metadata
+
+  # HTTP recorder - saves raw HTTP traffic for replay testing
+  - type: "http_recorder"
+    enabled: false
+    config:
+      output_dir: "./http_recordings"   # Directory to save HTTP recordings
+      max_events_per_file: 50           # Rotate to new file after N events
+      include_headers: true             # Include HTTP headers
+      include_timing: true              # Include timing information
+      max_body_size_mb: 50              # Max body size to record

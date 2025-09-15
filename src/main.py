@@ -19,6 +19,7 @@ from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
 from src.interceptors.cylestio_trace import CylestioTraceInterceptor
 from src.interceptors.event_recorder import EventRecorderInterceptor
+from src.interceptors.http_recorder import HttpRecorderInterceptor
 from src.proxy.handler import ProxyHandler
 from src.providers.openai import OpenAIProvider
 from src.providers.anthropic import AnthropicProvider
@@ -54,6 +55,7 @@ def create_app(config: Settings) -> FastAPI:
     interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
     interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
     interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
+    interceptor_manager.register_interceptor("http_recorder", HttpRecorderInterceptor)
     
     # Create provider based on config type first (needed for interceptors and lifespan)
     if config.llm.type.lower() == "openai":
@@ -226,6 +228,73 @@ def validate_config(config_path: str):
 def generate_config(output_path: str):
     """Generate example configuration file."""
     generate_example_config(output_path)
+
+
+@cli.command()
+def replay(
+    input_path: str = typer.Argument(..., help="Path to recording file or directory"),
+    delay: float = typer.Option(0.0, "--delay", help="Delay in seconds between replaying requests"),
+    config: str = typer.Option(None, "--config", help="Path to YAML configuration file for interceptors"),
+):
+    """Replay recorded HTTP traffic through interceptors."""
+    import asyncio
+    asyncio.run(replay_recordings(input_path, delay, config))
+
+
+async def replay_recordings(input_path: str, delay: float, config_path: Optional[str]) -> None:
+    """Replay recorded HTTP traffic through interceptors.
+
+    Args:
+        input_path: Path to recording file or directory
+        delay: Delay in seconds between replaying requests
+        config_path: Optional path to configuration file
+    """
+    from src.replay.replay_service import ReplayService
+    from src.replay.replay_pipeline import ReplayPipeline
+    from src.config.settings import Settings
+
+    try:
+        # Load configuration if provided
+        config = None
+        if config_path:
+            try:
+                config = Settings.from_yaml(config_path)
+                typer.echo(f"Loaded configuration from: {config_path}")
+                # Register interceptor types for replay
+                interceptor_manager.register_interceptor("printer", PrinterInterceptor)
+                interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
+                interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
+                interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
+                interceptor_manager.register_interceptor("http_recorder", HttpRecorderInterceptor)
+            except Exception as e:
+                typer.echo(f"Error loading configuration: {e}", err=True)
+                raise typer.Exit(1)
+
+        # Initialize replay service and pipeline
+        replay_service = ReplayService()
+        replay_pipeline = ReplayPipeline(config)
+
+        typer.echo(f"Reading recordings from: {input_path}")
+
+        # Read recordings
+        pairs = replay_service.read_recordings(input_path)
+        typer.echo(f"Found {len(pairs)} request/response pairs to replay")
+
+        if delay > 0:
+            typer.echo(f"Replay delay: {delay} seconds between requests")
+
+        # Process pairs with delay
+        async for pair in replay_service.replay_with_delay(pairs, delay):
+            await replay_pipeline.process_pair(pair)
+
+        # Close pipeline
+        await replay_pipeline.close()
+
+        typer.echo("Replay completed successfully!")
+
+    except Exception as e:
+        typer.echo(f"Error during replay: {e}", err=True)
+        raise typer.Exit(1)
 
 
 def main():
