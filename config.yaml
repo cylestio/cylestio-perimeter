@@ -18,6 +18,16 @@ llm:
 # Interceptor configuration (processed in order)
 interceptors:
 
+  # HTTP traffic recorder - records raw HTTP requests/responses for replay
+  - type: "http_recorder"
+    enabled: false
+    config:
+      output_dir: "./http_recordings"      # Directory to save recordings
+      max_events_per_file: 100            # Rotate to new file after N events
+      include_headers: true                # Include HTTP headers in recordings
+      include_timing: true                 # Include timing information
+      max_body_size_mb: 100               # Maximum body size to record (prevents huge files)
+
   # Rate limiting middleware (future enhancement)
   - type: "rate_limit"
     enabled: false
