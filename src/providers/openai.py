@@ -268,6 +268,13 @@ class OpenAIProvider(BaseProvider):
         # Default if no system message found
         return "default-system"
     
+    def _extract_tools_for_session(self, body: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        """Extract tools from request body for session event."""
+        tools = body.get("tools", [])
+        if tools and isinstance(tools, list):
+            return tools
+        return None
+    
     
     def _extract_usage_tokens(self, response_body: Optional[Dict[str, Any]]) -> tuple[Optional[int], Optional[int], Optional[int]]:
         """Extract token usage from response body.
@@ -365,12 +372,20 @@ class OpenAIProvider(BaseProvider):
             span_id = self.generate_new_span_id()
             self.update_session_span_id(session_id, span_id)
             
+            # Extract tools and prompt for session event
+            tools = self._extract_tools_for_session(body)
+            prompt = self._extract_system_prompt(body)
+            
             session_start_event = SessionStartEvent.create(
                 trace_id=trace_id,
                 span_id=span_id,
                 agent_id=agent_id,
                 session_id=session_id,
-                client_type="gateway"
+                client_type="gateway",
+                vendor=self.name,
+                model=session_info.model,
+                tools=tools,
+                prompt=prompt
             )
             events.append(session_start_event)
         
