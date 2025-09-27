@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-09-27
+
+### Added
+- **Tools Support**: Enhanced tool execution tracking and result processing
+  - Added `ToolExecutionEvent` and `ToolResultEvent` for comprehensive tool monitoring
+  - Enhanced OpenAI and Anthropic providers with tool parsing capabilities
+  - Improved tool metadata extraction and session tracking
+- **Replay Service**: New service for replaying recorded HTTP traffic
+  - Added `ReplayService` for reading and parsing recorded HTTP traffic files
+  - Implemented `ReplayPipeline` for processing recorded requests through interceptors
+  - Support for replaying traffic with configurable delays between requests
+- **Enhanced Async Event Reporting**: Improved Cylestio tracing with background event processing
+  - Async background event reporting for better performance
+  - Enhanced tracing interceptor with improved error handling
+- **Agent Versioning Support**: Enhanced agent identification and versioning capabilities
+  - Improved agent ID management and session tracking
+  - Better support for external agent identification
+
+### Enhanced
+- **Provider Improvements**: Enhanced OpenAI and Anthropic providers with better tool support
+- **Session Management**: Improved session detection and management with tool awareness
+- **Event System**: Expanded event types for comprehensive tool and agent tracking
+
+### Technical Improvements
+- Enhanced middleware system for tool execution tracking
+- Improved error handling in replay and tracing systems
+- Better session detection with tool-aware capabilities
+- Enhanced configuration management for replay functionality
+
 ## [1.1.0] - 2025-09-04
 
 ### Added
