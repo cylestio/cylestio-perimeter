@@ -227,7 +227,11 @@ class SessionStartEvent(BaseEvent):
         agent_id: str,
         session_id: str,
         user_id: Optional[str] = None,
-        client_type: Optional[str] = None
+        client_type: Optional[str] = None,
+        vendor: Optional[str] = None,
+        model: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        prompt: Optional[str] = None
     ) -> "SessionStartEvent":
         """Create session start event."""
         attributes = {
@@ -238,6 +242,14 @@ class SessionStartEvent(BaseEvent):
             attributes["user.id"] = user_id
         if client_type:
             attributes["client.type"] = client_type
+        if vendor:
+            attributes["llm.vendor"] = vendor
+        if model:
+            attributes["llm.model"] = model
+        if tools:
+            attributes["tools"] = tools
+        if prompt:
+            attributes["prompt"] = prompt
             
         return cls(
             trace_id=trace_id,
