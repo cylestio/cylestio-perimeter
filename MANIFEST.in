@@ -1,0 +1,5 @@
+include build_frontend.py
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include src/interceptors/live_trace/static *
