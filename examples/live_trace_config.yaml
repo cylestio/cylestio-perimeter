@@ -1,0 +1,42 @@
+# Example configuration for Live Trace interceptor
+llm:
+  type: "openai"
+  base_url: "https://api.openai.com"
+  api_key: "${OPENAI_API_KEY}"
+
+server:
+  host: "0.0.0.0"
+  port: 3000
+
+interceptors:
+  # Live trace dashboard for real-time debugging
+  - type: live_trace
+    enabled: true
+    config:
+      server_port: 8080
+      auto_open_browser: true
+      max_events: 10000
+      retention_minutes: 30
+      refresh_interval: 2
+
+  # Optional: Also enable event recording for persistent storage
+  - type: event_recorder
+    enabled: true
+    config:
+      output_dir: "./event_logs"
+      file_format: "jsonl"
+
+  # Optional: Console output for development
+  - type: printer
+    enabled: true
+    config:
+      log_requests: true
+      log_responses: true
+      log_body: false
+      show_sessions: true
+      show_llm_calls: true
+      show_tools: true
+
+logging:
+  level: "INFO"
+  format: "detailed"
