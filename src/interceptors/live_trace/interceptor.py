@@ -1,5 +1,4 @@
 """Live trace interceptor for real-time debugging."""
-import asyncio
 import threading
 import webbrowser
 from typing import Any, Dict, Optional
@@ -50,8 +49,11 @@ class LiveTraceInterceptor(BaseInterceptor):
 
         logger.info(f"LiveTraceInterceptor initialized on port {self.server_port}")
 
-        # Start server immediately
-        self._start_server()
+        # Start server only if interceptor is enabled
+        if self.enabled:
+            self._start_server()
+        else:
+            logger.info("LiveTraceInterceptor disabled; server not started")
 
     @property
     def name(self) -> str:

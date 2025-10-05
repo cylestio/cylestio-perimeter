@@ -1,7 +1,5 @@
 """FastAPI server for the live trace dashboard."""
-import os
 from pathlib import Path
-from typing import Any, Dict
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
@@ -46,6 +44,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Get complete dashboard data as JSON."""
         try:
             data = insights.get_dashboard_data()
+            data["refresh_interval"] = refresh_interval
             return JSONResponse(data)
         except Exception as e:
             logger.error(f"Error getting dashboard data: {e}")

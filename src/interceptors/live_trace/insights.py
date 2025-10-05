@@ -1,8 +1,20 @@
 """Analytics and insights computation for trace data."""
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from functools import wraps
+from typing import Any, Dict, List
 
-from .store import TraceStore, SessionData, AgentData
+from .store import TraceStore, AgentData
+
+
+def _with_store_lock(func):
+    """Ensure the wrapped method executes with the trace store lock held."""
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        with self.store.lock:
+            return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class InsightsEngine:
@@ -11,6 +23,7 @@ class InsightsEngine:
     def __init__(self, store: TraceStore):
         self.store = store
 
+    @_with_store_lock
     def get_dashboard_data(self) -> Dict[str, Any]:
         """Get all data needed for the main dashboard."""
         stats = self.store.get_global_stats()
@@ -26,9 +39,10 @@ class InsightsEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
+    @_with_store_lock
     def get_agent_data(self, agent_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific agent."""
-        agent = self.store.get_agent(agent_id)
+        agent = self.store.agents.get(agent_id)
         if not agent:
             return {"error": "Agent not found"}
 
@@ -38,7 +52,7 @@ class InsightsEngine:
         # Get agent's sessions
         agent_sessions = []
         for session_id in agent.sessions:
-            session = self.store.get_session(session_id)
+            session = self.store.sessions.get(session_id)
             if session:
                 agent_sessions.append({
                     "id": session_id,
@@ -77,9 +91,10 @@ class InsightsEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
+    @_with_store_lock
     def get_session_data(self, session_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific session."""
-        session = self.store.get_session(session_id)
+        session = self.store.sessions.get(session_id)
         if not session:
             return {"error": "Session not found"}
 
@@ -128,6 +143,7 @@ class InsightsEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
+    @_with_store_lock
     def _get_agent_summary(self) -> List[Dict[str, Any]]:
         """Get summary data for all agents."""
         self.store.update_agent_metrics()
@@ -157,6 +173,7 @@ class InsightsEngine:
         agents.sort(key=lambda x: x["last_seen"], reverse=True)
         return agents
 
+    @_with_store_lock
     def _get_recent_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent sessions with summary data."""
         sessions = []
@@ -182,6 +199,7 @@ class InsightsEngine:
         sessions.sort(key=lambda x: x["last_activity"], reverse=True)
         return sessions[:limit]
 
+    @_with_store_lock
     def _get_latest_active_session(self) -> Dict[str, Any] | None:
         """Get the most recent active session."""
         active_sessions = [s for s in self.store.sessions.values() if s.is_active]
@@ -205,6 +223,7 @@ class InsightsEngine:
             "last_activity": self._time_ago(latest.last_activity)
         }
 
+    @_with_store_lock
     def _analyze_agent_patterns(self, agent: AgentData) -> Dict[str, Any]:
         """Analyze patterns for a specific agent."""
         agent_sessions = [
