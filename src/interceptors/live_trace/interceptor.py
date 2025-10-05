@@ -22,6 +22,7 @@ class LiveTraceInterceptor(BaseInterceptor):
         Args:
             config: Interceptor configuration with the following options:
                 - server_port: Port for the web dashboard (default: 8080)
+                - server_host: Host interface to bind to (default: 127.0.0.1)
                 - auto_open_browser: Whether to open browser on startup (default: True)
                 - max_events: Maximum events to keep in memory (default: 10000)
                 - retention_minutes: Session retention time (default: 30)
@@ -31,6 +32,7 @@ class LiveTraceInterceptor(BaseInterceptor):
 
         # Configuration
         self.server_port = config.get("server_port", 8080)
+        self.server_host = config.get("server_host", "127.0.0.1")
         self.auto_open_browser = config.get("auto_open_browser", True)
         self.max_events = config.get("max_events", 10000)
         self.retention_minutes = config.get("retention_minutes", 30)
@@ -47,7 +49,7 @@ class LiveTraceInterceptor(BaseInterceptor):
         self.server_thread = None
         self.server_started = False
 
-        logger.info(f"LiveTraceInterceptor initialized on port {self.server_port}")
+        logger.info(f"LiveTraceInterceptor initialized on {self.server_host}:{self.server_port}")
 
         # Start server only if interceptor is enabled
         if self.enabled:
@@ -146,7 +148,7 @@ class LiveTraceInterceptor(BaseInterceptor):
             self.server_thread.start()
             self.server_started = True
 
-            logger.info(f"Live trace server starting on port {self.server_port}")
+            logger.info(f"Live trace server starting on {self.server_host}:{self.server_port}")
 
             # Auto-open browser if configured
             if self.auto_open_browser:
@@ -167,7 +169,7 @@ class LiveTraceInterceptor(BaseInterceptor):
             # Run the server
             uvicorn.run(
                 app,
-                host="127.0.0.1",
+                host=self.server_host,
                 port=self.server_port,
                 log_level="warning",  # Reduce noise
                 access_log=False
@@ -178,6 +180,7 @@ class LiveTraceInterceptor(BaseInterceptor):
     def _open_browser(self):
         """Open the dashboard in the default browser."""
         try:
+            # Use localhost for browser URL regardless of bind address
             url = f"http://127.0.0.1:{self.server_port}"
             webbrowser.open(url)
             logger.info(f"Opened live trace dashboard: {url}")
@@ -190,4 +193,5 @@ class LiveTraceInterceptor(BaseInterceptor):
 
     def get_dashboard_url(self) -> str:
         """Get the URL for the dashboard."""
-        return f"http://127.0.0.1:{self.server_port}"
+        host_display = "127.0.0.1" if self.server_host in ("0.0.0.0", "::") else self.server_host
+        return f"http://{host_display}:{self.server_port}"
