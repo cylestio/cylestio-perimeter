@@ -1,6 +1,7 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+build-backend = "build_frontend"
+backend-path = ["."]
 
 [project]
 name = "cylestio-perimeter"
@@ -34,6 +35,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "python-dotenv>=1.0.0",
     "descope>=1.7.7",
+    "Jinja2>=3.1.0",
 ]
 
 [project.optional-dependencies]
@@ -58,6 +60,9 @@ cylestio-perimeter = "src.main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.interceptors.live_trace" = ["static/**/*"]
 
 [project.urls]
 Homepage = "https://github.com/cylestio/cylestio-perimeter"

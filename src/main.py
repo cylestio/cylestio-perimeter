@@ -20,6 +20,7 @@ from src.interceptors.message_logger import MessageLoggerInterceptor
 from src.interceptors.cylestio_trace import CylestioTraceInterceptor
 from src.interceptors.event_recorder import EventRecorderInterceptor
 from src.interceptors.http_recorder import HttpRecorderInterceptor
+from src.interceptors.live_trace import LiveTraceInterceptor
 from src.proxy.handler import ProxyHandler
 from src.providers.openai import OpenAIProvider
 from src.providers.anthropic import AnthropicProvider
@@ -56,6 +57,7 @@ def create_app(config: Settings) -> FastAPI:
     interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
     interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
     interceptor_manager.register_interceptor("http_recorder", HttpRecorderInterceptor)
+    interceptor_manager.register_interceptor("live_trace", LiveTraceInterceptor)
     
     # Create provider based on config type first (needed for interceptors and lifespan)
     if config.llm.type.lower() == "openai":
@@ -266,6 +268,7 @@ async def replay_recordings(input_path: str, delay: float, config_path: Optional
                 interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
                 interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
                 interceptor_manager.register_interceptor("http_recorder", HttpRecorderInterceptor)
+                interceptor_manager.register_interceptor("live_trace", LiveTraceInterceptor)
             except Exception as e:
                 typer.echo(f"Error loading configuration: {e}", err=True)
                 raise typer.Exit(1)
