@@ -84,6 +84,20 @@ class BaseProvider(ABC):
         """
         pass
     
+    def parse_streaming_response(self, body_bytes: bytes) -> Optional[Dict[str, Any]]:
+        """Parse SSE streaming response into structured data.
+        
+        This is provider-specific as different providers use different SSE formats.
+        Default implementation returns None (provider doesn't support streaming parsing).
+        
+        Args:
+            body_bytes: Raw SSE response bytes
+            
+        Returns:
+            Parsed response dict suitable for event extraction, or None if parsing fails
+        """
+        return None
+    
     def extract_conversation_metadata(self, body: Dict[str, Any]) -> Dict[str, Any]:
         """Extract additional conversation metadata.
         

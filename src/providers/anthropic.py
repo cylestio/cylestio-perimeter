@@ -74,6 +74,105 @@ class AnthropicProvider(BaseProvider):
         """Check if Anthropic request is for streaming."""
         return body.get("stream", False) is True
     
+    def parse_streaming_response(self, body_bytes: bytes) -> Optional[Dict[str, Any]]:
+        """Parse Anthropic SSE streaming response into structured data.
+        
+        Extracts the message from message_start event, aggregates text from content_block_delta,
+        and merges usage from message_delta event.
+        
+        Args:
+            body_bytes: Raw SSE response bytes
+            
+        Returns:
+            Parsed response dict matching Anthropic's non-streaming format, or None if parsing fails
+        """
+        try:
+            import json
+            text = body_bytes.decode('utf-8')
+            lines = text.split('\n')
+            
+            # Parse all SSE events
+            message_data = None
+            usage_data = None
+            text_content = []  # Aggregate text from content_block_delta events
+            
+            current_event = None
+            current_data = []
+            
+            for line in lines:
+                line = line.strip()
+                
+                if line.startswith('event:'):
+                    # Save previous event
+                    if current_event and current_data:
+                        data_str = ''.join(current_data)
+                        try:
+                            parsed = json.loads(data_str)
+                            
+                            # Extract message from message_start
+                            if current_event == 'message_start' and 'message' in parsed:
+                                message_data = parsed['message']
+                            
+                            # Extract text from content_block_delta
+                            elif current_event == 'content_block_delta':
+                                delta = parsed.get('delta', {})
+                                if delta.get('type') == 'text_delta':
+                                    text_content.append(delta.get('text', ''))
+                            
+                            # Extract usage from message_delta
+                            elif current_event == 'message_delta' and 'usage' in parsed:
+                                usage_data = parsed['usage']
+                                
+                        except json.JSONDecodeError:
+                            pass
+                    
+                    current_event = line[6:].strip()
+                    current_data = []
+                
+                elif line.startswith('data:'):
+                    current_data.append(line[5:].strip())
+                
+                elif line == '' and current_event and current_data:
+                    # End of event
+                    data_str = ''.join(current_data)
+                    try:
+                        parsed = json.loads(data_str)
+                        
+                        if current_event == 'message_start' and 'message' in parsed:
+                            message_data = parsed['message']
+                        elif current_event == 'content_block_delta':
+                            delta = parsed.get('delta', {})
+                            if delta.get('type') == 'text_delta':
+                                text_content.append(delta.get('text', ''))
+                        elif current_event == 'message_delta' and 'usage' in parsed:
+                            usage_data = parsed['usage']
+                            
+                    except json.JSONDecodeError:
+                        pass
+                    
+                    current_event = None
+                    current_data = []
+            
+            # Combine message data with aggregated content and usage
+            if message_data:
+                # Replace the empty content array with aggregated text
+                if text_content:
+                    message_data['content'] = [{
+                        'type': 'text',
+                        'text': ''.join(text_content)
+                    }]
+                
+                if usage_data:
+                    message_data['usage'] = usage_data
+                    
+                return message_data
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error parsing Anthropic SSE response: {e}", exc_info=True)
+            return None
+    
     def extract_conversation_metadata(self, body: Dict[str, Any]) -> Dict[str, Any]:
         """Extract Anthropic-specific metadata."""
         metadata = {}
