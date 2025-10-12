@@ -134,7 +134,7 @@ class OpenAIProvider(BaseProvider):
         """Parse OpenAI SSE streaming response into structured data.
         
         OpenAI's format: data: {json}\n\n ... data: [DONE]
-        We aggregate chunks to reconstruct the full response.
+        We aggregate chunks to reconstruct the full response including tool_calls.
         
         Args:
             body_bytes: Raw SSE response bytes
@@ -184,26 +184,68 @@ class OpenAIProvider(BaseProvider):
                     'choices': []
                 }
                 
-                # Aggregate content from all chunks
+                # Aggregate content and tool_calls from all chunks
                 content_parts = []
+                tool_calls = {}  # Track tool calls by index
                 finish_reason = None
                 
                 for chunk in chunks:
                     choices = chunk.get('choices', [])
                     for choice in choices:
                         delta = choice.get('delta', {})
-                        if 'content' in delta:
+                        
+                        # Accumulate text content
+                        if 'content' in delta and delta['content']:
                             content_parts.append(delta['content'])
+                        
+                        # Accumulate tool calls
+                        if 'tool_calls' in delta:
+                            for tool_call_delta in delta['tool_calls']:
+                                index = tool_call_delta.get('index', 0)
+                                
+                                # Initialize tool call if not seen before
+                                if index not in tool_calls:
+                                    tool_calls[index] = {
+                                        'id': tool_call_delta.get('id', ''),
+                                        'type': tool_call_delta.get('type', 'function'),
+                                        'function': {
+                                            'name': '',
+                                            'arguments': ''
+                                        }
+                                    }
+                                
+                                # Update tool call fields
+                                if 'id' in tool_call_delta:
+                                    tool_calls[index]['id'] = tool_call_delta['id']
+                                if 'type' in tool_call_delta:
+                                    tool_calls[index]['type'] = tool_call_delta['type']
+                                
+                                # Accumulate function details
+                                if 'function' in tool_call_delta:
+                                    func_delta = tool_call_delta['function']
+                                    if 'name' in func_delta:
+                                        tool_calls[index]['function']['name'] = func_delta['name']
+                                    if 'arguments' in func_delta:
+                                        tool_calls[index]['function']['arguments'] += func_delta['arguments']
+                        
+                        # Capture finish reason
                         if choice.get('finish_reason'):
                             finish_reason = choice['finish_reason']
+                
+                # Build the final message
+                message = {'role': 'assistant'}
+                
+                if content_parts:
+                    message['content'] = ''.join(content_parts)
+                
+                if tool_calls:
+                    # Convert tool_calls dict to sorted list
+                    message['tool_calls'] = [tool_calls[i] for i in sorted(tool_calls.keys())]
                 
                 # Create final choice
                 aggregated['choices'] = [{
                     'index': 0,
-                    'message': {
-                        'role': 'assistant',
-                        'content': ''.join(content_parts)
-                    },
+                    'message': message,
                     'finish_reason': finish_reason
                 }]
                 
