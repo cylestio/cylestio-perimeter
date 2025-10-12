@@ -14,6 +14,9 @@ from src.events.types import (
     LLMCallFinishEvent, ToolExecutionEvent, LLMCallErrorEvent
 )
 from src.events.base import generate_span_id
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AnthropicProvider(BaseProvider):
@@ -78,7 +81,7 @@ class AnthropicProvider(BaseProvider):
         """Parse Anthropic SSE streaming response into structured data.
         
         Extracts the message from message_start event, aggregates text from content_block_delta,
-        and merges usage from message_delta event.
+        tool_use blocks from content_block_start, and merges usage from message_delta event.
         
         Args:
             body_bytes: Raw SSE response bytes
@@ -94,37 +97,64 @@ class AnthropicProvider(BaseProvider):
             # Parse all SSE events
             message_data = None
             usage_data = None
-            text_content = []  # Aggregate text from content_block_delta events
+            content_blocks = {}  # Track content blocks by index
             
             current_event = None
             current_data = []
             
+            def process_event(event_type: str, event_data: str):
+                """Process a single SSE event."""
+                nonlocal message_data, usage_data
+                
+                try:
+                    parsed = json.loads(event_data)
+                    
+                    # Extract message from message_start
+                    if event_type == 'message_start' and 'message' in parsed:
+                        message_data = parsed['message']
+                    
+                    # Track content blocks as they start
+                    elif event_type == 'content_block_start':
+                        index = parsed.get('index')
+                        content_block = parsed.get('content_block', {})
+                        block_type = content_block.get('type')
+                        
+                        if block_type == 'text':
+                            content_blocks[index] = {'type': 'text', 'text': ''}
+                        elif block_type == 'tool_use':
+                            content_blocks[index] = {
+                                'type': 'tool_use',
+                                'id': content_block.get('id'),
+                                'name': content_block.get('name'),
+                                'input': ''
+                            }
+                    
+                    # Accumulate deltas for each content block
+                    elif event_type == 'content_block_delta':
+                        index = parsed.get('index')
+                        delta = parsed.get('delta', {})
+                        
+                        if index in content_blocks:
+                            if delta.get('type') == 'text_delta':
+                                content_blocks[index]['text'] += delta.get('text', '')
+                            elif delta.get('type') == 'input_json_delta':
+                                content_blocks[index]['input'] += delta.get('partial_json', '')
+                    
+                    # Extract usage from message_delta
+                    elif event_type == 'message_delta' and 'usage' in parsed:
+                        usage_data = parsed['usage']
+                        
+                except json.JSONDecodeError:
+                    pass
+            
+            # Parse SSE format
             for line in lines:
                 line = line.strip()
                 
                 if line.startswith('event:'):
-                    # Save previous event
+                    # Process previous event if complete
                     if current_event and current_data:
-                        data_str = ''.join(current_data)
-                        try:
-                            parsed = json.loads(data_str)
-                            
-                            # Extract message from message_start
-                            if current_event == 'message_start' and 'message' in parsed:
-                                message_data = parsed['message']
-                            
-                            # Extract text from content_block_delta
-                            elif current_event == 'content_block_delta':
-                                delta = parsed.get('delta', {})
-                                if delta.get('type') == 'text_delta':
-                                    text_content.append(delta.get('text', ''))
-                            
-                            # Extract usage from message_delta
-                            elif current_event == 'message_delta' and 'usage' in parsed:
-                                usage_data = parsed['usage']
-                                
-                        except json.JSONDecodeError:
-                            pass
+                        process_event(current_event, ''.join(current_data))
                     
                     current_event = line[6:].strip()
                     current_data = []
@@ -133,34 +163,33 @@ class AnthropicProvider(BaseProvider):
                     current_data.append(line[5:].strip())
                 
                 elif line == '' and current_event and current_data:
-                    # End of event
-                    data_str = ''.join(current_data)
-                    try:
-                        parsed = json.loads(data_str)
-                        
-                        if current_event == 'message_start' and 'message' in parsed:
-                            message_data = parsed['message']
-                        elif current_event == 'content_block_delta':
-                            delta = parsed.get('delta', {})
-                            if delta.get('type') == 'text_delta':
-                                text_content.append(delta.get('text', ''))
-                        elif current_event == 'message_delta' and 'usage' in parsed:
-                            usage_data = parsed['usage']
-                            
-                    except json.JSONDecodeError:
-                        pass
-                    
+                    # End of event - process it
+                    process_event(current_event, ''.join(current_data))
                     current_event = None
                     current_data = []
             
-            # Combine message data with aggregated content and usage
-            if message_data:
-                # Replace the empty content array with aggregated text
-                if text_content:
-                    message_data['content'] = [{
-                        'type': 'text',
-                        'text': ''.join(text_content)
-                    }]
+            # Build final content array from all blocks
+            if message_data and content_blocks:
+                content_array = []
+                for index in sorted(content_blocks.keys()):
+                    block = content_blocks[index]
+                    if block['type'] == 'text':
+                        content_array.append({'type': 'text', 'text': block['text']})
+                    elif block['type'] == 'tool_use':
+                        # Parse the accumulated JSON input
+                        try:
+                            input_data = json.loads(block['input']) if block['input'] else {}
+                        except json.JSONDecodeError:
+                            input_data = {}
+                        
+                        content_array.append({
+                            'type': 'tool_use',
+                            'id': block['id'],
+                            'name': block['name'],
+                            'input': input_data
+                        })
+                
+                message_data['content'] = content_array
                 
                 if usage_data:
                     message_data['usage'] = usage_data
