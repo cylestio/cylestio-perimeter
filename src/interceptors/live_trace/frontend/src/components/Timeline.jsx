@@ -15,9 +15,9 @@ function TimelineItem({ item }) {
 
   // Determine alignment
   let alignmentClass = 'center'
-  if (item.event_type === 'llm.call.start' || item.event_type === 'tool.execution') {
+  if (item.event_type === 'llm.call.start' || item.event_type === 'tool.result') {
     alignmentClass = 'right'
-  } else if (item.event_type === 'llm.call.finish' || item.event_type === 'tool.result') {
+  } else if (item.event_type === 'llm.call.finish' || item.event_type === 'tool.execution') {
     alignmentClass = 'left'
   }
 

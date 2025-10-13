@@ -95,19 +95,19 @@ class TestProxyIntegration:
     @pytest.mark.asyncio
     async def test_proxy_request_flow(self, app, monkeypatch):
         """Test complete proxy request flow."""
-        # Mock httpx client
-        class MockResponse:
-            status_code = 200
-            headers = {"content-type": "application/json"}
-            content = b'{"result": "success"}'
-        
-        async def mock_request(*args, **kwargs):
-            return MockResponse()
-        
-        # Patch the proxy handler's client
         from src.proxy.handler import ProxyHandler
-        monkeypatch.setattr(ProxyHandler, "_handle_standard_request", 
-                          lambda self, *args, **kwargs: mock_request(*args, **kwargs))
+        from fastapi import Response
+        
+        # Mock the buffered request handler
+        async def mock_buffered_request(self, *args, **kwargs):
+            return Response(
+                content=b'{"result": "success"}',
+                status_code=200,
+                headers={"content-type": "application/json"}
+            )
+        
+        # Patch the proxy handler's buffered request method
+        monkeypatch.setattr(ProxyHandler, "_handle_buffered_request", mock_buffered_request)
         
         client = TestClient(app)
         response = client.post("/v1/chat/completions", json={"model": "gpt-3.5-turbo"})

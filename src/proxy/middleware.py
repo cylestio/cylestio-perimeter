@@ -48,6 +48,120 @@ class LLMMiddleware(BaseHTTPMiddleware):
         for interceptor in self.interceptors:
             logger.info(f"  - {interceptor.name}: enabled")
     
+    
+    async def _process_response(
+        self,
+        request_data,
+        response_body: Optional[Dict[str, Any]],
+        response_obj: Response,
+        duration_ms: float
+    ) -> LLMResponseData:
+        """Process response - extract events and run interceptors.
+        
+        Unified method for both streaming and non-streaming responses.
+        
+        Args:
+            request_data: LLMRequestData object
+            response_body: Parsed response body
+            response_obj: Response object
+            duration_ms: Request duration
+            
+        Returns:
+            LLMResponseData with events and interceptors applied
+        """
+        # Parse tool information from response
+        tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
+        
+        # Extract events from response using provider
+        response_events = []
+        if request_data.session_id and response_body:
+            try:
+                request_metadata = {
+                    'cylestio_trace_id': getattr(request_data.request.state, 'cylestio_trace_id', None),
+                    'agent_id': getattr(request_data.request.state, 'agent_id', 'unknown'),
+                    'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown')
+                }
+                
+                response_events = self.provider.extract_response_events(
+                    response_body=response_body,
+                    session_id=request_data.session_id,
+                    duration_ms=duration_ms,
+                    tool_uses=tool_uses_request,
+                    request_metadata=request_metadata
+                )
+            except Exception as e:
+                logger.error(f"Error extracting response events: {e}", exc_info=True)
+        
+        # Create response data
+        response_data = LLMResponseData(
+            response=response_obj,
+            body=response_body,
+            duration_ms=duration_ms,
+            session_id=request_data.session_id,
+            status_code=response_obj.status_code,
+            tool_uses_request=tool_uses_request,
+            events=response_events
+        )
+        
+        # Run after_response interceptors
+        for interceptor in self.interceptors:
+            try:
+                modified_response = await interceptor.after_response(request_data, response_data)
+                if modified_response:
+                    response_data = modified_response
+            except Exception as e:
+                logger.error(f"Error in {interceptor.name}.after_response: {e}", exc_info=True)
+        
+        # Notify provider of response if we have session info
+        if request_data.session_id and response_body:
+            try:
+                await self.provider.notify_response(
+                    session_id=request_data.session_id,
+                    request=request_data.request,
+                    response_body=response_body
+                )
+            except Exception as e:
+                logger.debug(f"Error notifying provider of response: {e}")
+        
+        return response_data
+    
+    async def _process_streaming_completion(self, request_data, start_time: float) -> None:
+        """Process streaming response after it completes - run interceptors with buffered data.
+        
+        Args:
+            request_data: Original request data
+            start_time: Request start time for duration calculation
+        """
+        try:
+            # Get buffered chunks from request state
+            chunks = request_data.request.state.buffered_chunks
+            body_bytes = b''.join(chunks)
+            original_content_type = getattr(request_data.request.state, 'original_content_type', 'text/event-stream')
+            
+            # Calculate duration
+            duration_ms = (time.time() - start_time) * 1000
+            
+            # Parse the SSE response using provider-specific parser
+            response_body = self.provider.parse_streaming_response(body_bytes)
+            if not response_body:
+                logger.warning("Could not parse SSE response, skipping event extraction")
+                response_body = {'raw_sse': body_bytes.decode('utf-8', errors='replace')[:1000]}
+            
+            # Create a Response object for interceptors (already sent to client, but needed for metadata)
+            response_obj = Response(
+                content=body_bytes,
+                status_code=200,
+                media_type=original_content_type
+            )
+            
+            # Use unified response processing
+            await self._process_response(request_data, response_body, response_obj, duration_ms)
+            
+            logger.info(f"Processed streaming response through {len(self.interceptors)} interceptors")
+            
+        except Exception as e:
+            logger.error(f"Error processing streaming completion: {e}", exc_info=True)
+    
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request through interceptor chain.
         
@@ -96,9 +210,36 @@ class LLMMiddleware(BaseHTTPMiddleware):
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
             
+            # Check if this is a streaming response
+            content_type = response.headers.get("content-type", "")
+            is_streaming_response = content_type.startswith("text/event-stream")
+            
+            # For streaming responses, wrap to process interceptors after completion
+            if is_streaming_response:
+                logger.info("Streaming response detected - will process after streaming completes")
+                
+                async def stream_and_process_after():
+                    """Pass through stream to client, then run interceptors on buffered data."""
+                    # Pass through all chunks to client (ProxyHandler already buffered them)
+                    async for chunk in response.body_iterator:
+                        yield chunk
+                    
+                    # After streaming completes, ProxyHandler has stored buffered data in request.state
+                    # Now run interceptors with that buffered data
+                    if hasattr(request_data.request.state, 'buffered_chunks'):
+                        await self._process_streaming_completion(request_data, start_time)
+                
+                from fastapi.responses import StreamingResponse
+                return StreamingResponse(
+                    stream_and_process_after(),
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    media_type=content_type
+                )
+            
             # For JSON responses, capture the body before sending
             response_body = None
-            if response.headers.get("content-type", "").startswith("application/json"):
+            if content_type.startswith("application/json"):
                 # Read the response body
                 body_bytes = b""
                 async for chunk in response.body_iterator:
@@ -127,60 +268,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     self.provider.response_sessions[response_id] = request_data.session_id
                     logger.info(f"Stored response_id mapping: {response_id} -> {request_data.session_id}")
             
-            # Parse tool information from response
-            tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
-            
-            # Extract events from response using provider
-            response_events = []
-            if request_data.session_id and response_body:
-                try:
-                    # Get metadata from request state
-                    request_metadata = {
-                        'cylestio_trace_id': getattr(request_data.request.state, 'cylestio_trace_id', None),
-                        'agent_id': getattr(request_data.request.state, 'agent_id', 'unknown'),
-                        'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown')
-                    }
-                    
-                    response_events = self.provider.extract_response_events(
-                        response_body=response_body,
-                        session_id=request_data.session_id,
-                        duration_ms=duration_ms,
-                        tool_uses=tool_uses_request,
-                        request_metadata=request_metadata
-                    )
-                except Exception as e:
-                    logger.error(f"Error extracting response events: {e}", exc_info=True)
-            
-            # Create response data with parsed body
-            response_data = LLMResponseData(
-                response=response,
-                body=response_body,
-                duration_ms=duration_ms,
-                session_id=request_data.session_id,
-                status_code=response.status_code,
-                tool_uses_request=tool_uses_request,
-                events=response_events
-            )
-            
-            # Run after_response interceptors
-            for interceptor in self.interceptors:
-                try:
-                    modified_response = await interceptor.after_response(request_data, response_data)
-                    if modified_response:
-                        response_data = modified_response
-                except Exception as e:
-                    logger.error(f"Error in {interceptor.name}.after_response: {e}", exc_info=True)
-            
-            # Notify provider of response if we have session info
-            if request_data.session_id and response_body:
-                try:
-                    await self.provider.notify_response(
-                        session_id=request_data.session_id,
-                        request=request_data.request,
-                        response_body=response_body
-                    )
-                except Exception as e:
-                    logger.debug(f"Error notifying provider of response: {e}")
+            # Use unified response processing
+            response_data = await self._process_response(request_data, response_body, response, duration_ms)
             
             return response_data.response
             

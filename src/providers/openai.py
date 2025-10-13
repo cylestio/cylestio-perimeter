@@ -130,6 +130,137 @@ class OpenAIProvider(BaseProvider):
         """Check if OpenAI request is for streaming."""
         return body.get("stream", False) is True
     
+    def parse_streaming_response(self, body_bytes: bytes) -> Optional[Dict[str, Any]]:
+        """Parse OpenAI SSE streaming response into structured data.
+        
+        OpenAI's format: data: {json}\n\n ... data: [DONE]
+        We aggregate chunks to reconstruct the full response including tool_calls.
+        
+        Args:
+            body_bytes: Raw SSE response bytes
+            
+        Returns:
+            Aggregated response dict matching OpenAI's non-streaming format, or None if parsing fails
+        """
+        try:
+            import json
+            text = body_bytes.decode('utf-8')
+            lines = text.split('\n')
+            
+            # OpenAI streaming sends multiple data: {chunk} events
+            # We need to aggregate them into a complete response
+            chunks = []
+            
+            for line in lines:
+                line = line.strip()
+                
+                if line.startswith('data: '):
+                    data_str = line[6:].strip()
+                    
+                    # Skip the [DONE] marker
+                    if data_str == '[DONE]':
+                        continue
+                    
+                    try:
+                        chunk = json.loads(data_str)
+                        chunks.append(chunk)
+                    except json.JSONDecodeError:
+                        pass
+            
+            if not chunks:
+                return None
+            
+            # Reconstruct the full response from chunks
+            # Take the first chunk as base (has id, model, etc.)
+            if chunks:
+                first_chunk = chunks[0]
+                
+                # Build aggregated response similar to non-streaming format
+                aggregated = {
+                    'id': first_chunk.get('id'),
+                    'object': 'chat.completion',  # Non-streaming object type
+                    'created': first_chunk.get('created'),
+                    'model': first_chunk.get('model'),
+                    'choices': []
+                }
+                
+                # Aggregate content and tool_calls from all chunks
+                content_parts = []
+                tool_calls = {}  # Track tool calls by index
+                finish_reason = None
+                
+                for chunk in chunks:
+                    choices = chunk.get('choices', [])
+                    for choice in choices:
+                        delta = choice.get('delta', {})
+                        
+                        # Accumulate text content
+                        if 'content' in delta and delta['content']:
+                            content_parts.append(delta['content'])
+                        
+                        # Accumulate tool calls
+                        if 'tool_calls' in delta:
+                            for tool_call_delta in delta['tool_calls']:
+                                index = tool_call_delta.get('index', 0)
+                                
+                                # Initialize tool call if not seen before
+                                if index not in tool_calls:
+                                    tool_calls[index] = {
+                                        'id': tool_call_delta.get('id', ''),
+                                        'type': tool_call_delta.get('type', 'function'),
+                                        'function': {
+                                            'name': '',
+                                            'arguments': ''
+                                        }
+                                    }
+                                
+                                # Update tool call fields
+                                if 'id' in tool_call_delta:
+                                    tool_calls[index]['id'] = tool_call_delta['id']
+                                if 'type' in tool_call_delta:
+                                    tool_calls[index]['type'] = tool_call_delta['type']
+                                
+                                # Accumulate function details
+                                if 'function' in tool_call_delta:
+                                    func_delta = tool_call_delta['function']
+                                    if 'name' in func_delta:
+                                        tool_calls[index]['function']['name'] = func_delta['name']
+                                    if 'arguments' in func_delta:
+                                        tool_calls[index]['function']['arguments'] += func_delta['arguments']
+                        
+                        # Capture finish reason
+                        if choice.get('finish_reason'):
+                            finish_reason = choice['finish_reason']
+                
+                # Build the final message
+                message = {'role': 'assistant'}
+                
+                if content_parts:
+                    message['content'] = ''.join(content_parts)
+                
+                if tool_calls:
+                    # Convert tool_calls dict to sorted list
+                    message['tool_calls'] = [tool_calls[i] for i in sorted(tool_calls.keys())]
+                
+                # Create final choice
+                aggregated['choices'] = [{
+                    'index': 0,
+                    'message': message,
+                    'finish_reason': finish_reason
+                }]
+                
+                # Add usage if present in last chunk
+                if chunks[-1].get('usage'):
+                    aggregated['usage'] = chunks[-1]['usage']
+                
+                return aggregated
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error parsing OpenAI SSE response: {e}", exc_info=True)
+            return None
+    
     def extract_conversation_metadata(self, body: Dict[str, Any]) -> Dict[str, Any]:
         """Extract OpenAI-specific metadata."""
         metadata = {}

@@ -14,16 +14,16 @@ def test_proxy_non_streaming_request_returns_upstream_result(client: TestClient,
     - The upstream response (status, headers, body) is surfaced back to the client
     """
 
-    # Arrange: patch the proxy handler's standard request method to a stable stub
-    async def mock_handle_standard_request(self, *args, **kwargs):  # noqa: ARG001
+    # Arrange: patch the proxy handler's buffered request method to a stable stub
+    async def mock_handle_buffered_request(self, *args, **kwargs):  # noqa: ARG001
         return Response(content=b'{"result": "success"}', status_code=200, media_type="application/json")
 
     from src.proxy.handler import ProxyHandler
 
     monkeypatch.setattr(
         ProxyHandler,
-        "_handle_standard_request",
-        mock_handle_standard_request,
+        "_handle_buffered_request",
+        mock_handle_buffered_request,
     )
 
     # Act
@@ -40,13 +40,13 @@ def test_openai_auth_header_injected_when_absent(client: TestClient, monkeypatch
 
     captured_headers = {}
 
-    async def mock_handle_standard_request(self, method, url, headers, content):  # noqa: ARG001
+    async def mock_handle_buffered_request(self, request, method, url, headers, content, is_streaming):  # noqa: ARG001
         nonlocal captured_headers
         captured_headers = headers
         return Response(content=b'{}', status_code=200, media_type="application/json")
 
     from src.proxy.handler import ProxyHandler
-    monkeypatch.setattr(ProxyHandler, "_handle_standard_request", mock_handle_standard_request)
+    monkeypatch.setattr(ProxyHandler, "_handle_buffered_request", mock_handle_buffered_request)
 
     response = client.post("/v1/chat/completions", json={"model": "gpt-3.5-turbo"})
     assert response.status_code == 200
@@ -60,13 +60,13 @@ def test_openai_preserve_client_authorization_header(client: TestClient, monkeyp
 
     captured_headers = {}
 
-    async def mock_handle_standard_request(self, method, url, headers, content):  # noqa: ARG001
+    async def mock_handle_buffered_request(self, request, method, url, headers, content, is_streaming):  # noqa: ARG001
         nonlocal captured_headers
         captured_headers = headers
         return Response(content=b'{}', status_code=200, media_type="application/json")
 
     from src.proxy.handler import ProxyHandler
-    monkeypatch.setattr(ProxyHandler, "_handle_standard_request", mock_handle_standard_request)
+    monkeypatch.setattr(ProxyHandler, "_handle_buffered_request", mock_handle_buffered_request)
 
     response = client.post(
         "/v1/chat/completions",
@@ -92,12 +92,12 @@ def test_anthropic_auth_header_injected_and_preserved(monkeypatch) -> None:
     # Case 1: Absent → inject
     captured_headers = {}
 
-    async def mock_handle_standard_request(self, method, url, headers, content):  # noqa: ARG001
+    async def mock_handle_buffered_request(self, request, method, url, headers, content, is_streaming):  # noqa: ARG001
         nonlocal captured_headers
         captured_headers = headers
         return Response(content=b'{}', status_code=200, media_type="application/json")
 
-    monkeypatch.setattr(ProxyHandler, "_handle_standard_request", mock_handle_standard_request)
+    monkeypatch.setattr(ProxyHandler, "_handle_buffered_request", mock_handle_buffered_request)
 
     resp = local_client.post("/v1/messages", json={"model": "claude-3-5-sonnet-20241022", "messages": []})
     assert resp.status_code == 200
@@ -122,13 +122,13 @@ def test_internal_headers_are_not_forwarded(client: TestClient, monkeypatch) -> 
 
     captured_headers = {}
 
-    async def mock_handle_standard_request(self, method, url, headers, content):  # noqa: ARG001
+    async def mock_handle_buffered_request(self, request, method, url, headers, content, is_streaming):  # noqa: ARG001
         nonlocal captured_headers
         captured_headers = headers
         return Response(content=b'{}', status_code=200, media_type="application/json")
 
     from src.proxy.handler import ProxyHandler
-    monkeypatch.setattr(ProxyHandler, "_handle_standard_request", mock_handle_standard_request)
+    monkeypatch.setattr(ProxyHandler, "_handle_buffered_request", mock_handle_buffered_request)
 
     response = client.post(
         "/v1/chat/completions",
