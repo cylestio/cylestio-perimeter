@@ -20,8 +20,9 @@ def _with_store_lock(func):
 class InsightsEngine:
     """Computes various insights from trace data."""
 
-    def __init__(self, store: TraceStore):
+    def __init__(self, store: TraceStore, proxy_config: Dict[str, Any] = None):
         self.store = store
+        self.proxy_config = proxy_config or {}
 
     @_with_store_lock
     def get_dashboard_data(self) -> Dict[str, Any]:
@@ -70,6 +71,11 @@ class InsightsEngine:
         # Sort sessions by last activity
         agent_sessions.sort(key=lambda x: x["last_activity"], reverse=True)
 
+        # Calculate tools utilization percentage
+        tools_utilization = 0.0
+        if len(agent.available_tools) > 0:
+            tools_utilization = (len(agent.used_tools) / len(agent.available_tools)) * 100
+
         return {
             "agent": {
                 "id": agent_id,
@@ -84,7 +90,8 @@ class InsightsEngine:
                 "avg_messages_per_session": agent.avg_messages_per_session,
                 "tool_usage_details": dict(agent.tool_usage_details),
                 "available_tools": list(agent.available_tools),
-                "used_tools": list(agent.used_tools)
+                "used_tools": list(agent.used_tools),
+                "tools_utilization_percent": round(tools_utilization, 1)
             },
             "sessions": agent_sessions,
             "patterns": self._analyze_agent_patterns(agent),
@@ -312,3 +319,16 @@ class InsightsEngine:
         else:
             days = int(diff.total_seconds() / 86400)
             return f"{days}d ago"
+
+    def get_proxy_config(self) -> Dict[str, Any]:
+        """Get proxy configuration information.
+        
+        Returns:
+            Dictionary containing proxy configuration
+        """
+        return {
+            "provider_type": self.proxy_config.get("provider_type", "unknown"),
+            "provider_base_url": self.proxy_config.get("provider_base_url", "unknown"),
+            "proxy_host": self.proxy_config.get("proxy_host", "127.0.0.1"),
+            "proxy_port": self.proxy_config.get("proxy_port", 8080)
+        }

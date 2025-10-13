@@ -100,6 +100,16 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting session data: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/config")
+    async def api_config():
+        """Get proxy configuration as JSON."""
+        try:
+            config = insights.get_proxy_config()
+            return JSONResponse(config)
+        except Exception as e:
+            logger.error(f"Error getting config: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/health")
     async def health():
         """Health check endpoint."""

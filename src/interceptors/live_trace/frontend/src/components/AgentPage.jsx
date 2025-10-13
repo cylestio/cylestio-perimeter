@@ -122,6 +122,117 @@ export default function AgentPage() {
           </div>
         </div>
 
+        {/* Risk Report Section */}
+        <div className="card">
+          <div className="card-header">
+            <h2>⚠️ Risk Report</h2>
+          </div>
+          <div className="card-content">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {/* Tools Utilization */}
+              <div style={{
+                padding: '20px',
+                background: '#fafafa',
+                borderRadius: '6px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>
+                  🔧 Tools Utilization
+                </h3>
+                {agent.available_tools && agent.available_tools.length > 0 ? (
+                  <>
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '13px', color: '#6b7280' }}>
+                          {agent.used_tools.length} of {agent.available_tools.length} tools used
+                        </span>
+                        <span style={{
+                          fontSize: '20px',
+                          fontWeight: 700,
+                          color: agent.tools_utilization_percent === 100 ? '#10b981' :
+                                 agent.tools_utilization_percent >= 50 ? '#f59e0b' : '#ef4444'
+                        }}>
+                          {agent.tools_utilization_percent}%
+                        </span>
+                      </div>
+                      {/* Progress Bar */}
+                      <div style={{
+                        width: '100%',
+                        height: '8px',
+                        background: '#e5e7eb',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${agent.tools_utilization_percent}%`,
+                          height: '100%',
+                          background: agent.tools_utilization_percent === 100 ? '#10b981' :
+                                     agent.tools_utilization_percent >= 50 ? '#f59e0b' : '#ef4444',
+                          transition: 'width 0.3s ease'
+                        }}></div>
+                      </div>
+                    </div>
+                    {agent.tools_utilization_percent < 100 && (
+                      <div style={{
+                        background: '#fef3c7',
+                        border: '1px solid #fbbf24',
+                        borderRadius: '4px',
+                        padding: '10px',
+                        fontSize: '12px',
+                        color: '#92400e'
+                      }}>
+                        <strong>💡 Recommendation:</strong> Consider narrowing down the available tools exposed to the agent to improve efficiency and reduce attack surface.
+                      </div>
+                    )}
+                    {agent.tools_utilization_percent === 100 && (
+                      <div style={{
+                        background: '#d1fae5',
+                        border: '1px solid #10b981',
+                        borderRadius: '4px',
+                        padding: '10px',
+                        fontSize: '12px',
+                        color: '#065f46'
+                      }}>
+                        <strong>✅ Excellent:</strong> All available tools are being utilized effectively.
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ fontSize: '13px', color: '#9ca3af', textAlign: 'center', padding: '20px' }}>
+                    No tool data available yet
+                  </div>
+                )}
+              </div>
+
+              {/* Behaviour Consistency and Stability */}
+              <div style={{
+                padding: '20px',
+                background: '#fafafa',
+                borderRadius: '6px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>
+                  📊 Behaviour Consistency & Stability
+                </h3>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '140px',
+                  color: '#9ca3af'
+                }}>
+                  <div style={{ fontSize: '40px', marginBottom: '8px' }}>🚧</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px' }}>Coming Soon</div>
+                  <div style={{ fontSize: '12px', textAlign: 'center' }}>
+                    Analysis of agent behavior patterns<br />and stability metrics
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Tools Section */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {/* Available Tools */}

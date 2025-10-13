@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
   const [data, setData] = useState(null)
+  const [config, setConfig] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,7 +19,18 @@ export default function Dashboard() {
       }
     }
 
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/config')
+        const json = await res.json()
+        setConfig(json)
+      } catch (error) {
+        console.error('Failed to fetch config:', error)
+      }
+    }
+
     fetchData()
+    fetchConfig()
     const interval = setInterval(fetchData, 2000)
     return () => clearInterval(interval)
   }, [])
@@ -43,6 +55,8 @@ export default function Dashboard() {
     )
   }
 
+  const hasAgents = data.agents && data.agents.length > 0
+
   return (
     <>
       <div className="header">
@@ -56,6 +70,110 @@ export default function Dashboard() {
       </div>
 
       <div className="container">
+        {/* Welcome Message - shown when no agents */}
+        {!hasAgents && config && (
+          <div style={{
+            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+            border: '2px solid #3b82f6',
+            borderRadius: '8px',
+            padding: '32px',
+            marginBottom: '24px'
+          }}>
+            <h2 style={{ color: '#1e40af', marginBottom: '16px', fontSize: '24px' }}>
+              👋 Welcome to Cylestio Perimeter
+            </h2>
+            <p style={{ color: '#1e3a8a', marginBottom: '24px', fontSize: '16px', lineHeight: '1.6' }}>
+              Your LLM proxy server is running and ready to monitor agent activity in real-time.
+              Configure your agents to route requests through this proxy to see live traces, tool usage, and performance metrics.
+            </p>
+
+            <div style={{
+              background: 'white',
+              borderRadius: '6px',
+              padding: '20px',
+              marginBottom: '16px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+            }}>
+              <h3 style={{ color: '#1e40af', marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>
+                📋 Current Configuration
+              </h3>
+              <div style={{ display: 'grid', gap: '8px', fontSize: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong style={{ color: '#374151', minWidth: '140px' }}>Provider:</strong>
+                  <code style={{
+                    background: '#f3f4f6',
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    color: '#6366f1',
+                    fontFamily: 'monospace'
+                  }}>
+                    {config.provider_type}
+                  </code>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <strong style={{ color: '#374151', minWidth: '140px' }}>Target URL:</strong>
+                  <code style={{
+                    background: '#f3f4f6',
+                    padding: '2px 8px',
+                    borderRadius: '3px',
+                    color: '#6366f1',
+                    fontFamily: 'monospace',
+                    fontSize: '13px'
+                  }}>
+                    {config.provider_base_url}
+                  </code>
+                </div>
+              </div>
+            </div>
+
+            <div style={{
+              background: '#fef3c7',
+              border: '1px solid #fbbf24',
+              borderRadius: '6px',
+              padding: '20px',
+              marginBottom: '16px'
+            }}>
+              <h3 style={{ color: '#92400e', marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>
+                🔧 Configure Your Agent
+              </h3>
+              <p style={{ color: '#78350f', marginBottom: '12px', fontSize: '14px' }}>
+                Set your agent's <code style={{ background: '#fde68a', padding: '2px 6px', borderRadius: '3px' }}>base_url</code> to:
+              </p>
+              <div style={{
+                background: '#fffbeb',
+                border: '1px solid #fbbf24',
+                borderRadius: '4px',
+                padding: '12px',
+                fontFamily: 'monospace',
+                fontSize: '15px',
+                color: '#92400e',
+                fontWeight: 600
+              }}>
+                http://{config.proxy_host === '0.0.0.0' ? 'localhost' : config.proxy_host}:{config.proxy_port}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '16px',
+              background: '#f0fdf4',
+              border: '1px solid #86efac',
+              borderRadius: '6px',
+              fontSize: '14px',
+              color: '#166534'
+            }}>
+              <div style={{ fontSize: '20px' }}>⏱️</div>
+              <div>
+                <strong>Waiting for agent activity...</strong><br />
+                <span style={{ fontSize: '13px', color: '#15803d' }}>
+                  Once your agent makes its first request, live traces will appear here automatically.
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Latest Active Session Banner */}
         {data.latest_session && (
           <div style={{
@@ -96,34 +214,37 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Global Statistics */}
-        <div className="stats-grid">
-          <div className="stat-card">
-            <h3>Active Sessions</h3>
-            <div className="stat-value">{data.stats.active_sessions}</div>
-            <div className="stat-change">{data.stats.total_sessions} total</div>
-          </div>
+        {/* Global Statistics - only show when we have agents */}
+        {hasAgents && (
+          <div className="stats-grid">
+            <div className="stat-card">
+              <h3>Active Sessions</h3>
+              <div className="stat-value">{data.stats.active_sessions}</div>
+              <div className="stat-change">{data.stats.total_sessions} total</div>
+            </div>
 
-          <div className="stat-card">
-            <h3>Total Events</h3>
-            <div className="stat-value">{formatNumber(data.stats.total_events)}</div>
-            <div className="stat-change">{formatNumber(data.stats.events_per_minute)}/min</div>
-          </div>
+            <div className="stat-card">
+              <h3>Total Events</h3>
+              <div className="stat-value">{formatNumber(data.stats.total_events)}</div>
+              <div className="stat-change">{formatNumber(data.stats.events_per_minute)}/min</div>
+            </div>
 
-          <div className="stat-card">
-            <h3>Avg Response</h3>
-            <div className="stat-value">{formatDuration(data.stats.avg_response_time_ms)}</div>
-            <div className="stat-change">all sessions</div>
-          </div>
+            <div className="stat-card">
+              <h3>Avg Response</h3>
+              <div className="stat-value">{formatDuration(data.stats.avg_response_time_ms)}</div>
+              <div className="stat-change">all sessions</div>
+            </div>
 
-          <div className="stat-card">
-            <h3>Total Tokens</h3>
-            <div className="stat-value">{formatNumber(data.stats.total_tokens)}</div>
-            <div className="stat-change">{data.stats.total_agents} agents</div>
+            <div className="stat-card">
+              <h3>Total Tokens</h3>
+              <div className="stat-value">{formatNumber(data.stats.total_tokens)}</div>
+              <div className="stat-change">{data.stats.total_agents} agents</div>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Agents Table */}
+        {/* Agents Table - only show when we have agents */}
+        {hasAgents && (
         <div className="card">
           <div className="card-header">
             <h2>🤖 Agents</h2>
@@ -183,8 +304,10 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
 
-        {/* Recent Sessions */}
+        {/* Recent Sessions - only show when we have agents */}
+        {hasAgents && (
         <div className="card">
           <div className="card-header">
             <h2>📋 Recent Sessions</h2>
@@ -248,6 +371,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+        )}
       </div>
     </>
   )
