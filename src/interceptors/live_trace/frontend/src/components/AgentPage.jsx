@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import AgentSidebar from './AgentSidebar'
+import { formatNumber, timeAgo } from '../utils/helpers'
 
 export default function AgentPage() {
   const { agentId } = useParams()
@@ -31,7 +33,8 @@ export default function AgentPage() {
   if (loading) {
     return (
       <div className="container">
-        <div className="text-center text-muted" style={{ padding: '40px' }}>
+        <div className="loading">
+          <div className="loading-spinner"></div>
           Loading agent...
         </div>
       </div>
@@ -41,7 +44,7 @@ export default function AgentPage() {
   if (!data || data.error) {
     return (
       <div className="container">
-        <div className="text-center text-muted" style={{ padding: '40px' }}>
+        <div className="text-center text-muted loading">
           {data?.error || 'Failed to load agent data'}
         </div>
       </div>
@@ -49,369 +52,282 @@ export default function AgentPage() {
   }
 
   const agent = data.agent
+  const riskAnalysis = data.risk_analysis
+  const hasRiskData = riskAnalysis && riskAnalysis.evaluation_status === 'COMPLETE'
+
+  // Calculate failed and warning checks
+  const failedChecks = []
+  const warningChecks = []
+  let totalChecks = 0
+
+  if (hasRiskData && riskAnalysis.security_report?.categories) {
+    Object.values(riskAnalysis.security_report.categories).forEach(category => {
+      // Count all checks in this category
+      if (category.checks) {
+        totalChecks += category.checks.length
+      }
+
+      category.checks?.forEach(check => {
+        if (check.status === 'critical') {
+          failedChecks.push({ ...check, categoryName: category.category_name })
+        } else if (check.status === 'warning') {
+          warningChecks.push({ ...check, categoryName: category.category_name })
+        }
+      })
+    })
+  }
+
+  const hasCriticalIssues = failedChecks.length > 0
+
+  // Use actual counts from our arrays
+  const criticalCount = failedChecks.length
+  const warningCount = warningChecks.length
 
   return (
     <>
-      <div className="header">
-        <div className="header-content">
-          <h1>🔍 Agent Details</h1>
-          <nav className="nav">
-            <Link to="/">Dashboard</Link>
-            <a href="/api/stats" target="_blank">API</a>
-          </nav>
-        </div>
-      </div>
-
       <div className="container">
+        <h1 className="page-title">Agent Analysis</h1>
         {/* Breadcrumb */}
-        <div style={{ marginBottom: '20px' }}>
-          <Link to="/" className="text-muted">Dashboard</Link>
-          {' / '}
-          <strong>{agentId.substring(0, 16)}{agentId.length > 16 ? '...' : ''}</strong>
+        <div className="breadcrumb">
+          <Link to="/">Dashboard</Link>
+          <span className="breadcrumb-separator">/</span>
+          <strong className="text-primary">{agentId.substring(0, 16)}{agentId.length > 16 ? '...' : ''}</strong>
         </div>
 
-        {/* Agent Overview */}
-        <div className="card">
-          <div className="card-header">
-            <h2>🤖 Agent Overview</h2>
-          </div>
-          <div className="card-content">
-            <div className="stats-grid">
-              <div>
-                <strong>Full Agent ID</strong><br />
-                <span className="text-muted" style={{ fontFamily: 'monospace', fontSize: '12px' }}>
-                  {agent.id}
-                </span>
-              </div>
-              <div>
-                <strong>First Seen</strong><br />
-                <span className="text-muted">{timeAgo(agent.first_seen)}</span>
-              </div>
-              <div>
-                <strong>Last Seen</strong><br />
-                <span className="text-muted">{timeAgo(agent.last_seen)}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Split Dashboard Layout */}
+        <div className="dashboard-split">
 
-        {/* Agent Statistics */}
-        <div className="stats-grid">
-          <div className="stat-card">
-            <h3>Total Sessions</h3>
-            <div className="stat-value">{agent.total_sessions}</div>
-            <div className="stat-change">lifetime sessions</div>
-          </div>
+          {/* LEFT SIDEBAR */}
+          <AgentSidebar
+            agent={agent}
+            riskAnalysis={riskAnalysis}
+            hasRiskData={hasRiskData}
+            hasCriticalIssues={hasCriticalIssues}
+          />
 
-          <div className="stat-card">
-            <h3>Total Messages</h3>
-            <div className="stat-value">{formatNumber(agent.total_messages)}</div>
-            <div className="stat-change">{agent.avg_messages_per_session?.toFixed(1)} avg per session</div>
-          </div>
+          {/* MAIN CONTENT AREA */}
+          <div className="dashboard-main">
 
-          <div className="stat-card">
-            <h3>Total Tokens</h3>
-            <div className="stat-value">{formatNumber(agent.total_tokens)}</div>
-            <div className="stat-change">across all sessions</div>
-          </div>
-
-          <div className="stat-card">
-            <h3>Avg Response Time</h3>
-            <div className="stat-value">{formatDuration(agent.avg_response_time_ms)}</div>
-            <div className="stat-change">{agent.total_tools} tool uses</div>
-          </div>
-        </div>
-
-        {/* Risk Report Section */}
-        <div className="card">
-          <div className="card-header">
-            <h2>⚠️ Risk Report</h2>
-          </div>
-          <div className="card-content">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              {/* Tools Utilization */}
-              <div style={{
-                padding: '20px',
-                background: '#fafafa',
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>
-                  🔧 Tools Utilization
-                </h3>
-                {agent.available_tools && agent.available_tools.length > 0 ? (
-                  <>
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '13px', color: '#6b7280' }}>
-                          {agent.used_tools.length} of {agent.available_tools.length} tools used
-                        </span>
-                        <span style={{
-                          fontSize: '20px',
-                          fontWeight: 700,
-                          color: agent.tools_utilization_percent === 100 ? '#10b981' :
-                                 agent.tools_utilization_percent >= 50 ? '#f59e0b' : '#ef4444'
-                        }}>
-                          {agent.tools_utilization_percent}%
-                        </span>
-                      </div>
-                      {/* Progress Bar */}
-                      <div style={{
-                        width: '100%',
-                        height: '8px',
-                        background: '#e5e7eb',
-                        borderRadius: '4px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          width: `${agent.tools_utilization_percent}%`,
-                          height: '100%',
-                          background: agent.tools_utilization_percent === 100 ? '#10b981' :
-                                     agent.tools_utilization_percent >= 50 ? '#f59e0b' : '#ef4444',
-                          transition: 'width 0.3s ease'
-                        }}></div>
-                      </div>
-                    </div>
-                    {agent.tools_utilization_percent < 100 && (
-                      <div style={{
-                        background: '#fef3c7',
-                        border: '1px solid #fbbf24',
-                        borderRadius: '4px',
-                        padding: '10px',
-                        fontSize: '12px',
-                        color: '#92400e'
-                      }}>
-                        <strong>💡 Recommendation:</strong> Consider narrowing down the available tools exposed to the agent to improve efficiency and reduce attack surface.
-                      </div>
-                    )}
-                    {agent.tools_utilization_percent === 100 && (
-                      <div style={{
-                        background: '#d1fae5',
-                        border: '1px solid #10b981',
-                        borderRadius: '4px',
-                        padding: '10px',
-                        fontSize: '12px',
-                        color: '#065f46'
-                      }}>
-                        <strong>✅ Excellent:</strong> All available tools are being utilized effectively.
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div style={{ fontSize: '13px', color: '#9ca3af', textAlign: 'center', padding: '20px' }}>
-                    No tool data available yet
-                  </div>
-                )}
-              </div>
-
-              {/* Behaviour Consistency and Stability */}
-              <div style={{
-                padding: '20px',
-                background: '#fafafa',
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: '#374151' }}>
-                  📊 Behaviour Consistency & Stability
-                </h3>
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '140px',
-                  color: '#9ca3af'
-                }}>
-                  <div style={{ fontSize: '40px', marginBottom: '8px' }}>🚧</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px' }}>Coming Soon</div>
-                  <div style={{ fontSize: '12px', textAlign: 'center' }}>
-                    Analysis of agent behavior patterns<br />and stability metrics
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Tools Section */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {/* Available Tools */}
-          {agent.available_tools && agent.available_tools.length > 0 && (
-            <div className="card">
-              <div className="card-header">
-                <h2>🛠️ Available Tools ({agent.available_tools.length})</h2>
-              </div>
-              <div className="card-content">
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {agent.available_tools.sort().map(tool => (
-                    <span
-                      key={tool}
+            {/* Report Summary Card */}
+            {hasRiskData && riskAnalysis.security_report && (
+              <div className="card card-elevated">
+                <div className="card-header">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2>Security & Behavioral Assessment Summary</h2>
+                    <Link
+                      to={`/agent/${agentId}/report`}
+                      className="text-sm weight-semibold"
                       style={{
-                        background: '#f3f4f6',
-                        padding: '4px 8px',
-                        borderRadius: '3px',
-                        fontSize: '11px',
-                        fontFamily: 'monospace',
-                        color: '#4b5563'
+                        background: 'var(--color-accent-primary)',
+                        color: 'white',
+                        padding: 'var(--space-sm) var(--space-xl)',
+                        borderRadius: 'var(--radius-md)',
+                        textDecoration: 'none',
+                        border: '2px solid var(--color-accent-primary)',
+                        transition: 'all var(--transition-base)'
                       }}
                     >
-                      {tool}
-                    </span>
-                  ))}
+                      View Full Report →
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+                <div className="card-content">
+                  {/* Overall Status Header */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: 'var(--space-lg)',
+                    background: hasCriticalIssues ? 'var(--color-critical-bg)' : 'var(--color-success-bg)',
+                    borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${hasCriticalIssues ? 'var(--color-critical-border)' : 'var(--color-success-border)'}`,
+                    marginBottom: 'var(--space-2xl)'
+                  }}>
+                    <div>
+                      <div className="text-xs text-muted mb-xs weight-semibold">OVERALL STATUS</div>
+                      <div className="text-lg weight-bold font-mono" style={{
+                        color: hasCriticalIssues ? 'var(--color-critical)' : 'var(--color-success)'
+                      }}>
+                        {hasCriticalIssues ? 'ATTENTION REQUIRED' : 'ALL SYSTEMS OK'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="text-xs text-muted mb-xs weight-semibold">TOTAL CHECKS</div>
+                      <div className="text-lg weight-bold font-mono text-primary">
+                        {totalChecks}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {criticalCount} critical, {warningCount} warnings
+                      </div>
+                    </div>
+                  </div>
 
-          {/* Used Tools */}
-          {agent.used_tools && agent.used_tools.length > 0 && (
-            <div className="card">
-              <div className="card-header">
-                <h2>✅ Tools Used ({agent.used_tools.length})</h2>
-              </div>
-              <div className="card-content">
-                {agent.tool_usage_details && (
-                  <>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {Object.entries(agent.tool_usage_details)
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 10)
-                        .map(([tool, count]) => (
-                          <div
-                            key={tool}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              padding: '4px 0'
-                            }}
-                          >
-                            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#4b5563' }}>
-                              {tool}
-                            </span>
-                            <span
-                              style={{
-                                background: '#6366f1',
-                                color: 'white',
-                                padding: '2px 6px',
-                                borderRadius: '2px',
-                                fontSize: '10px',
-                                fontWeight: 600
-                              }}
-                            >
-                              {count}×
-                            </span>
+                  {/* Failed & Warning Checks */}
+                  {failedChecks.length > 0 && (
+                    <div className="mb-2xl">
+                      <h3 className="text-md weight-semibold text-critical mb-md font-mono">
+                        Failed Checks ({failedChecks.length})
+                      </h3>
+                      <div style={{
+                        border: '1px solid var(--color-border-medium)',
+                        borderRadius: 'var(--radius-md)',
+                        overflow: 'hidden'
+                      }}>
+                        {failedChecks.map((check, idx) => (
+                          <div key={idx} style={{
+                            borderBottom: idx < failedChecks.length - 1 ? '1px solid var(--color-border-subtle)' : 'none',
+                            padding: 'var(--space-md) var(--space-lg)',
+                            background: 'var(--color-surface)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)' }}>
+                              <div style={{
+                                fontSize: '12px',
+                                minWidth: '32px',
+                                textAlign: 'center',
+                                fontWeight: 600,
+                                color: 'var(--color-critical)'
+                              }}>
+                                FAIL
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <span className="text-sm weight-medium text-critical font-mono">
+                                  {check.name}
+                                </span>
+                                {check.value && (
+                                  <span className="text-xs text-muted font-mono"> ({check.value})</span>
+                                )}
+                              </div>
+                              <span className="badge critical">{check.categoryName}</span>
+                            </div>
                           </div>
                         ))}
-                    </div>
-                    {Object.keys(agent.tool_usage_details).length > 10 && (
-                      <div className="text-muted" style={{ textAlign: 'center', marginTop: '8px', fontSize: '11px' }}>
-                        ... and {Object.keys(agent.tool_usage_details).length - 10} more
                       </div>
-                    )}
-                  </>
+                    </div>
+                  )}
+
+                  {warningChecks.length > 0 && (
+                    <div className="mb-2xl">
+                      <h3 className="text-md weight-semibold text-warning mb-md font-mono">
+                        Warnings ({warningChecks.length})
+                      </h3>
+                      <div style={{
+                        border: '1px solid var(--color-border-medium)',
+                        borderRadius: 'var(--radius-md)',
+                        overflow: 'hidden'
+                      }}>
+                        {warningChecks.map((check, idx) => (
+                          <div key={idx} style={{
+                            borderBottom: idx < warningChecks.length - 1 ? '1px solid var(--color-border-subtle)' : 'none',
+                            padding: 'var(--space-md) var(--space-lg)',
+                            background: 'var(--color-surface)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-lg)' }}>
+                              <div style={{
+                                fontSize: '12px',
+                                minWidth: '32px',
+                                textAlign: 'center',
+                                fontWeight: 600,
+                                color: 'var(--color-warning)'
+                              }}>
+                                WARN
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <span className="text-sm weight-medium text-warning font-mono">
+                                  {check.name}
+                                </span>
+                                {check.value && (
+                                  <span className="text-xs text-muted font-mono"> ({check.value})</span>
+                                )}
+                              </div>
+                              <span className="badge warning">{check.categoryName}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {failedChecks.length === 0 && warningChecks.length === 0 && (
+                    <div className="alert-banner alert-banner-success">
+                      <div className="alert-content">
+                        <h3>All Checks Passed</h3>
+                        <p>No critical or warning issues detected in security assessment.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sessions Table */}
+            <div id="sessions" className="card">
+              <div className="card-header">
+                <h2>Sessions ({data.sessions?.length || 0})</h2>
+              </div>
+              <div className="card-content">
+                {data.sessions && data.sessions.length > 0 ? (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Session ID</th>
+                        <th>Status</th>
+                        <th>Duration</th>
+                        <th>Messages</th>
+                        <th>Tokens</th>
+                        <th>Tools</th>
+                        <th>Error Rate</th>
+                        <th>Created</th>
+                        <th>Last Activity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.sessions.map(session => (
+                        <tr key={session.id}>
+                          <td>
+                            <Link to={`/session/${session.id}`}>
+                              {session.id.substring(0, 16)}{session.id.length > 16 ? '...' : ''}
+                            </Link>
+                          </td>
+                          <td>
+                            {session.is_active ? (
+                              <span className="badge active">ACTIVE</span>
+                            ) : (
+                              <span className="badge inactive">COMPLETE</span>
+                            )}
+                          </td>
+                          <td>{session.duration_minutes.toFixed(1)}m</td>
+                          <td>{session.message_count}</td>
+                          <td>{formatNumber(session.total_tokens)}</td>
+                          <td>{session.tool_uses}</td>
+                          <td>
+                            {session.error_rate > 0 ? (
+                              <span className={
+                                session.error_rate > 20 ? 'text-error' :
+                                session.error_rate > 10 ? 'text-warning' : 'text-muted'
+                              }>
+                                {session.error_rate.toFixed(1)}%
+                              </span>
+                            ) : (
+                              <span className="text-success">0%</span>
+                            )}
+                          </td>
+                          <td className="text-muted">{timeAgo(session.created_at)}</td>
+                          <td className="text-muted">{timeAgo(session.last_activity)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-center text-muted loading">
+                    <p>No sessions found for this agent.</p>
+                  </div>
                 )}
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Sessions Table */}
-        <div className="card">
-          <div className="card-header">
-            <h2>📋 Sessions ({data.sessions?.length || 0})</h2>
-          </div>
-          <div className="card-content">
-            {data.sessions && data.sessions.length > 0 ? (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Session ID</th>
-                    <th>Status</th>
-                    <th>Duration</th>
-                    <th>Messages</th>
-                    <th>Tokens</th>
-                    <th>Tools</th>
-                    <th>Error Rate</th>
-                    <th>Created</th>
-                    <th>Last Activity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.sessions.map(session => (
-                    <tr key={session.id}>
-                      <td>
-                        <Link to={`/session/${session.id}`}>
-                          {session.id.substring(0, 16)}{session.id.length > 16 ? '...' : ''}
-                        </Link>
-                      </td>
-                      <td>
-                        {session.is_active ? (
-                          <span className="badge active">ACTIVE</span>
-                        ) : (
-                          <span className="badge inactive">COMPLETE</span>
-                        )}
-                      </td>
-                      <td>{session.duration_minutes.toFixed(1)}m</td>
-                      <td>{session.message_count}</td>
-                      <td>{formatNumber(session.total_tokens)}</td>
-                      <td>{session.tool_uses}</td>
-                      <td>
-                        {session.error_rate > 0 ? (
-                          <span
-                            className={
-                              session.error_rate > 20
-                                ? 'text-error'
-                                : session.error_rate > 10
-                                ? 'text-warning'
-                                : 'text-muted'
-                            }
-                          >
-                            {session.error_rate.toFixed(1)}%
-                          </span>
-                        ) : (
-                          <span className="text-success">0%</span>
-                        )}
-                      </td>
-                      <td className="text-muted">{timeAgo(session.created_at)}</td>
-                      <td className="text-muted">{timeAgo(session.last_activity)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center text-muted" style={{ padding: '40px' }}>
-                <p>No sessions found for this agent.</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
     </>
   )
-}
-
-function formatNumber(value) {
-  if (typeof value !== 'number') return value
-  if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-  if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
-  return value.toString()
-}
-
-function formatDuration(value) {
-  if (typeof value !== 'number') return value
-  if (value >= 1000) return (value / 1000).toFixed(1) + 's'
-  return Math.round(value) + 'ms'
-}
-
-function timeAgo(timestamp) {
-  const now = new Date()
-  const then = new Date(timestamp)
-  const diffMs = now - then
-  const diffSec = Math.floor(diffMs / 1000)
-
-  if (diffSec < 60) return 'just now'
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
-  return `${Math.floor(diffSec / 86400)}d ago`
 }

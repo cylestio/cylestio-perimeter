@@ -1,9 +1,16 @@
 """Analytics and insights computation for trace data."""
+import uuid
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .store import TraceStore, AgentData
+from .risk_models import RiskAnalysisResult
+from .behavioral_analysis import analyze_agent_behavior
+from .security_assessment import generate_security_report
+
+# Minimum sessions required for risk analysis
+MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
 
 
 def _with_store_lock(func):
@@ -23,6 +30,8 @@ class InsightsEngine:
     def __init__(self, store: TraceStore, proxy_config: Dict[str, Any] = None):
         self.store = store
         self.proxy_config = proxy_config or {}
+        # Cache for risk analysis results
+        self._risk_analysis_cache: Dict[str, tuple] = {}  # {agent_id: (result, timestamp, session_count)}
 
     @_with_store_lock
     def get_dashboard_data(self) -> Dict[str, Any]:
@@ -76,6 +85,9 @@ class InsightsEngine:
         if len(agent.available_tools) > 0:
             tools_utilization = (len(agent.used_tools) / len(agent.available_tools)) * 100
 
+        # Compute risk analysis
+        risk_analysis = self.compute_risk_analysis(agent_id)
+
         return {
             "agent": {
                 "id": agent_id,
@@ -95,6 +107,7 @@ class InsightsEngine:
             },
             "sessions": agent_sessions,
             "patterns": self._analyze_agent_patterns(agent),
+            "risk_analysis": risk_analysis.dict() if risk_analysis else None,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
@@ -319,6 +332,90 @@ class InsightsEngine:
         else:
             days = int(diff.total_seconds() / 86400)
             return f"{days}d ago"
+
+    def compute_risk_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
+        """Compute risk analysis for an agent (behavioral + security).
+        
+        Args:
+            agent_id: Agent identifier
+            
+        Returns:
+            RiskAnalysisResult or None if insufficient sessions
+        """
+        agent = self.store.agents.get(agent_id)
+        if not agent:
+            return None
+        
+        # Get all sessions for this agent
+        agent_sessions = [
+            self.store.sessions[sid] for sid in agent.sessions
+            if sid in self.store.sessions
+        ]
+        
+        # Check minimum session requirement
+        if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+            return RiskAnalysisResult(
+                evaluation_id=str(uuid.uuid4()),
+                agent_id=agent_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                sessions_analyzed=len(agent_sessions),
+                evaluation_status="INSUFFICIENT_DATA",
+                error=f"Need at least {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions for analysis (have {len(agent_sessions)})",
+                summary={
+                    "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS,
+                    "current_sessions": len(agent_sessions),
+                    "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_sessions)
+                }
+            )
+        
+        # Check cache (invalidate if session count changed)
+        if agent_id in self._risk_analysis_cache:
+            cached_result, cached_time, cached_session_count = self._risk_analysis_cache[agent_id]
+            # Cache valid for 30 seconds and same session count
+            if (datetime.now(timezone.utc) - cached_time).total_seconds() < 30 and \
+               cached_session_count == len(agent_sessions):
+                return cached_result
+        
+        try:
+            # Run behavioral analysis
+            behavioral_result = analyze_agent_behavior(agent_sessions)
+
+            # Run security assessment - generates complete security report
+            security_report = generate_security_report(agent_id, agent_sessions, behavioral_result)
+
+            # Create summary
+            summary = {
+                "critical_issues": security_report.critical_issues,
+                "warnings": security_report.warnings,
+                "stability_score": behavioral_result.stability_score,
+                "predictability_score": behavioral_result.predictability_score
+            }
+
+            result = RiskAnalysisResult(
+                evaluation_id=str(uuid.uuid4()),
+                agent_id=agent_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                sessions_analyzed=len(agent_sessions),
+                evaluation_status="COMPLETE",
+                behavioral_analysis=behavioral_result,
+                security_report=security_report,
+                summary=summary
+            )
+
+            # Cache the result
+            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), len(agent_sessions))
+
+            return result
+            
+        except Exception as e:
+            return RiskAnalysisResult(
+                evaluation_id=str(uuid.uuid4()),
+                agent_id=agent_id,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                sessions_analyzed=len(agent_sessions),
+                evaluation_status="ERROR",
+                error=f"Risk analysis failed: {str(e)}"
+            )
 
     def get_proxy_config(self) -> Dict[str, Any]:
         """Get proxy configuration information.

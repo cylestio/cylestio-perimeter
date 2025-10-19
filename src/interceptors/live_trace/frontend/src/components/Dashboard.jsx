@@ -38,7 +38,8 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="container">
-        <div className="text-center text-muted" style={{ padding: '40px' }}>
+        <div className="loading">
+          <div className="loading-spinner"></div>
           Loading dashboard...
         </div>
       </div>
@@ -48,7 +49,7 @@ export default function Dashboard() {
   if (!data) {
     return (
       <div className="container">
-        <div className="text-center text-muted" style={{ padding: '40px' }}>
+        <div className="loading text-muted">
           Failed to load dashboard data
         </div>
       </div>
@@ -59,164 +60,96 @@ export default function Dashboard() {
 
   return (
     <>
-      <div className="header">
-        <div className="header-content">
-          <h1>🔍 Live Trace Dashboard</h1>
-          <nav className="nav">
-            <Link to="/" className="active">Dashboard</Link>
-            <a href="/api/stats" target="_blank">API</a>
-          </nav>
-        </div>
-      </div>
-
       <div className="container">
+        <h1 className="page-title">Live Trace Dashboard</h1>
         {/* Welcome Message - shown when no agents */}
         {!hasAgents && config && (
-          <div style={{
-            background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-            border: '2px solid #3b82f6',
-            borderRadius: '8px',
-            padding: '32px',
-            marginBottom: '24px'
-          }}>
-            <h2 style={{ color: '#1e40af', marginBottom: '16px', fontSize: '24px' }}>
-              👋 Welcome to Cylestio Perimeter
+          <div className="welcome-card">
+            <h2 className="welcome-title">
+              Welcome to Cylestio Perimeter
             </h2>
-            <p style={{ color: '#1e3a8a', marginBottom: '24px', fontSize: '16px', lineHeight: '1.6' }}>
+            <p className="welcome-text">
               Your LLM proxy server is running and ready to monitor agent activity in real-time.
               Configure your agents to route requests through this proxy to see live traces, tool usage, and performance metrics.
             </p>
 
-            <div style={{
-              background: 'white',
-              borderRadius: '6px',
-              padding: '20px',
-              marginBottom: '16px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-            }}>
-              <h3 style={{ color: '#1e40af', marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>
-                📋 Current Configuration
+            <div className="config-display">
+              <h3 className="text-md weight-semibold text-primary mb-md font-mono">
+                Current Configuration
               </h3>
-              <div style={{ display: 'grid', gap: '8px', fontSize: '14px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong style={{ color: '#374151', minWidth: '140px' }}>Provider:</strong>
-                  <code style={{
-                    background: '#f3f4f6',
-                    padding: '2px 8px',
-                    borderRadius: '3px',
-                    color: '#6366f1',
-                    fontFamily: 'monospace'
-                  }}>
-                    {config.provider_type}
-                  </code>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <strong style={{ color: '#374151', minWidth: '140px' }}>Target URL:</strong>
-                  <code style={{
-                    background: '#f3f4f6',
-                    padding: '2px 8px',
-                    borderRadius: '3px',
-                    color: '#6366f1',
-                    fontFamily: 'monospace',
-                    fontSize: '13px'
-                  }}>
-                    {config.provider_base_url}
-                  </code>
+              <div className="config-item">
+                <strong className="config-label">Provider:</strong>
+                <code className="config-value">{config.provider_type}</code>
+              </div>
+              <div className="config-item mb-0">
+                <strong className="config-label">Target URL:</strong>
+                <code className="config-value text-xs">{config.provider_base_url}</code>
+              </div>
+            </div>
+
+            <div className="alert-banner alert-banner-warning">
+              <div className="alert-content">
+                <h3>Configure Your Agent</h3>
+                <p className="mb-sm">Set your agent's <code>base_url</code> to:</p>
+                <div className="config-value font-mono weight-bold text-base">
+                  http://{config.proxy_host === '0.0.0.0' ? 'localhost' : config.proxy_host}:{config.proxy_port}
                 </div>
               </div>
             </div>
 
-            <div style={{
-              background: '#fef3c7',
-              border: '1px solid #fbbf24',
-              borderRadius: '6px',
-              padding: '20px',
-              marginBottom: '16px'
-            }}>
-              <h3 style={{ color: '#92400e', marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>
-                🔧 Configure Your Agent
-              </h3>
-              <p style={{ color: '#78350f', marginBottom: '12px', fontSize: '14px' }}>
-                Set your agent's <code style={{ background: '#fde68a', padding: '2px 6px', borderRadius: '3px' }}>base_url</code> to:
-              </p>
-              <div style={{
-                background: '#fffbeb',
-                border: '1px solid #fbbf24',
-                borderRadius: '4px',
-                padding: '12px',
-                fontFamily: 'monospace',
-                fontSize: '15px',
-                color: '#92400e',
-                fontWeight: 600
-              }}>
-                http://{config.proxy_host === '0.0.0.0' ? 'localhost' : config.proxy_host}:{config.proxy_port}
-              </div>
-            </div>
-
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '16px',
-              background: '#f0fdf4',
-              border: '1px solid #86efac',
-              borderRadius: '6px',
-              fontSize: '14px',
-              color: '#166534'
-            }}>
-              <div style={{ fontSize: '20px' }}>⏱️</div>
-              <div>
-                <strong>Waiting for agent activity...</strong><br />
-                <span style={{ fontSize: '13px', color: '#15803d' }}>
-                  Once your agent makes its first request, live traces will appear here automatically.
-                </span>
+            <div className="alert-banner alert-banner-info">
+              <div className="alert-content">
+                <h3>Waiting for Agent Activity</h3>
+                <p>Once your agent makes its first request, live traces will appear here automatically.</p>
               </div>
             </div>
           </div>
         )}
+
         {/* Latest Active Session Banner */}
         {data.latest_session && (
-          <div style={{
-            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-            color: 'white',
-            padding: '16px 20px',
-            marginBottom: '16px',
-            borderRadius: '4px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+          <div className="card card-elevated mb-2xl" style={{
+            background: 'linear-gradient(135deg, var(--color-accent-secondary) 0%, var(--color-accent-primary) 100%)',
+            border: '2px solid var(--color-accent-primary)'
           }}>
-            <div>
-              <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-                🔴 LATEST ACTIVE SESSION
-              </div>
-              <div style={{ fontSize: '16px', fontWeight: 600, fontFamily: 'monospace' }}>
-                {data.latest_session.id.substring(0, 16)}...
-              </div>
-              <div style={{ fontSize: '11px', opacity: 0.85, marginTop: '4px' }}>
-                Agent: {data.latest_session.agent_id.substring(0, 12)}... • {data.latest_session.message_count} messages • {data.latest_session.duration_minutes.toFixed(1)}m
+            <div className="card-content">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div className="text-xs weight-semibold mb-sm" style={{
+                    color: 'rgba(255, 255, 255, 0.9)',
+                    letterSpacing: '0.08em'
+                  }}>
+                    LATEST ACTIVE SESSION
+                  </div>
+                  <div className="text-lg weight-bold font-mono mb-sm" style={{ color: 'white' }}>
+                    {data.latest_session.id.substring(0, 16)}...
+                  </div>
+                  <div className="text-xs" style={{ color: 'rgba(255, 255, 255, 0.85)' }}>
+                    Agent: {data.latest_session.agent_id.substring(0, 12)}... • {data.latest_session.message_count} messages • {data.latest_session.duration_minutes.toFixed(1)}m
+                  </div>
+                </div>
+                <Link
+                  to={`/session/${data.latest_session.id}`}
+                  className="text-md weight-semibold"
+                  style={{
+                    background: 'white',
+                    color: 'var(--color-accent-secondary)',
+                    padding: 'var(--space-md) var(--space-xl)',
+                    borderRadius: 'var(--radius-md)',
+                    textDecoration: 'none',
+                    border: '2px solid white'
+                  }}
+                >
+                  View Live →
+                </Link>
               </div>
             </div>
-            <Link
-              to={`/session/${data.latest_session.id}`}
-              style={{
-                background: 'white',
-                color: '#4f46e5',
-                padding: '8px 16px',
-                borderRadius: '3px',
-                textDecoration: 'none',
-                fontWeight: 600,
-                fontSize: '13px'
-              }}
-            >
-              View Live →
-            </Link>
           </div>
         )}
 
         {/* Global Statistics - only show when we have agents */}
         {hasAgents && (
-          <div className="stats-grid">
+          <div className="stats-grid stats-grid-4col">
             <div className="stat-card">
               <h3>Active Sessions</h3>
               <div className="stat-value">{data.stats.active_sessions}</div>
@@ -247,7 +180,7 @@ export default function Dashboard() {
         {hasAgents && (
         <div className="card">
           <div className="card-header">
-            <h2>🤖 Agents</h2>
+            <h2>Agents</h2>
           </div>
           <div className="card-content">
             {data.agents && data.agents.length > 0 ? (
@@ -298,7 +231,7 @@ export default function Dashboard() {
                 </tbody>
               </table>
             ) : (
-              <div className="text-center text-muted" style={{ padding: '24px' }}>
+              <div className="text-center text-muted loading">
                 <p>No agents found. Start making requests to see trace data here.</p>
               </div>
             )}
@@ -310,7 +243,7 @@ export default function Dashboard() {
         {hasAgents && (
         <div className="card">
           <div className="card-header">
-            <h2>📋 Recent Sessions</h2>
+            <h2>Recent Sessions</h2>
           </div>
           <div className="card-content">
             {data.sessions && data.sessions.length > 0 ? (
@@ -365,7 +298,7 @@ export default function Dashboard() {
                 </tbody>
               </table>
             ) : (
-              <div className="text-center text-muted" style={{ padding: '24px' }}>
+              <div className="text-center text-muted loading">
                 <p>No sessions found. Start making requests to see session data here.</p>
               </div>
             )}
