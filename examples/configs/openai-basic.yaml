@@ -26,6 +26,17 @@ interceptors:
       pretty_print: false               # Pretty-print JSON (only for "json" format)
       include_metadata: true            # Include file metadata
 
+
+  # Live trace dashboard for real-time debugging
+  - type: live_trace
+    enabled: true
+    config:
+      server_port: 8080
+      auto_open_browser: true
+      max_events: 10000
+      retention_minutes: 30
+      refresh_interval: 2
+
   # HTTP recorder - saves raw HTTP traffic for replay testing
   - type: "http_recorder"
     enabled: false
