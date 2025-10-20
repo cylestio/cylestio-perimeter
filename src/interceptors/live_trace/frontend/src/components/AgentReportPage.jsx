@@ -4,7 +4,6 @@ import Tooltip from './Tooltip'
 import AgentSidebar from './AgentSidebar'
 import {
   formatNumber,
-  timeAgo,
   getScoreClass,
   getSeverityBg,
   getSeverityBorder,
@@ -138,14 +137,10 @@ export default function AgentReportPage() {
               </div>
             )}
 
-            {/* Security Assessment Section */}
+            {/* Security Assessment Categories */}
             {hasRiskData && riskAnalysis.security_report && riskAnalysis.security_report.categories && (
-              <div id="security" className="card">
-                <div className="card-header">
-                  <h2>Security Assessment Report</h2>
-                </div>
-                <div className="card-content">
-                  {Object.entries(riskAnalysis.security_report.categories).map(([categoryId, category]) => (
+              <>
+                {Object.entries(riskAnalysis.security_report.categories).map(([categoryId, category]) => (
                     <div key={categoryId} className="card mb-lg">
                       {/* Category Header */}
                       <div className="card-header" style={{
@@ -175,8 +170,105 @@ export default function AgentReportPage() {
                         <div className="text-xs text-muted mt-xs">{category.description}</div>
                       </div>
 
-                      {/* Checklist */}
                       <div className="card-content">
+                        {/* Metrics Section - Pill/Badge Style */}
+                        {category.metrics && Object.keys(category.metrics).length > 0 && (
+                          <div style={{ marginBottom: 'var(--space-2xl)' }}>
+                            <div style={{
+                              display: 'flex',
+                              gap: 'var(--space-md)',
+                              alignItems: 'stretch',
+                              flexWrap: 'wrap'
+                            }}>
+                              {categoryId === 'ENVIRONMENT' && (
+                                <>
+                                  <div style={{
+                                    border: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: 'var(--space-md)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-xs text-muted weight-semibold">Model</span>
+                                    <span className="text-sm font-mono" style={{ wordBreak: 'break-word' }}>
+                                      {category.metrics.model || 'N/A'}
+                                    </span>
+                                  </div>
+                                  <div style={{
+                                    border: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: 'var(--space-md)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-xs text-muted weight-semibold">Avg. Tools Coverage</span>
+                                    <span className="text-sm font-mono">
+                                      {category.metrics.avg_tools_coverage?.toFixed(2) || '0.00'}
+                                    </span>
+                                  </div>
+                                  <div style={{
+                                    border: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: 'var(--space-md)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-xs text-muted weight-semibold">Avg. Tool Calls</span>
+                                    <span className="text-sm font-mono">
+                                      {category.metrics.avg_tool_calls?.toFixed(1) || '0.0'}
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                              {categoryId === 'RESOURCE_MANAGEMENT' && (
+                                <>
+                                  <div style={{
+                                    border: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: 'var(--space-md)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-xs text-muted weight-semibold">Avg. Tokens</span>
+                                    <span className="text-sm font-mono">
+                                      {formatNumber(category.metrics.avg_tokens || 0)}
+                                    </span>
+                                  </div>
+                                  <div style={{
+                                    border: '1px solid var(--color-border-subtle)',
+                                    background: 'var(--color-bg-elevated)',
+                                    borderRadius: 'var(--radius-md)',
+                                    padding: 'var(--space-md)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-xs text-muted weight-semibold">Avg. Session Duration</span>
+                                    <span className="text-sm font-mono">
+                                      {category.metrics.avg_duration_minutes?.toFixed(1) || '0.0'} min
+                                    </span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Report Checks Section */}
+                        {category.checks && category.checks.length > 0 && (
+                          <div>
+                            <h4 className="text-xs text-muted weight-semibold mb-md font-mono" style={{ letterSpacing: '0.08em' }}>
+                              REPORT CHECKS
+                            </h4>
+                            <div>
                         {category.checks.map((check) => {
                           const hasDetails = check.status !== 'passed' && (
                             (check.recommendations && check.recommendations.length > 0) ||
@@ -292,11 +384,13 @@ export default function AgentReportPage() {
                             </div>
                           )
                         })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
-                </div>
-              </div>
+              </>
             )}
 
             {/* Behavioral Insights Section */}

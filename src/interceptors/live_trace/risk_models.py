@@ -120,6 +120,7 @@ class AssessmentCategory(BaseModel):
     category_name: str  # e.g., "Resource Management"
     description: str  # What this category covers
     checks: List[AssessmentCheck] = Field(default_factory=list)
+    metrics: Dict[str, Any] = Field(default_factory=dict)  # Category-specific metrics
 
     @property
     def total_checks(self) -> int:

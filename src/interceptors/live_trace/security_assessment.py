@@ -239,21 +239,80 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
     )
 
 
+def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
+    """Check session duration variance (indicates proper consistency)."""
+    durations = [s.duration_minutes for s in sessions if s.duration_minutes > 0]
+
+    if not durations or len(durations) < 2:
+        return AssessmentCheck(
+            check_id="RESOURCE_006_DURATION_VARIANCE",
+            category="Resource Management",
+            name="Duration Consistency",
+            description="Session duration variance should indicate proper consistency",
+            status="passed",
+            value="Insufficient data",
+            evidence={'reason': 'insufficient_data'}
+        )
+
+    mean_duration = statistics.mean(durations)
+    std_duration = statistics.stdev(durations)
+    duration_cv = std_duration / mean_duration if mean_duration > 0 else 0
+
+    if duration_cv > 0.7:
+        return AssessmentCheck(
+            check_id="RESOURCE_006_DURATION_VARIANCE",
+            category="Resource Management",
+            name="Duration Consistency",
+            description="Session duration variance should indicate proper consistency",
+            status="warning",
+            value=f"CV: {duration_cv:.2f}",
+            evidence={'coefficient_of_variation': round(duration_cv, 2)},
+            recommendations=[
+                "Implement session duration limits to improve consistency"
+            ],
+            remediation_difficulty="Medium",
+            estimated_effort_hours=3.0
+        )
+
+    return AssessmentCheck(
+        check_id="RESOURCE_006_DURATION_VARIANCE",
+        category="Resource Management",
+        name="Duration Consistency",
+        description="Session duration variance should indicate proper consistency",
+        status="passed",
+        value=f"CV: {duration_cv:.2f}",
+        evidence={'coefficient_of_variation': round(duration_cv, 2)}
+    )
+
+
 def check_resource_management(sessions: List[SessionData]) -> AssessmentCategory:
     """Run all resource management checks."""
+    # Compute metrics
+    metrics = {}
+
+    # Average token used
+    tokens = [s.total_tokens for s in sessions if s.total_tokens > 0]
+    metrics['avg_tokens'] = round(statistics.mean(tokens), 0) if tokens else 0
+
+    # Average session duration
+    durations = [s.duration_minutes for s in sessions if s.duration_minutes > 0]
+    metrics['avg_duration_minutes'] = round(statistics.mean(durations), 1) if durations else 0.0
+
+    # Run checks (ordered as requested by user)
     checks = [
-        _check_token_bounds(sessions),
-        _check_tool_call_bounds(sessions),
-        _check_duration_bounds(sessions),
+        _check_duration_variance(sessions),
+        _check_tool_variance(sessions),
         _check_token_variance(sessions),
-        _check_tool_variance(sessions)
+        _check_token_bounds(sessions),
+        _check_tool_call_bounds(sessions)
     ]
 
     return AssessmentCategory(
         category_id="RESOURCE_MANAGEMENT",
         category_name="Resource Management",
         description="Validates resource usage bounds and consistency",
-        checks=checks
+        checks=checks,
+        metrics=metrics
     )
 
 
@@ -261,7 +320,7 @@ def check_resource_management(sessions: List[SessionData]) -> AssessmentCategory
 # CATEGORY: Environment & Supply Chain
 # ============================================================================
 
-def _check_model_versioning(sessions: List[SessionData]) -> AssessmentCheck:
+def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentCheck:
     """Check that all LLM models use fixed versions."""
     all_models = []
 
@@ -274,9 +333,9 @@ def _check_model_versioning(sessions: List[SessionData]) -> AssessmentCheck:
 
     if not all_models:
         return AssessmentCheck(
-            check_id="ENV_001_MODEL_VERSIONING",
+            check_id="ENV_001_CONSISTENT_MODEL",
             category="Environment & Supply Chain",
-            name="Model Version Pinning",
+            name="Consistent Model Usage",
             description="All LLM models should use fixed version identifiers",
             status="passed",
             value="No models detected",
@@ -294,9 +353,9 @@ def _check_model_versioning(sessions: List[SessionData]) -> AssessmentCheck:
 
     if unpinned_models:
         return AssessmentCheck(
-            check_id="ENV_001_MODEL_VERSIONING",
+            check_id="ENV_001_CONSISTENT_MODEL",
             category="Environment & Supply Chain",
-            name="Model Version Pinning",
+            name="Consistent Model Usage",
             description="All LLM models should use fixed version identifiers",
             status="critical",
             value=f"{len(unpinned_models)} unpinned model{'s' if len(unpinned_models) != 1 else ''}",
@@ -310,9 +369,9 @@ def _check_model_versioning(sessions: List[SessionData]) -> AssessmentCheck:
 
     unique_models = len(set(all_models))
     return AssessmentCheck(
-        check_id="ENV_001_MODEL_VERSIONING",
+        check_id="ENV_001_CONSISTENT_MODEL",
         category="Environment & Supply Chain",
-        name="Model Version Pinning",
+        name="Consistent Model Usage",
         description="All LLM models should use fixed version identifiers",
         status="passed",
         value=f"{unique_models} pinned model{'s' if unique_models != 1 else ''}",
@@ -323,8 +382,78 @@ def _check_model_versioning(sessions: List[SessionData]) -> AssessmentCheck:
     )
 
 
-def _check_tool_utilization(sessions: List[SessionData]) -> AssessmentCheck:
-    """Check that all available tools have been used (no unused capabilities)."""
+def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentCheck:
+    """Check average per-session tools coverage (should be around 1.0)."""
+    if not sessions:
+        return AssessmentCheck(
+            check_id="ENV_002_AVG_TOOLS_COVERAGE",
+            category="Environment & Supply Chain",
+            name="Average Tools Coverage",
+            description="Average per-session tools coverage should be around 1.0",
+            status="passed",
+            value="No sessions",
+            evidence={'reason': 'no_sessions'}
+        )
+
+    # Calculate per-session coverage rates
+    coverage_rates = []
+    for session in sessions:
+        if len(session.available_tools) > 0:
+            used_count = len([tool for tool in session.available_tools if tool in session.tool_usage_details])
+            coverage = used_count / len(session.available_tools)
+            coverage_rates.append(coverage)
+
+    if not coverage_rates:
+        return AssessmentCheck(
+            check_id="ENV_002_AVG_TOOLS_COVERAGE",
+            category="Environment & Supply Chain",
+            name="Average Tools Coverage",
+            description="Average per-session tools coverage should be around 1.0",
+            status="passed",
+            value="No tools available",
+            evidence={'reason': 'no_tools_available'}
+        )
+
+    avg_coverage = statistics.mean(coverage_rates)
+
+    # Pass if average coverage >= 0.80 (80%)
+    if avg_coverage >= 0.80:
+        return AssessmentCheck(
+            check_id="ENV_002_AVG_TOOLS_COVERAGE",
+            category="Environment & Supply Chain",
+            name="Average Tools Coverage",
+            description="Average per-session tools coverage should be around 1.0",
+            status="passed",
+            value=f"{avg_coverage:.2f} coverage",
+            evidence={
+                'avg_coverage': round(avg_coverage, 3),
+                'sessions_analyzed': len(coverage_rates),
+                'threshold': 0.80
+            }
+        )
+
+    return AssessmentCheck(
+        check_id="ENV_002_AVG_TOOLS_COVERAGE",
+        category="Environment & Supply Chain",
+        name="Average Tools Coverage",
+        description="Average per-session tools coverage should be around 1.0",
+        status="warning",
+        value=f"{avg_coverage:.2f} coverage",
+        evidence={
+            'avg_coverage': round(avg_coverage, 3),
+            'sessions_analyzed': len(coverage_rates),
+            'threshold': 0.80
+        },
+        recommendations=[
+            f"Improve tools coverage to reach 1.0 (current: {avg_coverage:.2f})"
+        ],
+        remediation_difficulty="Medium",
+        estimated_effort_hours=2.0
+    )
+
+
+def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
+    """Check for globally unused tools."""
     all_available_tools = set()
     all_used_tools = set()
 
@@ -334,62 +463,96 @@ def _check_tool_utilization(sessions: List[SessionData]) -> AssessmentCheck:
 
     if not all_available_tools:
         return AssessmentCheck(
-            check_id="ENV_002_TOOL_UTILIZATION",
+            check_id="ENV_003_UNUSED_TOOLS",
             category="Environment & Supply Chain",
-            name="Tool Coverage",
-            description="All available tools should be tested/used",
+            name="Globally Unused Tools",
+            description="All available tools should be utilized across sessions",
             status="passed",
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
         )
 
-    unused_tools = all_available_tools - all_used_tools
-    utilization_rate = len(all_used_tools) / len(all_available_tools) if all_available_tools else 1.0
+    unused_tools = sorted(list(all_available_tools - all_used_tools))
 
-    # Pass if utilization >= 80%
-    if utilization_rate >= 0.80:
+    if not unused_tools:
         return AssessmentCheck(
-            check_id="ENV_002_TOOL_UTILIZATION",
+            check_id="ENV_003_UNUSED_TOOLS",
             category="Environment & Supply Chain",
-            name="Tool Coverage",
-            description="All available tools should be tested/used",
+            name="Globally Unused Tools",
+            description="All available tools should be utilized across sessions",
             status="passed",
-            value=f"{int(utilization_rate * 100)}% utilization",
+            value="All tools used",
             evidence={
                 'total_available': len(all_available_tools),
                 'total_used': len(all_used_tools),
-                'utilization_rate': round(utilization_rate, 2)
+                'unused_count': 0
             }
         )
 
     return AssessmentCheck(
-        check_id="ENV_002_TOOL_UTILIZATION",
+        check_id="ENV_003_UNUSED_TOOLS",
         category="Environment & Supply Chain",
-        name="Tool Coverage",
-        description="All available tools should be tested/used",
+        name="Globally Unused Tools",
+        description="All available tools should be utilized across sessions",
         status="warning",
         value=f"{len(unused_tools)} unused tool{'s' if len(unused_tools) != 1 else ''}",
-        evidence={'unused_tools': sorted(list(unused_tools))},
+        evidence={
+            'unused_tools': unused_tools,
+            'total_available': len(all_available_tools),
+            'total_used': len(all_used_tools)
+        },
         recommendations=[
-            f"Remove unused tools to improve predictability: {', '.join(sorted(unused_tools))}"
+            f"Consider removing unused tools: {', '.join(unused_tools[:5])}" +
+            (f" and {len(unused_tools) - 5} more" if len(unused_tools) > 5 else "")
         ],
-        remediation_difficulty="Medium",
-        estimated_effort_hours=2.0
+        remediation_difficulty="Easy",
+        estimated_effort_hours=1.0
     )
 
 
 def check_environment(sessions: List[SessionData]) -> AssessmentCategory:
     """Run all environment and supply chain checks."""
+    # Compute metrics
+    metrics = {}
+
+    # Extract model name(s)
+    all_models = set()
+    for session in sessions:
+        for event in session.events:
+            if 'llm' in event.name.value.lower():
+                model = event.attributes.get('llm.model')
+                if model:
+                    all_models.add(model)
+
+    metrics['model'] = ', '.join(sorted(all_models)) if all_models else 'N/A'
+
+    # Calculate average per-session tools coverage
+    coverage_rates = []
+    for session in sessions:
+        if len(session.available_tools) > 0:
+            used_count = len([tool for tool in session.available_tools if tool in session.tool_usage_details])
+            coverage = used_count / len(session.available_tools)
+            coverage_rates.append(coverage)
+
+    metrics['avg_tools_coverage'] = round(statistics.mean(coverage_rates), 2) if coverage_rates else 0.0
+
+    # Average tool calls
+    tool_calls = [s.tool_uses for s in sessions]
+    metrics['avg_tool_calls'] = round(statistics.mean(tool_calls), 1) if tool_calls else 0.0
+
+    # Run checks
     checks = [
-        _check_model_versioning(sessions),
-        _check_tool_utilization(sessions)
+        _check_consistent_model_usage(sessions),
+        _check_average_tools_coverage(sessions),
+        _check_unused_tools(sessions)
     ]
 
     return AssessmentCategory(
         category_id="ENVIRONMENT",
         category_name="Environment & Supply Chain",
         description="Validates model versioning and tool coverage",
-        checks=checks
+        checks=checks,
+        metrics=metrics
     )
 
 
