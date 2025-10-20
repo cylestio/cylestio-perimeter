@@ -125,7 +125,16 @@ class ReplayPipeline:
 
         # Initialize interceptors
         if config and config.interceptors:
-            self.interceptors = interceptor_manager.create_interceptors(config.interceptors, provider_name)
+            # Create provider config for interceptors (including LiveTrace)
+            provider_config = {
+                "base_url": config.llm.base_url if config.llm else "unknown",
+                "type": config.llm.type if config.llm else "unknown",
+                "timeout": config.llm.timeout if config.llm else 30,
+                "max_retries": config.llm.max_retries if config.llm else 3,
+                "proxy_host": config.server.host if config.server else "0.0.0.0",
+                "proxy_port": config.server.port if config.server else 3000
+            }
+            self.interceptors = interceptor_manager.create_interceptors(config.interceptors, provider_name, provider_config)
             # Only use enabled interceptors and exclude http_recorder during replay
             self.interceptors = [i for i in self.interceptors if i.enabled and i.name != "http_recorder"]
         else:

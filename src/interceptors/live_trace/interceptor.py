@@ -49,13 +49,15 @@ class LiveTraceInterceptor(BaseInterceptor):
             max_events=self.max_events,
             retention_minutes=self.retention_minutes
         )
-        
+
         # Pass configuration to insights engine
+        # Use the actual proxy server's host/port (where agents connect to)
+        # not the dashboard server's host/port
         proxy_config = {
             "provider_type": self.provider_name,
             "provider_base_url": self.provider_config.get("base_url", "unknown"),
-            "proxy_host": self.server_host,
-            "proxy_port": self.server_port
+            "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
+            "proxy_port": self.provider_config.get("proxy_port", 3000)
         }
         self.insights = InsightsEngine(self.store, proxy_config)
 
