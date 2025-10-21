@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import AgentSidebar from './AgentSidebar'
-import { formatNumber, timeAgo } from '../utils/helpers'
+import EvaluationProgress from './EvaluationProgress'
+import { formatNumber, timeAgo, getAgentStatus } from '../utils/helpers'
 
 export default function AgentPage() {
   const { agentId } = useParams()
@@ -53,20 +54,14 @@ export default function AgentPage() {
 
   const agent = data.agent
   const riskAnalysis = data.risk_analysis
-  const hasRiskData = riskAnalysis && riskAnalysis.evaluation_status === 'COMPLETE'
+  const status = getAgentStatus(riskAnalysis)
 
-  // Calculate failed and warning checks
+  // Build failed and warning check lists for display
   const failedChecks = []
   const warningChecks = []
-  let totalChecks = 0
 
-  if (hasRiskData && riskAnalysis.security_report?.categories) {
+  if (status.hasRiskData && riskAnalysis.security_report?.categories) {
     Object.values(riskAnalysis.security_report.categories).forEach(category => {
-      // Count all checks in this category
-      if (category.checks) {
-        totalChecks += category.checks.length
-      }
-
       category.checks?.forEach(check => {
         if (check.status === 'critical') {
           failedChecks.push({ ...check, categoryName: category.category_name })
@@ -76,12 +71,6 @@ export default function AgentPage() {
       })
     })
   }
-
-  const hasCriticalIssues = failedChecks.length > 0
-
-  // Use actual counts from our arrays
-  const criticalCount = failedChecks.length
-  const warningCount = warningChecks.length
 
   return (
     <>
@@ -101,15 +90,21 @@ export default function AgentPage() {
           <AgentSidebar
             agent={agent}
             riskAnalysis={riskAnalysis}
-            hasRiskData={hasRiskData}
-            hasCriticalIssues={hasCriticalIssues}
           />
 
           {/* MAIN CONTENT AREA */}
           <div className="dashboard-main">
 
+            {/* Evaluation Progress (when insufficient data) */}
+            {status.evaluationStatus === 'INSUFFICIENT_DATA' && (
+              <EvaluationProgress
+                currentSessions={status.currentSessions}
+                minSessionsRequired={status.minSessionsRequired}
+              />
+            )}
+
             {/* Report Summary Card */}
-            {hasRiskData && riskAnalysis.security_report && (
+            {status.hasRiskData && (
               <div className="card card-elevated">
                 <div className="card-header">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -138,26 +133,26 @@ export default function AgentPage() {
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     padding: 'var(--space-lg)',
-                    background: hasCriticalIssues ? 'var(--color-critical-bg)' : 'var(--color-success-bg)',
+                    background: status.hasCriticalIssues ? 'var(--color-critical-bg)' : 'var(--color-success-bg)',
                     borderRadius: 'var(--radius-md)',
-                    border: `2px solid ${hasCriticalIssues ? 'var(--color-critical-border)' : 'var(--color-success-border)'}`,
+                    border: `2px solid ${status.hasCriticalIssues ? 'var(--color-critical-border)' : 'var(--color-success-border)'}`,
                     marginBottom: 'var(--space-2xl)'
                   }}>
                     <div>
                       <div className="text-xs text-muted mb-xs weight-semibold">OVERALL STATUS</div>
                       <div className="text-lg weight-bold font-mono" style={{
-                        color: hasCriticalIssues ? 'var(--color-critical)' : 'var(--color-success)'
+                        color: status.statusColor
                       }}>
-                        {hasCriticalIssues ? 'ATTENTION REQUIRED' : 'ALL SYSTEMS OK'}
+                        {status.hasCriticalIssues ? 'ATTENTION REQUIRED' : 'ALL SYSTEMS OK'}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div className="text-xs text-muted mb-xs weight-semibold">TOTAL CHECKS</div>
                       <div className="text-lg weight-bold font-mono text-primary">
-                        {totalChecks}
+                        {status.totalChecks}
                       </div>
                       <div className="text-xs text-muted">
-                        {criticalCount} critical, {warningCount} warnings
+                        {status.criticalCount} critical, {status.warningCount} warnings
                       </div>
                     </div>
                   </div>

@@ -36,13 +36,11 @@ class InsightsEngine:
     @_with_store_lock
     def get_dashboard_data(self) -> Dict[str, Any]:
         """Get all data needed for the main dashboard."""
-        stats = self.store.get_global_stats()
         agents = self._get_agent_summary()
         sessions = self._get_recent_sessions()
         latest_session = self._get_latest_active_session()
 
         return {
-            "stats": stats,
             "agents": agents,
             "sessions": sessions,
             "latest_session": latest_session,
@@ -175,6 +173,9 @@ class InsightsEngine:
                 if session_id in self.store.sessions and self.store.sessions[session_id].is_active
             ])
 
+            # Compute lightweight risk status for dashboard display
+            risk_status = self._compute_agent_risk_status(agent.agent_id)
+
             agents.append({
                 "id": agent.agent_id,
                 "id_short": agent.agent_id[:8] + "..." if len(agent.agent_id) > 8 else agent.agent_id,
@@ -183,10 +184,14 @@ class InsightsEngine:
                 "total_messages": agent.total_messages,
                 "total_tokens": agent.total_tokens,
                 "total_tools": agent.total_tools,
+                "unique_tools": len(agent.used_tools),
                 "total_errors": agent.total_errors,
                 "avg_response_time_ms": agent.avg_response_time_ms,
                 "last_seen": agent.last_seen.isoformat(),
-                "last_seen_relative": self._time_ago(agent.last_seen)
+                "last_seen_relative": self._time_ago(agent.last_seen),
+                "risk_status": risk_status,  # "ok", "warning", "evaluating", or None
+                "current_sessions": agent.total_sessions,
+                "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS
             })
 
         # Sort by last seen
@@ -417,9 +422,52 @@ class InsightsEngine:
                 error=f"Risk analysis failed: {str(e)}"
             )
 
+    def _compute_agent_risk_status(self, agent_id: str) -> Optional[str]:
+        """Compute lightweight risk status for dashboard display.
+
+        Returns:
+            "ok" - Has enough sessions and no critical issues
+            "warning" - Has enough sessions and has critical issues
+            "evaluating" - Not enough sessions yet
+            None - No data or error
+        """
+        agent = self.store.agents.get(agent_id)
+        if not agent:
+            return None
+
+        # Get all sessions for this agent
+        agent_sessions = [
+            self.store.sessions[sid] for sid in agent.sessions
+            if sid in self.store.sessions
+        ]
+
+        # Check if we have enough sessions for analysis
+        if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+            # Only show "evaluating" if we have at least 1 session
+            return "evaluating" if len(agent_sessions) > 0 else None
+
+        # Check cache for existing analysis
+        if agent_id in self._risk_analysis_cache:
+            cached_result, cached_time, cached_session_count = self._risk_analysis_cache[agent_id]
+            # Use cache if still valid (30 seconds and same session count)
+            if (datetime.now(timezone.utc) - cached_time).total_seconds() < 30 and \
+               cached_session_count == len(agent_sessions):
+                if cached_result.evaluation_status == 'COMPLETE' and cached_result.security_report:
+                    # Check for critical issues
+                    has_critical = False
+                    if cached_result.security_report.categories:
+                        for category in cached_result.security_report.categories.values():
+                            if category.critical_checks > 0:
+                                has_critical = True
+                                break
+                    return "warning" if has_critical else "ok"
+
+        # If no cache available, return "ok" as default (full analysis runs lazily)
+        return "ok"
+
     def get_proxy_config(self) -> Dict[str, Any]:
         """Get proxy configuration information.
-        
+
         Returns:
             Dictionary containing proxy configuration
         """

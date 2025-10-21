@@ -1,15 +1,18 @@
 // Utility helper functions for the live trace frontend
 
+// Minimum sessions required for risk analysis (must match backend value)
+export const MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
+
 export function formatNumber(value) {
   if (typeof value !== 'number') return value
-  if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-  if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+  if (value >= 1000000) return (value / 1000000).toFixed(0) + 'M'
+  if (value >= 1000) return (value / 1000).toFixed(0) + 'K'
   return value.toString()
 }
 
 export function formatDuration(value) {
   if (typeof value !== 'number') return value
-  if (value >= 1000) return (value / 1000).toFixed(1) + 's'
+  if (value >= 1000) return (value / 1000).toFixed(0) + 's'
   return Math.round(value) + 'ms'
 }
 
@@ -80,5 +83,110 @@ export function getCheckStatusClass(status) {
     case 'warning': return 'text-warning'
     case 'critical': return 'text-error'
     default: return 'text-muted'
+  }
+}
+
+export function getAgentStatus(riskAnalysis) {
+  // Return default status when no risk analysis available
+  if (!riskAnalysis) {
+    return {
+      hasRiskData: false,
+      hasCriticalIssues: false,
+      hasWarnings: false,
+      criticalCount: 0,
+      warningCount: 0,
+      totalChecks: 0,
+      statusText: 'No Data',
+      statusColor: 'var(--color-text-muted)',
+      evaluationStatus: null
+    }
+  }
+
+  const evaluationStatus = riskAnalysis.evaluation_status
+
+  // Handle insufficient data case
+  if (evaluationStatus === 'INSUFFICIENT_DATA') {
+    return {
+      hasRiskData: false,
+      hasCriticalIssues: false,
+      hasWarnings: false,
+      criticalCount: 0,
+      warningCount: 0,
+      totalChecks: 0,
+      statusText: 'Evaluating',
+      statusColor: 'var(--color-text-muted)',
+      evaluationStatus,
+      currentSessions: riskAnalysis.summary?.current_sessions || 0,
+      minSessionsRequired: riskAnalysis.summary?.min_sessions_required || MIN_SESSIONS_FOR_RISK_ANALYSIS,
+      sessionsNeeded: riskAnalysis.summary?.sessions_needed || 0
+    }
+  }
+
+  // Handle error case
+  if (evaluationStatus === 'ERROR') {
+    return {
+      hasRiskData: false,
+      hasCriticalIssues: false,
+      hasWarnings: false,
+      criticalCount: 0,
+      warningCount: 0,
+      totalChecks: 0,
+      statusText: 'Error',
+      statusColor: 'var(--color-critical)',
+      evaluationStatus,
+      error: riskAnalysis.error
+    }
+  }
+
+  // Handle complete analysis
+  const hasRiskData = evaluationStatus === 'COMPLETE' && riskAnalysis.security_report
+
+  if (!hasRiskData) {
+    return {
+      hasRiskData: false,
+      hasCriticalIssues: false,
+      hasWarnings: false,
+      criticalCount: 0,
+      warningCount: 0,
+      totalChecks: 0,
+      statusText: 'No Data',
+      statusColor: 'var(--color-text-muted)',
+      evaluationStatus
+    }
+  }
+
+  // Count critical issues and warnings across all categories
+  let criticalCount = 0
+  let warningCount = 0
+  let totalChecks = 0
+
+  if (riskAnalysis.security_report?.categories) {
+    Object.values(riskAnalysis.security_report.categories).forEach(category => {
+      if (category.checks) {
+        totalChecks += category.checks.length
+        category.checks.forEach(check => {
+          if (check.status === 'critical') {
+            criticalCount++
+          } else if (check.status === 'warning') {
+            warningCount++
+          }
+        })
+      }
+    })
+  }
+
+  const hasCriticalIssues = criticalCount > 0
+  const hasWarnings = warningCount > 0
+
+  return {
+    hasRiskData: true,
+    hasCriticalIssues,
+    hasWarnings,
+    criticalCount,
+    warningCount,
+    totalChecks,
+    statusText: hasCriticalIssues ? 'WARNING' : 'OK',
+    statusColor: hasCriticalIssues ? 'var(--color-critical)' : 'var(--color-success)',
+    evaluationStatus
   }
 }

@@ -61,6 +61,12 @@ export default function Dashboard() {
 
   return (
     <>
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 1; }
+        }
+      `}</style>
       <div className="container">
         {/* Welcome Message - shown when no agents */}
         {!hasAgents && <WelcomeCard config={config} />}
@@ -106,95 +112,160 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Global Statistics - only show when we have agents */}
+        {/* Agents Cards - only show when we have agents */}
         {hasAgents && (
-          <div className="stats-grid stats-grid-4col">
-            <div className="stat-card">
-              <h3>Active Sessions</h3>
-              <div className="stat-value">{data.stats.active_sessions}</div>
-              <div className="stat-change">{data.stats.total_sessions} total</div>
+        <div>
+          <h2 className="text-lg weight-bold font-mono mb-xl" style={{ letterSpacing: '-0.01em' }}>
+            Agents
+          </h2>
+          {data.agents && data.agents.length > 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+              gap: 'var(--space-xl)',
+              marginBottom: 'var(--space-3xl)'
+            }}>
+              {data.agents.map(agent => (
+                <Link
+                  key={agent.id}
+                  to={`/agent/${agent.id}`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <div className="card" style={{
+                    height: '100%',
+                    cursor: 'pointer',
+                    transition: 'all var(--transition-base)',
+                    marginBottom: 0,
+                    boxShadow: 'var(--shadow-md)',
+                    borderLeft: '3px solid var(--color-accent-primary)',
+                    padding: 'var(--space-xl)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-bg-secondary)'
+                    e.currentTarget.style.transform = 'translateY(-6px)'
+                    e.currentTarget.style.boxShadow = '0 12px 24px -8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--color-surface)'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'var(--shadow-md)'
+                  }}>
+                    <div className="card-header" style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-sm)',
+                        flex: 1
+                      }}>
+                        <div className="font-mono text-md weight-bold text-primary" style={{
+                          wordBreak: 'break-all'
+                        }}>
+                          {agent.id.substring(0, 20)}{agent.id.length > 20 ? '...' : ''}
+                        </div>
+                      </div>
+                      {agent.risk_status === 'ok' && (
+                        <span className="badge" style={{
+                          marginLeft: 'var(--space-md)',
+                          background: 'var(--color-success-bg)',
+                          color: 'var(--color-success)',
+                          border: '1px solid var(--color-success-border)'
+                        }}>
+                          OK
+                        </span>
+                      )}
+                      {agent.risk_status === 'warning' && (
+                        <span className="badge" style={{
+                          marginLeft: 'var(--space-md)',
+                          background: 'var(--color-warning-bg)',
+                          color: 'var(--color-warning)',
+                          border: '1px solid var(--color-warning-border)'
+                        }}>
+                          WARNING
+                        </span>
+                      )}
+                      {agent.risk_status === 'evaluating' && (
+                        <span className="badge" style={{
+                          marginLeft: 'var(--space-md)',
+                          background: 'var(--color-info-bg)',
+                          color: 'var(--color-accent-primary)',
+                          border: '1px solid var(--color-info-border)'
+                        }}>
+                          EVALUATING
+                        </span>
+                      )}
+                    </div>
+                    <div className="card-content">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                        <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="text-xs text-muted weight-semibold mb-xs">SESSIONS</div>
+                            <div className="font-mono text-lg weight-bold" style={{ color: 'var(--color-accent-primary)' }}>
+                              {agent.total_sessions}
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div className="text-xs text-muted weight-semibold mb-xs">USED TOOLS</div>
+                            <div className="font-mono text-lg weight-bold" style={{ color: 'var(--color-accent-primary)' }}>
+                              {agent.unique_tools}
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div className="text-xs text-muted weight-semibold mb-xs">AVG TOKENS</div>
+                            <div className="font-mono text-lg weight-bold" style={{ color: 'var(--color-accent-primary)' }}>
+                              {agent.total_sessions > 0 ? formatNumber(Math.round(agent.total_tokens / agent.total_sessions)) : 0}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{
+                          display: 'flex',
+                          gap: 'var(--space-md)',
+                          paddingTop: 'var(--space-md)',
+                          borderTop: '1px solid var(--color-border-subtle)'
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="text-xs text-muted weight-semibold mb-xs">TOTAL TOKENS</div>
+                            <div className="font-mono text-sm text-secondary">
+                              {formatNumber(agent.total_tokens)}
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div className="text-xs text-muted weight-semibold mb-xs">ERRORS</div>
+                            <div className="font-mono text-sm" style={{
+                              color: agent.total_errors > 0 ? 'var(--color-critical)' : 'var(--color-text-muted)'
+                            }}>
+                              {agent.total_errors}
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div className="text-xs text-muted weight-semibold mb-xs">AVG RESPONSE</div>
+                            <div className="font-mono text-sm text-secondary">
+                              {formatDuration(agent.avg_response_time_ms)}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{
+                          fontSize: 'var(--text-xs)',
+                          color: 'var(--color-text-muted)',
+                          fontFamily: 'var(--font-mono)',
+                          paddingTop: 'var(--space-sm)'
+                        }}>
+                          Last seen: {agent.last_seen_relative}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-
-            <div className="stat-card">
-              <h3>Total Events</h3>
-              <div className="stat-value">{formatNumber(data.stats.total_events)}</div>
-              <div className="stat-change">{formatNumber(data.stats.events_per_minute)}/min</div>
+          ) : (
+            <div className="text-center text-muted loading">
+              <p>No agents found. Start making requests to see trace data here.</p>
             </div>
-
-            <div className="stat-card">
-              <h3>Avg Response</h3>
-              <div className="stat-value">{formatDuration(data.stats.avg_response_time_ms)}</div>
-              <div className="stat-change">all sessions</div>
-            </div>
-
-            <div className="stat-card">
-              <h3>Total Tokens</h3>
-              <div className="stat-value">{formatNumber(data.stats.total_tokens)}</div>
-              <div className="stat-change">{data.stats.total_agents} agents</div>
-            </div>
-          </div>
-        )}
-
-        {/* Agents Table - only show when we have agents */}
-        {hasAgents && (
-        <div className="card">
-          <div className="card-header">
-            <h2>Agents</h2>
-          </div>
-          <div className="card-content">
-            {data.agents && data.agents.length > 0 ? (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Agent ID</th>
-                    <th>Sessions</th>
-                    <th>Active</th>
-                    <th>Messages</th>
-                    <th>Tokens</th>
-                    <th>Tools</th>
-                    <th>Errors</th>
-                    <th>Avg Response</th>
-                    <th>Last Seen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.agents.map(agent => (
-                    <tr key={agent.id}>
-                      <td>
-                        <Link to={`/agent/${agent.id}`}>
-                          {agent.id.substring(0, 16)}{agent.id.length > 16 ? '...' : ''}
-                        </Link>
-                      </td>
-                      <td>{agent.total_sessions}</td>
-                      <td>
-                        {agent.active_sessions > 0 ? (
-                          <span className="badge active">{agent.active_sessions}</span>
-                        ) : (
-                          <span className="text-muted">0</span>
-                        )}
-                      </td>
-                      <td>{formatNumber(agent.total_messages)}</td>
-                      <td>{formatNumber(agent.total_tokens)}</td>
-                      <td>{agent.total_tools}</td>
-                      <td>
-                        {agent.total_errors > 0 ? (
-                          <span className="text-error">{agent.total_errors}</span>
-                        ) : (
-                          <span className="text-muted">0</span>
-                        )}
-                      </td>
-                      <td>{formatDuration(agent.avg_response_time_ms)}</td>
-                      <td className="text-muted">{agent.last_seen_relative}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="text-center text-muted loading">
-                <p>No agents found. Start making requests to see trace data here.</p>
-              </div>
-            )}
-          </div>
+          )}
         </div>
         )}
 
@@ -271,13 +342,13 @@ export default function Dashboard() {
 
 function formatNumber(value) {
   if (typeof value !== 'number') return value
-  if (value >= 1000000) return (value / 1000000).toFixed(1) + 'M'
-  if (value >= 1000) return (value / 1000).toFixed(1) + 'K'
+  if (value >= 1000000) return (value / 1000000).toFixed(0) + 'M'
+  if (value >= 1000) return (value / 1000).toFixed(0) + 'K'
   return value.toString()
 }
 
 function formatDuration(value) {
   if (typeof value !== 'number') return value
-  if (value >= 1000) return (value / 1000).toFixed(1) + 's'
+  if (value >= 1000) return (value / 1000).toFixed(0) + 's'
   return Math.round(value) + 'ms'
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Tooltip from './Tooltip'
 import AgentSidebar from './AgentSidebar'
+import EvaluationProgress from './EvaluationProgress'
 import {
   formatNumber,
   getScoreClass,
@@ -10,7 +11,8 @@ import {
   getCategoryIcon,
   getCategoryHeaderColor,
   getCategoryBorderColor,
-  getCheckStatusClass
+  getCheckStatusClass,
+  getAgentStatus
 } from '../utils/helpers'
 
 export default function AgentReportPage() {
@@ -64,19 +66,7 @@ export default function AgentReportPage() {
 
   const agent = data.agent
   const riskAnalysis = data.risk_analysis
-  const hasRiskData = riskAnalysis && riskAnalysis.evaluation_status === 'COMPLETE'
-
-  // Calculate critical issues
-  let hasCriticalIssues = false
-  if (hasRiskData && riskAnalysis.security_report?.categories) {
-    Object.values(riskAnalysis.security_report.categories).forEach(category => {
-      category.checks?.forEach(check => {
-        if (check.status === 'critical') {
-          hasCriticalIssues = true
-        }
-      })
-    })
-  }
+  const status = getAgentStatus(riskAnalysis)
 
   const toggleCheck = (checkId) => {
     setExpandedChecks(prev => ({
@@ -119,15 +109,21 @@ export default function AgentReportPage() {
           <AgentSidebar
             agent={agent}
             riskAnalysis={riskAnalysis}
-            hasRiskData={hasRiskData}
-            hasCriticalIssues={hasCriticalIssues}
           />
 
           {/* MAIN CONTENT AREA */}
           <div className="dashboard-main">
 
+            {/* Evaluation Progress (when insufficient data) */}
+            {status.evaluationStatus === 'INSUFFICIENT_DATA' && (
+              <EvaluationProgress
+                currentSessions={status.currentSessions}
+                minSessionsRequired={status.minSessionsRequired}
+              />
+            )}
+
             {/* Critical Alert Banner */}
-            {hasCriticalIssues && (
+            {status.hasCriticalIssues && (
               <div className="alert-banner alert-banner-critical">
                 <div className="alert-content">
                   <h3>Critical Security Issues Detected</h3>
@@ -138,7 +134,7 @@ export default function AgentReportPage() {
             )}
 
             {/* Security Assessment Categories */}
-            {hasRiskData && riskAnalysis.security_report && riskAnalysis.security_report.categories && (
+            {status.hasRiskData && riskAnalysis.security_report?.categories && (
               <>
                 {Object.entries(riskAnalysis.security_report.categories).map(([categoryId, category]) => (
                   <div key={categoryId} className="card mb-lg">
@@ -487,7 +483,7 @@ export default function AgentReportPage() {
             )}
 
             {/* Behavioral Insights Section */}
-            {hasRiskData && riskAnalysis.behavioral_analysis && (
+            {status.hasRiskData && riskAnalysis.behavioral_analysis && (
               <div id="behavioral" className="card mb-lg">
                 {/* Category Header */}
                 <div className="card-header" style={{

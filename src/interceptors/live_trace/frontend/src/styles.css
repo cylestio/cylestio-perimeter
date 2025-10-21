@@ -263,7 +263,6 @@ body {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-base);
-  margin-bottom: var(--space-3xl);
 }
 
 .card:hover {
@@ -734,11 +733,41 @@ a:hover {
   align-items: start;
 }
 
-.session-left,
+.session-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  position: sticky;
+  top: var(--space-xl);
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: var(--space-sm);
+}
+
 .session-center {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+}
+
+/* Custom scrollbar for session sidebar */
+.session-left::-webkit-scrollbar {
+  width: 6px;
+}
+
+.session-left::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.session-left::-webkit-scrollbar-thumb {
+  background: var(--color-border-medium);
+  border-radius: var(--radius-sm);
+}
+
+.session-left::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }
 
 /* ============================================
@@ -926,6 +955,12 @@ a:hover {
 
   .session-layout {
     grid-template-columns: 1fr;
+  }
+
+  .session-left {
+    position: relative;
+    max-height: none;
+    margin-bottom: var(--space-2xl);
   }
 
   .stats-grid {
