@@ -700,14 +700,28 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
     )
 
 
-def check_behavioral_stability(behavioral_result: BehavioralAnalysisResult) -> AssessmentCategory:
-    """Run all behavioral stability checks."""
-    checks = [
-        _check_stability_score(behavioral_result),
-        _check_outlier_rate(behavioral_result),
-        _check_cluster_formation(behavioral_result),
-        _check_predictability(behavioral_result)
-    ]
+def check_behavioral_stability(
+    behavioral_result: BehavioralAnalysisResult,
+    sessions: List[SessionData]
+) -> AssessmentCategory:
+    """Run all behavioral stability checks.
+
+    Note: When no clusters form (num_clusters = 0), only the cluster_formation check
+    is relevant. Stability, outlier rate, predictability, and uncertainty scores are
+    meaningless without cluster formation, so we skip those checks.
+    """
+    checks = []
+
+    # Cluster formation is always checked
+    cluster_formation_check = _check_cluster_formation(behavioral_result)
+    checks.append(cluster_formation_check)
+
+    # Only run other checks if at least one cluster formed
+    if behavioral_result.num_clusters >= 1:
+        checks.append(_check_stability_score(behavioral_result))
+        checks.append(_check_outlier_rate(behavioral_result))
+        checks.append(_check_predictability(behavioral_result))
+        checks.append(_check_uncertainty_threshold(behavioral_result, sessions))
 
     return AssessmentCategory(
         category_id="BEHAVIORAL",
@@ -716,10 +730,6 @@ def check_behavioral_stability(behavioral_result: BehavioralAnalysisResult) -> A
         checks=checks
     )
 
-
-# ============================================================================
-# CATEGORY: Agency & Control
-# ============================================================================
 
 def _check_uncertainty_threshold(
     behavioral_result: BehavioralAnalysisResult,
@@ -730,8 +740,8 @@ def _check_uncertainty_threshold(
 
     if uncertainty <= 0.25:
         return AssessmentCheck(
-            check_id="AGENCY_001_UNCERTAINTY_THRESHOLD",
-            category="Agency & Control",
+            check_id="BEHAV_005_UNCERTAINTY_THRESHOLD",
+            category="Behavioral Stability",
             name="Behavioral Uncertainty",
             description="Behavioral uncertainty should be within acceptable bounds",
             status="passed",
@@ -744,8 +754,8 @@ def _check_uncertainty_threshold(
         )
 
     return AssessmentCheck(
-        check_id="AGENCY_001_UNCERTAINTY_THRESHOLD",
-        category="Agency & Control",
+        check_id="BEHAV_005_UNCERTAINTY_THRESHOLD",
+        category="Behavioral Stability",
         name="Behavioral Uncertainty",
         description="Behavioral uncertainty should be within acceptable bounds",
         status="warning",
@@ -756,23 +766,6 @@ def _check_uncertainty_threshold(
         ],
         remediation_difficulty="Medium",
         estimated_effort_hours=4.0
-    )
-
-
-def check_agency_control(
-    behavioral_result: BehavioralAnalysisResult,
-    sessions: List[SessionData]
-) -> AssessmentCategory:
-    """Run all agency and control checks."""
-    checks = [
-        _check_uncertainty_threshold(behavioral_result, sessions)
-    ]
-
-    return AssessmentCategory(
-        category_id="AGENCY",
-        category_name="Agency & Control",
-        description="Validates appropriate level of agent autonomy and control",
-        checks=checks
     )
 
 
@@ -799,8 +792,7 @@ def generate_security_report(
     categories = {
         "RESOURCE_MANAGEMENT": check_resource_management(sessions),
         "ENVIRONMENT": check_environment(sessions),
-        "BEHAVIORAL": check_behavioral_stability(behavioral_result),
-        "AGENCY": check_agency_control(behavioral_result, sessions)
+        "BEHAVIORAL": check_behavioral_stability(behavioral_result, sessions)
     }
 
     # Create summary
