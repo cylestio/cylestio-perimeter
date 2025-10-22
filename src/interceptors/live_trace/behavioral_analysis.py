@@ -10,6 +10,7 @@ import numpy as np
 
 from .risk_models import (
     BehavioralAnalysisResult,
+    CentroidDistance,
     ClusterCharacteristics,
     ClusterInfo,
     OutlierInfo,
@@ -364,16 +365,20 @@ class LSHClustering:
 
 def detect_outliers_multidimensional(
     all_features: Dict[str, SessionFeatures],
-    clustered_session_ids: Set[str]
+    clustered_session_ids: Set[str],
+    cluster_centroids: Dict[str, List[int]] = None,
+    all_signatures: Dict[str, List[int]] = None
 ) -> List[OutlierInfo]:
     """Detect outliers using multiple behavioral dimensions.
-    
+
     Args:
         all_features: All session features
         clustered_session_ids: Sessions that are in valid clusters
-        
+        cluster_centroids: Dict mapping cluster_id to centroid signature (optional)
+        all_signatures: Dict mapping session_id to MinHash signature (optional)
+
     Returns:
-        List of outlier sessions with anomaly scores
+        List of outlier sessions with anomaly scores and distances to nearest centroids
     """
     # Calculate statistics for normal (clustered) sessions
     normal_features = [
@@ -407,26 +412,44 @@ def detect_outliers_multidimensional(
     for session_id, features in all_features.items():
         if session_id not in clustered_session_ids:
             anomaly_score, anomalies = calculate_anomaly_score(features, baseline)
-            
+
             if anomaly_score >= 0.1:  # Threshold from config
                 # Perform root cause analysis
                 root_causes = analyze_outlier_root_causes(
                     features, all_features, clustered_session_ids
                 )
-                
+
                 severity = classify_outlier_severity(anomaly_score, root_causes)
-                
+
+                # Calculate distance to nearest centroid (if data available)
+                distance_to_nearest = 0.0
+                nearest_cluster = ""
+
+                if cluster_centroids and all_signatures and session_id in all_signatures:
+                    outlier_signature = all_signatures[session_id]
+                    min_distance = float('inf')
+
+                    for cluster_id, centroid in cluster_centroids.items():
+                        distance = calculate_jaccard_distance(outlier_signature, centroid)
+                        if distance < min_distance:
+                            min_distance = distance
+                            nearest_cluster = cluster_id
+
+                    distance_to_nearest = min_distance
+
                 outliers.append(OutlierInfo(
                     session_id=session_id,
                     anomaly_score=anomaly_score,
                     severity=severity['severity'],
+                    distance_to_nearest_centroid=round(distance_to_nearest, 3),
+                    nearest_cluster_id=nearest_cluster,
                     primary_causes=root_causes.get('primary_causes', []),
                     tool_analysis=root_causes.get('tool_analysis', {}),
                     resource_analysis=root_causes.get('resource_analysis', {}),
                     temporal_analysis=root_causes.get('temporal_analysis', {}),
                     recommendations=root_causes.get('recommendations', [])
                 ))
-    
+
     return outliers
 
 
@@ -666,6 +689,99 @@ def classify_outlier_severity(anomaly_score: float, root_causes: Dict) -> Dict[s
 
 
 # ============================================================================
+# Centroid Distance Calculations
+# ============================================================================
+
+def calculate_cluster_centroid(
+    cluster_session_ids: Set[str],
+    all_signatures: Dict[str, List[int]]
+) -> List[int]:
+    """Calculate cluster centroid using mode of MinHash signatures.
+
+    Args:
+        cluster_session_ids: Set of session IDs in the cluster
+        all_signatures: Dict mapping session_id to MinHash signature
+
+    Returns:
+        List of 512 integers representing the centroid signature
+    """
+    centroid = []
+    for i in range(512):  # For each hash position
+        values = [all_signatures[sid][i] for sid in cluster_session_ids if sid in all_signatures]
+        if not values:
+            centroid.append(0)
+            continue
+        from collections import Counter
+        most_common = Counter(values).most_common(1)[0][0]
+        centroid.append(most_common)
+    return centroid
+
+
+def calculate_jaccard_distance(sig1: List[int], sig2: List[int]) -> float:
+    """Calculate Jaccard distance between two MinHash signatures.
+
+    Args:
+        sig1, sig2: MinHash signatures (512-dim vectors)
+
+    Returns:
+        Jaccard distance [0.0, 1.0] where 0=identical, 1=completely different
+    """
+    if len(sig1) != len(sig2):
+        return 1.0
+
+    matches = sum(1 for a, b in zip(sig1, sig2) if a == b)
+    similarity = matches / len(sig1)
+    return 1.0 - similarity
+
+
+def calculate_centroid_distances(
+    clusters: List[Set[str]],
+    cluster_ids: List[str],
+    all_signatures: Dict[str, List[int]]
+) -> List[CentroidDistance]:
+    """Calculate pairwise distances between all cluster centroids.
+
+    Args:
+        clusters: List of cluster sets (each set contains session IDs)
+        cluster_ids: Corresponding cluster IDs
+        all_signatures: Dict mapping session_id to MinHash signature
+
+    Returns:
+        List of CentroidDistance objects
+    """
+    # Step 1: Calculate centroid for each cluster
+    centroids = {}
+    for cluster, cluster_id in zip(clusters, cluster_ids):
+        centroid = calculate_cluster_centroid(cluster, all_signatures)
+        centroids[cluster_id] = centroid
+
+    # Step 2: Calculate pairwise distances
+    distances = []
+    cluster_id_list = list(centroids.keys())
+
+    for i in range(len(cluster_id_list)):
+        for j in range(i + 1, len(cluster_id_list)):
+            cluster1_id = cluster_id_list[i]
+            cluster2_id = cluster_id_list[j]
+
+            centroid1 = centroids[cluster1_id]
+            centroid2 = centroids[cluster2_id]
+
+            # Calculate Jaccard distance
+            distance = calculate_jaccard_distance(centroid1, centroid2)
+            similarity = 1.0 - distance
+
+            distances.append(CentroidDistance(
+                from_cluster=cluster1_id,
+                to_cluster=cluster2_id,
+                distance=round(distance, 3),
+                similarity_score=round(similarity, 3)
+            ))
+
+    return distances
+
+
+# ============================================================================
 # Main Analysis Function (Section 3.6)
 # ============================================================================
 
@@ -717,21 +833,37 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
     # Step 4: Identify outliers (sessions not in any cluster)
     clustered_session_ids = set().union(*valid_clusters) if valid_clusters else set()
     outlier_session_ids = [
-        sid for sid in all_signatures.keys() 
+        sid for sid in all_signatures.keys()
         if sid not in clustered_session_ids
     ]
-    
-    # Step 5: Analyze outlier root causes
+
+    # Step 4.5: Calculate cluster centroids and distances
+    cluster_ids = [f"cluster_{i+1}" for i in range(len(valid_clusters))]
+    cluster_centroids = {}
+
+    for i, cluster in enumerate(valid_clusters):
+        cluster_id = cluster_ids[i]
+        centroid = calculate_cluster_centroid(cluster, all_signatures)
+        cluster_centroids[cluster_id] = centroid
+
+    # Calculate inter-cluster distances
+    centroid_distances = []
+    if len(valid_clusters) > 1:
+        centroid_distances = calculate_centroid_distances(
+            valid_clusters, cluster_ids, all_signatures
+        )
+
+    # Step 5: Analyze outlier root causes with centroid distances
     outliers_with_causes = detect_outliers_multidimensional(
-        all_features, clustered_session_ids
+        all_features, clustered_session_ids, cluster_centroids, all_signatures
     )
-    
+
     # Step 6: Calculate cluster characteristics
     cluster_summaries = []
     for i, cluster in enumerate(valid_clusters):
         summary = calculate_cluster_characteristics(cluster, all_features)
         cluster_summaries.append(ClusterInfo(
-            cluster_id=f"cluster_{i+1}",
+            cluster_id=cluster_ids[i],
             size=len(cluster),
             percentage=round((len(cluster) / len(sessions)) * 100, 1),
             session_ids=list(cluster),
@@ -758,6 +890,7 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
         cluster_diversity=cluster_diversity,
         clusters=cluster_summaries,
         outliers=outliers_with_causes,
+        centroid_distances=centroid_distances,
         interpretation=interpretation
     )
 

@@ -54,6 +54,21 @@ export function getSeverityBorder(severity) {
   }
 }
 
+export function getSeverityColor(severity) {
+  // All outliers use red-orange spectrum for visibility
+  switch (severity?.toLowerCase()) {
+    case 'critical':
+      return '#dc2626'  // Dark red (Tailwind red-600)
+    case 'high':
+      return '#ef4444'  // Red (Tailwind red-500)
+    case 'medium':
+      return '#f97316'  // Orange (Tailwind orange-500)
+    case 'low':
+    default:
+      return '#fb923c'  // Light orange (Tailwind orange-400)
+  }
+}
+
 export function getCategoryIcon(categoryId) {
   // Return empty string - no icons needed
   return ''
@@ -139,7 +154,7 @@ export function getAgentStatus(riskAnalysis) {
   }
 
   // Handle complete analysis
-  const hasRiskData = evaluationStatus === 'COMPLETE' && riskAnalysis.security_report
+  const hasRiskData = evaluationStatus === 'COMPLETE' && riskAnalysis.security_report && riskAnalysis.behavioral_analysis
 
   if (!hasRiskData) {
     return {

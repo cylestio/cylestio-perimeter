@@ -1213,3 +1213,40 @@ a:hover {
   height: 32px;
   border-width: 4px;
 }
+
+/* ============================================
+   CLUSTER VISUALIZATION
+   ============================================ */
+.cluster-viz-container {
+  margin-bottom: var(--space-2xl);
+}
+
+.cluster-viz-container svg {
+  display: block;
+}
+
+/* Node hover effects */
+.cluster-viz-container circle {
+  transition: all var(--transition-base);
+}
+
+.cluster-viz-container circle:hover {
+  filter: brightness(1.1);
+}
+
+/* Legend styling */
+.cluster-viz-legend {
+  display: flex;
+  gap: var(--space-lg);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.cluster-viz-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--font-mono);
+}

@@ -64,11 +64,21 @@ class OutlierInfo(BaseModel):
     session_id: str
     anomaly_score: float
     severity: str  # low, medium, high, critical
+    distance_to_nearest_centroid: float = 0.0  # Jaccard distance to nearest cluster centroid (0-1)
+    nearest_cluster_id: str = ""  # ID of the nearest cluster
     primary_causes: List[str]
     tool_analysis: Dict[str, Any] = Field(default_factory=dict)
     resource_analysis: Dict[str, Any] = Field(default_factory=dict)
     temporal_analysis: Dict[str, Any] = Field(default_factory=dict)
     recommendations: List[str]
+
+
+class CentroidDistance(BaseModel):
+    """Distance between two cluster centroids."""
+    from_cluster: str
+    to_cluster: str
+    distance: float  # Jaccard distance (0-1, where 0=identical, 1=completely different)
+    similarity_score: float  # 1.0 - distance (inverse)
 
 
 class BehavioralAnalysisResult(BaseModel):
@@ -81,6 +91,7 @@ class BehavioralAnalysisResult(BaseModel):
     cluster_diversity: float
     clusters: List[ClusterInfo]
     outliers: List[OutlierInfo]
+    centroid_distances: List[CentroidDistance] = Field(default_factory=list)
     interpretation: str
     error: Optional[str] = None
 
