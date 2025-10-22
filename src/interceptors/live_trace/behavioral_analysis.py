@@ -1,5 +1,6 @@
 """Behavioral analysis engine for agent clustering and outlier detection."""
 import hashlib
+import logging
 import math
 import re
 from collections import defaultdict
@@ -7,6 +8,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Set, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from .risk_models import (
     BehavioralAnalysisResult,
@@ -409,46 +412,49 @@ def detect_outliers_multidimensional(
     
     # Analyze unclustered sessions
     outliers = []
+    logger.info(f"[OUTLIER DETECTION] Analyzing {len([s for s in all_features.keys() if s not in clustered_session_ids])} unclustered sessions...")
+
     for session_id, features in all_features.items():
         if session_id not in clustered_session_ids:
             anomaly_score, anomalies = calculate_anomaly_score(features, baseline)
 
-            if anomaly_score >= 0.1:  # Threshold from config
-                # Perform root cause analysis
-                root_causes = analyze_outlier_root_causes(
-                    features, all_features, clustered_session_ids
-                )
+            logger.info(f"[OUTLIER DETECTION] Session {session_id[:8]}... - anomaly_score: {anomaly_score:.3f} - will be marked as outlier")
 
-                severity = classify_outlier_severity(anomaly_score, root_causes)
+            # Perform root cause analysis
+            root_causes = analyze_outlier_root_causes(
+                features, all_features, clustered_session_ids
+            )
 
-                # Calculate distance to nearest centroid (if data available)
-                distance_to_nearest = 0.0
-                nearest_cluster = ""
+            severity = classify_outlier_severity(anomaly_score, root_causes)
 
-                if cluster_centroids and all_signatures and session_id in all_signatures:
-                    outlier_signature = all_signatures[session_id]
-                    min_distance = float('inf')
+            # Calculate distance to nearest centroid (if data available)
+            distance_to_nearest = 0.0
+            nearest_cluster = ""
 
-                    for cluster_id, centroid in cluster_centroids.items():
-                        distance = calculate_jaccard_distance(outlier_signature, centroid)
-                        if distance < min_distance:
-                            min_distance = distance
-                            nearest_cluster = cluster_id
+            if cluster_centroids and all_signatures and session_id in all_signatures:
+                outlier_signature = all_signatures[session_id]
+                min_distance = float('inf')
 
-                    distance_to_nearest = min_distance
+                for cluster_id, centroid in cluster_centroids.items():
+                    distance = calculate_jaccard_distance(outlier_signature, centroid)
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest_cluster = cluster_id
 
-                outliers.append(OutlierInfo(
-                    session_id=session_id,
-                    anomaly_score=anomaly_score,
-                    severity=severity['severity'],
-                    distance_to_nearest_centroid=round(distance_to_nearest, 3),
-                    nearest_cluster_id=nearest_cluster,
-                    primary_causes=root_causes.get('primary_causes', []),
-                    tool_analysis=root_causes.get('tool_analysis', {}),
-                    resource_analysis=root_causes.get('resource_analysis', {}),
-                    temporal_analysis=root_causes.get('temporal_analysis', {}),
-                    recommendations=root_causes.get('recommendations', [])
-                ))
+                distance_to_nearest = min_distance
+
+            outliers.append(OutlierInfo(
+                session_id=session_id,
+                anomaly_score=anomaly_score,
+                severity=severity['severity'],
+                distance_to_nearest_centroid=round(distance_to_nearest, 3),
+                nearest_cluster_id=nearest_cluster,
+                primary_causes=root_causes.get('primary_causes', []),
+                tool_analysis=root_causes.get('tool_analysis', {}),
+                resource_analysis=root_causes.get('resource_analysis', {}),
+                temporal_analysis=root_causes.get('temporal_analysis', {}),
+                recommendations=root_causes.get('recommendations', [])
+            ))
 
     return outliers
 
@@ -825,17 +831,37 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
     # Step 2: Cluster using LSH
     lsh = LSHClustering(num_bands=64, rows_per_band=8)
     clusters = lsh.cluster_sessions(all_signatures, threshold=0.40)
-    
-    # Step 3: Filter clusters by minimum size (3)
-    min_cluster_size = 3
-    valid_clusters = [c for c in clusters if len(c) >= min_cluster_size]
-    
+
+    # Step 3: Categorize clusters by confidence level
+    # Normal confidence: 3+ sessions (statistically more reliable)
+    # Low confidence: 2 sessions (pattern exists but needs validation)
+    # Clusters with 1 session are ignored (treated as outliers)
+    normal_clusters = [c for c in clusters if len(c) >= 3]
+    low_confidence_clusters = [c for c in clusters if len(c) == 2]
+    valid_clusters = normal_clusters + low_confidence_clusters
+
+    # DEBUG: Log clustering results
+    logger.info(f"[BEHAVIORAL ANALYSIS] Total sessions: {len(sessions)}")
+    logger.info(f"[BEHAVIORAL ANALYSIS] Raw clusters from LSH: {len(clusters)}")
+    logger.info(f"[BEHAVIORAL ANALYSIS] Normal clusters (≥3): {len(normal_clusters)}")
+    for i, cluster in enumerate(normal_clusters):
+        logger.info(f"  - Normal cluster {i+1}: {len(cluster)} sessions - {list(cluster)[:3]}...")
+    logger.info(f"[BEHAVIORAL ANALYSIS] Low-confidence clusters (=2): {len(low_confidence_clusters)}")
+    for i, cluster in enumerate(low_confidence_clusters):
+        logger.info(f"  - Low-confidence cluster {i+1}: {len(cluster)} sessions - {list(cluster)}")
+
     # Step 4: Identify outliers (sessions not in any cluster)
     clustered_session_ids = set().union(*valid_clusters) if valid_clusters else set()
     outlier_session_ids = [
         sid for sid in all_signatures.keys()
         if sid not in clustered_session_ids
     ]
+
+    # DEBUG: Log unclustered sessions
+    logger.info(f"[BEHAVIORAL ANALYSIS] Clustered sessions: {len(clustered_session_ids)}")
+    logger.info(f"[BEHAVIORAL ANALYSIS] Unclustered sessions: {len(outlier_session_ids)}")
+    if outlier_session_ids:
+        logger.info(f"[BEHAVIORAL ANALYSIS] Unclustered session IDs: {outlier_session_ids}")
 
     # Step 4.5: Calculate cluster centroids and distances
     cluster_ids = [f"cluster_{i+1}" for i in range(len(valid_clusters))]
@@ -862,17 +888,21 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
     cluster_summaries = []
     for i, cluster in enumerate(valid_clusters):
         summary = calculate_cluster_characteristics(cluster, all_features)
+        cluster_size = len(cluster)
         cluster_summaries.append(ClusterInfo(
             cluster_id=cluster_ids[i],
-            size=len(cluster),
-            percentage=round((len(cluster) / len(sessions)) * 100, 1),
+            size=cluster_size,
+            percentage=round((cluster_size / len(sessions)) * 100, 1),
             session_ids=list(cluster),
             characteristics=summary,
-            insights=generate_cluster_insights(i, len(cluster), len(sessions), summary)
+            insights=generate_cluster_insights(i, cluster_size, len(sessions), summary),
+            confidence="low" if cluster_size == 2 else "normal"
         ))
     
     # Step 7: Calculate metrics
-    stability_score = calculate_stability_score(valid_clusters, len(sessions))
+    # Stability score only considers normal-confidence clusters (≥3 sessions)
+    # Low-confidence clusters (2 sessions) are too small to be reliable stability indicators
+    stability_score = calculate_stability_score(normal_clusters, len(sessions))
     predictability_score = calculate_predictability_score(len(outlier_session_ids), len(sessions))
     cluster_diversity = calculate_cluster_diversity(len(valid_clusters), len(sessions))
     
@@ -880,7 +910,20 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
     interpretation = generate_behavioral_interpretation(
         stability_score, predictability_score, len(valid_clusters), len(outlier_session_ids)
     )
-    
+
+    # DEBUG: Final summary
+    sessions_in_clusters = len(clustered_session_ids)
+    sessions_as_outliers = len(outliers_with_causes)
+    sessions_unaccounted = len(sessions) - sessions_in_clusters - sessions_as_outliers
+
+    logger.info(f"[BEHAVIORAL ANALYSIS] === FINAL SUMMARY ===")
+    logger.info(f"  Total sessions: {len(sessions)}")
+    logger.info(f"  Sessions in clusters: {sessions_in_clusters}")
+    logger.info(f"  Sessions marked as outliers: {sessions_as_outliers}")
+    logger.info(f"  Sessions UNACCOUNTED FOR: {sessions_unaccounted}")
+    if sessions_unaccounted > 0:
+        logger.error(f"  ⚠️  {sessions_unaccounted} sessions are missing from the report!")
+
     return BehavioralAnalysisResult(
         total_sessions=len(sessions),
         num_clusters=len(valid_clusters),
@@ -981,7 +1024,12 @@ def generate_cluster_insights(
 ) -> str:
     """Generate human-readable insights for a cluster."""
     percentage = (cluster_size / total_sessions) * 100
-    
+
+    # Low-confidence cluster (only 2 sessions)
+    if cluster_size == 2:
+        return f"Low-confidence pattern ({percentage:.0f}% of sessions) - needs more data to validate"
+
+    # Normal confidence clusters (3+ sessions)
     if cluster_idx == 0 and percentage > 70:
         return f"Largest cluster representing dominant behavior pattern ({percentage:.0f}% of sessions)"
     elif percentage < 10:

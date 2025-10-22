@@ -139,9 +139,10 @@ export default function ClusterVisualization({ behavioralAnalysis }) {
                   cy={node.y}
                   r={node.radius}
                   fill={node.color}
-                  fillOpacity={isCluster ? 0.15 : 0.7}
+                  fillOpacity={isCluster ? (node.confidence === 'low' ? 0.10 : 0.15) : 0.7}
                   stroke={node.color}
                   strokeWidth={isHovered ? 2.5 : 1.5}
+                  strokeDasharray={node.confidence === 'low' ? '3,2' : 'none'}
                   style={{
                     transition: 'all var(--transition-base)'
                   }}
@@ -230,6 +231,11 @@ function NodeTooltip({ node }) {
             <span className="font-mono weight-semibold" style={{ color: node.color }}>
               {node.label}
             </span>
+            {node.confidence === 'low' && (
+              <span className="badge warning" style={{ fontSize: '8px', padding: '1px 4px' }}>
+                LOW
+              </span>
+            )}
             <span className="text-muted">
               {node.size} sessions ({node.percentage}%)
             </span>

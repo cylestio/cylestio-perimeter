@@ -96,6 +96,7 @@ function generateClusterNodes(clusters) {
       label: cluster.cluster_id,
       size: cluster.size,
       percentage: cluster.percentage,
+      confidence: cluster.confidence || 'normal',
       x: position.x,
       y: position.y,
       radius: calculateClusterRadius(cluster.size, sortedClusters),

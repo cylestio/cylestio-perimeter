@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import Tooltip from './Tooltip'
 import AgentSidebar from './AgentSidebar'
 import EvaluationProgress from './EvaluationProgress'
+import ClusterVisualization from './ClusterVisualization'
 import {
   formatNumber,
   getScoreClass,
@@ -492,7 +493,7 @@ export default function AgentReportPage() {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 className="text-md weight-semibold text-primary mb-0">
-                      🧠 Behavioral Insights
+                      Behavioral Insights
                     </h3>
                     <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
                       <span className="text-xs text-muted font-mono">
@@ -506,63 +507,77 @@ export default function AgentReportPage() {
                 </div>
 
                 <div className="card-content">
-                  {/* Behavioral Scores Section */}
-                  <div style={{ marginBottom: 'var(--space-2xl)' }}>
-                    <h4 className="text-xs text-muted weight-semibold mb-md font-mono" style={{ letterSpacing: '0.08em' }}>
-                      BEHAVIORAL SCORES
-                    </h4>
-                    <div style={{
-                      display: 'flex',
-                      gap: 'var(--space-md)',
-                      alignItems: 'stretch',
-                      flexWrap: 'wrap'
-                    }}>
+                  {/* Behavioral Scores Section - Only show if clusters formed */}
+                  {riskAnalysis.behavioral_analysis.num_clusters >= 1 ? (
+                    <div style={{ marginBottom: 'var(--space-2xl)' }}>
+                      <h4 className="text-xs text-muted weight-semibold mb-md font-mono" style={{ letterSpacing: '0.08em' }}>
+                        BEHAVIORAL SCORES
+                      </h4>
                       <div style={{
-                        border: '1px solid var(--color-border-subtle)',
-                        background: 'var(--color-bg-elevated)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: 'var(--space-md)',
                         display: 'flex',
-                        flexDirection: 'column',
-                        gap: 'var(--space-xs)',
-                        flex: '1',
-                        minWidth: '200px'
+                        gap: 'var(--space-md)',
+                        alignItems: 'stretch',
+                        flexWrap: 'wrap'
                       }}>
-                        <span className="text-xs text-muted weight-semibold">Stability Score</span>
-                        <span className="text-sm font-mono">
-                          {(riskAnalysis.behavioral_analysis.stability_score * 100).toFixed(0)}%
-                        </span>
-                        <div className="progress-bar-container">
-                          <div
-                            className={`progress-bar-fill ${getScoreClass(riskAnalysis.behavioral_analysis.stability_score)}`}
-                            style={{ width: `${riskAnalysis.behavioral_analysis.stability_score * 100}%` }}
-                          ></div>
+                        <div style={{
+                          border: '1px solid var(--color-border-subtle)',
+                          background: 'var(--color-bg-elevated)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: 'var(--space-md)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 'var(--space-xs)',
+                          flex: '1',
+                          minWidth: '200px'
+                        }}>
+                          <span className="text-xs text-muted weight-semibold">Stability Score</span>
+                          <span className="text-sm font-mono">
+                            {(riskAnalysis.behavioral_analysis.stability_score * 100).toFixed(0)}%
+                          </span>
+                          <div className="progress-bar-container">
+                            <div
+                              className={`progress-bar-fill ${getScoreClass(riskAnalysis.behavioral_analysis.stability_score)}`}
+                              style={{ width: `${riskAnalysis.behavioral_analysis.stability_score * 100}%` }}
+                            ></div>
+                          </div>
                         </div>
-                      </div>
-                      <div style={{
-                        border: '1px solid var(--color-border-subtle)',
-                        background: 'var(--color-bg-elevated)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: 'var(--space-md)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 'var(--space-xs)',
-                        flex: '1',
-                        minWidth: '200px'
-                      }}>
-                        <span className="text-xs text-muted weight-semibold">Predictability Score</span>
-                        <span className="text-sm font-mono">
-                          {(riskAnalysis.behavioral_analysis.predictability_score * 100).toFixed(0)}%
-                        </span>
-                        <div className="progress-bar-container">
-                          <div
-                            className={`progress-bar-fill ${getScoreClass(riskAnalysis.behavioral_analysis.predictability_score)}`}
-                            style={{ width: `${riskAnalysis.behavioral_analysis.predictability_score * 100}%` }}
-                          ></div>
+                        <div style={{
+                          border: '1px solid var(--color-border-subtle)',
+                          background: 'var(--color-bg-elevated)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: 'var(--space-md)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 'var(--space-xs)',
+                          flex: '1',
+                          minWidth: '200px'
+                        }}>
+                          <span className="text-xs text-muted weight-semibold">Predictability Score</span>
+                          <span className="text-sm font-mono">
+                            {(riskAnalysis.behavioral_analysis.predictability_score * 100).toFixed(0)}%
+                          </span>
+                          <div className="progress-bar-container">
+                            <div
+                              className={`progress-bar-fill ${getScoreClass(riskAnalysis.behavioral_analysis.predictability_score)}`}
+                              style={{ width: `${riskAnalysis.behavioral_analysis.predictability_score * 100}%` }}
+                            ></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div style={{
+                      marginBottom: 'var(--space-2xl)',
+                      padding: 'var(--space-lg)',
+                      background: 'var(--color-bg-elevated)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--color-border-medium)'
+                    }}>
+                      <div className="text-sm text-muted">
+                        Behavioral scores require cluster formation. Once the agent has more sessions with similar patterns, clustering will occur and detailed stability metrics will be available.
+                      </div>
+                    </div>
+                  )}
 
                   {/* Interpretation */}
                   <div className="text-sm text-muted mb-2xl" style={{
@@ -573,6 +588,13 @@ export default function AgentReportPage() {
                   }}>
                     {riskAnalysis.behavioral_analysis.interpretation}
                   </div>
+
+                  {/* Cluster Visualization - Only show if clusters exist */}
+                  {riskAnalysis.behavioral_analysis.num_clusters >= 1 && (
+                    <div style={{ marginBottom: 'var(--space-2xl)' }}>
+                      <ClusterVisualization behavioralAnalysis={riskAnalysis.behavioral_analysis} />
+                    </div>
+                  )}
 
                   {/* Outlier Sessions */}
                   {riskAnalysis.behavioral_analysis.outliers &&
@@ -620,12 +642,28 @@ export default function AgentReportPage() {
                         </h4>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                           {riskAnalysis.behavioral_analysis.clusters.map((cluster) => (
-                            <div key={cluster.cluster_id} className="card">
+                            <div
+                              key={cluster.cluster_id}
+                              className="card"
+                              style={{
+                                border: cluster.confidence === 'low'
+                                  ? '1px dashed var(--color-border-medium)'
+                                  : '1px solid var(--color-border-medium)',
+                                opacity: cluster.confidence === 'low' ? 0.9 : 1
+                              }}
+                            >
                               <div className="card-content">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-                                  <span className="text-sm weight-semibold text-primary font-mono">
-                                    {cluster.cluster_id}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                                    <span className="text-sm weight-semibold text-primary font-mono">
+                                      {cluster.cluster_id}
+                                    </span>
+                                    {cluster.confidence === 'low' && (
+                                      <span className="badge warning" style={{ fontSize: '9px', padding: '2px 6px' }}>
+                                        LOW CONFIDENCE
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="text-xs weight-bold" style={{ color: 'var(--color-accent-purple)' }}>
                                     {cluster.size} sessions ({cluster.percentage}%)
                                   </span>

@@ -57,6 +57,7 @@ class ClusterInfo(BaseModel):
     session_ids: List[str]
     characteristics: ClusterCharacteristics
     insights: str
+    confidence: str = "normal"  # "normal" (≥3 sessions) or "low" (2 sessions)
 
 
 class OutlierInfo(BaseModel):
