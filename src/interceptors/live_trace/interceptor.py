@@ -27,6 +27,9 @@ class LiveTraceInterceptor(BaseInterceptor):
                 - max_events: Maximum events to keep in memory (default: 10000)
                 - retention_minutes: Session retention time (default: 30)
                 - refresh_interval: Page refresh interval in seconds (default: 2)
+                - persist_to_file: Enable file-based persistence (default: False)
+                - persistence_dir: Directory to save trace data (default: "./live_trace_data")
+                - save_interval_events: Auto-save every N events (default: 100)
             provider_name: Name of the LLM provider (e.g., "openai", "anthropic")
             provider_config: Provider configuration including base_url
         """
@@ -40,6 +43,14 @@ class LiveTraceInterceptor(BaseInterceptor):
         self.retention_minutes = config.get("retention_minutes", 30)
         self.refresh_interval = config.get("refresh_interval", 2)
 
+        # Persistence configuration
+        self.persist_to_file = config.get("persist_to_file", False)
+        self.persistence_dir = config.get("persistence_dir", "./live_trace_data")
+        self.save_interval_events = config.get("save_interval_events", 100)
+        
+        # Event logs directory (for loading historical events from event_recorder)
+        self.event_logs_dir = config.get("event_logs_dir", "./event_logs")
+
         # Store provider configuration for API endpoint
         self.provider_name = provider_name
         self.provider_config = provider_config or {}
@@ -47,7 +58,10 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Initialize storage and insights
         self.store = TraceStore(
             max_events=self.max_events,
-            retention_minutes=self.retention_minutes
+            retention_minutes=self.retention_minutes,
+            persist_to_file=self.persist_to_file,
+            persistence_dir=self.persistence_dir,
+            save_interval_events=self.save_interval_events
         )
 
         # Pass configuration to insights engine
@@ -59,7 +73,7 @@ class LiveTraceInterceptor(BaseInterceptor):
             "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
             "proxy_port": self.provider_config.get("proxy_port", 3000)
         }
-        self.insights = InsightsEngine(self.store, proxy_config)
+        self.insights = InsightsEngine(self.store, proxy_config, self.event_logs_dir)
 
         # Server management
         self.server_thread = None
@@ -211,3 +225,13 @@ class LiveTraceInterceptor(BaseInterceptor):
         """Get the URL for the dashboard."""
         host_display = "127.0.0.1" if self.server_host in ("0.0.0.0", "::") else self.server_host
         return f"http://{host_display}:{self.server_port}"
+
+    def __del__(self):
+        """Cleanup on interceptor destruction."""
+        try:
+            # Save data to file before shutdown
+            if hasattr(self, 'store') and self.store:
+                self.store.save()
+                logger.info("Saved trace store on shutdown")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")

@@ -33,6 +33,7 @@ message_logs/
 tasks/
 temp/
 event_logs/
+live_trace_data/
 *.log
 .env
 .env.local

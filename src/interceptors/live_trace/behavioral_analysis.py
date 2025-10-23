@@ -200,22 +200,33 @@ def features_to_shingles(features: SessionFeatures) -> Set[str]:
 # MinHash Signature (Section 3.4)
 # ============================================================================
 
+# CRITICAL: MinHash configuration - DO NOT CHANGE!
+# These values are hardcoded and saved in trace_store.json for validation.
+# Changing these will invalidate all cached signatures.
+MINHASH_NUM_HASHES = 512
+MINHASH_SEED_MULTIPLIER = 12345
+MINHASH_HASH_ALGORITHM = "md5"
+
+
 class MinHashSignature:
-    """MinHash signature generator for session fingerprinting."""
+    """MinHash signature generator for session fingerprinting.
     
-    def __init__(self, num_hashes: int = 512):
+    Uses hardcoded hash configuration to ensure signatures remain
+    comparable across gateway restarts. Configuration is validated
+    when loading cached signatures.
+    """
+    
+    def __init__(self, num_hashes: int = MINHASH_NUM_HASHES):
         self.num_hashes = num_hashes
-        self.hash_functions = self._generate_hash_functions()
     
-    def _generate_hash_functions(self) -> List[callable]:
-        """Generate independent hash functions with different seeds."""
-        hash_funcs = []
-        for i in range(self.num_hashes):
-            seed = i * 12345
-            hash_funcs.append(
-                lambda x, s=seed: int(hashlib.md5(f"{x}_{s}".encode()).hexdigest(), 16)
-            )
-        return hash_funcs
+    @staticmethod
+    def _compute_hash(shingle: str, seed: int) -> int:
+        """Compute a single hash value for a shingle with given seed.
+        
+        Uses MD5 for speed (not cryptographic security).
+        Deterministic: same shingle + seed always gives same hash.
+        """
+        return int(hashlib.md5(f"{shingle}_{seed}".encode()).hexdigest(), 16)
     
     def compute_signature(self, shingles: Set[str]) -> List[int]:
         """Compute MinHash signature for a set of shingles.
@@ -224,14 +235,18 @@ class MinHashSignature:
             shingles: Set of behavioral shingle strings
             
         Returns:
-            List of 512 integers (the signature)
+            List of integers (the signature), length = num_hashes
         """
         signature = []
         
-        for hash_func in self.hash_functions:
+        # For each hash function (identified by its seed)
+        for i in range(self.num_hashes):
+            seed = i * MINHASH_SEED_MULTIPLIER
+            
+            # Find minimum hash value across all shingles
             min_hash = float('inf')
             for shingle in shingles:
-                hash_val = hash_func(shingle)
+                hash_val = self._compute_hash(shingle, seed)
                 min_hash = min(min_hash, hash_val)
             
             signature.append(int(min_hash) if min_hash != float('inf') else 0)
@@ -814,16 +829,30 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
             error="Insufficient sessions"
         )
     
-    # Step 1: Extract features from all sessions
+    # Step 1: Extract features and signatures from all sessions (or use cached)
     all_features = {}
     all_signatures = {}
     
     minhash = MinHashSignature(num_hashes=512)
     
     for session in sessions:
-        features = extract_session_features(session)
-        shingles = features_to_shingles(features)
-        signature = minhash.compute_signature(shingles)
+        # Check if session has cached behavioral features and signature
+        if hasattr(session, 'behavioral_features') and session.behavioral_features and len(session.events) == 0:
+            # Use cached features (avoids re-extraction)
+            features = SessionFeatures(**session.behavioral_features)
+            
+            # Use cached signature if available (avoids re-computation)
+            if hasattr(session, 'minhash_signature') and session.minhash_signature:
+                signature = session.minhash_signature
+            else:
+                # Compute signature from cached features
+                shingles = features_to_shingles(features)
+                signature = minhash.compute_signature(shingles)
+        else:
+            # Extract features from events
+            features = extract_session_features(session)
+            shingles = features_to_shingles(features)
+            signature = minhash.compute_signature(shingles)
         
         all_features[session.session_id] = features
         all_signatures[session.session_id] = signature

@@ -31,6 +31,7 @@ Visit `http://localhost:8080` after starting your proxy.
 - 🌐 **React dashboard** - Modern UI with Cylestio brand colors
 - ⚡ **Zero impact** - Async processing, no proxy latency
 - 💾 **Smart storage** - In-memory with circular buffers
+- 💿 **File persistence** - Optional long-term storage between restarts
 
 ## Dashboard Pages
 
@@ -54,7 +55,22 @@ config:
   max_events: 10000              # Max events in memory
   retention_minutes: 30          # Session retention
   refresh_interval: 2            # Auto-refresh interval (seconds)
+  
+  # File persistence (optional)
+  persist_to_file: false         # Enable file-based persistence
+  persistence_dir: "./live_trace_data"  # Directory for saved data
+  save_interval_events: 100      # Auto-save every N events
 ```
+
+### File Persistence
+
+Enable `persist_to_file` to save trace data to disk:
+
+- Data is saved as JSON in `persistence_dir/trace_store.json`
+- Auto-saves every `save_interval_events` events
+- Loads previous data on startup
+- Preserves sessions, agents, and metrics between restarts
+- Note: Individual events are not persisted to keep file sizes manageable
 
 ## Development
 

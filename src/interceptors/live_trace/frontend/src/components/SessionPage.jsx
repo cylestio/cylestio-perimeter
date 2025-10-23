@@ -150,7 +150,22 @@ export default function SessionPage() {
                   <Timeline timeline={data.timeline} />
                 ) : (
                   <div className="loading text-muted">
-                    <p>No events found for this session.</p>
+                    {session.history_message ? (
+                      <>
+                        <p style={{ marginBottom: '0.5rem' }}>
+                          <strong>📦 Historical Session</strong>
+                        </p>
+                        <p style={{ fontSize: '0.875rem', lineHeight: '1.5' }}>
+                          {session.history_message}
+                        </p>
+                        <p style={{ fontSize: '0.875rem', marginTop: '0.5rem', color: '#6b7280' }}>
+                          💡 Tip: For complete event details, check the event_logs directory 
+                          or view active sessions in real-time.
+                        </p>
+                      </>
+                    ) : (
+                      <p>No events found for this session.</p>
+                    )}
                   </div>
                 )}
               </div>

@@ -1,0 +1,53 @@
+# Example configuration for live_trace interceptor with file persistence
+# This config enables long-term storage of trace data between gateway restarts
+
+server:
+  port: 3000
+  host: "0.0.0.0"
+
+llm:
+  base_url: "https://api.openai.com"
+  type: "openai"
+  timeout: 30
+  max_retries: 3
+
+interceptors:
+  # Live trace dashboard with file persistence
+  - type: live_trace
+    enabled: true
+    config:
+      # Dashboard server settings
+      server_port: 8080
+      server_host: "127.0.0.1"
+      auto_open_browser: true
+      
+      # Memory settings
+      max_events: 10000              # Maximum events kept in memory
+      retention_minutes: 60          # How long to keep inactive sessions
+      refresh_interval: 2            # Dashboard refresh interval (seconds)
+      
+      # File persistence settings
+      persist_to_file: true                   # Enable file-based persistence
+      persistence_dir: "./live_trace_data"    # Directory to save trace data
+      save_interval_events: 100               # Auto-save every N events
+      
+      # Benefits of file persistence:
+      # - Data survives gateway restarts
+      # - Historical session and agent metrics preserved
+      # - Useful for long-running deployments
+      # - Minimal performance impact (auto-saves every 100 events)
+      
+      # What gets persisted:
+      # - Session metadata and metrics
+      # - Agent statistics
+      # - Tool usage information
+      # - Error tracking
+      
+      # What doesn't get persisted:
+      # - Individual event details (to keep file size manageable)
+      # - Event payloads and request/response data
+
+logging:
+  level: "INFO"
+  format: "text"
+

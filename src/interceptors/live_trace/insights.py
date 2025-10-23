@@ -1,13 +1,18 @@
 """Analytics and insights computation for trace data."""
+import json
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.utils.logger import get_logger
 from .store import TraceStore, AgentData
 from .risk_models import RiskAnalysisResult
 from .behavioral_analysis import analyze_agent_behavior
 from .security_assessment import generate_security_report
+
+logger = get_logger(__name__)
 
 # Minimum sessions required for risk analysis
 MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
@@ -27,9 +32,10 @@ def _with_store_lock(func):
 class InsightsEngine:
     """Computes various insights from trace data."""
 
-    def __init__(self, store: TraceStore, proxy_config: Dict[str, Any] = None):
+    def __init__(self, store: TraceStore, proxy_config: Dict[str, Any] = None, event_logs_dir: Optional[str] = None):
         self.store = store
         self.proxy_config = proxy_config or {}
+        self.event_logs_dir = Path(event_logs_dir) if event_logs_dir else Path("./event_logs")
         # Cache for risk analysis results
         self._risk_analysis_cache: Dict[str, tuple] = {}  # {agent_id: (result, timestamp, session_count)}
 
@@ -109,6 +115,55 @@ class InsightsEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
+    def _load_events_from_log_file(self, session_id: str) -> List[Dict[str, Any]]:
+        """Try to load events from event_logs file for this session.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            List of event dictionaries, or empty list if file not found
+        """
+        try:
+            # Sanitize session ID for filename (same as event_recorder)
+            safe_session_id = "".join(c for c in session_id if c.isalnum() or c in ('-', '_'))
+            if not safe_session_id:
+                return []
+            
+            # Try to find the log file
+            log_file = self.event_logs_dir / f"session_{safe_session_id}.jsonl"
+            
+            if not log_file.exists():
+                return []
+            
+            # Read and parse JSONL file
+            events = []
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        event_data = json.loads(line.strip())
+                        # Skip metadata line
+                        if "_metadata" in event_data:
+                            continue
+                        # Convert to format expected by frontend
+                        events.append({
+                            "id": event_data.get("span_id", "unknown"),
+                            "name": event_data.get("name", "unknown"),
+                            "timestamp": event_data.get("timestamp", ""),
+                            "level": event_data.get("level", "info"),
+                            "attributes": event_data.get("attributes", {}),
+                            "session_id": event_data.get("session_id", session_id)
+                        })
+                    except json.JSONDecodeError:
+                        continue
+            
+            logger.info(f"Loaded {len(events)} events from log file for session {session_id}")
+            return events
+            
+        except Exception as e:
+            logger.debug(f"Could not load event log file for session {session_id}: {e}")
+            return []
+
     @_with_store_lock
     def get_session_data(self, session_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific session."""
@@ -116,7 +171,7 @@ class InsightsEngine:
         if not session:
             return {"error": "Session not found"}
 
-        # Convert events to serializable format
+        # First, try to get events from memory (for active sessions)
         events = []
         for event in session.events:
             # Handle timestamp - it might be a string or datetime object
@@ -134,6 +189,25 @@ class InsightsEngine:
                 "attributes": dict(event.attributes),
                 "session_id": event.session_id
             })
+
+        # If no events in memory but session has metrics, try loading from event_logs
+        has_event_history = len(events) > 0
+        history_message = None
+        
+        if not has_event_history and session.total_events > 0:
+            # Try to load from event_logs file
+            logged_events = self._load_events_from_log_file(session_id)
+            if logged_events:
+                events = logged_events
+                has_event_history = True
+            else:
+                # No event log file found - show informative message
+                history_message = (
+                    "This session was restored from persistent storage. "
+                    "Summary metrics are available, but individual event details "
+                    "are only kept in memory for active sessions. "
+                    "Enable the event_recorder interceptor to preserve full event history."
+                )
 
         # Sort events by timestamp
         events.sort(key=lambda x: x["timestamp"])
@@ -154,7 +228,9 @@ class InsightsEngine:
                 "avg_response_time_ms": session.avg_response_time_ms,
                 "error_rate": session.error_rate,
                 "tool_usage_details": dict(session.tool_usage_details),
-                "available_tools": list(session.available_tools)
+                "available_tools": list(session.available_tools),
+                "has_event_history": has_event_history,
+                "history_message": history_message
             },
             "events": events,
             "timeline": self._create_session_timeline(events),
@@ -352,24 +428,98 @@ class InsightsEngine:
             return None
         
         # Get all sessions for this agent
-        agent_sessions = [
+        all_agent_sessions = [
             self.store.sessions[sid] for sid in agent.sessions
             if sid in self.store.sessions
         ]
         
+        # For historical sessions without events, check if we have cached features
+        # If not, try to load from event_logs and extract features
+        sessions_with_features = []
+        from .behavioral_analysis import extract_session_features
+        
+        for session in all_agent_sessions:
+            # Check if session has cached behavioral features
+            if hasattr(session, 'behavioral_features') and session.behavioral_features:
+                # Use cached features (much faster!)
+                sessions_with_features.append(session)
+                logger.debug(f"Using cached behavioral features for session {session.session_id}")
+            elif len(session.events) > 0:
+                # Session has events in memory - can extract features
+                sessions_with_features.append(session)
+            else:
+                # Try to load events from log file and extract features
+                logged_events = self._load_events_from_log_file(session.session_id)
+                if logged_events:
+                    # Temporarily populate session.events for feature extraction
+                    from collections import deque
+                    from src.events import BaseEvent, EventName, EventLevel
+                    
+                    temp_events = deque(maxlen=1000)
+                    for event_data in logged_events:
+                        try:
+                            # Reconstruct minimal event object for feature extraction
+                            event = BaseEvent(
+                                name=EventName(event_data.get("name", "unknown")),
+                                session_id=event_data.get("session_id", session.session_id),
+                                trace_id=event_data.get("attributes", {}).get("trace_id", "unknown"),
+                                span_id=event_data.get("id", "unknown"),
+                                agent_id=session.agent_id,
+                                timestamp=event_data.get("timestamp", ""),
+                                level=EventLevel(event_data.get("level", "info")),
+                                attributes=event_data.get("attributes", {})
+                            )
+                            temp_events.append(event)
+                        except Exception as e:
+                            logger.debug(f"Could not reconstruct event for analysis: {e}")
+                            continue
+                    
+                    if temp_events:
+                        # Create a temporary copy of session with events
+                        import copy
+                        session_copy = copy.copy(session)
+                        session_copy.events = temp_events
+                        
+                        # Extract and cache behavioral features + MinHash signature for future use
+                        try:
+                            from .behavioral_analysis import features_to_shingles, MinHashSignature
+                            
+                            features = extract_session_features(session_copy)
+                            session_copy.behavioral_features = features.dict()
+                            
+                            # Also compute and cache MinHash signature
+                            shingles = features_to_shingles(features)
+                            minhash = MinHashSignature(num_hashes=512)
+                            signature = minhash.compute_signature(shingles)
+                            session_copy.minhash_signature = signature
+                            
+                            # Cache on the original session for persistence
+                            session.behavioral_features = features.dict()
+                            session.minhash_signature = signature
+                            
+                            logger.info(f"Extracted and cached behavioral features + signature for session {session.session_id}")
+                        except Exception as e:
+                            logger.warning(f"Could not extract features for session {session.session_id}: {e}")
+                        
+                        sessions_with_features.append(session_copy)
+        
+        agent_sessions_with_events = sessions_with_features
+        
         # Check minimum session requirement
-        if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+        if len(agent_sessions_with_events) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
             return RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
                 agent_id=agent_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
-                sessions_analyzed=len(agent_sessions),
+                sessions_analyzed=len(agent_sessions_with_events),
                 evaluation_status="INSUFFICIENT_DATA",
-                error=f"Need at least {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions for analysis (have {len(agent_sessions)})",
+                error=f"Need at least {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions with event data for analysis (have {len(agent_sessions_with_events)} of {len(all_agent_sessions)} total sessions)",
                 summary={
                     "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS,
-                    "current_sessions": len(agent_sessions),
-                    "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_sessions)
+                    "current_sessions_with_events": len(agent_sessions_with_events),
+                    "total_sessions": len(all_agent_sessions),
+                    "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_sessions_with_events),
+                    "note": "Historical sessions without in-memory events cannot be analyzed. Enable event_recorder or view active sessions for full analysis."
                 }
             )
         
@@ -378,15 +528,15 @@ class InsightsEngine:
             cached_result, cached_time, cached_session_count = self._risk_analysis_cache[agent_id]
             # Cache valid for 30 seconds and same session count
             if (datetime.now(timezone.utc) - cached_time).total_seconds() < 30 and \
-               cached_session_count == len(agent_sessions):
+               cached_session_count == len(agent_sessions_with_events):
                 return cached_result
         
         try:
-            # Run behavioral analysis
-            behavioral_result = analyze_agent_behavior(agent_sessions)
+            # Run behavioral analysis on sessions with events
+            behavioral_result = analyze_agent_behavior(agent_sessions_with_events)
 
             # Run security assessment - generates complete security report
-            security_report = generate_security_report(agent_id, agent_sessions, behavioral_result)
+            security_report = generate_security_report(agent_id, agent_sessions_with_events, behavioral_result)
 
             # Create summary
             summary = {
@@ -400,7 +550,7 @@ class InsightsEngine:
                 evaluation_id=str(uuid.uuid4()),
                 agent_id=agent_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
-                sessions_analyzed=len(agent_sessions),
+                sessions_analyzed=len(agent_sessions_with_events),
                 evaluation_status="COMPLETE",
                 behavioral_analysis=behavioral_result,
                 security_report=security_report,
@@ -408,7 +558,7 @@ class InsightsEngine:
             )
 
             # Cache the result
-            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), len(agent_sessions))
+            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), len(agent_sessions_with_events))
 
             return result
             
@@ -417,7 +567,7 @@ class InsightsEngine:
                 evaluation_id=str(uuid.uuid4()),
                 agent_id=agent_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
-                sessions_analyzed=len(agent_sessions),
+                sessions_analyzed=len(agent_sessions_with_events) if 'agent_sessions_with_events' in locals() else 0,
                 evaluation_status="ERROR",
                 error=f"Risk analysis failed: {str(e)}"
             )

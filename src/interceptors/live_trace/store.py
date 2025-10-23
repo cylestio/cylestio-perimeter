@@ -1,6 +1,9 @@
 """In-memory data store for live tracing."""
+import json
+import os
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional
 
@@ -90,6 +93,61 @@ class SessionData:
             return 0.0
         return (self.errors / self.message_count) * 100
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        data = {
+            "session_id": self.session_id,
+            "agent_id": self.agent_id,
+            "created_at": self.created_at.isoformat(),
+            "last_activity": self.last_activity.isoformat(),
+            "is_active": self.is_active,
+            "total_events": self.total_events,
+            "message_count": self.message_count,
+            "tool_uses": self.tool_uses,
+            "errors": self.errors,
+            "total_tokens": self.total_tokens,
+            "total_response_time_ms": self.total_response_time_ms,
+            "response_count": self.response_count,
+            "tool_usage_details": dict(self.tool_usage_details),
+            "available_tools": list(self.available_tools),
+            # Note: events are not persisted due to potential size
+        }
+        
+        # Persist behavioral features and MinHash signature if they exist (for performance optimization)
+        if hasattr(self, 'behavioral_features') and self.behavioral_features:
+            data["behavioral_features"] = self.behavioral_features
+        
+        if hasattr(self, 'minhash_signature') and self.minhash_signature:
+            data["minhash_signature"] = self.minhash_signature
+        
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SessionData":
+        """Create from dictionary."""
+        session = cls(data["session_id"], data["agent_id"])
+        session.created_at = datetime.fromisoformat(data["created_at"])
+        session.last_activity = datetime.fromisoformat(data["last_activity"])
+        session.is_active = data["is_active"]
+        session.total_events = data["total_events"]
+        session.message_count = data["message_count"]
+        session.tool_uses = data["tool_uses"]
+        session.errors = data["errors"]
+        session.total_tokens = data["total_tokens"]
+        session.total_response_time_ms = data["total_response_time_ms"]
+        session.response_count = data["response_count"]
+        session.tool_usage_details = defaultdict(int, data.get("tool_usage_details", {}))
+        session.available_tools = set(data.get("available_tools", []))
+        
+        # Restore cached behavioral features and MinHash signature if available
+        if "behavioral_features" in data:
+            session.behavioral_features = data["behavioral_features"]
+        
+        if "minhash_signature" in data:
+            session.minhash_signature = data["minhash_signature"]
+        
+        return session
+
 
 class AgentData:
     """Container for agent-specific data."""
@@ -145,14 +203,70 @@ class AgentData:
             return 0.0
         return self.total_messages / self.total_sessions
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "agent_id": self.agent_id,
+            "sessions": list(self.sessions),
+            "first_seen": self.first_seen.isoformat(),
+            "last_seen": self.last_seen.isoformat(),
+            "total_sessions": self.total_sessions,
+            "total_messages": self.total_messages,
+            "total_tokens": self.total_tokens,
+            "total_tools": self.total_tools,
+            "total_errors": self.total_errors,
+            "total_response_time_ms": self.total_response_time_ms,
+            "response_count": self.response_count,
+            "available_tools": list(self.available_tools),
+            "used_tools": list(self.used_tools),
+            "tool_usage_details": dict(self.tool_usage_details),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentData":
+        """Create from dictionary."""
+        agent = cls(data["agent_id"])
+        agent.sessions = set(data["sessions"])
+        agent.first_seen = datetime.fromisoformat(data["first_seen"])
+        agent.last_seen = datetime.fromisoformat(data["last_seen"])
+        agent.total_sessions = data["total_sessions"]
+        agent.total_messages = data["total_messages"]
+        agent.total_tokens = data["total_tokens"]
+        agent.total_tools = data["total_tools"]
+        agent.total_errors = data["total_errors"]
+        agent.total_response_time_ms = data["total_response_time_ms"]
+        agent.response_count = data["response_count"]
+        agent.available_tools = set(data.get("available_tools", []))
+        agent.used_tools = set(data.get("used_tools", []))
+        agent.tool_usage_details = defaultdict(int, data.get("tool_usage_details", {}))
+        return agent
+
 
 class TraceStore:
     """In-memory store for all trace data."""
 
-    def __init__(self, max_events: int = 10000, retention_minutes: int = 30):
+    def __init__(
+        self,
+        max_events: int = 10000,
+        retention_minutes: int = 30,
+        persist_to_file: bool = False,
+        persistence_dir: Optional[str] = None,
+        save_interval_events: int = 100
+    ):
         self.max_events = max_events
         self.retention_minutes = retention_minutes
+        self.persist_to_file = persist_to_file
+        self.save_interval_events = save_interval_events
         self._lock = RLock()
+
+        # Persistence configuration
+        if self.persist_to_file:
+            self.persistence_dir = Path(persistence_dir or "./live_trace_data")
+            self.persistence_dir.mkdir(parents=True, exist_ok=True)
+            self.persistence_file = self.persistence_dir / "trace_store.json"
+        else:
+            self.persistence_dir = None
+            self.persistence_file = None
 
         # Storage
         self.events = deque(maxlen=max_events)  # Global event stream
@@ -167,7 +281,14 @@ class TraceStore:
         self.tool_usage = defaultdict(int)
         self.error_types = defaultdict(int)
 
-        logger.info(f"TraceStore initialized with max_events={max_events}, retention={retention_minutes}min")
+        # Load persisted data if available
+        if self.persist_to_file and self.persistence_file.exists():
+            self._load_from_file()
+
+        logger.info(
+            f"TraceStore initialized with max_events={max_events}, "
+            f"retention={retention_minutes}min, persist_to_file={persist_to_file}"
+        )
 
     @property
     def lock(self) -> RLock:
@@ -217,6 +338,10 @@ class TraceStore:
             # Cleanup old data periodically
             if self.total_events % 100 == 0:
                 self._cleanup_old_data()
+
+            # Auto-save to file if persistence is enabled
+            if self.persist_to_file and self.total_events % self.save_interval_events == 0:
+                self._save_to_file()
 
     def _cleanup_old_data(self):
         """Remove old inactive sessions."""
@@ -313,3 +438,128 @@ class TraceStore:
                         agent.used_tools.update(session.tool_usage_details.keys())
                         for tool_name, count in session.tool_usage_details.items():
                             agent.tool_usage_details[tool_name] += count
+
+    def _save_to_file(self):
+        """Save store state to file."""
+        if not self.persist_to_file or not self.persistence_file:
+            return
+
+        try:
+            # Import constants to ensure consistency with behavioral_analysis
+            from .behavioral_analysis import (
+                MINHASH_NUM_HASHES,
+                MINHASH_SEED_MULTIPLIER,
+                MINHASH_HASH_ALGORITHM
+            )
+            
+            # Prepare data for serialization
+            data = {
+                "version": "1.0",
+                "saved_at": datetime.now(timezone.utc).isoformat(),
+                "start_time": self.start_time.isoformat(),
+                "total_events": self.total_events,
+                # MinHash configuration (for signature validation)
+                "minhash_config": {
+                    "num_hashes": MINHASH_NUM_HASHES,
+                    "seed_multiplier": MINHASH_SEED_MULTIPLIER,
+                    "hash_algorithm": MINHASH_HASH_ALGORITHM
+                },
+                "sessions": {
+                    session_id: session.to_dict()
+                    for session_id, session in self.sessions.items()
+                },
+                "agents": {
+                    agent_id: agent.to_dict()
+                    for agent_id, agent in self.agents.items()
+                },
+                "tool_usage": dict(self.tool_usage),
+                "error_types": dict(self.error_types),
+            }
+
+            # Write to temp file first, then rename (atomic operation)
+            temp_file = self.persistence_file.with_suffix(".tmp")
+            with open(temp_file, "w") as f:
+                json.dump(data, f, indent=2)
+
+            # Atomic rename
+            temp_file.replace(self.persistence_file)
+
+            logger.debug(f"Saved trace store to {self.persistence_file}")
+
+        except Exception as e:
+            logger.error(f"Failed to save trace store to file: {e}")
+
+    def _load_from_file(self):
+        """Load store state from file."""
+        if not self.persist_to_file or not self.persistence_file or not self.persistence_file.exists():
+            return
+
+        try:
+            # Import constants to validate configuration
+            from .behavioral_analysis import (
+                MINHASH_NUM_HASHES,
+                MINHASH_SEED_MULTIPLIER,
+                MINHASH_HASH_ALGORITHM
+            )
+            
+            with open(self.persistence_file, "r") as f:
+                data = json.load(f)
+
+            # Check MinHash configuration compatibility
+            expected_config = {
+                "num_hashes": MINHASH_NUM_HASHES,
+                "seed_multiplier": MINHASH_SEED_MULTIPLIER,
+                "hash_algorithm": MINHASH_HASH_ALGORITHM
+            }
+            stored_config = data.get("minhash_config", {})
+            
+            config_mismatch = False
+            if stored_config != expected_config:
+                logger.warning(
+                    f"MinHash configuration mismatch! "
+                    f"Expected: {expected_config}, Got: {stored_config}. "
+                    f"Cached signatures will be invalidated."
+                )
+                config_mismatch = True
+
+            # Restore global stats
+            self.start_time = datetime.fromisoformat(data.get("start_time", datetime.now(timezone.utc).isoformat()))
+            self.total_events = data.get("total_events", 0)
+            self.tool_usage = defaultdict(int, data.get("tool_usage", {}))
+            self.error_types = defaultdict(int, data.get("error_types", {}))
+
+            # Restore sessions
+            for session_id, session_data in data.get("sessions", {}).items():
+                try:
+                    session = SessionData.from_dict(session_data)
+                    
+                    # Invalidate cached signatures if config changed
+                    if config_mismatch and hasattr(session, 'minhash_signature'):
+                        delattr(session, 'minhash_signature')
+                        logger.debug(f"Invalidated signature for session {session_id} due to config change")
+                    
+                    self.sessions[session_id] = session
+                except Exception as e:
+                    logger.warning(f"Failed to restore session {session_id}: {e}")
+
+            # Restore agents
+            for agent_id, agent_data in data.get("agents", {}).items():
+                try:
+                    self.agents[agent_id] = AgentData.from_dict(agent_data)
+                except Exception as e:
+                    logger.warning(f"Failed to restore agent {agent_id}: {e}")
+
+            logger.info(
+                f"Loaded trace store from {self.persistence_file}: "
+                f"{len(self.sessions)} sessions, {len(self.agents)} agents, "
+                f"{self.total_events} total events"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to load trace store from file: {e}")
+
+    def save(self):
+        """Manually trigger a save to file (for shutdown/cleanup)."""
+        if self.persist_to_file:
+            with self._lock:
+                self._save_to_file()
