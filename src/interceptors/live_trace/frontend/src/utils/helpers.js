@@ -200,7 +200,7 @@ export function getAgentStatus(riskAnalysis) {
     criticalCount,
     warningCount,
     totalChecks,
-    statusText: hasCriticalIssues ? 'WARNING' : 'OK',
+    statusText: hasCriticalIssues ? 'ATTENTION REQUIRED' : 'OK',
     statusColor: hasCriticalIssues ? 'var(--color-critical)' : 'var(--color-success)',
     evaluationStatus
   }

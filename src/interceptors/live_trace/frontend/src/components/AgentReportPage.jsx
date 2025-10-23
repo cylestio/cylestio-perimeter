@@ -77,17 +77,7 @@ export default function AgentReportPage() {
   }
 
   const getCheckTooltipContent = (check) => {
-    let content = check.description || 'Security check'
-
-    if (check.remediation_difficulty) {
-      content += `\n\nDifficulty: ${check.remediation_difficulty}`
-    }
-
-    if (check.estimated_effort_hours) {
-      content += ` (${check.estimated_effort_hours}h)`
-    }
-
-    return content
+    return check.description || 'Security check'
   }
 
   return (
@@ -121,17 +111,6 @@ export default function AgentReportPage() {
                 currentSessions={status.currentSessions}
                 minSessionsRequired={status.minSessionsRequired}
               />
-            )}
-
-            {/* Critical Alert Banner */}
-            {status.hasCriticalIssues && (
-              <div className="alert-banner alert-banner-critical">
-                <div className="alert-content">
-                  <h3>Critical Security Issues Detected</h3>
-                  <p>This agent has {Object.values(riskAnalysis.security_report.categories)
-                    .reduce((sum, cat) => sum + cat.critical_checks, 0)} critical security check(s) that require immediate attention.</p>
-                </div>
-              </div>
             )}
 
             {/* Security Assessment Categories */}

@@ -107,8 +107,6 @@ class AssessmentCheck(BaseModel):
     value: Optional[str] = None  # Display value: "3 violations", "0.82 score", etc.
     evidence: Dict[str, Any] = Field(default_factory=dict)
     recommendations: List[str] = Field(default_factory=list)
-    remediation_difficulty: str = ""  # Easy, Medium, Hard
-    estimated_effort_hours: float = 0.0
 
     @property
     def passed(self) -> bool:

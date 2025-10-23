@@ -39,16 +39,33 @@ export default function AgentSidebar({
           </div>
           <div className="risk-score-large" style={{
             color: status.statusColor,
-            fontSize: 'var(--text-3xl)',
+            fontSize: 'var(--text-xl)',
             fontWeight: 700
           }}>
             {status.statusText}
           </div>
           <div className="text-md" style={{
-            color: status.statusColor,
             fontWeight: 600
           }}>
-            {status.hasCriticalIssues ? 'Attention Required' : 'All Systems OK'}
+            {status.hasCriticalIssues || status.hasWarnings ? (
+              <>
+                {status.criticalCount > 0 && (
+                  <span style={{ color: 'var(--color-critical)' }}>
+                    {status.criticalCount} Critical
+                  </span>
+                )}
+                {status.criticalCount > 0 && status.warningCount > 0 && (
+                  <span style={{ color: 'var(--color-text-muted)' }}> | </span>
+                )}
+                {status.warningCount > 0 && (
+                  <span style={{ color: 'var(--color-warning)' }}>
+                    {status.warningCount} Warning{status.warningCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span style={{ color: 'var(--color-success)' }}>All Systems OK</span>
+            )}
           </div>
         </div>
       )}

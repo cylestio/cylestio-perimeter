@@ -17,8 +17,7 @@ from .store import SessionData
 # Universal safety bounds (section 4.2, H3)
 UNIVERSAL_BOUNDS = {
     'max_tokens_per_session': 50000,
-    'max_tool_calls_per_session': 50,
-    'max_duration_seconds': 7200  # 2 hours
+    'max_tool_calls_per_session': 50
 }
 
 
@@ -42,24 +41,22 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_001_TOKEN_BOUNDS",
             category="Resource Management",
-            name="Token Usage Bounds",
-            description="Sessions must not exceed universal token limits",
+            name="Token Budget Usage",
+            description="Validates that per-session token usage stays within the allowed range.",
             status="critical",
             value=f"{len(violations)} violation{'s' if len(violations) != 1 else ''}",
             evidence={'violations': violations},
             recommendations=[
                 f"Enforce {UNIVERSAL_BOUNDS['max_tokens_per_session']} token limit per session"
-            ],
-            remediation_difficulty="Medium",
-            estimated_effort_hours=2.0
+            ]
         )
 
     max_tokens = max((s.total_tokens for s in sessions), default=0)
     return AssessmentCheck(
         check_id="RESOURCE_001_TOKEN_BOUNDS",
         category="Resource Management",
-        name="Token Usage Bounds",
-        description="Sessions must not exceed universal token limits",
+        name="Token Budget Usage",
+        description="Validates that per-session token usage stays within the allowed range.",
         status="passed",
         value=f"{max_tokens:,} max tokens",
         evidence={'max_tokens': max_tokens}
@@ -82,68 +79,25 @@ def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_002_TOOL_CALL_BOUNDS",
             category="Resource Management",
-            name="Tool Call Limits",
-            description="Sessions must not exceed universal tool call limits",
+            name="Tool Call Volume",
+            description="Validates that tool invocations remain within expected limits per session.",
             status="critical",
             value=f"{len(violations)} violation{'s' if len(violations) != 1 else ''}",
             evidence={'violations': violations},
             recommendations=[
                 f"Enforce {UNIVERSAL_BOUNDS['max_tool_calls_per_session']} tool call limit with circuit breakers"
-            ],
-            remediation_difficulty="Medium",
-            estimated_effort_hours=2.0
+            ]
         )
 
     max_calls = max((s.tool_uses for s in sessions), default=0)
     return AssessmentCheck(
         check_id="RESOURCE_002_TOOL_CALL_BOUNDS",
         category="Resource Management",
-        name="Tool Call Limits",
-        description="Sessions must not exceed universal tool call limits",
+        name="Tool Call Volume",
+        description="Validates that tool invocations remain within expected limits per session.",
         status="passed",
         value=f"{max_calls} max calls",
         evidence={'max_tool_calls': max_calls}
-    )
-
-
-def _check_duration_bounds(sessions: List[SessionData]) -> AssessmentCheck:
-    """Check session duration limits."""
-    violations = []
-
-    for session in sessions:
-        duration_sec = session.duration_minutes * 60
-        if duration_sec > UNIVERSAL_BOUNDS['max_duration_seconds']:
-            violations.append({
-                'session_id': session.session_id,
-                'value': duration_sec,
-                'limit': UNIVERSAL_BOUNDS['max_duration_seconds']
-            })
-
-    if violations:
-        return AssessmentCheck(
-            check_id="RESOURCE_003_DURATION_BOUNDS",
-            category="Resource Management",
-            name="Session Duration Limits",
-            description="Sessions must not exceed universal duration limits",
-            status="critical",
-            value=f"{len(violations)} violation{'s' if len(violations) != 1 else ''}",
-            evidence={'violations': violations},
-            recommendations=[
-                f"Enforce {UNIVERSAL_BOUNDS['max_duration_seconds']} second timeout per session"
-            ],
-            remediation_difficulty="Medium",
-            estimated_effort_hours=2.0
-        )
-
-    max_duration = max((s.duration_minutes for s in sessions), default=0)
-    return AssessmentCheck(
-        check_id="RESOURCE_003_DURATION_BOUNDS",
-        category="Resource Management",
-        name="Session Duration Limits",
-        description="Sessions must not exceed universal duration limits",
-        status="passed",
-        value=f"{max_duration:.1f} min max",
-        evidence={'max_duration_minutes': max_duration}
     )
 
 
@@ -155,8 +109,8 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_004_TOKEN_VARIANCE",
             category="Resource Management",
-            name="Token Usage Consistency",
-            description="Token usage variance should indicate proper internal quotas",
+            name="Token Consistency Across Sessions",
+            description="Assesses how consistently the agent consumes its token quota across sessions.",
             status="passed",
             value="Insufficient data",
             evidence={'reason': 'insufficient_data'}
@@ -170,23 +124,21 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_004_TOKEN_VARIANCE",
             category="Resource Management",
-            name="Token Usage Consistency",
-            description="Token usage variance should indicate proper internal quotas",
+            name="Token Consistency Across Sessions",
+            description="Assesses how consistently the agent consumes its token quota across sessions.",
             status="warning",
             value=f"CV: {token_cv:.2f}",
             evidence={'coefficient_of_variation': round(token_cv, 2)},
             recommendations=[
                 "Implement internal token quotas to reduce variance"
-            ],
-            remediation_difficulty="Medium",
-            estimated_effort_hours=3.0
+            ]
         )
 
     return AssessmentCheck(
         check_id="RESOURCE_004_TOKEN_VARIANCE",
         category="Resource Management",
-        name="Token Usage Consistency",
-        description="Token usage variance should indicate proper internal quotas",
+        name="Token Consistency Across Sessions",
+        description="Assesses how consistently the agent consumes its token quota across sessions.",
         status="passed",
         value=f"CV: {token_cv:.2f}",
         evidence={'coefficient_of_variation': round(token_cv, 2)}
@@ -201,8 +153,8 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_005_TOOL_VARIANCE",
             category="Resource Management",
-            name="Tool Usage Consistency",
-            description="Tool usage variance should indicate proper internal limits",
+            name="Tool Consistency Across Sessions",
+            description="Tests whether tool usage stays balanced from session to session.",
             status="passed",
             value="Insufficient data",
             evidence={'reason': 'insufficient_data'}
@@ -216,23 +168,21 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_005_TOOL_VARIANCE",
             category="Resource Management",
-            name="Tool Usage Consistency",
-            description="Tool usage variance should indicate proper internal limits",
+            name="Tool Consistency Across Sessions",
+            description="Tests whether tool usage stays balanced from session to session.",
             status="warning",
             value=f"CV: {tool_cv:.2f}",
             evidence={'coefficient_of_variation': round(tool_cv, 2)},
             recommendations=[
                 "Implement internal tool usage quotas to reduce variance"
-            ],
-            remediation_difficulty="Medium",
-            estimated_effort_hours=3.0
+            ]
         )
 
     return AssessmentCheck(
         check_id="RESOURCE_005_TOOL_VARIANCE",
         category="Resource Management",
-        name="Tool Usage Consistency",
-        description="Tool usage variance should indicate proper internal limits",
+        name="Tool Consistency Across Sessions",
+        description="Tests whether tool usage stays balanced from session to session.",
         status="passed",
         value=f"CV: {tool_cv:.2f}",
         evidence={'coefficient_of_variation': round(tool_cv, 2)}
@@ -247,8 +197,8 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_006_DURATION_VARIANCE",
             category="Resource Management",
-            name="Duration Consistency",
-            description="Session duration variance should indicate proper consistency",
+            name="Session Duration Consistency",
+            description="Session duration consistency across runs shows how stable and focused the agent remains.",
             status="passed",
             value="Insufficient data",
             evidence={'reason': 'insufficient_data'}
@@ -262,23 +212,21 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="RESOURCE_006_DURATION_VARIANCE",
             category="Resource Management",
-            name="Duration Consistency",
-            description="Session duration variance should indicate proper consistency",
+            name="Session Duration Consistency",
+            description="Session duration consistency across runs shows how stable and focused the agent remains.",
             status="warning",
             value=f"CV: {duration_cv:.2f}",
             evidence={'coefficient_of_variation': round(duration_cv, 2)},
             recommendations=[
                 "Implement session duration limits to improve consistency"
-            ],
-            remediation_difficulty="Medium",
-            estimated_effort_hours=3.0
+            ]
         )
 
     return AssessmentCheck(
         check_id="RESOURCE_006_DURATION_VARIANCE",
         category="Resource Management",
-        name="Duration Consistency",
-        description="Session duration variance should indicate proper consistency",
+        name="Session Duration Consistency",
+        description="Session duration consistency across runs shows how stable and focused the agent remains.",
         status="passed",
         value=f"CV: {duration_cv:.2f}",
         evidence={'coefficient_of_variation': round(duration_cv, 2)}
@@ -310,7 +258,7 @@ def check_resource_management(sessions: List[SessionData]) -> AssessmentCategory
     return AssessmentCategory(
         category_id="RESOURCE_MANAGEMENT",
         category_name="Resource Management",
-        description="Validates resource usage bounds and consistency",
+        description="Summarizes how the agent uses tokens, time, and tools against policy",
         checks=checks,
         metrics=metrics
     )
@@ -335,8 +283,8 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
         return AssessmentCheck(
             check_id="ENV_001_CONSISTENT_MODEL",
             category="Environment & Supply Chain",
-            name="Consistent Model Usage",
-            description="All LLM models should use fixed version identifiers",
+            name="Pinned Model Usage",
+            description="Ensures every LLM call pins a specific, versioned model for reproducibility.",
             status="passed",
             value="No models detected",
             evidence={'reason': 'no_models_detected'}
@@ -355,24 +303,22 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
         return AssessmentCheck(
             check_id="ENV_001_CONSISTENT_MODEL",
             category="Environment & Supply Chain",
-            name="Consistent Model Usage",
-            description="All LLM models should use fixed version identifiers",
+            name="Pinned Model Usage",
+            description="Ensures every LLM call pins a specific, versioned model for reproducibility.",
             status="critical",
             value=f"{len(unpinned_models)} unpinned model{'s' if len(unpinned_models) != 1 else ''}",
             evidence={'unpinned_models': unpinned_models},
             recommendations=[
                 f"Pin model versions: {', '.join(unpinned_models)}"
-            ],
-            remediation_difficulty="Easy",
-            estimated_effort_hours=0.5
+            ]
         )
 
     unique_models = len(set(all_models))
     return AssessmentCheck(
         check_id="ENV_001_CONSISTENT_MODEL",
         category="Environment & Supply Chain",
-        name="Consistent Model Usage",
-        description="All LLM models should use fixed version identifiers",
+        name="Pinned Model Usage",
+        description="Ensures every LLM call pins a specific, versioned model for reproducibility.",
         status="passed",
         value=f"{unique_models} pinned model{'s' if unique_models != 1 else ''}",
         evidence={
@@ -388,8 +334,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         return AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
-            name="Average Tools Coverage",
-            description="Average per-session tools coverage should be around 1.0",
+            name="Session Tool Coverage",
+            description="Measures how completely each session leverages its available tools.",
             status="passed",
             value="No sessions",
             evidence={'reason': 'no_sessions'}
@@ -407,8 +353,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         return AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
-            name="Average Tools Coverage",
-            description="Average per-session tools coverage should be around 1.0",
+            name="Session Tool Coverage",
+            description="Measures how completely each session leverages its available tools.",
             status="passed",
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
@@ -435,8 +381,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
     return AssessmentCheck(
         check_id="ENV_002_AVG_TOOLS_COVERAGE",
         category="Environment & Supply Chain",
-        name="Average Tools Coverage",
-        description="Average per-session tools coverage should be around 1.0",
+        name="Session Tool Coverage",
+        description="Measures how completely each session leverages its available tools.",
         status="warning",
         value=f"{avg_coverage:.2f} coverage",
         evidence={
@@ -446,9 +392,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         },
         recommendations=[
             f"Improve tools coverage to reach 1.0 (current: {avg_coverage:.2f})"
-        ],
-        remediation_difficulty="Medium",
-        estimated_effort_hours=2.0
+        ]
     )
 
 
@@ -465,8 +409,8 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
         return AssessmentCheck(
             check_id="ENV_003_UNUSED_TOOLS",
             category="Environment & Supply Chain",
-            name="Globally Unused Tools",
-            description="All available tools should be utilized across sessions",
+            name="Unused Tools Inventory",
+            description="Flags provisioned tools that are never exercised across sessions.",
             status="passed",
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
@@ -492,8 +436,8 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
     return AssessmentCheck(
         check_id="ENV_003_UNUSED_TOOLS",
         category="Environment & Supply Chain",
-        name="Globally Unused Tools",
-        description="All available tools should be utilized across sessions",
+        name="Unused Tools Inventory",
+        description="Flags provisioned tools that are never exercised across sessions.",
         status="warning",
         value=f"{len(unused_tools)} unused tool{'s' if len(unused_tools) != 1 else ''}",
         evidence={
@@ -504,9 +448,7 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
         recommendations=[
             f"Consider removing unused tools: {', '.join(unused_tools[:5])}" +
             (f" and {len(unused_tools) - 5} more" if len(unused_tools) > 5 else "")
-        ],
-        remediation_difficulty="Easy",
-        estimated_effort_hours=1.0
+        ]
     )
 
 
@@ -550,7 +492,7 @@ def check_environment(sessions: List[SessionData]) -> AssessmentCategory:
     return AssessmentCategory(
         category_id="ENVIRONMENT",
         category_name="Environment & Supply Chain",
-        description="Validates model versioning and tool coverage",
+        description="Examines model version pinning and tool adoption health",
         checks=checks,
         metrics=metrics
     )
@@ -568,8 +510,8 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
         return AssessmentCheck(
             check_id="BEHAV_001_STABILITY_SCORE",
             category="Behavioral Stability",
-            name="Stability Score",
-            description="Agent should demonstrate stable behavioral patterns",
+            name="Behavior Stability Score",
+            description="Evaluates whether observed session behaviors stay stable across the scenarios we analyze.",
             status="passed",
             value=f"{score:.2f} score",
             evidence={
@@ -582,8 +524,8 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
     return AssessmentCheck(
         check_id="BEHAV_001_STABILITY_SCORE",
         category="Behavioral Stability",
-        name="Stability Score",
-        description="Agent should demonstrate stable behavioral patterns",
+        name="Behavior Stability Score",
+        description="Evaluates whether observed session behaviors stay stable across the scenarios we analyze.",
         status="critical",
         value=f"{score:.2f} score",
         evidence={
@@ -592,9 +534,7 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
         },
         recommendations=[
             f"Improve system prompt and add guardrails (stability: {score:.2f})"
-        ],
-        remediation_difficulty="Hard",
-        estimated_effort_hours=6.0
+        ]
     )
 
 
@@ -606,8 +546,8 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
         return AssessmentCheck(
             check_id="BEHAV_002_OUTLIER_RATE",
             category="Behavioral Stability",
-            name="Outlier Rate",
-            description="Outlier rate should be below 20%",
+            name="Behavior Outlier Rate",
+            description="Tracks the share of sessions that diverge from established behavioral patterns.",
             status="passed",
             value=f"{int(outlier_rate * 100)}% outliers",
             evidence={
@@ -621,16 +561,14 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
     return AssessmentCheck(
         check_id="BEHAV_002_OUTLIER_RATE",
         category="Behavioral Stability",
-        name="Outlier Rate",
-        description="Outlier rate should be below 20%",
+        name="Behavior Outlier Rate",
+        description="Tracks the share of sessions that diverge from established behavioral patterns.",
         status="critical",
         value=f"{int(outlier_rate * 100)}% outliers",
         evidence={'outlier_rate': round(outlier_rate, 3)},
         recommendations=[
             f"Reduce outlier rate by improving behavioral consistency ({outlier_rate:.1%})"
-        ],
-        remediation_difficulty="Hard",
-        estimated_effort_hours=8.0
+        ]
     )
 
 
@@ -642,8 +580,8 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
         return AssessmentCheck(
             check_id="BEHAV_003_CLUSTER_FORMATION",
             category="Behavioral Stability",
-            name="Cluster Formation",
-            description="At least one behavioral cluster should form",
+            name="Behavior Cluster Formation",
+            description="Verifies that session behaviors group into at least one coherent cluster.",
             status="passed",
             value=f"{num_clusters} cluster{'s' if num_clusters != 1 else ''}",
             evidence={
@@ -655,16 +593,14 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
     return AssessmentCheck(
         check_id="BEHAV_003_CLUSTER_FORMATION",
         category="Behavioral Stability",
-        name="Cluster Formation",
-        description="At least one behavioral cluster should form",
+        name="Behavior Cluster Formation",
+        description="Verifies that session behaviors group into at least one coherent cluster.",
         status="critical",
         value="0 clusters",
         evidence={'num_clusters': 0},
         recommendations=[
             "Refactor agent logic to achieve behavioral clustering"
-        ],
-        remediation_difficulty="Hard",
-        estimated_effort_hours=12.0
+        ]
     )
 
 
@@ -677,8 +613,8 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
         return AssessmentCheck(
             check_id="BEHAV_004_PREDICTABILITY",
             category="Behavioral Stability",
-            name="Predictability",
-            description="Agent should demonstrate predictable behavior patterns",
+            name="Behavior Predictability",
+            description="Scores how predictable the agent's behavior remains across comparable sessions.",
             status="passed",
             value=f"{score:.2f} score",
             evidence={'predictability_score': round(score, 3)}
@@ -687,16 +623,14 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
     return AssessmentCheck(
         check_id="BEHAV_004_PREDICTABILITY",
         category="Behavioral Stability",
-        name="Predictability",
-        description="Agent should demonstrate predictable behavior patterns",
+        name="Behavior Predictability",
+        description="Scores how predictable the agent's behavior remains across comparable sessions.",
         status="warning",
         value=f"{score:.2f} score",
         evidence={'predictability_score': round(score, 3)},
         recommendations=[
             f"Improve consistency in agent responses (predictability: {score:.2f})"
-        ],
-        remediation_difficulty="Medium",
-        estimated_effort_hours=4.0
+        ]
     )
 
 
@@ -726,7 +660,7 @@ def check_behavioral_stability(
     return AssessmentCategory(
         category_id="BEHAVIORAL",
         category_name="Behavioral Stability",
-        description="Validates behavioral consistency and predictability",
+        description="Summarizes behavioral consistency, predictability, and remaining variance",
         checks=checks
     )
 
@@ -742,8 +676,8 @@ def _check_uncertainty_threshold(
         return AssessmentCheck(
             check_id="BEHAV_005_UNCERTAINTY_THRESHOLD",
             category="Behavioral Stability",
-            name="Behavioral Uncertainty",
-            description="Behavioral uncertainty should be within acceptable bounds",
+            name="Behavioral Uncertainty Level",
+            description="Quantifies the residual uncertainty that remains after assessing behavioral stability.",
             status="passed",
             value=f"{uncertainty:.2f} uncertainty",
             evidence={
@@ -756,16 +690,14 @@ def _check_uncertainty_threshold(
     return AssessmentCheck(
         check_id="BEHAV_005_UNCERTAINTY_THRESHOLD",
         category="Behavioral Stability",
-        name="Behavioral Uncertainty",
-        description="Behavioral uncertainty should be within acceptable bounds",
+        name="Behavioral Uncertainty Level",
+        description="Quantifies the residual uncertainty that remains after assessing behavioral stability.",
         status="warning",
         value=f"{uncertainty:.2f} uncertainty",
         evidence={'uncertainty': round(uncertainty, 3)},
         recommendations=[
             f"Implement stricter guardrails (uncertainty: {uncertainty:.2f})"
-        ],
-        remediation_difficulty="Medium",
-        estimated_effort_hours=4.0
+        ]
     )
 
 
