@@ -36,6 +36,9 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "descope>=1.7.7",
     "Jinja2>=3.1.0",
+    "numpy>=1.24.3",
+    "presidio-analyzer>=2.2.354",
+    "spacy>=3.7.0",
 ]
 
 [project.optional-dependencies]
