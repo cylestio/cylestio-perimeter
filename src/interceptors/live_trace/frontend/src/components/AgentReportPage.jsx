@@ -436,7 +436,7 @@ export default function AgentReportPage() {
                                 }}>
                                   <span className="text-xs text-muted weight-semibold">Avg. Tool Coverage</span>
                                   <span className="text-sm font-mono">
-                                    {category.metrics.avg_tools_coverage?.toFixed(2) || '0.00'}
+                                    {category.metrics.avg_tools_coverage ? `${Math.round(category.metrics.avg_tools_coverage * 100)}%` : '0%'}
                                   </span>
                                 </div>
                                 <div style={{
@@ -450,7 +450,9 @@ export default function AgentReportPage() {
                                 }}>
                                   <span className="text-xs text-muted weight-semibold">Avg. Tool Calls</span>
                                   <span className="text-sm font-mono">
-                                    {category.metrics.avg_tool_calls?.toFixed(1) || '0.0'}
+                                    {category.metrics.avg_tool_calls !== undefined && category.metrics.avg_tool_calls !== null
+                                      ? (category.metrics.avg_tool_calls === 0 ? '0' : category.metrics.avg_tool_calls.toFixed(1))
+                                      : '0'}
                                   </span>
                                 </div>
                               </>
@@ -482,7 +484,9 @@ export default function AgentReportPage() {
                                 }}>
                                   <span className="text-xs text-muted weight-semibold">Avg. Session Duration</span>
                                   <span className="text-sm font-mono">
-                                    {category.metrics.avg_duration_minutes?.toFixed(1) || '0.0'} min
+                                    {category.metrics.avg_duration_minutes !== undefined && category.metrics.avg_duration_minutes !== null
+                                      ? (category.metrics.avg_duration_minutes === 0 ? '0' : category.metrics.avg_duration_minutes.toFixed(1))
+                                      : '0'} min
                                   </span>
                                 </div>
                               </>

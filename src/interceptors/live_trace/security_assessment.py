@@ -128,7 +128,7 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
             name="Token Consistency Across Sessions",
             description="Assesses how consistently the agent consumes its token quota across sessions.",
             status="warning",
-            value=f"CV: {token_cv:.2f}",
+            value=f"CV: {round(token_cv * 100)}%",
             evidence={'coefficient_of_variation': round(token_cv, 2)},
             recommendations=[
                 "Implement internal token quotas to reduce variance"
@@ -141,7 +141,7 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
         name="Token Consistency Across Sessions",
         description="Assesses how consistently the agent consumes its token quota across sessions.",
         status="passed",
-        value=f"CV: {token_cv:.2f}",
+        value=f"CV: {round(token_cv * 100)}%",
         evidence={'coefficient_of_variation': round(token_cv, 2)}
     )
 
@@ -172,7 +172,7 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
             name="Tool Consistency Across Sessions",
             description="Tests whether tool usage stays balanced from session to session.",
             status="warning",
-            value=f"CV: {tool_cv:.2f}",
+            value=f"CV: {round(tool_cv * 100)}%",
             evidence={'coefficient_of_variation': round(tool_cv, 2)},
             recommendations=[
                 "Implement internal tool usage quotas to reduce variance"
@@ -185,7 +185,7 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
         name="Tool Consistency Across Sessions",
         description="Tests whether tool usage stays balanced from session to session.",
         status="passed",
-        value=f"CV: {tool_cv:.2f}",
+        value=f"CV: {round(tool_cv * 100)}%",
         evidence={'coefficient_of_variation': round(tool_cv, 2)}
     )
 
@@ -216,7 +216,7 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
             name="Session Duration Consistency",
             description="Session duration consistency across runs shows how stable and focused the agent remains.",
             status="warning",
-            value=f"CV: {duration_cv:.2f}",
+            value=f"CV: {round(duration_cv * 100)}%",
             evidence={'coefficient_of_variation': round(duration_cv, 2)},
             recommendations=[
                 "Implement session duration limits to improve consistency"
@@ -229,7 +229,7 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
         name="Session Duration Consistency",
         description="Session duration consistency across runs shows how stable and focused the agent remains.",
         status="passed",
-        value=f"CV: {duration_cv:.2f}",
+        value=f"CV: {round(duration_cv * 100)}%",
         evidence={'coefficient_of_variation': round(duration_cv, 2)}
     )
 
@@ -371,7 +371,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             name="Average Tool Coverage",
             description="Average per-session tool coverage should be around 1.0",
             status="passed",
-            value=f"{avg_coverage:.2f} coverage",
+            value=f"{round(avg_coverage * 100)}% coverage",
             evidence={
                 'avg_coverage': round(avg_coverage, 3),
                 'sessions_analyzed': len(coverage_rates),
@@ -385,14 +385,14 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         name="Session Tool Coverage",
         description="Measures how completely each session leverages its available tools.",
         status="warning",
-        value=f"{avg_coverage:.2f} coverage",
+        value=f"{round(avg_coverage * 100)}% coverage",
         evidence={
             'avg_coverage': round(avg_coverage, 3),
             'sessions_analyzed': len(coverage_rates),
             'threshold': 0.80
         },
         recommendations=[
-            f"Improve tool coverage to reach 1.0 (current: {avg_coverage:.2f})"
+            f"Improve tool coverage to reach 100% (current: {round(avg_coverage * 100)}%)"
         ]
     )
 
@@ -514,7 +514,7 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
             name="Behavior Stability Score",
             description="Evaluates whether observed session behaviors stay stable across the scenarios we analyze.",
             status="passed",
-            value=f"{score:.2f} score",
+            value=f"{round(score * 100)}% score",
             evidence={
                 'stability_score': round(score, 3),
                 'threshold': 0.80,
@@ -528,13 +528,13 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
         name="Behavior Stability Score",
         description="Evaluates whether observed session behaviors stay stable across the scenarios we analyze.",
         status="critical",
-        value=f"{score:.2f} score",
+        value=f"{round(score * 100)}% score",
         evidence={
             'stability_score': round(score, 3),
             'shortfall': round(0.80 - score, 3)
         },
         recommendations=[
-            f"Improve system prompt and add guardrails (stability: {score:.2f})"
+            f"Improve system prompt and add guardrails (stability: {round(score * 100)}%)"
         ]
     )
 
@@ -617,7 +617,7 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
             name="Behavior Predictability",
             description="Scores how predictable the agent's behavior remains across comparable sessions.",
             status="passed",
-            value=f"{score:.2f} score",
+            value=f"{round(score * 100)}% score",
             evidence={'predictability_score': round(score, 3)}
         )
 
@@ -627,10 +627,10 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
         name="Behavior Predictability",
         description="Scores how predictable the agent's behavior remains across comparable sessions.",
         status="warning",
-        value=f"{score:.2f} score",
+        value=f"{round(score * 100)}% score",
         evidence={'predictability_score': round(score, 3)},
         recommendations=[
-            f"Improve consistency in agent responses (predictability: {score:.2f})"
+            f"Improve consistency in agent responses (predictability: {round(score * 100)}%)"
         ]
     )
 
@@ -680,7 +680,7 @@ def _check_uncertainty_threshold(
             name="Behavioral Uncertainty Level",
             description="Quantifies the residual uncertainty that remains after assessing behavioral stability.",
             status="passed",
-            value=f"{uncertainty:.2f} uncertainty",
+            value=f"{round(uncertainty * 100)}% uncertainty",
             evidence={
                 'uncertainty': round(uncertainty, 3),
                 'threshold': 0.25,
@@ -694,10 +694,10 @@ def _check_uncertainty_threshold(
         name="Behavioral Uncertainty Level",
         description="Quantifies the residual uncertainty that remains after assessing behavioral stability.",
         status="warning",
-        value=f"{uncertainty:.2f} uncertainty",
+        value=f"{round(uncertainty * 100)}% uncertainty",
         evidence={'uncertainty': round(uncertainty, 3)},
         recommendations=[
-            f"Implement stricter guardrails (uncertainty: {uncertainty:.2f})"
+            f"Implement stricter guardrails (uncertainty: {round(uncertainty * 100)}%)"
         ]
     )
 
