@@ -374,9 +374,17 @@ export default function AgentReportPage() {
                           {getCategoryIcon(categoryId)} {category.category_name}
                         </h3>
                         <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                          <span className="text-xs text-muted font-mono">
-                            {category.passed_checks}/{category.total_checks} passed
-                          </span>
+                          {categoryId === 'PRIVACY_COMPLIANCE' && (
+                            <a
+                              href="https://github.com/microsoft/presidio/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono"
+                              style={{ color: 'var(--color-accent-primary)', textDecoration: 'none' }}
+                            >
+                              Powered by Microsoft Presidio ↗
+                            </a>
+                          )}
                           {category.critical_checks > 0 && (
                             <span className="badge critical">
                               {category.critical_checks} critical
