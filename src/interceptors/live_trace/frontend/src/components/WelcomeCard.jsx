@@ -22,13 +22,33 @@ export default function WelcomeCard({ config }) {
 
   return (
     <div className="welcome-card">
-      <h2 className="welcome-title">
-        Welcome to Cylestio Perimeter
-      </h2>
-      <p className="welcome-text">
-        Your LLM proxy server is running and ready to monitor agent activity in real-time.
-        Configure your agents to route requests through this proxy to see live traces, tool usage, and performance metrics.
-      </p>
+      <div className="welcome-header">
+        <h2 className="welcome-title">
+          Welcome to Agent Inspector
+        </h2>
+        <p className="welcome-subtitle">Real‑time behavioral analysis and readiness checks for LLM agents.</p>
+      </div>
+      
+      <div className="welcome-content">
+        <p className="welcome-text">
+          Agent Inspector gives you instant visibility into your AI agents with ready-to-run profiles for OpenAI and Anthropic. Start a local proxy and live tracing dashboard with a single command.
+        </p>
+        
+        <p className="welcome-text">
+          Ideal for development-time evaluation and for running alongside your test suite (including CI) and evals.
+        </p>
+
+        <p className="welcome-text">
+          <a 
+            href="https://github.com/cylestio/agent-inspector/blob/main/README.md" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="readme-link"
+          >
+            Read the documentation
+          </a> for installation and configuration details.
+        </p>
+      </div>
 
       {/* Current Configuration - Subtle display */}
       <div className="config-info">

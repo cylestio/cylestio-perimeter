@@ -57,16 +57,17 @@ export default function SessionPage() {
   return (
     <>
       <div className="container">
-        <h1 className="page-title">Session Details</h1>
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <Link to="/">Dashboard</Link>
           <span className="breadcrumb-separator">/</span>
           <Link to={`/agent/${session.agent_id}`}>
-            {session.agent_id.substring(0, 16)}{session.agent_id.length > 16 ? '...' : ''}
+            Agent {session.agent_id.substring(0, 12)}...
           </Link>
           <span className="breadcrumb-separator">/</span>
-          <strong className="text-primary">{sessionId.substring(0, 16)}{sessionId.length > 16 ? '...' : ''}</strong>
+          <span>Session</span>
+          <span className="breadcrumb-separator">/</span>
+          <strong className="text-primary">{sessionId.substring(0, 12)}...</strong>
         </div>
 
         {/* Three-column layout */}

@@ -75,10 +75,11 @@ export default function AgentPage() {
   return (
     <>
       <div className="container">
-        <h1 className="page-title">Agent Analysis</h1>
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <Link to="/">Dashboard</Link>
+          <span className="breadcrumb-separator">/</span>
+          <span>Agent</span>
           <span className="breadcrumb-separator">/</span>
           <strong className="text-primary">{agentId.substring(0, 16)}{agentId.length > 16 ? '...' : ''}</strong>
         </div>

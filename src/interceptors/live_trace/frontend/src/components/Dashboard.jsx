@@ -121,145 +121,318 @@ export default function Dashboard() {
           {data.agents && data.agents.length > 0 ? (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))',
               gap: 'var(--space-xl)',
               marginBottom: 'var(--space-3xl)'
             }}>
-              {data.agents.map(agent => (
-                <Link
-                  key={agent.id}
-                  to={`/agent/${agent.id}`}
-                  style={{ textDecoration: 'none' }}
-                >
-                  <div className="card" style={{
-                    height: '100%',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-base)',
-                    marginBottom: 0,
-                    boxShadow: 'var(--shadow-md)',
-                    borderLeft: '3px solid var(--color-accent-primary)',
-                    padding: 'var(--space-xl)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-secondary)'
-                    e.currentTarget.style.transform = 'translateY(-6px)'
-                    e.currentTarget.style.boxShadow = '0 12px 24px -8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'var(--color-surface)'
-                    e.currentTarget.style.transform = 'translateY(0)'
-                    e.currentTarget.style.boxShadow = 'var(--shadow-md)'
-                  }}>
-                    <div className="card-header" style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
+              {data.agents.map(agent => {
+                // Determine priority badge (highest priority only)
+                const getPriorityBadge = () => {
+                  if (agent.analysis_summary?.action_required) {
+                    return {
+                      label: 'ACTION REQUIRED',
+                      bg: 'var(--color-critical-bg)',
+                      color: 'var(--color-critical)',
+                      border: 'var(--color-critical-border)'
+                    }
+                  }
+                  if (agent.risk_status === 'warning') {
+                    return {
+                      label: 'WARNING',
+                      bg: 'var(--color-warning-bg)',
+                      color: 'var(--color-warning)',
+                      border: 'var(--color-warning-border)'
+                    }
+                  }
+                  if (agent.risk_status === 'ok') {
+                    return {
+                      label: 'OK',
+                      bg: 'var(--color-success-bg)',
+                      color: 'var(--color-success)',
+                      border: 'var(--color-success-border)'
+                    }
+                  }
+                  return null
+                }
+                
+                const priorityBadge = getPriorityBadge()
+                
+                return (
+                  <Link
+                    key={agent.id}
+                    to={`/agent/${agent.id}`}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div className="card" style={{
+                      height: '100%',
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-base)',
+                      marginBottom: 0,
+                      boxShadow: 'var(--shadow-md)',
+                      borderLeft: `4px solid ${
+                        agent.analysis_summary?.action_required 
+                          ? 'var(--color-critical)' 
+                          : agent.risk_status === 'warning' 
+                            ? 'var(--color-warning)' 
+                            : 'var(--color-accent-primary)'
+                      }`,
+                      overflow: 'hidden'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'var(--color-bg-secondary)'
+                      e.currentTarget.style.transform = 'translateY(-4px)'
+                      e.currentTarget.style.boxShadow = '0 12px 24px -8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'var(--color-surface)'
+                      e.currentTarget.style.transform = 'translateY(0)'
+                      e.currentTarget.style.boxShadow = 'var(--shadow-md)'
                     }}>
+                      {/* Priority Badge at Top */}
+                      {priorityBadge && (
+                        <div style={{
+                          background: priorityBadge.bg,
+                          borderBottom: `1px solid ${priorityBadge.border}`,
+                          padding: 'var(--space-xs) var(--space-lg)',
+                          textAlign: 'center'
+                        }}>
+                          <span style={{
+                            fontSize: 'var(--text-xs)',
+                            fontWeight: 'var(--weight-bold)',
+                            color: priorityBadge.color,
+                            fontFamily: 'var(--font-mono)',
+                            letterSpacing: '0.05em'
+                          }}>
+                            {priorityBadge.label}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Agent Header */}
                       <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 'var(--space-sm)',
-                        flex: 1
+                        padding: 'var(--space-lg) var(--space-xl)'
                       }}>
                         <div className="font-mono text-md weight-bold text-primary" style={{
-                          wordBreak: 'break-all'
+                          wordBreak: 'break-all',
+                          marginBottom: 'var(--space-xs)'
                         }}>
-                          {agent.id.substring(0, 20)}{agent.id.length > 20 ? '...' : ''}
+                          {agent.id.substring(0, 26)}{agent.id.length > 26 ? '...' : ''}
+                        </div>
+                        <div className="text-xs text-muted">
+                          Last seen: {agent.last_seen_relative}
                         </div>
                       </div>
-                      {agent.risk_status === 'ok' && (
-                        <span className="badge" style={{
-                          marginLeft: 'var(--space-md)',
-                          background: 'var(--color-success-bg)',
-                          color: 'var(--color-success)',
-                          border: '1px solid var(--color-success-border)'
+                      
+                      {/* Main Metrics Grid */}
+                      <div style={{ 
+                        padding: 'var(--space-md) var(--space-xl) var(--space-lg)',
+                        borderBottom: '1px solid var(--color-border-subtle)'
+                      }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, 1fr)',
+                          gap: 'var(--space-lg)'
                         }}>
-                          OK
-                        </span>
-                      )}
-                      {agent.risk_status === 'warning' && (
-                        <span className="badge" style={{
-                          marginLeft: 'var(--space-md)',
-                          background: 'var(--color-warning-bg)',
-                          color: 'var(--color-warning)',
-                          border: '1px solid var(--color-warning-border)'
-                        }}>
-                          WARNING
-                        </span>
-                      )}
-                      {agent.risk_status === 'evaluating' && (
-                        <span className="badge" style={{
-                          marginLeft: 'var(--space-md)',
-                          background: 'var(--color-info-bg)',
-                          color: 'var(--color-accent-primary)',
-                          border: '1px solid var(--color-info-border)'
-                        }}>
-                          EVALUATING
-                        </span>
-                      )}
-                    </div>
-                    <div className="card-content">
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                        <div style={{ display: 'flex', gap: 'var(--space-md)' }}>
-                          <div style={{ flex: 1 }}>
-                            <div className="text-xs text-muted weight-semibold mb-xs">SESSIONS</div>
-                            <div className="font-mono text-lg weight-bold" style={{ color: 'var(--color-accent-primary)' }}>
+                          <div>
+                            <div className="text-xs text-muted weight-semibold mb-xs" style={{ letterSpacing: '0.05em' }}>
+                              SESSIONS
+                            </div>
+                            <div className="font-mono text-2xl weight-bold" style={{ 
+                              color: 'var(--color-accent-primary)',
+                              lineHeight: 1.1
+                            }}>
                               {agent.total_sessions}
                             </div>
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <div className="text-xs text-muted weight-semibold mb-xs">USED TOOLS</div>
-                            <div className="font-mono text-lg weight-bold" style={{ color: 'var(--color-accent-primary)' }}>
+                          <div>
+                            <div className="text-xs text-muted weight-semibold mb-xs" style={{ letterSpacing: '0.05em' }}>
+                              USED TOOLS
+                            </div>
+                            <div className="font-mono text-2xl weight-bold" style={{ 
+                              color: 'var(--color-accent-primary)',
+                              lineHeight: 1.1
+                            }}>
                               {agent.unique_tools}
                             </div>
                           </div>
-                          <div style={{ flex: 1 }}>
-                            <div className="text-xs text-muted weight-semibold mb-xs">AVG TOKENS</div>
-                            <div className="font-mono text-lg weight-bold" style={{ color: 'var(--color-accent-primary)' }}>
+                          <div>
+                            <div className="text-xs text-muted weight-semibold mb-xs" style={{ letterSpacing: '0.05em' }}>
+                              AVG TOKENS
+                            </div>
+                            <div className="font-mono text-2xl weight-bold" style={{ 
+                              color: 'var(--color-accent-primary)',
+                              lineHeight: 1.1
+                            }}>
                               {agent.total_sessions > 0 ? formatNumber(Math.round(agent.total_tokens / agent.total_sessions)) : 0}
                             </div>
                           </div>
                         </div>
-                        <div style={{
-                          display: 'flex',
-                          gap: 'var(--space-md)',
-                          paddingTop: 'var(--space-md)',
-                          borderTop: '1px solid var(--color-border-subtle)'
-                        }}>
-                          <div style={{ flex: 1 }}>
-                            <div className="text-xs text-muted weight-semibold mb-xs">TOTAL TOKENS</div>
-                            <div className="font-mono text-sm text-secondary">
-                              {formatNumber(agent.total_tokens)}
-                            </div>
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div className="text-xs text-muted weight-semibold mb-xs">ERRORS</div>
-                            <div className="font-mono text-sm" style={{
-                              color: agent.total_errors > 0 ? 'var(--color-critical)' : 'var(--color-text-muted)'
-                            }}>
-                              {agent.total_errors}
-                            </div>
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div className="text-xs text-muted weight-semibold mb-xs">AVG RESPONSE</div>
-                            <div className="font-mono text-sm text-secondary">
-                              {formatDuration(agent.avg_response_time_ms)}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{
-                          fontSize: 'var(--text-xs)',
-                          color: 'var(--color-text-muted)',
-                          fontFamily: 'var(--font-mono)',
-                          paddingTop: 'var(--space-sm)'
-                        }}>
-                          Last seen: {agent.last_seen_relative}
-                        </div>
                       </div>
+                      {/* Analysis Summary Section */}
+                      {agent.total_sessions < agent.min_sessions_required ? (
+                        <div style={{
+                          padding: 'var(--space-xl)',
+                          textAlign: 'center'
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 'var(--space-sm)',
+                            fontSize: 'var(--text-sm)',
+                            color: 'var(--color-text-secondary)'
+                          }}>
+                            <div className="loading-spinner" style={{
+                              width: '12px',
+                              height: '12px',
+                              borderWidth: '2px'
+                            }}></div>
+                            <span>Analyzing... <span className="font-mono weight-semibold">({agent.total_sessions}/{agent.min_sessions_required})</span></span>
+                          </div>
+                        </div>
+                      ) : agent.analysis_summary ? (
+                        <div style={{ padding: 'var(--space-xl)' }}>
+                          {/* Security Assessment */}
+                          <div style={{ marginBottom: 'var(--space-xl)' }}>
+                            <div className="text-xs weight-semibold mb-md" style={{
+                              color: 'var(--color-text-secondary)',
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase'
+                            }}>
+                              Security Assessment
+                            </div>
+                            <div style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(2, 1fr)',
+                              gap: 'var(--space-xl)'
+                            }}>
+                              <div>
+                                <div className="text-xs text-muted mb-xs">Failed Checks</div>
+                                <div className="font-mono weight-bold" style={{
+                                  fontSize: '28px',
+                                  lineHeight: 1,
+                                  color: agent.analysis_summary.failed_checks > 0 ? 'var(--color-critical)' : 'var(--color-success)'
+                                }}>
+                                  {agent.analysis_summary.failed_checks}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-muted mb-xs">Warnings</div>
+                                <div className="font-mono weight-bold" style={{
+                                  fontSize: '28px',
+                                  lineHeight: 1,
+                                  color: agent.analysis_summary.warnings > 0 ? 'var(--color-warning)' : 'var(--color-success)'
+                                }}>
+                                  {agent.analysis_summary.warnings}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Behavioral Snapshot */}
+                          {agent.analysis_summary.behavioral && (
+                            <div style={{
+                              paddingTop: 'var(--space-xl)',
+                              borderTop: '1px solid var(--color-border-subtle)'
+                            }}>
+                              <div className="text-xs weight-semibold mb-md" style={{
+                                color: 'var(--color-text-secondary)',
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase'
+                              }}>
+                                Behavioral Snapshot
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 'var(--space-md)'
+                              }}>
+                                {/* Stability */}
+                                <div>
+                                  <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginBottom: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-sm text-secondary weight-medium">Stability</span>
+                                    <span className="font-mono text-md weight-bold text-primary">
+                                      {Math.round(agent.analysis_summary.behavioral.stability * 100)}%
+                                    </span>
+                                  </div>
+                                  <div className="progress-bar-container">
+                                    <div className="progress-bar-fill" style={{
+                                      width: `${agent.analysis_summary.behavioral.stability * 100}%`,
+                                      background: 'var(--color-accent-primary)'
+                                    }}></div>
+                                  </div>
+                                </div>
+                                
+                                {/* Predictability */}
+                                <div>
+                                  <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginBottom: 'var(--space-xs)'
+                                  }}>
+                                    <span className="text-sm text-secondary weight-medium">Predictability</span>
+                                    <span className="font-mono text-md weight-bold text-primary">
+                                      {Math.round(agent.analysis_summary.behavioral.predictability * 100)}%
+                                    </span>
+                                  </div>
+                                  <div className="progress-bar-container">
+                                    <div className="progress-bar-fill" style={{
+                                      width: `${agent.analysis_summary.behavioral.predictability * 100}%`,
+                                      background: 'var(--color-accent-primary)'
+                                    }}></div>
+                                  </div>
+                                </div>
+                                
+                                {/* Confidence */}
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  paddingTop: 'var(--space-sm)'
+                                }}>
+                                  <span className="text-sm text-secondary weight-medium">Confidence</span>
+                                  <span className="badge" style={{
+                                    background: agent.analysis_summary.behavioral.confidence === 'high' 
+                                      ? 'var(--color-success-bg)' 
+                                      : agent.analysis_summary.behavioral.confidence === 'medium'
+                                        ? 'var(--color-info-bg)'
+                                        : 'var(--color-warning-bg)',
+                                    color: agent.analysis_summary.behavioral.confidence === 'high' 
+                                      ? 'var(--color-success)' 
+                                      : agent.analysis_summary.behavioral.confidence === 'medium'
+                                        ? 'var(--color-info)'
+                                        : 'var(--color-warning)',
+                                    border: `1px solid ${
+                                      agent.analysis_summary.behavioral.confidence === 'high' 
+                                        ? 'var(--color-success-border)' 
+                                        : agent.analysis_summary.behavioral.confidence === 'medium'
+                                          ? 'var(--color-info-border)'
+                                          : 'var(--color-warning-border)'
+                                    }`,
+                                    padding: 'var(--space-xs) var(--space-md)'
+                                  }}>
+                                    {agent.analysis_summary.behavioral.confidence === 'high' 
+                                      ? 'High' 
+                                      : agent.analysis_summary.behavioral.confidence === 'medium'
+                                        ? 'Medium'
+                                        : 'Low'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                )
+              })}
             </div>
           ) : (
             <div className="text-center text-muted loading">

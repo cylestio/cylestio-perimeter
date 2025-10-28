@@ -179,8 +179,13 @@ class InsightsEngine:
 
             # Compute lightweight risk status for dashboard display
             risk_status = self._compute_agent_risk_status(agent.agent_id)
+            
+            # Get analysis summary for agents with enough sessions
+            analysis_summary = None
+            if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS:
+                analysis_summary = self._get_agent_analysis_summary(agent.agent_id)
 
-            agents.append({
+            agent_data = {
                 "id": agent.agent_id,
                 "id_short": agent.agent_id[:8] + "..." if len(agent.agent_id) > 8 else agent.agent_id,
                 "total_sessions": agent.total_sessions,
@@ -196,11 +201,156 @@ class InsightsEngine:
                 "risk_status": risk_status,  # "ok", "warning", "evaluating", or None
                 "current_sessions": agent.total_sessions,
                 "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS
-            })
+            }
+            
+            # Add analysis summary if available
+            if analysis_summary:
+                agent_data["analysis_summary"] = analysis_summary
+            
+            agents.append(agent_data)
 
         # Sort by last seen
         agents.sort(key=lambda x: x["last_seen"], reverse=True)
         return agents
+    
+    def _get_agent_analysis_summary(self, agent_id: str) -> Dict[str, Any]:
+        """Get lightweight analysis summary for dashboard display."""
+        # Try to get cached or compute fresh analysis
+        risk_analysis = self.compute_risk_analysis(agent_id)
+        
+        if not risk_analysis or risk_analysis.evaluation_status != "COMPLETE":
+            return None
+        
+        # Count failed checks and warnings
+        failed_checks = 0
+        warnings = 0
+        
+        if risk_analysis.security_report and risk_analysis.security_report.categories:
+            for category in risk_analysis.security_report.categories.values():
+                failed_checks += category.critical_checks
+                warnings += category.warning_checks
+        
+        # Get behavioral scores
+        behavioral_summary = None
+        if risk_analysis.behavioral_analysis:
+            # Calculate confidence based on cluster maturity and data volume
+            confidence = self._calculate_behavioral_confidence(risk_analysis.behavioral_analysis)
+            
+            behavioral_summary = {
+                "stability": round(risk_analysis.behavioral_analysis.stability_score, 2),
+                "predictability": round(risk_analysis.behavioral_analysis.predictability_score, 2),
+                "confidence": confidence  # high, medium, or low
+            }
+        
+        # Determine if action is required (any critical issues)
+        action_required = failed_checks > 0
+        
+        return {
+            "failed_checks": failed_checks,
+            "warnings": warnings,
+            "behavioral": behavioral_summary,
+            "action_required": action_required
+        }
+    
+    def _calculate_behavioral_confidence(self, behavioral_analysis) -> str:
+        """
+        Calculate confidence level based on cluster maturity and data volume.
+        
+        Confidence Criteria:
+        - HIGH: Single cluster with 30-40+ sessions, OR
+                2 clusters with 80+ total sessions, OR
+                3+ clusters with 150+ total sessions
+                AND very low outlier rate (≤5% with 200+ sessions)
+        
+        - MEDIUM: Meaningful patterns emerging but not enough data
+                  OR moderate outlier rate (≤10% with 200+ sessions)
+        
+        - LOW: Insufficient data for confident analysis
+               OR high outlier rate (>10%)
+        """
+        total_sessions = behavioral_analysis.total_sessions
+        num_clusters = behavioral_analysis.num_clusters
+        num_outliers = behavioral_analysis.num_outliers
+        clusters = behavioral_analysis.clusters
+        
+        # Calculate outlier rate
+        outlier_rate = (num_outliers / total_sessions * 100) if total_sessions > 0 else 0
+        
+        # Get cluster sizes
+        cluster_sizes = [cluster.size for cluster in clusters] if clusters else []
+        cluster_sizes.sort(reverse=True)  # Largest first
+        
+        # Check if we have enough sessions to evaluate outlier rate
+        evaluate_outliers = total_sessions >= 200
+        
+        # If high outlier rate with sufficient data, cap at MEDIUM or LOW
+        if evaluate_outliers and outlier_rate > 10:
+            # Too many outliers = unpredictable behavior
+            return "low"
+        
+        # HIGH CONFIDENCE CRITERIA
+        # Requires substantial data AND low outlier rate
+        
+        # Single dominant cluster with substantial data
+        if num_clusters == 1 and cluster_sizes and cluster_sizes[0] >= 30:
+            if evaluate_outliers:
+                # With 200+ sessions, need very low outlier rate for high confidence
+                if outlier_rate <= 5:
+                    return "high"
+                else:
+                    return "medium"  # Good cluster but moderate outliers
+            else:
+                return "high"  # Not enough sessions to judge outliers yet
+        
+        # Two clusters with significant data
+        if num_clusters == 2 and cluster_sizes and len(cluster_sizes) >= 2:
+            total_in_clusters = sum(cluster_sizes[:2])
+            if total_in_clusters >= 80:
+                if evaluate_outliers:
+                    if outlier_rate <= 5:
+                        return "high"
+                    else:
+                        return "medium"  # Good clusters but moderate outliers
+                else:
+                    return "high"
+        
+        # Three or more clusters with substantial data
+        if num_clusters >= 3 and cluster_sizes and len(cluster_sizes) >= 3:
+            total_in_clusters = sum(cluster_sizes[:3])
+            if total_in_clusters >= 150:
+                if evaluate_outliers:
+                    if outlier_rate <= 5:
+                        return "high"
+                    else:
+                        return "medium"  # Good clusters but moderate outliers
+                else:
+                    return "high"
+        
+        # MEDIUM CONFIDENCE CRITERIA
+        # Patterns emerging but need more data
+        # OR good patterns but moderate outlier rate (5-10%)
+        
+        if num_clusters == 1 and cluster_sizes and cluster_sizes[0] >= 15:
+            if evaluate_outliers and outlier_rate > 10:
+                return "low"
+            return "medium"
+        
+        if num_clusters == 2 and cluster_sizes and len(cluster_sizes) >= 2:
+            total_in_clusters = sum(cluster_sizes[:2])
+            if total_in_clusters >= 40:
+                if evaluate_outliers and outlier_rate > 10:
+                    return "low"
+                return "medium"
+        
+        if num_clusters >= 3 and cluster_sizes and len(cluster_sizes) >= 3:
+            total_in_clusters = sum(cluster_sizes[:3])
+            if total_in_clusters >= 75:
+                if evaluate_outliers and outlier_rate > 10:
+                    return "low"
+                return "medium"
+        
+        # LOW CONFIDENCE - insufficient data or unpredictable behavior
+        return "low"
 
     @_with_store_lock
     def _get_recent_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:

@@ -329,14 +329,13 @@ export default function AgentReportPage() {
   return (
     <>
       <div className="container">
-        <h1 className="page-title">Full Report</h1>
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <Link to="/">Dashboard</Link>
           <span className="breadcrumb-separator">/</span>
-          <Link to={`/agent/${agentId}`}>{agentId.substring(0, 16)}{agentId.length > 16 ? '...' : ''}</Link>
+          <Link to={`/agent/${agentId}`}>Agent {agentId.substring(0, 12)}...</Link>
           <span className="breadcrumb-separator">/</span>
-          <strong className="text-primary">Report</strong>
+          <strong className="text-primary">Full Report</strong>
         </div>
 
         {/* Split Dashboard Layout */}
@@ -798,6 +797,50 @@ export default function AgentReportPage() {
                               style={{ width: `${riskAnalysis.behavioral_analysis.predictability_score * 100}%` }}
                             ></div>
                           </div>
+                        </div>
+                        <div style={{
+                          border: '1px solid var(--color-border-subtle)',
+                          background: 'var(--color-bg-elevated)',
+                          borderRadius: 'var(--radius-md)',
+                          padding: 'var(--space-md)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 'var(--space-xs)',
+                          flex: '1',
+                          minWidth: '200px',
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}>
+                          <span className="text-xs text-muted weight-semibold">Confidence</span>
+                          <span className="badge" style={{
+                            background: riskAnalysis.behavioral_analysis.confidence === 'high' 
+                              ? 'var(--color-success-bg)' 
+                              : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                ? 'var(--color-info-bg)'
+                                : 'var(--color-warning-bg)',
+                            color: riskAnalysis.behavioral_analysis.confidence === 'high' 
+                              ? 'var(--color-success)' 
+                              : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                ? 'var(--color-info)'
+                                : 'var(--color-warning)',
+                            border: `1px solid ${
+                              riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'var(--color-success-border)' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'var(--color-info-border)'
+                                  : 'var(--color-warning-border)'
+                            }`,
+                            padding: 'var(--space-sm) var(--space-lg)',
+                            fontSize: 'var(--text-md)',
+                            fontWeight: 'var(--weight-semibold)',
+                            marginTop: 'var(--space-xs)'
+                          }}>
+                            {riskAnalysis.behavioral_analysis.confidence === 'high' 
+                              ? 'High' 
+                              : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                ? 'Medium'
+                                : 'Low'}
+                          </span>
                         </div>
                       </div>
                     </div>
