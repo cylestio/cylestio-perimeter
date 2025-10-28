@@ -1,4 +1,5 @@
 """Analytics and insights computation for trace data."""
+import logging
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
@@ -8,6 +9,9 @@ from .store import TraceStore, AgentData
 from .risk_models import RiskAnalysisResult
 from .behavioral_analysis import analyze_agent_behavior
 from .security_assessment import generate_security_report
+from .pii_analysis import analyze_sessions_for_pii
+
+logger = logging.getLogger(__name__)
 
 # Minimum sessions required for risk analysis
 MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
@@ -385,8 +389,21 @@ class InsightsEngine:
             # Run behavioral analysis
             behavioral_result = analyze_agent_behavior(agent_sessions)
 
+            # Run PII analysis (with error handling)
+            pii_result = None
+            try:
+                pii_result = analyze_sessions_for_pii(agent_sessions)
+                logger.info(f"PII analysis completed: {pii_result.total_findings} findings")
+            except Exception as e:
+                logger.warning(f"PII analysis failed (continuing without PII checks): {e}")
+
             # Run security assessment - generates complete security report
-            security_report = generate_security_report(agent_id, agent_sessions, behavioral_result)
+            security_report = generate_security_report(
+                agent_id,
+                agent_sessions,
+                behavioral_result,
+                pii_result
+            )
 
             # Create summary
             summary = {
@@ -396,6 +413,11 @@ class InsightsEngine:
                 "predictability_score": behavioral_result.predictability_score
             }
 
+            # Add PII summary if available
+            if pii_result:
+                summary["pii_findings"] = pii_result.total_findings
+                summary["sessions_with_pii"] = pii_result.sessions_with_pii
+
             result = RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
                 agent_id=agent_id,
@@ -404,6 +426,7 @@ class InsightsEngine:
                 evaluation_status="COMPLETE",
                 behavioral_analysis=behavioral_result,
                 security_report=security_report,
+                pii_analysis=pii_result,
                 summary=summary
             )
 

@@ -3,12 +3,13 @@ import re
 import statistics
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from .risk_models import (
     AssessmentCategory,
     AssessmentCheck,
     BehavioralAnalysisResult,
+    PIIAnalysisResult,
     SecurityReport,
 )
 from .store import SessionData
@@ -702,13 +703,281 @@ def _check_uncertainty_threshold(
 
 
 # ============================================================================
+# CATEGORY: Privacy & PII Compliance
+# ============================================================================
+
+def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
+    """Check for PII detection across all sessions."""
+    if pii_result.total_findings == 0:
+        return AssessmentCheck(
+            check_id="PII_001_DETECTION",
+            category="Privacy & PII Compliance",
+            name="PII Detection",
+            description="Scans message content for personally identifiable information across entity types.",
+            status="passed",
+            value="No PII detected",
+            evidence={
+                'total_findings': 0,
+                'sessions_analyzed': pii_result.sessions_with_pii + pii_result.sessions_without_pii
+            }
+        )
+
+    # Critical if high-confidence sensitive PII found
+    sensitive_types = {"US_SSN", "CREDIT_CARD", "MEDICAL_LICENSE", "US_PASSPORT", "US_BANK_NUMBER"}
+    high_conf_sensitive = [
+        finding for finding in pii_result.detailed_findings
+        if finding.score >= 0.8 and finding.entity_type in sensitive_types
+    ]
+
+    if high_conf_sensitive:
+        return AssessmentCheck(
+            check_id="PII_001_DETECTION",
+            category="Privacy & PII Compliance",
+            name="PII Detection",
+            description="Scans message content for personally identifiable information across entity types.",
+            status="critical",
+            value=f"{pii_result.total_findings} findings ({pii_result.high_confidence_count} high-confidence)",
+            evidence={
+                'total_findings': pii_result.total_findings,
+                'high_confidence_count': pii_result.high_confidence_count,
+                'sensitive_types_found': list(set(f.entity_type for f in high_conf_sensitive)),
+                'findings_by_type': pii_result.findings_by_type,
+                'findings_by_session': pii_result.findings_by_session,
+                'detailed_findings': [
+                    {
+                        'entity_type': f.entity_type,
+                        'score': round(f.score, 3),
+                        'session_id': f.session_id,
+                        'event_location': f.event_location,
+                        'text': f.text[:50] + '...' if len(f.text) > 50 else f.text
+                    }
+                    for f in pii_result.detailed_findings[:20]  # Limit to 20 for evidence
+                ]
+            },
+            recommendations=[
+                "Implement PII redaction before sending to LLM",
+                "Review data handling policies for sensitive PII",
+                f"Found {len(high_conf_sensitive)} high-confidence sensitive PII items"
+            ]
+        )
+
+    # Warning if medium-confidence PII or many findings
+    if pii_result.high_confidence_count > 0 or pii_result.medium_confidence_count > 10:
+        return AssessmentCheck(
+            check_id="PII_001_DETECTION",
+            category="Privacy & PII Compliance",
+            name="PII Detection",
+            description="Scans message content for personally identifiable information across entity types.",
+            status="warning",
+            value=f"{pii_result.total_findings} findings ({pii_result.high_confidence_count} high-confidence)",
+            evidence={
+                'total_findings': pii_result.total_findings,
+                'high_confidence_count': pii_result.high_confidence_count,
+                'medium_confidence_count': pii_result.medium_confidence_count,
+                'findings_by_type': pii_result.findings_by_type,
+                'most_common_entities': pii_result.most_common_entities,
+                'findings_by_session': pii_result.findings_by_session,
+                'detailed_findings': [
+                    {
+                        'entity_type': f.entity_type,
+                        'score': round(f.score, 3),
+                        'session_id': f.session_id,
+                        'event_location': f.event_location,
+                        'text': f.text[:50] + '...' if len(f.text) > 50 else f.text
+                    }
+                    for f in pii_result.detailed_findings[:20]  # Limit to 20 for evidence
+                ]
+            },
+            recommendations=[
+                "Consider implementing PII detection and redaction",
+                "Review which PII types are necessary for agent operation"
+            ]
+        )
+
+    # Passed for only low-confidence findings
+    return AssessmentCheck(
+        check_id="PII_001_DETECTION",
+        category="Privacy & PII Compliance",
+        name="PII Detection",
+        description="Scans message content for personally identifiable information across entity types.",
+        status="passed",
+        value=f"{pii_result.total_findings} low-confidence findings",
+        evidence={
+            'total_findings': pii_result.total_findings,
+            'low_confidence_count': pii_result.low_confidence_count,
+            'findings_by_type': pii_result.findings_by_type,
+            'findings_by_session': pii_result.findings_by_session,
+            'detailed_findings': [
+                {
+                    'entity_type': f.entity_type,
+                    'score': round(f.score, 3),
+                    'session_id': f.session_id,
+                    'event_location': f.event_location,
+                    'text': f.text[:50] + '...' if len(f.text) > 50 else f.text
+                }
+                for f in pii_result.detailed_findings[:20]  # Limit to 20 for evidence
+            ]
+        }
+    )
+
+
+def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentCheck:
+    """Check for PII in system prompts specifically."""
+    system_prompt_findings = [
+        f for f in pii_result.detailed_findings
+        if f.event_location == "system_prompt"
+    ]
+
+    if not system_prompt_findings:
+        return AssessmentCheck(
+            check_id="PII_002_SYSTEM_PROMPT",
+            category="Privacy & PII Compliance",
+            name="PII in System Prompts",
+            description="Checks whether system prompts contain PII that may be inadvertently shared.",
+            status="passed",
+            value="No PII in system prompts",
+            evidence={'system_prompt_findings': 0}
+        )
+
+    # Any PII in system prompts is a warning (usually shouldn't have user PII there)
+    entity_types_in_prompts = list(set(f.entity_type for f in system_prompt_findings))
+
+    return AssessmentCheck(
+        check_id="PII_002_SYSTEM_PROMPT",
+        category="Privacy & PII Compliance",
+        name="PII in System Prompts",
+        description="Checks whether system prompts contain PII that may be inadvertently shared.",
+        status="warning",
+        value=f"{len(system_prompt_findings)} findings",
+        evidence={
+            'system_prompt_findings': len(system_prompt_findings),
+            'entity_types': entity_types_in_prompts
+        },
+        recommendations=[
+            "Review system prompts for inadvertent PII inclusion",
+            "System prompts should typically not contain user-specific PII"
+        ]
+    )
+
+
+def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[SessionData]) -> AssessmentCheck:
+    """Check what percentage of sessions contain PII."""
+    total_sessions = len(sessions)
+    if total_sessions == 0:
+        return AssessmentCheck(
+            check_id="PII_003_EXPOSURE_RATE",
+            category="Privacy & PII Compliance",
+            name="PII Exposure Rate",
+            description="Measures the proportion of sessions that contain any PII.",
+            status="passed",
+            value="No sessions",
+            evidence={'reason': 'no_sessions'}
+        )
+
+    exposure_rate = pii_result.sessions_with_pii / total_sessions if total_sessions > 0 else 0
+
+    if exposure_rate == 0:
+        return AssessmentCheck(
+            check_id="PII_003_EXPOSURE_RATE",
+            category="Privacy & PII Compliance",
+            name="PII Exposure Rate",
+            description="Measures the proportion of sessions that contain any PII.",
+            status="passed",
+            value="0% sessions with PII",
+            evidence={
+                'exposure_rate': 0.0,
+                'sessions_with_pii': 0,
+                'total_sessions': total_sessions
+            }
+        )
+
+    # Warning if >50% of sessions contain PII
+    if exposure_rate > 0.5:
+        return AssessmentCheck(
+            check_id="PII_003_EXPOSURE_RATE",
+            category="Privacy & PII Compliance",
+            name="PII Exposure Rate",
+            description="Measures the proportion of sessions that contain any PII.",
+            status="warning",
+            value=f"{int(exposure_rate * 100)}% sessions with PII",
+            evidence={
+                'exposure_rate': round(exposure_rate, 3),
+                'sessions_with_pii': pii_result.sessions_with_pii,
+                'total_sessions': total_sessions,
+                'threshold': 0.5
+            },
+            recommendations=[
+                f"High PII exposure rate ({exposure_rate:.0%}) - consider PII minimization strategies",
+                "Review if all PII is necessary for agent operation"
+            ]
+        )
+
+    # Passed for low exposure rate
+    return AssessmentCheck(
+        check_id="PII_003_EXPOSURE_RATE",
+        category="Privacy & PII Compliance",
+        name="PII Exposure Rate",
+        description="Measures the proportion of sessions that contain any PII.",
+        status="passed",
+        value=f"{int(exposure_rate * 100)}% sessions with PII",
+        evidence={
+            'exposure_rate': round(exposure_rate, 3),
+            'sessions_with_pii': pii_result.sessions_with_pii,
+            'total_sessions': total_sessions
+        }
+    )
+
+
+def check_privacy_compliance(
+    pii_result: Optional[PIIAnalysisResult],
+    sessions: List[SessionData]
+) -> Optional[AssessmentCategory]:
+    """Run all privacy & PII compliance checks.
+
+    Args:
+        pii_result: Results from PII analysis (None if not available)
+        sessions: List of session data
+
+    Returns:
+        AssessmentCategory or None if PII analysis not available
+    """
+    if pii_result is None:
+        return None
+
+    # Compute metrics
+    metrics = {
+        'total_findings': pii_result.total_findings,
+        'unique_entity_types': len(pii_result.findings_by_type),
+        'sessions_with_pii': pii_result.sessions_with_pii,
+        'exposure_rate': round(pii_result.sessions_with_pii / len(sessions), 2) if sessions else 0.0,
+        'most_common_entities': ', '.join(pii_result.most_common_entities[:3]) if pii_result.most_common_entities else 'N/A'
+    }
+
+    # Run checks
+    checks = [
+        _check_pii_detection(pii_result),
+        _check_pii_in_system_prompts(pii_result),
+        _check_pii_exposure_rate(pii_result, sessions)
+    ]
+
+    return AssessmentCategory(
+        category_id="PRIVACY_COMPLIANCE",
+        category_name="Privacy & PII Compliance",
+        description="Detects and reports on PII exposure in agent messages and prompts",
+        checks=checks,
+        metrics=metrics
+    )
+
+
+# ============================================================================
 # Main Report Generation
 # ============================================================================
 
 def generate_security_report(
     agent_id: str,
     sessions: List[SessionData],
-    behavioral_result: BehavioralAnalysisResult
+    behavioral_result: BehavioralAnalysisResult,
+    pii_result: Optional[PIIAnalysisResult] = None
 ) -> SecurityReport:
     """Generate complete security assessment report.
 
@@ -716,6 +985,7 @@ def generate_security_report(
         agent_id: Agent identifier
         sessions: List of session data
         behavioral_result: Results from behavioral analysis
+        pii_result: Results from PII analysis (optional)
 
     Returns:
         SecurityReport with all categories
@@ -726,6 +996,11 @@ def generate_security_report(
         "ENVIRONMENT": check_environment(sessions),
         "BEHAVIORAL": check_behavioral_stability(behavioral_result, sessions)
     }
+
+    # Add privacy compliance category if PII analysis available
+    privacy_category = check_privacy_compliance(pii_result, sessions)
+    if privacy_category:
+        categories["PRIVACY_COMPLIANCE"] = privacy_category
 
     # Create summary
     summary = {

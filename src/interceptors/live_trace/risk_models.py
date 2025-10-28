@@ -201,6 +201,31 @@ class SecurityReport(BaseModel):
         return sum(cat.warning_checks for cat in self.categories.values())
 
 
+class PIIFinding(BaseModel):
+    """Individual PII detection finding."""
+    entity_type: str  # e.g., "PERSON", "EMAIL_ADDRESS"
+    text: str  # The detected PII text (can be anonymized)
+    start: int
+    end: int
+    score: float  # Confidence 0-1
+    session_id: str
+    event_location: str  # "user_message", "assistant_message", "system_prompt", "tool_input"
+
+
+class PIIAnalysisResult(BaseModel):
+    """Results from PII analysis across sessions."""
+    total_findings: int
+    findings_by_type: Dict[str, int] = Field(default_factory=dict)  # {"EMAIL_ADDRESS": 5, "PERSON": 12}
+    findings_by_session: Dict[str, int] = Field(default_factory=dict)  # {session_id: count}
+    high_confidence_count: int = 0  # score >= 0.8
+    medium_confidence_count: int = 0  # 0.5 <= score < 0.8
+    low_confidence_count: int = 0  # score < 0.5
+    detailed_findings: List[PIIFinding] = Field(default_factory=list)  # Top findings
+    sessions_with_pii: int = 0
+    sessions_without_pii: int = 0
+    most_common_entities: List[str] = Field(default_factory=list)  # Top 5 entity types
+
+
 class RiskAnalysisResult(BaseModel):
     """Complete risk analysis result combining behavioral and security."""
     evaluation_id: str
@@ -211,6 +236,7 @@ class RiskAnalysisResult(BaseModel):
 
     behavioral_analysis: Optional[BehavioralAnalysisResult] = None
     security_report: Optional[SecurityReport] = None
+    pii_analysis: Optional[PIIAnalysisResult] = None
 
     summary: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None

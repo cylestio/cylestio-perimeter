@@ -16,6 +16,252 @@ import {
   getAgentStatus
 } from '../utils/helpers'
 
+// Component to display PII findings with clickable sessions
+function PIIFindingsDisplay({ evidence }) {
+  const [expandedSessions, setExpandedSessions] = useState({})
+
+  const detailedFindings = evidence.detailed_findings || []
+
+  // Group findings by session with entity type breakdown
+  const sessionsList = evidence.findings_by_session
+    ? Object.entries(evidence.findings_by_session)
+        .map(([sessionId, count]) => {
+          // Get findings for this session
+          const sessionFindings = detailedFindings.filter(f => f.session_id === sessionId)
+
+          // Calculate entity type breakdown
+          const entityBreakdown = sessionFindings.reduce((acc, finding) => {
+            acc[finding.entity_type] = (acc[finding.entity_type] || 0) + 1
+            return acc
+          }, {})
+
+          return {
+            sessionId,
+            count,
+            entityBreakdown,
+            findings: sessionFindings
+          }
+        })
+        .sort((a, b) => b.count - a.count)
+    : []
+
+  const toggleSession = (sessionId) => {
+    setExpandedSessions(prev => ({
+      ...prev,
+      [sessionId]: !prev[sessionId]
+    }))
+  }
+
+  return (
+    <div>
+      {/* Summary Stats Box */}
+      <div style={{
+        padding: 'var(--space-md)',
+        background: 'var(--color-bg-secondary)',
+        borderRadius: 'var(--radius-md)',
+        marginBottom: 'var(--space-md)',
+        border: '1px solid var(--color-border-subtle)'
+      }}>
+        <div style={{ display: 'flex', gap: 'var(--space-2xl)', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span>
+            <span className="text-xs text-muted">Total Findings</span>
+            <span className="text-md weight-bold text-primary font-mono"> {evidence.total_findings || 0}</span>
+          </span>
+          {evidence.high_confidence_count > 0 && (
+            <span>
+              <span className="text-xs text-muted">High Confidence</span>
+              <span className="text-md weight-bold font-mono" style={{ color: 'var(--color-critical)' }}>
+                {' '}{evidence.high_confidence_count}
+              </span>
+            </span>
+          )}
+          {evidence.medium_confidence_count > 0 && (
+            <span>
+              <span className="text-xs text-muted">Medium Confidence</span>
+              <span className="text-md weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
+                {' '}{evidence.medium_confidence_count}
+              </span>
+            </span>
+          )}
+          <span>
+            <span className="text-xs text-muted">Sessions with PII</span>
+            <span className="text-md weight-bold text-primary font-mono"> {sessionsList.length}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Entity Type Badges */}
+      {evidence.findings_by_type && Object.keys(evidence.findings_by_type).length > 0 && (
+        <div style={{ marginBottom: 'var(--space-lg)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+            {Object.entries(evidence.findings_by_type).map(([entityType, count]) => (
+              <span
+                key={entityType}
+                className="font-mono"
+                style={{
+                  padding: '4px 8px',
+                  background: 'var(--color-bg-elevated)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border-medium)',
+                  fontSize: '12px'
+                }}
+              >
+                {entityType}: {count}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Sessions Section */}
+      {sessionsList.length > 0 && (
+        <div style={{ marginBottom: 'var(--space-2xl)' }}>
+          <h4 className="text-xs text-muted weight-semibold mb-md font-mono" style={{ letterSpacing: '0.08em' }}>
+            SESSIONS WITH PII ({sessionsList.length})
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+            {sessionsList.map(({ sessionId, entityBreakdown, findings }) => {
+              const isExpanded = expandedSessions[sessionId]
+
+              return (
+                <div
+                  key={sessionId}
+                  style={{
+                    background: 'var(--color-bg-elevated)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border-medium)'
+                  }}
+                >
+                  {/* Session Header */}
+                  <div
+                    style={{
+                      padding: 'var(--space-md)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 'var(--space-md)'
+                    }}
+                  >
+                    <Link to={`/session/${sessionId}`} className="text-sm font-mono" style={{ flex: 1 }}>
+                      {sessionId.substring(0, 32)}...
+                    </Link>
+
+                    {/* Entity Type Badges */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-xs)' }}>
+                      {Object.entries(entityBreakdown).map(([entityType, entityCount]) => (
+                        <span
+                          key={entityType}
+                          className="font-mono"
+                          style={{
+                            padding: '2px 6px',
+                            background: 'var(--color-bg-secondary)',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--color-border-medium)',
+                            fontSize: '11px',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {entityCount} {entityType}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Expand/Collapse Button */}
+                    <button
+                      onClick={() => toggleSession(sessionId)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 'var(--space-xs)',
+                        color: 'var(--color-text-muted)',
+                        fontSize: '12px'
+                      }}
+                    >
+                      {isExpanded ? '▼' : '▶'}
+                    </button>
+                  </div>
+
+                  {/* Expanded Findings Table */}
+                  {isExpanded && findings.length > 0 && (
+                    <div style={{
+                      padding: '0 var(--space-md) var(--space-md) var(--space-md)',
+                      borderTop: '1px solid var(--color-border-subtle)'
+                    }}>
+                      <table style={{
+                        width: '100%',
+                        fontSize: '11px',
+                        borderCollapse: 'collapse'
+                      }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                            <th className="text-xs text-muted weight-semibold font-mono" style={{ textAlign: 'left', padding: 'var(--space-xs) var(--space-sm)' }}>
+                              Entity Type
+                            </th>
+                            <th className="text-xs text-muted weight-semibold font-mono" style={{ textAlign: 'left', padding: 'var(--space-xs) var(--space-sm)' }}>
+                              Confidence
+                            </th>
+                            <th className="text-xs text-muted weight-semibold font-mono" style={{ textAlign: 'left', padding: 'var(--space-xs) var(--space-sm)' }}>
+                              Location
+                            </th>
+                            <th className="text-xs text-muted weight-semibold font-mono" style={{ textAlign: 'left', padding: 'var(--space-xs) var(--space-sm)' }}>
+                              Text
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {findings.map((finding, idx) => (
+                            <tr key={idx} style={{ borderBottom: idx < findings.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+                              <td className="text-xs font-mono" style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
+                                <span
+                                  style={{
+                                    padding: '2px 4px',
+                                    background: 'var(--color-accent-bg)',
+                                    color: 'var(--color-accent-primary)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '10px'
+                                  }}
+                                >
+                                  {finding.entity_type}
+                                </span>
+                              </td>
+                              <td className="text-xs font-mono" style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
+                                <span
+                                  style={{
+                                    padding: '2px 4px',
+                                    background: finding.score >= 0.8 ? 'var(--color-critical-bg)' :
+                                      finding.score >= 0.5 ? 'var(--color-warning-bg)' : 'var(--color-bg-secondary)',
+                                    color: finding.score >= 0.8 ? 'var(--color-critical)' :
+                                      finding.score >= 0.5 ? 'var(--color-warning)' : 'var(--color-text-muted)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    fontSize: '10px'
+                                  }}
+                                >
+                                  {(finding.score * 100).toFixed(0)}%
+                                </span>
+                              </td>
+                              <td className="text-xs text-muted font-mono" style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
+                                {finding.event_location}
+                              </td>
+                              <td className="text-xs text-muted font-mono" style={{ padding: 'var(--space-xs) var(--space-sm)' }}>
+                                "{finding.text.length > 30 ? finding.text.substring(0, 30) + '...' : finding.text}"
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AgentReportPage() {
   const { agentId } = useParams()
   const [data, setData] = useState(null)
@@ -424,8 +670,23 @@ export default function AgentReportPage() {
                                         </div>
                                       )}
 
-                                      {check.recommendations && check.recommendations.length > 0 && (
-                                        <div className="mb-md">
+                                      {check.evidence && Object.keys(check.evidence).length > 0 && (
+                                        <div className="mt-md">
+                                          {/* Special rendering for PII Detection check */}
+                                          {check.check_id === 'PII_001_DETECTION' && check.evidence.detailed_findings ? (
+                                            <PIIFindingsDisplay evidence={check.evidence} />
+                                          ) : (
+                                            <div className="monospace-content text-xs">
+                                              {JSON.stringify(check.evidence, null, 2).split('\n').slice(0, 5).join('\n')}
+                                              {JSON.stringify(check.evidence, null, 2).split('\n').length > 5 && '...'}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Recommendations - skip for PII_001_DETECTION */}
+                                      {check.check_id !== 'PII_001_DETECTION' && check.recommendations && check.recommendations.length > 0 && (
+                                        <div className="mt-md">
                                           <div className="text-sm weight-semibold text-primary mb-xs">
                                             Recommendations:
                                           </div>
@@ -434,18 +695,6 @@ export default function AgentReportPage() {
                                               <li key={i} style={{ marginBottom: 'var(--space-xs)' }}>{rec}</li>
                                             ))}
                                           </ul>
-                                        </div>
-                                      )}
-
-                                      {check.evidence && Object.keys(check.evidence).length > 0 && (
-                                        <div className="mt-md">
-                                          <div className="text-sm weight-semibold text-primary mb-xs">
-                                            Evidence:
-                                          </div>
-                                          <div className="monospace-content text-xs">
-                                            {JSON.stringify(check.evidence, null, 2).split('\n').slice(0, 5).join('\n')}
-                                            {JSON.stringify(check.evidence, null, 2).split('\n').length > 5 && '...'}
-                                          </div>
                                         </div>
                                       )}
                                     </div>
