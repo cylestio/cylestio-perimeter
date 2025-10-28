@@ -109,9 +109,37 @@ class InsightsEngine:
             },
             "sessions": agent_sessions,
             "patterns": self._analyze_agent_patterns(agent),
-            "risk_analysis": risk_analysis.dict() if risk_analysis else None,
+            "risk_analysis": self._serialize_risk_analysis(risk_analysis) if risk_analysis else None,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
+
+    def _serialize_risk_analysis(self, risk_analysis) -> Dict[str, Any]:
+        """Serialize risk analysis with computed properties included."""
+        if not risk_analysis:
+            return None
+        
+        # Get the base dict
+        result = risk_analysis.dict() if hasattr(risk_analysis, 'dict') else risk_analysis.model_dump()
+        
+        # Add computed properties for SecurityReport
+        if hasattr(risk_analysis, 'security_report') and risk_analysis.security_report:
+            result['security_report']['overall_status'] = risk_analysis.security_report.overall_status
+            result['security_report']['total_checks'] = risk_analysis.security_report.total_checks
+            result['security_report']['critical_issues'] = risk_analysis.security_report.critical_issues
+            result['security_report']['warnings'] = risk_analysis.security_report.warnings
+            result['security_report']['passed_checks'] = risk_analysis.security_report.passed_checks
+            
+            # Add computed properties for each category
+            if 'categories' in result['security_report']:
+                for category_id, category in risk_analysis.security_report.categories.items():
+                    if category_id in result['security_report']['categories']:
+                        result['security_report']['categories'][category_id]['highest_severity'] = category.highest_severity
+                        result['security_report']['categories'][category_id]['total_checks'] = category.total_checks
+                        result['security_report']['categories'][category_id]['passed_checks'] = category.passed_checks
+                        result['security_report']['categories'][category_id]['critical_checks'] = category.critical_checks
+                        result['security_report']['categories'][category_id]['warning_checks'] = category.warning_checks
+        
+        return result
 
     @_with_store_lock
     def get_session_data(self, session_id: str) -> Dict[str, Any]:

@@ -43,7 +43,7 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
             check_id="RESOURCE_001_TOKEN_BOUNDS",
             category="Resource Management",
             name="Token Budget Usage",
-            description="Validates that per-session token usage stays within the allowed range.",
+            description="Validates that a per-session token usage stays within the allowed range.",
             status="critical",
             value=f"{len(violations)} violation{'s' if len(violations) != 1 else ''}",
             evidence={'violations': violations},
@@ -259,7 +259,7 @@ def check_resource_management(sessions: List[SessionData]) -> AssessmentCategory
     return AssessmentCategory(
         category_id="RESOURCE_MANAGEMENT",
         category_name="Resource Management",
-        description="Summarizes how the agent uses tokens, time, and tools against policy",
+        description="Summarizes how the agent uses tokens, time, and tools against policy.",
         checks=checks,
         metrics=metrics
     )
@@ -336,7 +336,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
             name="Session Tool Coverage",
-            description="Measures how completely each session leverages its available tools.",
+            description="Measures how completely each session exercises its available tools to ensure bugs and gaps are not missed.",
             status="passed",
             value="No sessions",
             evidence={'reason': 'no_sessions'}
@@ -355,7 +355,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
             name="Session Tool Coverage",
-            description="Measures how completely each session leverages its available tools.",
+            description="Measures how completely each session exercises its available tools to ensure bugs and gaps are not missed.",
             status="passed",
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
@@ -369,7 +369,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
             name="Average Tool Coverage",
-            description="Average per-session tool coverage should be around 1.0",
+            description="Average per-session tool coverage (target ≥ 80%; ideal 100%).",
             status="passed",
             value=f"{round(avg_coverage * 100)}% coverage",
             evidence={
@@ -383,7 +383,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         check_id="ENV_002_AVG_TOOLS_COVERAGE",
         category="Environment & Supply Chain",
         name="Session Tool Coverage",
-        description="Measures how completely each session leverages its available tools.",
+        description="Measures how completely each session exercises its available tools to ensure bugs and gaps are not missed.",
         status="warning",
         value=f"{round(avg_coverage * 100)}% coverage",
         evidence={
@@ -392,7 +392,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             'threshold': 0.80
         },
         recommendations=[
-            f"Improve tool coverage to reach 100% (current: {round(avg_coverage * 100)}%)"
+            f"Improve tool coverage to reach 100% by adding scenarios that call each tool at least once (current: {round(avg_coverage * 100)}%)"
         ]
     )
 
@@ -411,7 +411,7 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
             check_id="ENV_003_UNUSED_TOOLS",
             category="Environment & Supply Chain",
             name="Unused Tools Inventory",
-            description="Flags provisioned tools that are never exercised across sessions.",
+            description="Flags provisioned tools that are never exercised across sessions (increases attack surface and maintenance burden if not removed).",
             status="passed",
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
@@ -438,7 +438,7 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
         check_id="ENV_003_UNUSED_TOOLS",
         category="Environment & Supply Chain",
         name="Unused Tools Inventory",
-        description="Flags provisioned tools that are never exercised across sessions.",
+        description="Flags provisioned tools that are never exercised across sessions (increases attack surface and maintenance burden if not removed).",
         status="warning",
         value=f"{len(unused_tools)} unused tool{'s' if len(unused_tools) != 1 else ''}",
         evidence={
@@ -493,7 +493,7 @@ def check_environment(sessions: List[SessionData]) -> AssessmentCategory:
     return AssessmentCategory(
         category_id="ENVIRONMENT",
         category_name="Environment & Supply Chain",
-        description="Examines model version pinning and tool adoption health",
+        description="Examines model version pinning and tool adoption health.",
         checks=checks,
         metrics=metrics
     )
@@ -511,8 +511,8 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
         return AssessmentCheck(
             check_id="BEHAV_001_STABILITY_SCORE",
             category="Behavioral Stability",
-            name="Behavior Stability Score",
-            description="Evaluates whether observed session behaviors stay stable across the scenarios we analyze.",
+            name="Behavioral Stability Score",
+            description="Largest-cluster share × purity; higher means sessions follow a consistent pattern.",
             status="passed",
             value=f"{round(score * 100)}% score",
             evidence={
@@ -525,8 +525,8 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
     return AssessmentCheck(
         check_id="BEHAV_001_STABILITY_SCORE",
         category="Behavioral Stability",
-        name="Behavior Stability Score",
-        description="Evaluates whether observed session behaviors stay stable across the scenarios we analyze.",
+        name="Behavioral Stability Score",
+        description="Largest-cluster share × purity; higher means sessions follow a consistent pattern.",
         status="critical",
         value=f"{round(score * 100)}% score",
         evidence={
@@ -547,7 +547,7 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
         return AssessmentCheck(
             check_id="BEHAV_002_OUTLIER_RATE",
             category="Behavioral Stability",
-            name="Behavior Outlier Rate",
+            name="Behavioral Outlier Rate",
             description="Tracks the share of sessions that diverge from established behavioral patterns.",
             status="passed",
             value=f"{int(outlier_rate * 100)}% outliers",
@@ -562,7 +562,7 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
     return AssessmentCheck(
         check_id="BEHAV_002_OUTLIER_RATE",
         category="Behavioral Stability",
-        name="Behavior Outlier Rate",
+        name="Behavioral Outlier Rate",
         description="Tracks the share of sessions that diverge from established behavioral patterns.",
         status="critical",
         value=f"{int(outlier_rate * 100)}% outliers",
@@ -614,7 +614,7 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
         return AssessmentCheck(
             check_id="BEHAV_004_PREDICTABILITY",
             category="Behavioral Stability",
-            name="Behavior Predictability",
+            name="Behavioral Predictability",
             description="Scores how predictable the agent's behavior remains across comparable sessions.",
             status="passed",
             value=f"{round(score * 100)}% score",
@@ -624,7 +624,7 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
     return AssessmentCheck(
         check_id="BEHAV_004_PREDICTABILITY",
         category="Behavioral Stability",
-        name="Behavior Predictability",
+        name="Behavioral Predictability",
         description="Scores how predictable the agent's behavior remains across comparable sessions.",
         status="warning",
         value=f"{round(score * 100)}% score",
@@ -661,7 +661,7 @@ def check_behavioral_stability(
     return AssessmentCategory(
         category_id="BEHAVIORAL",
         category_name="Behavioral Stability",
-        description="Summarizes behavioral consistency, predictability, and remaining variance",
+        description="Summarizes behavioral consistency, predictability, and remaining variance.",
         checks=checks
     )
 
@@ -963,7 +963,7 @@ def check_privacy_compliance(
     return AssessmentCategory(
         category_id="PRIVACY_COMPLIANCE",
         category_name="Privacy & PII Compliance",
-        description="Detects and reports on PII exposure in agent messages and prompts",
+        description="Detects and reports PII exposure in messages and prompts.",
         checks=checks,
         metrics=metrics
     )
