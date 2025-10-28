@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class LiveTraceInterceptor(BaseInterceptor):
     """Interceptor that provides real-time tracing with web dashboard."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], provider_name: str = "unknown", provider_config: Dict[str, Any] = None):
         """Initialize live trace interceptor.
 
         Args:
@@ -27,6 +27,8 @@ class LiveTraceInterceptor(BaseInterceptor):
                 - max_events: Maximum events to keep in memory (default: 10000)
                 - retention_minutes: Session retention time (default: 30)
                 - refresh_interval: Page refresh interval in seconds (default: 2)
+            provider_name: Name of the LLM provider (e.g., "openai", "anthropic")
+            provider_config: Provider configuration including base_url
         """
         super().__init__(config)
 
@@ -38,12 +40,26 @@ class LiveTraceInterceptor(BaseInterceptor):
         self.retention_minutes = config.get("retention_minutes", 30)
         self.refresh_interval = config.get("refresh_interval", 2)
 
+        # Store provider configuration for API endpoint
+        self.provider_name = provider_name
+        self.provider_config = provider_config or {}
+
         # Initialize storage and insights
         self.store = TraceStore(
             max_events=self.max_events,
             retention_minutes=self.retention_minutes
         )
-        self.insights = InsightsEngine(self.store)
+
+        # Pass configuration to insights engine
+        # Use the actual proxy server's host/port (where agents connect to)
+        # not the dashboard server's host/port
+        proxy_config = {
+            "provider_type": self.provider_name,
+            "provider_base_url": self.provider_config.get("base_url", "unknown"),
+            "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
+            "proxy_port": self.provider_config.get("proxy_port", 3000)
+        }
+        self.insights = InsightsEngine(self.store, proxy_config)
 
         # Server management
         self.server_thread = None

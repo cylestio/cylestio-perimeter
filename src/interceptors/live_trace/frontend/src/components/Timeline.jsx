@@ -27,11 +27,11 @@ function TimelineItem({ item }) {
     <div className={`timeline-item ${alignmentClass} ${errorClass}`}>
       <div className="timeline-bubble">
         <div className="timeline-time">
-          <span style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>
+          <span className="weight-semibold text-md text-primary">
             {item.event_type}
           </span>
           {' • '}
-          <span style={{ fontSize: '10px', color: '#64748b' }}>
+          <span className="text-xs text-muted">
             {timeAgo(item.timestamp)}
           </span>
         </div>
@@ -50,7 +50,7 @@ function TimelineItem({ item }) {
 
         {/* Other events - show description */}
         {!['llm.call.start', 'llm.call.finish', 'tool.execution', 'tool.result'].includes(item.event_type) && (
-          <div className="timeline-title" style={{ marginTop: '4px', color: '#1e293b' }}>
+          <div className="timeline-title mt-xs text-primary">
             {item.description}
           </div>
         )}
@@ -63,9 +63,10 @@ function TimelineItem({ item }) {
         )}
 
         {/* Expandable raw event */}
-        <details style={{ marginTop: '10px' }} open={showRaw}>
+        <details className="mt-md" open={showRaw}>
           <summary
-            style={{ cursor: 'pointer', fontSize: '12px', color: '#6b7280', userSelect: 'none' }}
+            className="text-xs text-muted"
+            style={{ cursor: 'pointer', userSelect: 'none' }}
             onClick={(e) => {
               e.preventDefault()
               setShowRaw(!showRaw)
@@ -73,33 +74,27 @@ function TimelineItem({ item }) {
           >
             Show raw event
           </summary>
-          <div style={{
-            marginTop: '8px',
-            padding: '10px',
-            background: '#f8fafc',
-            borderRadius: '4px',
-            fontFamily: 'monospace',
-            fontSize: '11px',
+          <div className="monospace-content mt-sm" style={{
             maxHeight: '300px',
             overflowY: 'auto'
           }}>
-            <div style={{ color: '#6b7280', marginBottom: '5px' }}>
+            <div className="text-muted mb-xs">
               <strong>Event Type:</strong> {item.event_type}
             </div>
-            <div style={{ color: '#6b7280', marginBottom: '5px' }}>
+            <div className="text-muted mb-xs">
               <strong>Level:</strong> {item.level}
             </div>
-            <div style={{ color: '#6b7280', marginBottom: '5px' }}>
+            <div className="text-muted mb-xs">
               <strong>Timestamp:</strong> {item.timestamp}
             </div>
             {item.details && Object.keys(item.details).length > 0 && (
-              <div style={{ marginTop: '10px' }}>
-                <strong style={{ color: '#374151' }}>Attributes:</strong>
-                <div style={{ marginLeft: '10px', marginTop: '5px' }}>
+              <div className="mt-md">
+                <strong className="text-primary">Attributes:</strong>
+                <div style={{ marginLeft: 'var(--space-md)', marginTop: 'var(--space-xs)' }}>
                   {Object.entries(item.details).map(([key, value]) => (
-                    <div key={key} style={{ marginBottom: '3px', wordBreak: 'break-all' }}>
-                      <span style={{ color: '#059669' }}>{key}:</span>{' '}
-                      <span style={{ color: '#1e40af' }}>
+                    <div key={key} className="mb-xs" style={{ wordBreak: 'break-all' }}>
+                      <span className="text-success">{key}:</span>{' '}
+                      <span className="text-info">
                         {typeof value === 'string' ? value : JSON.stringify(value)}
                       </span>
                     </div>
@@ -126,12 +121,10 @@ function renderLLMCallStart(details) {
   if (typeof content === 'string') {
     const truncated = content.length > 500 ? content.substring(0, 500) + '...' : content
     return (
-      <div style={{
-        marginTop: '8px',
+      <div className="mt-md text-sm text-primary" style={{
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
-        lineHeight: 1.5,
-        color: '#1e293b'
+        lineHeight: 1.6
       }}>
         {truncated}
       </div>
@@ -156,12 +149,10 @@ function renderLLMCallFinish(details) {
   const truncated = text.length > 500 ? text.substring(0, 500) + '...' : text
 
   return (
-    <div style={{
-      marginTop: '8px',
+    <div className="mt-md text-sm text-primary" style={{
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-word',
-      lineHeight: 1.5,
-      color: '#1e293b'
+      lineHeight: 1.6
     }}>
       {truncated}
     </div>
@@ -173,7 +164,7 @@ function renderToolExecution(details) {
   const toolParams = details['tool.params']
 
   return (
-    <div style={{ marginTop: '8px' }}>
+    <div className="mt-md">
       <div className="tool-name-badge">{toolName}</div>
       {toolParams && (
         <div className="monospace-content">

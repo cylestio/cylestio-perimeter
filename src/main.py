@@ -95,7 +95,15 @@ def create_app(config: Settings) -> FastAPI:
     fast_app.state.proxy_handler = proxy_handler_instance
     
     # Create interceptors from configuration with provider info
-    interceptors = interceptor_manager.create_interceptors(config.interceptors, provider.name)
+    provider_config = {
+        "base_url": config.llm.base_url,
+        "type": config.llm.type,
+        "timeout": config.llm.timeout,
+        "max_retries": config.llm.max_retries,
+        "proxy_host": config.server.host,
+        "proxy_port": config.server.port
+    }
+    interceptors = interceptor_manager.create_interceptors(config.interceptors, provider.name, provider_config)
     
     # Register the LLM middleware with provider and interceptors
     fast_app.add_middleware(

@@ -5,6 +5,7 @@ import './styles.css'
 import Dashboard from './components/Dashboard'
 import SessionPage from './components/SessionPage'
 import AgentPage from './components/AgentPage'
+import AgentReportPage from './components/AgentReportPage'
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/session/:sessionId" element={<SessionPage />} />
         <Route path="/agent/:agentId" element={<AgentPage />} />
+        <Route path="/agent/:agentId/report" element={<AgentReportPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
