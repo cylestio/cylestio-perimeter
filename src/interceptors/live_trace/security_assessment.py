@@ -330,7 +330,7 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
 
 
 def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentCheck:
-    """Check average per-session tools coverage (should be around 1.0)."""
+    """Check average per-session tool coverage (should be around 1.0)."""
     if not sessions:
         return AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
@@ -368,8 +368,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         return AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
-            name="Average Tools Coverage",
-            description="Average per-session tools coverage should be around 1.0",
+            name="Average Tool Coverage",
+            description="Average per-session tool coverage should be around 1.0",
             status="passed",
             value=f"{avg_coverage:.2f} coverage",
             evidence={
@@ -392,7 +392,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             'threshold': 0.80
         },
         recommendations=[
-            f"Improve tools coverage to reach 1.0 (current: {avg_coverage:.2f})"
+            f"Improve tool coverage to reach 1.0 (current: {avg_coverage:.2f})"
         ]
     )
 
@@ -469,7 +469,7 @@ def check_environment(sessions: List[SessionData]) -> AssessmentCategory:
 
     metrics['model'] = ', '.join(sorted(all_models)) if all_models else 'N/A'
 
-    # Calculate average per-session tools coverage
+    # Calculate average per-session tool coverage
     coverage_rates = []
     for session in sessions:
         if len(session.available_tools) > 0:

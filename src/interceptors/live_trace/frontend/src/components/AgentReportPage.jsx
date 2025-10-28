@@ -434,7 +434,7 @@ export default function AgentReportPage() {
                                   flexDirection: 'column',
                                   gap: 'var(--space-xs)'
                                 }}>
-                                  <span className="text-xs text-muted weight-semibold">Avg. Tools Coverage</span>
+                                  <span className="text-xs text-muted weight-semibold">Avg. Tool Coverage</span>
                                   <span className="text-sm font-mono">
                                     {category.metrics.avg_tools_coverage?.toFixed(2) || '0.00'}
                                   </span>
