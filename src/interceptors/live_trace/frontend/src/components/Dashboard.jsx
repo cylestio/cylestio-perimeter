@@ -130,7 +130,7 @@ export default function Dashboard() {
                 const getPriorityBadge = () => {
                   if (agent.analysis_summary?.action_required) {
                     return {
-                      label: 'ACTION REQUIRED',
+                      label: 'ATTENTION REQUIRED',
                       bg: 'var(--color-critical-bg)',
                       color: 'var(--color-critical)',
                       border: 'var(--color-critical-border)'

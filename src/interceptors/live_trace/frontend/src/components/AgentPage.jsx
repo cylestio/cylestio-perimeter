@@ -251,6 +251,122 @@ export default function AgentPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Behavioral Snapshot */}
+                  {riskAnalysis?.behavioral_analysis && (
+                    <div style={{
+                      paddingTop: 'var(--space-2xl)',
+                      marginTop: 'var(--space-2xl)',
+                      borderTop: '1px solid var(--color-border-subtle)'
+                    }}>
+                      <div className="text-xs weight-semibold mb-lg" style={{
+                        color: 'var(--color-text-secondary)',
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase'
+                      }}>
+                        Behavioral Snapshot
+                      </div>
+                      
+                      {/* Show scores only if clusters formed */}
+                      {riskAnalysis.behavioral_analysis.num_clusters >= 1 ? (
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 'var(--space-lg)'
+                        }}>
+                          {/* Stability */}
+                          <div>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: 'var(--space-xs)'
+                            }}>
+                              <span className="text-sm text-secondary weight-medium">Stability</span>
+                              <span className="font-mono text-md weight-bold text-primary">
+                                {Math.round(riskAnalysis.behavioral_analysis.stability_score * 100)}%
+                              </span>
+                            </div>
+                            <div className="progress-bar-container">
+                              <div className="progress-bar-fill" style={{
+                                width: `${riskAnalysis.behavioral_analysis.stability_score * 100}%`,
+                                background: 'var(--color-accent-primary)'
+                              }}></div>
+                            </div>
+                          </div>
+                          
+                          {/* Predictability */}
+                          <div>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: 'var(--space-xs)'
+                            }}>
+                              <span className="text-sm text-secondary weight-medium">Predictability</span>
+                              <span className="font-mono text-md weight-bold text-primary">
+                                {Math.round(riskAnalysis.behavioral_analysis.predictability_score * 100)}%
+                              </span>
+                            </div>
+                            <div className="progress-bar-container">
+                              <div className="progress-bar-fill" style={{
+                                width: `${riskAnalysis.behavioral_analysis.predictability_score * 100}%`,
+                                background: 'var(--color-accent-primary)'
+                              }}></div>
+                            </div>
+                          </div>
+                          
+                          {/* Confidence */}
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            paddingTop: 'var(--space-sm)'
+                          }}>
+                            <span className="text-sm text-secondary weight-medium">Confidence</span>
+                            <span className="badge" style={{
+                              background: riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'var(--color-success-bg)' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'var(--color-info-bg)'
+                                  : 'var(--color-warning-bg)',
+                              color: riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'var(--color-success)' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'var(--color-info)'
+                                  : 'var(--color-warning)',
+                              border: `1px solid ${
+                                riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                  ? 'var(--color-success-border)' 
+                                  : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                    ? 'var(--color-info-border)'
+                                    : 'var(--color-warning-border)'
+                              }`,
+                              padding: 'var(--space-xs) var(--space-md)',
+                              textTransform: 'capitalize'
+                            }}>
+                              {riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'High' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'Medium'
+                                  : 'Low'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{
+                          padding: 'var(--space-md)',
+                          background: 'var(--color-bg-elevated)',
+                          borderRadius: 'var(--radius-md)',
+                          border: '1px solid var(--color-border-medium)'
+                        }}>
+                          <div className="text-xs text-muted">
+                            Behavioral scores require cluster formation. Once the agent has more sessions with similar patterns, detailed stability metrics will be available.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
