@@ -26,7 +26,7 @@ export default function ClusterVisualization({ behavioralAnalysis }) {
   return (
     <div className="cluster-viz-container">
       <h4 className="text-xs text-muted weight-semibold mb-md font-mono" style={{ letterSpacing: '0.08em' }}>
-        CLUSTER VISUALIZATION
+      BEHAVIORAL PATTERNS
       </h4>
 
       <div style={{
