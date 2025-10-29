@@ -24,13 +24,14 @@ class InterceptorManager:
         self._interceptor_types[name] = interceptor_class
         logger.debug(f"Registered interceptor: {name}")
     
-    def create_interceptors(self, interceptor_configs, provider_name: str = None, provider_config: Dict[str, Any] = None) -> List[BaseInterceptor]:
+    def create_interceptors(self, interceptor_configs, provider_name: str = None, provider_config: Dict[str, Any] = None, global_config: Dict[str, Any] = None) -> List[BaseInterceptor]:
         """Create interceptor instances from configuration.
         
         Args:
             interceptor_configs: List of interceptor configurations (Pydantic models or dicts)
             provider_name: Name of the LLM provider (e.g., 'openai', 'anthropic')
             provider_config: Provider configuration dict (including base_url, etc.)
+            global_config: Global configuration dict (e.g., live_trace settings)
             
         Returns:
             List of created interceptor instances
@@ -69,9 +70,20 @@ class InterceptorManager:
                 if provider_name:
                     interceptor_config["provider_name"] = provider_name
                 
-                # LiveTraceInterceptor needs special handling for provider config
-                if interceptor_type == "live_trace" and provider_config:
-                    interceptor = interceptor_class(interceptor_config, provider_name, provider_config)
+                # LiveTraceInterceptor needs special handling
+                if interceptor_type == "live_trace":
+                    # Merge global live_trace config if available
+                    if global_config and "live_trace" in global_config:
+                        global_live_trace_config = global_config["live_trace"]
+                        # Interceptor config takes precedence over global config
+                        for key, value in global_live_trace_config.items():
+                            if key not in interceptor_config:
+                                interceptor_config[key] = value
+                    
+                    if provider_config:
+                        interceptor = interceptor_class(interceptor_config, provider_name, provider_config)
+                    else:
+                        interceptor = interceptor_class(interceptor_config, provider_name)
                 else:
                     interceptor = interceptor_class(interceptor_config)
                 interceptors.append(interceptor)

@@ -103,7 +103,21 @@ def create_app(config: Settings) -> FastAPI:
         "proxy_host": config.server.host,
         "proxy_port": config.server.port
     }
-    interceptors = interceptor_manager.create_interceptors(config.interceptors, provider.name, provider_config)
+    
+    # Prepare global config for interceptors (e.g., live_trace settings)
+    global_config = {}
+    if config.live_trace:
+        global_config["live_trace"] = {
+            "session_completion_timeout": config.live_trace.session_completion_timeout,
+            "completion_check_interval": config.live_trace.completion_check_interval
+        }
+    
+    interceptors = interceptor_manager.create_interceptors(
+        config.interceptors, 
+        provider.name, 
+        provider_config,
+        global_config
+    )
     
     # Register the LLM middleware with provider and interceptors
     fast_app.add_middleware(

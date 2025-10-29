@@ -160,8 +160,10 @@ export function getAgentStatus(riskAnalysis) {
     }
   }
 
-  // Handle complete analysis
-  const hasRiskData = evaluationStatus === 'COMPLETE' && riskAnalysis.security_report && riskAnalysis.behavioral_analysis
+  // Handle complete or partial analysis
+  // PARTIAL means security is ready but behavioral is waiting for session completion
+  const hasRiskData = (evaluationStatus === 'COMPLETE' || evaluationStatus === 'PARTIAL') && 
+                       riskAnalysis.security_report
 
   if (!hasRiskData) {
     return {
@@ -209,6 +211,12 @@ export function getAgentStatus(riskAnalysis) {
     totalChecks,
     statusText: hasCriticalIssues ? 'ATTENTION REQUIRED' : 'OK',
     statusColor: hasCriticalIssues ? 'var(--color-critical)' : 'var(--color-success)',
-    evaluationStatus
+    evaluationStatus,
+    // Session completion status for behavioral analysis
+    totalSessions: riskAnalysis.summary?.total_sessions || 0,
+    completedSessions: riskAnalysis.summary?.completed_sessions || 0,
+    activeSessions: riskAnalysis.summary?.active_sessions || 0,
+    behavioralStatus: riskAnalysis.summary?.behavioral_status,
+    behavioralMessage: riskAnalysis.summary?.behavioral_message
   }
 }
