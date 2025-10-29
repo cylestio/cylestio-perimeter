@@ -35,6 +35,21 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     if STATIC_DIR.exists():
         app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
         logger.info(f"Mounted static files from {STATIC_DIR}")
+        
+        # Serve logo and favicon from root
+        @app.get("/cylestio_full_logo.png")
+        async def get_logo():
+            logo_path = STATIC_DIR / "cylestio_full_logo.png"
+            if logo_path.exists():
+                return FileResponse(logo_path)
+            return JSONResponse({"error": "Logo not found"}, status_code=404)
+        
+        @app.get("/favicon.ico")
+        async def get_favicon():
+            favicon_path = STATIC_DIR / "favicon.ico"
+            if favicon_path.exists():
+                return FileResponse(favicon_path)
+            return JSONResponse({"error": "Favicon not found"}, status_code=404)
     else:
         logger.warning(f"Static directory not found: {STATIC_DIR}. Run 'cd src/interceptors/live_trace/frontend && npm run build' to build the React app.")
 

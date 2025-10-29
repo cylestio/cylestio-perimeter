@@ -13,7 +13,8 @@ import {
   getCategoryHeaderColor,
   getCategoryBorderColor,
   getCheckStatusClass,
-  getAgentStatus
+  getAgentStatus,
+  BEHAVIORAL_TOOLTIPS
 } from '../utils/helpers'
 
 // Component to display PII findings with clickable sessions
@@ -329,14 +330,13 @@ export default function AgentReportPage() {
   return (
     <>
       <div className="container">
-        <h1 className="page-title">Full Report</h1>
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <Link to="/">Dashboard</Link>
           <span className="breadcrumb-separator">/</span>
-          <Link to={`/agent/${agentId}`}>{agentId.substring(0, 16)}{agentId.length > 16 ? '...' : ''}</Link>
+          <Link to={`/agent/${agentId}`}>Agent {agentId.substring(0, 12)}...</Link>
           <span className="breadcrumb-separator">/</span>
-          <strong className="text-primary">Report</strong>
+          <strong className="text-primary">Full Report</strong>
         </div>
 
         {/* Split Dashboard Layout */}
@@ -435,9 +435,9 @@ export default function AgentReportPage() {
                                   flexDirection: 'column',
                                   gap: 'var(--space-xs)'
                                 }}>
-                                  <span className="text-xs text-muted weight-semibold">Avg. Tools Coverage</span>
+                                  <span className="text-xs text-muted weight-semibold">Avg. Tool Coverage</span>
                                   <span className="text-sm font-mono">
-                                    {category.metrics.avg_tools_coverage?.toFixed(2) || '0.00'}
+                                    {category.metrics.avg_tools_coverage ? `${Math.round(category.metrics.avg_tools_coverage * 100)}%` : '0%'}
                                   </span>
                                 </div>
                                 <div style={{
@@ -451,7 +451,9 @@ export default function AgentReportPage() {
                                 }}>
                                   <span className="text-xs text-muted weight-semibold">Avg. Tool Calls</span>
                                   <span className="text-sm font-mono">
-                                    {category.metrics.avg_tool_calls?.toFixed(1) || '0.0'}
+                                    {category.metrics.avg_tool_calls !== undefined && category.metrics.avg_tool_calls !== null
+                                      ? (category.metrics.avg_tool_calls === 0 ? '0' : category.metrics.avg_tool_calls.toFixed(1))
+                                      : '0'}
                                   </span>
                                 </div>
                               </>
@@ -483,7 +485,9 @@ export default function AgentReportPage() {
                                 }}>
                                   <span className="text-xs text-muted weight-semibold">Avg. Session Duration</span>
                                   <span className="text-sm font-mono">
-                                    {category.metrics.avg_duration_minutes?.toFixed(1) || '0.0'} min
+                                    {category.metrics.avg_duration_minutes !== undefined && category.metrics.avg_duration_minutes !== null
+                                      ? (category.metrics.avg_duration_minutes === 0 ? '0' : category.metrics.avg_duration_minutes.toFixed(1))
+                                      : '0'} min
                                   </span>
                                 </div>
                               </>
@@ -738,7 +742,7 @@ export default function AgentReportPage() {
                     </div>
                   </div>
                   <div className="text-xs text-muted mt-xs">
-                    Behavioral pattern analysis using MinHash clustering and outlier detection
+                    Analyze behavior, flag outliers, and forecast the probability your agent stays on track, predictable, and stable.
                   </div>
                 </div>
 
@@ -751,52 +755,166 @@ export default function AgentReportPage() {
                       </h4>
                       <div style={{
                         display: 'flex',
-                        gap: 'var(--space-md)',
-                        alignItems: 'stretch',
-                        flexWrap: 'wrap'
+                        gap: 'var(--space-xl)',
+                        alignItems: 'center',
+                        padding: 'var(--space-lg) 0'
                       }}>
-                        <div style={{
-                          border: '1px solid var(--color-border-subtle)',
-                          background: 'var(--color-bg-elevated)',
-                          borderRadius: 'var(--radius-md)',
-                          padding: 'var(--space-md)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 'var(--space-xs)',
-                          flex: '1',
-                          minWidth: '200px'
-                        }}>
-                          <span className="text-xs text-muted weight-semibold">Stability Score</span>
-                          <span className="text-sm font-mono">
+                        {/* Stability Score */}
+                        <div style={{ flex: 1 }}>
+                          <Tooltip
+                            content={BEHAVIORAL_TOOLTIPS.stability}
+                            position="top"
+                            delay={200}
+                          >
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 'var(--space-xs)', 
+                              marginBottom: 'var(--space-sm)',
+                              cursor: 'help' 
+                            }}>
+                              <span className="text-xs weight-medium text-muted" style={{ 
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                              }}>
+                                Stability
+                              </span>
+                              <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                            </div>
+                          </Tooltip>
+                          <div className="text-2xl weight-bold font-mono mb-xs" style={{ 
+                            color: 'var(--color-text-primary)'
+                          }}>
                             {(riskAnalysis.behavioral_analysis.stability_score * 100).toFixed(0)}%
-                          </span>
-                          <div className="progress-bar-container">
-                            <div
-                              className={`progress-bar-fill ${getScoreClass(riskAnalysis.behavioral_analysis.stability_score)}`}
-                              style={{ width: `${riskAnalysis.behavioral_analysis.stability_score * 100}%` }}
-                            ></div>
+                          </div>
+                          <div style={{
+                            height: '3px',
+                            background: 'var(--color-border-subtle)',
+                            borderRadius: '999px',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${riskAnalysis.behavioral_analysis.stability_score * 100}%`,
+                              background: 'var(--color-accent-primary)',
+                              borderRadius: '999px'
+                            }}></div>
                           </div>
                         </div>
-                        <div style={{
-                          border: '1px solid var(--color-border-subtle)',
-                          background: 'var(--color-bg-elevated)',
-                          borderRadius: 'var(--radius-md)',
-                          padding: 'var(--space-md)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 'var(--space-xs)',
-                          flex: '1',
-                          minWidth: '200px'
-                        }}>
-                          <span className="text-xs text-muted weight-semibold">Predictability Score</span>
-                          <span className="text-sm font-mono">
+
+                        {/* Separator */}
+                        <div style={{ 
+                          width: '1px', 
+                          height: '48px',
+                          background: 'var(--color-border-subtle)'
+                        }}></div>
+
+                        {/* Predictability Score */}
+                        <div style={{ flex: 1 }}>
+                          <Tooltip
+                            content={BEHAVIORAL_TOOLTIPS.predictability}
+                            position="top"
+                            delay={200}
+                          >
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 'var(--space-xs)', 
+                              marginBottom: 'var(--space-sm)',
+                              cursor: 'help' 
+                            }}>
+                              <span className="text-xs weight-medium text-muted" style={{ 
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                              }}>
+                                Predictability
+                              </span>
+                              <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                            </div>
+                          </Tooltip>
+                          <div className="text-2xl weight-bold font-mono mb-xs" style={{ 
+                            color: 'var(--color-text-primary)'
+                          }}>
                             {(riskAnalysis.behavioral_analysis.predictability_score * 100).toFixed(0)}%
-                          </span>
-                          <div className="progress-bar-container">
-                            <div
-                              className={`progress-bar-fill ${getScoreClass(riskAnalysis.behavioral_analysis.predictability_score)}`}
-                              style={{ width: `${riskAnalysis.behavioral_analysis.predictability_score * 100}%` }}
-                            ></div>
+                          </div>
+                          <div style={{
+                            height: '3px',
+                            background: 'var(--color-border-subtle)',
+                            borderRadius: '999px',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${riskAnalysis.behavioral_analysis.predictability_score * 100}%`,
+                              background: 'var(--color-accent-primary)',
+                              borderRadius: '999px'
+                            }}></div>
+                          </div>
+                        </div>
+
+                        {/* Separator */}
+                        <div style={{ 
+                          width: '1px', 
+                          height: '48px',
+                          background: 'var(--color-border-subtle)'
+                        }}></div>
+
+                        {/* Confidence */}
+                        <div style={{ flex: 1 }}>
+                          <Tooltip
+                            content={BEHAVIORAL_TOOLTIPS.confidence}
+                            position="top"
+                            delay={200}
+                          >
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 'var(--space-xs)', 
+                              marginBottom: 'var(--space-sm)',
+                              cursor: 'help' 
+                            }}>
+                              <span className="text-xs weight-medium text-muted" style={{ 
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.05em'
+                              }}>
+                                Confidence
+                              </span>
+                              <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                            </div>
+                          </Tooltip>
+                          <div>
+                            <span className="badge" style={{
+                              display: 'inline-block',
+                              background: riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'var(--color-success-bg)' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'var(--color-info-bg)'
+                                  : 'var(--color-warning-bg)',
+                              color: riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'var(--color-success)' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'var(--color-info)'
+                                  : 'var(--color-warning)',
+                              border: `1px solid ${
+                                riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                  ? 'var(--color-success-border)' 
+                                  : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                    ? 'var(--color-info-border)'
+                                    : 'var(--color-warning-border)'
+                              }`,
+                              padding: 'var(--space-xs) var(--space-lg)',
+                              fontSize: 'var(--text-md)',
+                              fontWeight: 'var(--weight-semibold)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                              fontFamily: 'var(--font-mono)'
+                            }}>
+                              {riskAnalysis.behavioral_analysis.confidence === 'high' 
+                                ? 'High' 
+                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                  ? 'Medium'
+                                  : 'Low'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -825,7 +943,7 @@ export default function AgentReportPage() {
                     {riskAnalysis.behavioral_analysis.interpretation}
                   </div>
 
-                  {/* Cluster Visualization - Only show if clusters exist */}
+                  {/* Behavior patterns - Only show if clusters exist */}
                   {riskAnalysis.behavioral_analysis.num_clusters >= 1 && (
                     <div style={{ marginBottom: 'var(--space-2xl)' }}>
                       <ClusterVisualization behavioralAnalysis={riskAnalysis.behavioral_analysis} />

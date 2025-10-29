@@ -3,6 +3,13 @@
 // Minimum sessions required for risk analysis (must match backend value)
 export const MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
 
+// Behavioral analysis tooltip texts (shared across components)
+export const BEHAVIORAL_TOOLTIPS = {
+  stability: "Share of sessions in the dominant pattern, adjusted for purity. Higher = the agent routinely follows the expected flow.",
+  predictability: "Estimated chance a new session stays in-bounds (not an outlier).",
+  confidence: "Strength of the estimate based on sample size and pattern purity. Add more sessions to raise confidence."
+}
+
 export function formatNumber(value) {
   if (typeof value !== 'number') return value
   if (value >= 1000000) return (value / 1000000).toFixed(0) + 'M'

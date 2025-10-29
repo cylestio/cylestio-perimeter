@@ -26,7 +26,7 @@ export default function ClusterVisualization({ behavioralAnalysis }) {
   return (
     <div className="cluster-viz-container">
       <h4 className="text-xs text-muted weight-semibold mb-md font-mono" style={{ letterSpacing: '0.08em' }}>
-        CLUSTER VISUALIZATION
+      BEHAVIORAL PATTERNS
       </h4>
 
       <div style={{
@@ -95,7 +95,7 @@ export default function ClusterVisualization({ behavioralAnalysis }) {
                       userSelect: 'none'
                     }}
                   >
-                    d={link.distance.toFixed(2)}
+                    d={Math.round(link.distance * 100)}%
                   </text>
                 )}
                 {/* Distance label for outlier links (on hover) */}
@@ -114,7 +114,7 @@ export default function ClusterVisualization({ behavioralAnalysis }) {
                       userSelect: 'none'
                     }}
                   >
-                    d={link.distance.toFixed(3)}
+                    d={Math.round(link.distance * 100)}%
                   </text>
                 )}
               </g>
@@ -280,7 +280,7 @@ function NodeTooltip({ node }) {
 
           {node.distanceToNearest !== undefined && node.distanceToNearest > 0 && (
             <div className="text-muted" style={{ marginTop: 'var(--space-xs)' }}>
-              Distance to {node.nearestClusterId}: {node.distanceToNearest.toFixed(3)}
+              Distance to {node.nearestClusterId}: {Math.round(node.distanceToNearest * 100)}%
             </div>
           )}
 
