@@ -3,9 +3,6 @@ import logging
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
-import spacy
-from spacy.cli import download as spacy_download
-
 from .risk_models import PIIAnalysisResult, PIIFinding
 from .store import SessionData
 
@@ -39,7 +36,7 @@ MEDIUM_CONFIDENCE_THRESHOLD = 0.5
 MAX_DETAILED_FINDINGS = 50
 
 # SpaCy model to use for PII detection
-SPACY_MODEL = "en_core_web_lg"
+SPACY_MODEL = "en_core_web_md"
 
 
 def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Any:
@@ -54,13 +51,29 @@ def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Any:
     Raises:
         OSError: If model cannot be downloaded or loaded
     """
+    # Import spaCy only when needed (defer heavy import)
+    import spacy
+    from spacy.cli import download as spacy_download
+    
     try:
         # Try to load the model by name
+        logger.debug(f"Attempting to load spaCy model: {model_name}")
         return spacy.load(model_name)
     except OSError:
         # Model not installed - use spaCy's downloader to install it
-        logger.info(f"SpaCy model '{model_name}' not found. Downloading...")
+        logger.info("=" * 70)
+        logger.info(f"SpaCy model '{model_name}' not found.")
+        logger.info(f"Downloading {model_name} (~150MB)...")
+        logger.info("This is a one-time download and may take several minutes.")
+        logger.info("Please wait...")
+        logger.info("=" * 70)
+        
         spacy_download(model_name)
+        
+        logger.info("=" * 70)
+        logger.info(f"Successfully downloaded {model_name}")
+        logger.info("=" * 70)
+        
         return spacy.load(model_name)
 
 
@@ -78,7 +91,7 @@ class PresidioAnalyzer:
     def get_analyzer(self) -> Any:
         """Get or create the Presidio analyzer instance.
         
-        Automatically downloads en_core_web_lg spaCy model if not present.
+        Automatically downloads en_core_web_md spaCy model if not present.
         
         Returns:
             Initialized AnalyzerEngine instance
@@ -96,7 +109,7 @@ class PresidioAnalyzer:
                 logger.info(f"Loading spaCy model: {SPACY_MODEL}")
                 ensure_spacy_model(SPACY_MODEL)
                 
-                # Configure Presidio to explicitly use en_core_web_lg
+                # Configure Presidio to explicitly use en_core_web_md
                 nlp_configuration = {
                     "nlp_engine_name": "spacy",
                     "models": [{"lang_code": "en", "model_name": SPACY_MODEL}],
