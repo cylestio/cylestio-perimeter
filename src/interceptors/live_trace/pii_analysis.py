@@ -3,6 +3,9 @@ import logging
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
+import spacy
+from spacy.cli import download as spacy_download
+
 from .risk_models import PIIAnalysisResult, PIIFinding
 from .store import SessionData
 
@@ -35,6 +38,31 @@ MEDIUM_CONFIDENCE_THRESHOLD = 0.5
 # Maximum findings to store in detailed results
 MAX_DETAILED_FINDINGS = 50
 
+# SpaCy model to use for PII detection
+SPACY_MODEL = "en_core_web_lg"
+
+
+def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Any:
+    """Ensure spaCy model is installed and load it.
+    
+    Args:
+        model_name: Name of the spaCy model to load
+        
+    Returns:
+        Loaded spaCy model
+        
+    Raises:
+        OSError: If model cannot be downloaded or loaded
+    """
+    try:
+        # Try to load the model by name
+        return spacy.load(model_name)
+    except OSError:
+        # Model not installed - use spaCy's downloader to install it
+        logger.info(f"SpaCy model '{model_name}' not found. Downloading...")
+        spacy_download(model_name)
+        return spacy.load(model_name)
+
 
 class PresidioAnalyzer:
     """Wrapper for Microsoft Presidio Analyzer with lazy initialization."""
@@ -48,12 +76,40 @@ class PresidioAnalyzer:
         return cls._instance
 
     def get_analyzer(self) -> Any:
-        """Get or create the Presidio analyzer instance."""
+        """Get or create the Presidio analyzer instance.
+        
+        Automatically downloads en_core_web_lg spaCy model if not present.
+        
+        Returns:
+            Initialized AnalyzerEngine instance
+            
+        Raises:
+            ImportError: If presidio_analyzer cannot be imported
+            Exception: If analyzer initialization fails
+        """
         if self._analyzer is None:
             try:
                 from presidio_analyzer import AnalyzerEngine
-                self._analyzer = AnalyzerEngine()
-                logger.info("Presidio AnalyzerEngine initialized successfully")
+                from presidio_analyzer.nlp_engine import NlpEngineProvider
+                
+                # Ensure the spaCy model is installed
+                logger.info(f"Loading spaCy model: {SPACY_MODEL}")
+                ensure_spacy_model(SPACY_MODEL)
+                
+                # Configure Presidio to explicitly use en_core_web_lg
+                nlp_configuration = {
+                    "nlp_engine_name": "spacy",
+                    "models": [{"lang_code": "en", "model_name": SPACY_MODEL}],
+                }
+                
+                # Create NLP engine with the specified model
+                provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
+                nlp_engine = provider.create_engine()
+                
+                # Initialize AnalyzerEngine with the configured NLP engine
+                self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
+                logger.info(f"Presidio AnalyzerEngine initialized successfully with {SPACY_MODEL}")
+                
             except ImportError as e:
                 logger.error(f"Failed to import presidio_analyzer: {e}")
                 logger.error("Install with: pip install presidio-analyzer spacy")
