@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import Tooltip from './Tooltip'
 import WelcomeCard from './WelcomeCard'
+import { BEHAVIORAL_TOOLTIPS } from '../utils/helpers'
 
 export default function Dashboard() {
   const [data, setData] = useState(null)
@@ -170,13 +172,12 @@ export default function Dashboard() {
                       marginBottom: 0,
                       boxShadow: 'var(--shadow-md)',
                       borderLeft: `4px solid ${
-                        agent.analysis_summary?.action_required 
-                          ? 'var(--color-critical)' 
-                          : agent.risk_status === 'warning' 
-                            ? 'var(--color-warning)' 
+                        agent.analysis_summary?.action_required
+                          ? 'var(--color-critical)'
+                          : agent.risk_status === 'warning'
+                            ? 'var(--color-warning)'
                             : 'var(--color-accent-primary)'
-                      }`,
-                      overflow: 'hidden'
+                      }`
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = 'var(--color-bg-secondary)'
@@ -194,7 +195,9 @@ export default function Dashboard() {
                           background: priorityBadge.bg,
                           borderBottom: `1px solid ${priorityBadge.border}`,
                           padding: 'var(--space-xs) var(--space-lg)',
-                          textAlign: 'center'
+                          textAlign: 'center',
+                          borderTopLeftRadius: 'var(--radius-lg)',
+                          borderTopRightRadius: 'var(--radius-lg)'
                         }}>
                           <span style={{
                             fontSize: 'var(--text-xs)',
@@ -355,7 +358,21 @@ export default function Dashboard() {
                                     alignItems: 'center',
                                     marginBottom: 'var(--space-xs)'
                                   }}>
-                                    <span className="text-sm text-secondary weight-medium">Stability</span>
+                                    <Tooltip
+                                      content={BEHAVIORAL_TOOLTIPS.stability}
+                                      position="top"
+                                      delay={200}
+                                    >
+                                      <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--space-xs)',
+                                        cursor: 'help'
+                                      }}>
+                                        <span className="text-sm text-secondary weight-medium">Stability</span>
+                                        <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                                      </div>
+                                    </Tooltip>
                                     <span className="font-mono text-md weight-bold text-primary">
                                       {Math.round(agent.analysis_summary.behavioral.stability * 100)}%
                                     </span>
@@ -376,7 +393,21 @@ export default function Dashboard() {
                                     alignItems: 'center',
                                     marginBottom: 'var(--space-xs)'
                                   }}>
-                                    <span className="text-sm text-secondary weight-medium">Predictability</span>
+                                    <Tooltip
+                                      content={BEHAVIORAL_TOOLTIPS.predictability}
+                                      position="top"
+                                      delay={200}
+                                    >
+                                      <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--space-xs)',
+                                        cursor: 'help'
+                                      }}>
+                                        <span className="text-sm text-secondary weight-medium">Predictability</span>
+                                        <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                                      </div>
+                                    </Tooltip>
                                     <span className="font-mono text-md weight-bold text-primary">
                                       {Math.round(agent.analysis_summary.behavioral.predictability * 100)}%
                                     </span>
@@ -396,7 +427,21 @@ export default function Dashboard() {
                                   alignItems: 'center',
                                   paddingTop: 'var(--space-sm)'
                                 }}>
-                                  <span className="text-sm text-secondary weight-medium">Confidence</span>
+                                  <Tooltip
+                                    content={BEHAVIORAL_TOOLTIPS.confidence}
+                                    position="top"
+                                    delay={200}
+                                  >
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 'var(--space-xs)',
+                                      cursor: 'help'
+                                    }}>
+                                      <span className="text-sm text-secondary weight-medium">Confidence</span>
+                                      <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                                    </div>
+                                  </Tooltip>
                                   <span className="badge" style={{
                                     background: agent.analysis_summary.behavioral.confidence === 'high' 
                                       ? 'var(--color-success-bg)' 

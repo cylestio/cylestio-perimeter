@@ -13,7 +13,8 @@ import {
   getCategoryHeaderColor,
   getCategoryBorderColor,
   getCheckStatusClass,
-  getAgentStatus
+  getAgentStatus,
+  BEHAVIORAL_TOOLTIPS
 } from '../utils/helpers'
 
 // Component to display PII findings with clickable sessions
@@ -761,7 +762,7 @@ export default function AgentReportPage() {
                         {/* Stability Score */}
                         <div style={{ flex: 1 }}>
                           <Tooltip
-                            content="Share of sessions in the dominant pattern, adjusted for purity. Higher = the agent routinely follows the expected flow."
+                            content={BEHAVIORAL_TOOLTIPS.stability}
                             position="top"
                             delay={200}
                           >
@@ -811,7 +812,7 @@ export default function AgentReportPage() {
                         {/* Predictability Score */}
                         <div style={{ flex: 1 }}>
                           <Tooltip
-                            content="Estimated chance a new session stays in-bounds (not an outlier)."
+                            content={BEHAVIORAL_TOOLTIPS.predictability}
                             position="top"
                             delay={200}
                           >
@@ -861,7 +862,7 @@ export default function AgentReportPage() {
                         {/* Confidence */}
                         <div style={{ flex: 1 }}>
                           <Tooltip
-                            content="Strength of the estimate based on sample size and pattern purity. Add more sessions to raise confidence."
+                            content={BEHAVIORAL_TOOLTIPS.confidence}
                             position="top"
                             delay={200}
                           >

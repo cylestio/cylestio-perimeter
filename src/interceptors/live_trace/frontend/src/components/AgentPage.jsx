@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import Tooltip from './Tooltip'
 import AgentSidebar from './AgentSidebar'
 import EvaluationProgress from './EvaluationProgress'
-import { formatNumber, timeAgo, getAgentStatus } from '../utils/helpers'
+import { formatNumber, timeAgo, getAgentStatus, BEHAVIORAL_TOOLTIPS } from '../utils/helpers'
 
 export default function AgentPage() {
   const { agentId } = useParams()
@@ -282,7 +283,21 @@ export default function AgentPage() {
                               alignItems: 'center',
                               marginBottom: 'var(--space-xs)'
                             }}>
-                              <span className="text-sm text-secondary weight-medium">Stability</span>
+                              <Tooltip
+                                content={BEHAVIORAL_TOOLTIPS.stability}
+                                position="top"
+                                delay={200}
+                              >
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 'var(--space-xs)',
+                                  cursor: 'help'
+                                }}>
+                                  <span className="text-sm text-secondary weight-medium">Stability</span>
+                                  <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                                </div>
+                              </Tooltip>
                               <span className="font-mono text-md weight-bold text-primary">
                                 {Math.round(riskAnalysis.behavioral_analysis.stability_score * 100)}%
                               </span>
@@ -303,7 +318,21 @@ export default function AgentPage() {
                               alignItems: 'center',
                               marginBottom: 'var(--space-xs)'
                             }}>
-                              <span className="text-sm text-secondary weight-medium">Predictability</span>
+                              <Tooltip
+                                content={BEHAVIORAL_TOOLTIPS.predictability}
+                                position="top"
+                                delay={200}
+                              >
+                                <div style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 'var(--space-xs)',
+                                  cursor: 'help'
+                                }}>
+                                  <span className="text-sm text-secondary weight-medium">Predictability</span>
+                                  <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                                </div>
+                              </Tooltip>
                               <span className="font-mono text-md weight-bold text-primary">
                                 {Math.round(riskAnalysis.behavioral_analysis.predictability_score * 100)}%
                               </span>
@@ -323,7 +352,21 @@ export default function AgentPage() {
                             alignItems: 'center',
                             paddingTop: 'var(--space-sm)'
                           }}>
-                            <span className="text-sm text-secondary weight-medium">Confidence</span>
+                            <Tooltip
+                              content={BEHAVIORAL_TOOLTIPS.confidence}
+                              position="top"
+                              delay={200}
+                            >
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-xs)',
+                                cursor: 'help'
+                              }}>
+                                <span className="text-sm text-secondary weight-medium">Confidence</span>
+                                <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                              </div>
+                            </Tooltip>
                             <span className="badge" style={{
                               background: riskAnalysis.behavioral_analysis.confidence === 'high' 
                                 ? 'var(--color-success-bg)' 
