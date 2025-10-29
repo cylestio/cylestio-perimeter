@@ -42,7 +42,7 @@ export default function Tooltip({ children, content, position = 'top', delay = 3
       lineHeight: 1.5,
       borderRadius: 'var(--radius-md)',
       whiteSpace: 'pre-wrap',
-      minWidth: '150px',
+      minWidth: '200px',
       maxWidth: '300px',
       boxShadow: 'var(--shadow-lg)',
       pointerEvents: 'none',
