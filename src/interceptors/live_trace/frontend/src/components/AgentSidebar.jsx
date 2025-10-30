@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import InfoCard from './InfoCard'
+import Tooltip from './Tooltip'
 import { formatNumber, timeAgo, getAgentStatus } from '../utils/helpers'
 
 export default function AgentSidebar({
@@ -66,6 +67,20 @@ export default function AgentSidebar({
             ) : (
               <span style={{ color: 'var(--color-success)' }}>All Systems OK</span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* PII Detection Unavailable Warning */}
+      {riskAnalysis?.summary?.pii_disabled && (
+        <div className="card" style={{
+          background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+          border: '1px solid #F59E0B',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--space-md)'
+        }}>
+          <div className="text-xs weight-semibold" style={{ color: '#92400E' }}>
+            PII Detection Unavailable
           </div>
         </div>
       )}

@@ -745,6 +745,55 @@ export default function AgentReportPage() {
                     </div>
                   </div>
                 ))}
+                
+                {/* PII Unavailable Card - Show if PRIVACY_COMPLIANCE category is missing but we have PII disabled status */}
+                {!riskAnalysis.security_report.categories?.PRIVACY_COMPLIANCE && 
+                 (riskAnalysis.summary?.pii_disabled || riskAnalysis.security_report.summary?.pii_disabled) && (
+                  <div className="card mb-lg" style={{
+                    background: 'var(--color-bg-surface)',
+                    border: '2px solid var(--color-border-medium)',
+                    opacity: 0.7
+                  }}>
+                    {/* Category Header */}
+                    <div className="card-header" style={{
+                      background: 'var(--color-bg-elevated)',
+                      borderBottom: '2px solid var(--color-border-medium)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 className="text-md weight-semibold text-muted mb-0">
+                          🔒 Privacy & PII Compliance
+                        </h3>
+                        <span className="badge" style={{
+                          background: 'var(--color-bg-elevated)',
+                          color: 'var(--color-text-muted)',
+                          border: '1px solid var(--color-border-medium)'
+                        }}>
+                          Unavailable
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted mt-xs">
+                        PII detection is currently unavailable
+                      </div>
+                    </div>
+
+                    <div className="card-content">
+                      <div style={{
+                        padding: 'var(--space-lg)',
+                        textAlign: 'center',
+                        color: 'var(--color-text-muted)'
+                      }}>
+                        <div className="text-sm mb-sm">
+                          {riskAnalysis.summary?.pii_disabled_reason || 
+                           riskAnalysis.security_report.summary?.pii_disabled_reason || 
+                           'PII Detection unavailable - Model download failed'}
+                        </div>
+                        <div className="text-xs">
+                          This category will be available after the language model is downloaded and the server is restarted.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

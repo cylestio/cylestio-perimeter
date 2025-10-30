@@ -39,6 +39,34 @@ MAX_DETAILED_FINDINGS = 50
 SPACY_MODEL = "en_core_web_md"
 
 
+def is_pii_available() -> Tuple[bool, Optional[str]]:
+    """Check if PII analysis is available by checking model download status.
+    
+    Returns:
+        Tuple of (is_available, disabled_reason)
+        - (True, None) if PII analysis is available
+        - (False, reason_string) if PII analysis is disabled or downloading
+    """
+    from .model_downloader import get_model_status
+    
+    status, error = get_model_status()
+    
+    if status == "available":
+        # Also verify Presidio is installed
+        try:
+            from presidio_analyzer import AnalyzerEngine
+            logger.debug("PII analysis is available")
+            return (True, None)
+        except ImportError as e:
+            reason = f"Presidio library not installed: {e}"
+            logger.warning(f"PII analysis disabled: {reason}")
+            return (False, reason)
+    elif status == "downloading":
+        return (False, "Language model download in progress")
+    else:  # unavailable
+        return (False, error or "Language model download failed")
+
+
 def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Optional[Any]:
     """Try to load spaCy model if available.
     
@@ -256,8 +284,19 @@ def analyze_sessions_for_pii(
         threshold: Minimum confidence score
 
     Returns:
-        PIIAnalysisResult with aggregated findings
+        PIIAnalysisResult with aggregated findings (or disabled result if unavailable)
     """
+    # Check if PII analysis is available
+    available, disabled_reason = is_pii_available()
+    if not available:
+        logger.warning(f"PII analysis disabled: {disabled_reason}")
+        return PIIAnalysisResult(
+            total_findings=0,
+            sessions_without_pii=len(sessions) if sessions else 0,
+            disabled=True,
+            disabled_reason=disabled_reason
+        )
+    
     if not sessions:
         return PIIAnalysisResult(
             total_findings=0,

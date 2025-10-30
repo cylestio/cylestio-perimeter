@@ -663,8 +663,14 @@ class InsightsEngine:
 
             # Add PII summary if available
             if pii_result:
-                summary["pii_findings"] = pii_result.total_findings
-                summary["sessions_with_pii"] = pii_result.sessions_with_pii
+                if pii_result.disabled:
+                    # PII analysis is disabled
+                    summary["pii_disabled"] = True
+                    summary["pii_disabled_reason"] = pii_result.disabled_reason
+                else:
+                    # PII analysis worked normally
+                    summary["pii_findings"] = pii_result.total_findings
+                    summary["sessions_with_pii"] = pii_result.sessions_with_pii
 
             result = RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
