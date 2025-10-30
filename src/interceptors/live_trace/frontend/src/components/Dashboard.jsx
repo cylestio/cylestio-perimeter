@@ -73,6 +73,29 @@ export default function Dashboard() {
         {/* Welcome Message - shown when no agents */}
         {!hasAgents && <WelcomeCard config={config} />}
 
+        {/* PII Detection Unavailable Warning */}
+        {hasAgents && data.agents.some(agent => agent.pii_disabled) && (
+          <div className="card mb-lg" style={{
+            background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+            border: '2px solid #F59E0B',
+            borderRadius: 'var(--radius-md)'
+          }}>
+            <div className="card-content" style={{ padding: 'var(--space-lg)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-md)' }}>
+                <div style={{ fontSize: '24px' }}>⚠️</div>
+                <div>
+                  <div className="text-sm weight-semibold" style={{ color: '#92400E', marginBottom: '4px' }}>
+                    PII Detection Unavailable
+                  </div>
+                  <div className="text-xs" style={{ color: '#78350F' }}>
+                    Language model download failed. The Privacy & PII Compliance category will not be available in security reports until the model is downloaded and the server is restarted.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Latest Active Session Banner */}
         {data.latest_session && (
           <div className="card card-elevated mb-2xl" style={{
@@ -330,6 +353,25 @@ export default function Dashboard() {
                                 </div>
                               </div>
                             </div>
+                            
+                            {/* PII Detection Status */}
+                            {agent.pii_disabled && (
+                              <div style={{
+                                marginTop: 'var(--space-md)',
+                                padding: 'var(--space-xs) var(--space-sm)',
+                                background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid #F59E0B',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-xs)'
+                              }}>
+                                <span style={{ fontSize: '12px' }}>⚠️</span>
+                                <span className="text-xs" style={{ color: '#92400E', fontSize: '11px' }}>
+                                  PII detection unavailable
+                                </span>
+                              </div>
+                            )}
                           </div>
                           
                           {/* Behavioral Analysis Status */}

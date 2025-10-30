@@ -224,6 +224,8 @@ class PIIAnalysisResult(BaseModel):
     sessions_with_pii: int = 0
     sessions_without_pii: int = 0
     most_common_entities: List[str] = Field(default_factory=list)  # Top 5 entity types
+    disabled: bool = False  # True if PII analysis is unavailable
+    disabled_reason: Optional[str] = None  # Reason why PII analysis is disabled
 
 
 class RiskAnalysisResult(BaseModel):

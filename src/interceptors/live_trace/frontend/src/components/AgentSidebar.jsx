@@ -70,6 +70,28 @@ export default function AgentSidebar({
         </div>
       )}
 
+      {/* PII Detection Unavailable Warning */}
+      {riskAnalysis?.summary?.pii_disabled && (
+        <div className="card" style={{
+          background: 'linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%)',
+          border: '1px solid #F59E0B',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--space-md)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-sm)' }}>
+            <div style={{ fontSize: '16px' }}>⚠️</div>
+            <div>
+              <div className="text-xs weight-semibold" style={{ color: '#92400E', marginBottom: '2px' }}>
+                PII Detection Unavailable
+              </div>
+              <div className="text-xs" style={{ color: '#78350F', lineHeight: 1.4 }}>
+                {riskAnalysis.summary.pii_disabled_reason || 'Model download failed'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Metrics */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
         <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>

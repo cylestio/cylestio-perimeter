@@ -22,6 +22,33 @@ SPACY_MODEL_URL = (
 
 _download_in_progress = False
 _download_complete = False
+_download_failed = False
+_download_error: Optional[str] = None
+
+
+def get_model_status() -> tuple[str, Optional[str]]:
+    """Get the current status of the spaCy model.
+    
+    Returns:
+        Tuple of (status, error_message) where status is one of:
+        - "available": Model is ready to use
+        - "downloading": Download in progress
+        - "unavailable": Download failed or model not installed
+    """
+    if _download_complete:
+        return ("available", None)
+    elif _download_in_progress:
+        return ("downloading", None)
+    elif _download_failed:
+        return ("unavailable", _download_error)
+    else:
+        # Not yet checked - try to load the model
+        try:
+            import spacy
+            spacy.load(SPACY_MODEL)
+            return ("available", None)
+        except (OSError, ImportError):
+            return ("unavailable", "Model not yet downloaded")
 
 
 def download_model_async(callback: Optional[callable] = None) -> threading.Thread:
@@ -49,7 +76,7 @@ def _download_model(callback: Optional[callable] = None) -> None:
     Args:
         callback: Optional callback function to call when complete
     """
-    global _download_in_progress, _download_complete
+    global _download_in_progress, _download_complete, _download_failed, _download_error
     
     if _download_in_progress or _download_complete:
         return
@@ -104,21 +131,27 @@ def _download_model(callback: Optional[callable] = None) -> None:
             callback(success=True)
             
     except httpx.HTTPError as e:
+        _download_failed = True
+        _download_error = f"HTTP error downloading model: {e}"
         logger.error("=" * 70)
-        logger.error("HTTP error downloading model: %s", e)
+        logger.error(_download_error)
         logger.error("Install manually: python -m spacy download %s", SPACY_MODEL)
         logger.error("=" * 70)
         if callback:
             callback(success=False, error=str(e))
     except zipfile.BadZipFile as e:
+        _download_failed = True
+        _download_error = f"Downloaded file is corrupted: {e}"
         logger.error("=" * 70)
-        logger.error("Downloaded file is corrupted: %s", e)
+        logger.error(_download_error)
         logger.error("=" * 70)
         if callback:
             callback(success=False, error=str(e))
     except Exception as e:
+        _download_failed = True
+        _download_error = f"Unexpected error downloading model: {e}"
         logger.error("=" * 70)
-        logger.error("Unexpected error downloading model: %s", e)
+        logger.error(_download_error)
         logger.error("Install manually: python -m spacy download %s", SPACY_MODEL)
         logger.error("=" * 70)
         if callback:

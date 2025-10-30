@@ -943,6 +943,10 @@ def check_privacy_compliance(
     """
     if pii_result is None:
         return None
+    
+    # If PII analysis is disabled, return None (category won't appear)
+    if pii_result.disabled:
+        return None
 
     # Compute metrics
     metrics = {
@@ -1009,6 +1013,11 @@ def generate_security_report(
         "critical_issues": sum(cat.critical_checks for cat in categories.values()),
         "warnings": sum(cat.warning_checks for cat in categories.values())
     }
+    
+    # Add PII disabled status if applicable
+    if pii_result and pii_result.disabled:
+        summary["pii_disabled"] = True
+        summary["pii_disabled_reason"] = pii_result.disabled_reason
 
     return SecurityReport(
         report_id=str(uuid.uuid4()),
