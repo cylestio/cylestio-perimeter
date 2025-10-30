@@ -39,42 +39,24 @@ MAX_DETAILED_FINDINGS = 50
 SPACY_MODEL = "en_core_web_md"
 
 
-def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Any:
-    """Ensure spaCy model is installed and load it.
+def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Optional[Any]:
+    """Try to load spaCy model if available.
     
     Args:
         model_name: Name of the spaCy model to load
         
     Returns:
-        Loaded spaCy model
-        
-    Raises:
-        OSError: If model cannot be downloaded or loaded
+        Loaded spaCy model, or None if not available
     """
     # Import spaCy only when needed (defer heavy import)
-    import spacy
-    from spacy.cli import download as spacy_download
-    
     try:
-        # Try to load the model by name
-        logger.debug(f"Attempting to load spaCy model: {model_name}")
+        import spacy
+        logger.debug("Attempting to load spaCy model: %s", model_name)
         return spacy.load(model_name)
-    except OSError:
-        # Model not installed - use spaCy's downloader to install it
-        logger.info("=" * 70)
-        logger.info(f"SpaCy model '{model_name}' not found.")
-        logger.info(f"Downloading {model_name} (~150MB)...")
-        logger.info("This is a one-time download and may take several minutes.")
-        logger.info("Please wait...")
-        logger.info("=" * 70)
-        
-        spacy_download(model_name)
-        
-        logger.info("=" * 70)
-        logger.info(f"Successfully downloaded {model_name}")
-        logger.info("=" * 70)
-        
-        return spacy.load(model_name)
+    except (OSError, ImportError) as exc:
+        logger.warning("SpaCy model '%s' not available: %s", model_name, exc)
+        logger.warning("Model will be downloaded in the background when live trace starts")
+        return None
 
 
 class PresidioAnalyzer:
@@ -105,23 +87,35 @@ class PresidioAnalyzer:
                 from presidio_analyzer import AnalyzerEngine
                 from presidio_analyzer.nlp_engine import NlpEngineProvider
                 
-                # Ensure the spaCy model is installed
-                logger.info(f"Loading spaCy model: {SPACY_MODEL}")
-                ensure_spacy_model(SPACY_MODEL)
+                # Ensure the spaCy model is available
+                logger.info("Loading spaCy model: %s", SPACY_MODEL)
+                model = ensure_spacy_model(SPACY_MODEL)
+                if model is None:
+                    raise RuntimeError(f"SpaCy model '{SPACY_MODEL}' not installed")
                 
-                # Configure Presidio to explicitly use en_core_web_md
+                # Configure Presidio with our model and suppress unwanted entity warnings
                 nlp_configuration = {
                     "nlp_engine_name": "spacy",
-                    "models": [{"lang_code": "en", "model_name": SPACY_MODEL}],
+                    "models": [{
+                        "lang_code": "en",
+                        "model_name": SPACY_MODEL,
+                    }],
+                    "ner_model_configuration": {
+                        "labels_to_ignore": [
+                            "CARDINAL",
+                            "ORDINAL",
+                            "QUANTITY",
+                            "MONEY",
+                            "PERCENT",
+                        ]
+                    },
                 }
                 
-                # Create NLP engine with the specified model
                 provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
                 nlp_engine = provider.create_engine()
                 
-                # Initialize AnalyzerEngine with the configured NLP engine
                 self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
-                logger.info(f"Presidio AnalyzerEngine initialized successfully with {SPACY_MODEL}")
+                logger.info("Presidio AnalyzerEngine initialized with %s", SPACY_MODEL)
                 
             except ImportError as e:
                 logger.error(f"Failed to import presidio_analyzer: {e}")

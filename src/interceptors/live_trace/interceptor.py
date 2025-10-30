@@ -69,6 +69,10 @@ class LiveTraceInterceptor(BaseInterceptor):
 
         # Start server only if interceptor is enabled
         if self.enabled:
+            # Start background model check/download (exits quickly if model exists)
+            from .model_downloader import download_model_async
+            download_model_async()
+            
             self._start_server()
         else:
             logger.info("LiveTraceInterceptor disabled; server not started")
