@@ -199,10 +199,13 @@ class InsightsEngine:
 
         agents = []
         for agent in self.store.agents.values():
-            active_sessions = len([
-                session_id for session_id in agent.sessions
-                if session_id in self.store.sessions and self.store.sessions[session_id].is_active
-            ])
+            # Get session status counts
+            agent_session_objects = [
+                self.store.sessions[sid] for sid in agent.sessions
+                if sid in self.store.sessions
+            ]
+            active_sessions = len([s for s in agent_session_objects if s.is_active])
+            completed_sessions = len([s for s in agent_session_objects if s.is_completed])
 
             # Compute lightweight risk status for dashboard display
             risk_status = self._compute_agent_risk_status(agent.agent_id)
@@ -217,6 +220,7 @@ class InsightsEngine:
                 "id_short": agent.agent_id[:8] + "..." if len(agent.agent_id) > 8 else agent.agent_id,
                 "total_sessions": agent.total_sessions,
                 "active_sessions": active_sessions,
+                "completed_sessions": completed_sessions,
                 "total_messages": agent.total_messages,
                 "total_tokens": agent.total_tokens,
                 "total_tools": agent.total_tools,
@@ -245,7 +249,12 @@ class InsightsEngine:
         # Try to get cached or compute fresh analysis
         risk_analysis = self.compute_risk_analysis(agent_id)
         
-        if not risk_analysis or risk_analysis.evaluation_status != "COMPLETE":
+        logger.info(f"[ANALYSIS SUMMARY] Agent {agent_id}: risk_analysis exists={risk_analysis is not None}, "
+                   f"status={risk_analysis.evaluation_status if risk_analysis else None}")
+        
+        # Accept both COMPLETE and PARTIAL status (PARTIAL = security done, behavioral waiting)
+        if not risk_analysis or risk_analysis.evaluation_status not in ["COMPLETE", "PARTIAL"]:
+            logger.info(f"[ANALYSIS SUMMARY] Returning None for agent {agent_id} due to status check")
             return None
         
         # Count failed checks and warnings
@@ -257,9 +266,9 @@ class InsightsEngine:
                 failed_checks += category.critical_checks
                 warnings += category.warning_checks
         
-        # Get behavioral scores
+        # Get behavioral scores (only if analysis is COMPLETE)
         behavioral_summary = None
-        if risk_analysis.behavioral_analysis:
+        if risk_analysis.evaluation_status == "COMPLETE" and risk_analysis.behavioral_analysis:
             # Calculate confidence based on cluster maturity and data volume
             confidence = self._calculate_behavioral_confidence(risk_analysis.behavioral_analysis)
             
@@ -272,12 +281,22 @@ class InsightsEngine:
         # Determine if action is required (any critical issues)
         action_required = failed_checks > 0
         
-        return {
+        # Add session completion status for UX (always include session counts)
+        summary = {
             "failed_checks": failed_checks,
             "warnings": warnings,
             "behavioral": behavioral_summary,
-            "action_required": action_required
+            "action_required": action_required,
+            "completed_sessions": risk_analysis.summary.get("completed_sessions", 0),
+            "active_sessions": risk_analysis.summary.get("active_sessions", 0),
+            "total_sessions": risk_analysis.summary.get("total_sessions", 0)
         }
+        
+        # Add behavioral waiting indicator if applicable
+        if risk_analysis.evaluation_status == "PARTIAL":
+            summary["behavioral_waiting"] = True
+        
+        return summary
     
     def _calculate_behavioral_confidence(self, behavioral_analysis) -> str:
         """
@@ -384,6 +403,14 @@ class InsightsEngine:
         """Get recent sessions with summary data."""
         sessions = []
         for session in self.store.sessions.values():
+            # Determine user-friendly status
+            if session.is_completed:
+                status = "COMPLETE"
+            elif session.is_active:
+                status = "ACTIVE"
+            else:
+                status = "INACTIVE"
+            
             sessions.append({
                 "id": session.session_id,
                 "id_short": session.session_id[:8] + "..." if len(session.session_id) > 8 else session.session_id,
@@ -394,6 +421,8 @@ class InsightsEngine:
                 "last_activity_relative": self._time_ago(session.last_activity),
                 "duration_minutes": session.duration_minutes,
                 "is_active": session.is_active,
+                "is_completed": session.is_completed,
+                "status": status,  # User-friendly: ACTIVE, COMPLETE, or INACTIVE
                 "message_count": session.message_count,
                 "tool_uses": session.tool_uses,
                 "errors": session.errors,
@@ -554,19 +583,46 @@ class InsightsEngine:
                 }
             )
         
-        # Check cache (invalidate if session count changed)
+        # Count completed sessions for cache key
+        completed_count = len([s for s in agent_sessions if s.is_completed])
+        
+        # Check cache (invalidate if session count OR completion count changed)
+        cache_key = (len(agent_sessions), completed_count)
         if agent_id in self._risk_analysis_cache:
-            cached_result, cached_time, cached_session_count = self._risk_analysis_cache[agent_id]
-            # Cache valid for 30 seconds and same session count
+            cached_result, cached_time, cached_key = self._risk_analysis_cache[agent_id]
+            # Cache valid for 30 seconds and same session/completion counts
             if (datetime.now(timezone.utc) - cached_time).total_seconds() < 30 and \
-               cached_session_count == len(agent_sessions):
+               cached_key == cache_key:
                 return cached_result
         
         try:
-            # Run behavioral analysis
-            behavioral_result = analyze_agent_behavior(agent_sessions)
+            # Count completed vs active sessions for status reporting
+            completed_sessions = [s for s in agent_sessions if s.is_completed]
+            active_sessions_count = len(agent_sessions) - len(completed_sessions)
+            
+            logger.info(f"[RISK ANALYSIS] Agent {agent_id}: {len(agent_sessions)} total sessions, "
+                       f"{len(completed_sessions)} completed, {active_sessions_count} active")
+            
+            # Run behavioral analysis with frozen percentiles
+            # Percentiles are calculated once and never change (stability)
+            # Signatures are computed once per session and stored (efficiency)
+            behavioral_result, frozen_percentiles = analyze_agent_behavior(
+                agent_sessions, 
+                cached_percentiles=agent.cached_percentiles
+            )
+            
+            # Store frozen percentiles if this is the first calculation
+            if agent.cached_percentiles is None and frozen_percentiles is not None:
+                agent.cached_percentiles = frozen_percentiles
+                agent.percentiles_session_count = len(completed_sessions)
+                logger.info(f"[PERCENTILE FREEZE] Froze percentiles for agent {agent_id} at {len(completed_sessions)} sessions")
+            
+            logger.info(f"[RISK ANALYSIS] Behavioral analysis result: total_sessions={behavioral_result.total_sessions}, "
+                       f"num_clusters={behavioral_result.num_clusters}, error={behavioral_result.error}")
+            
+            behavioral_status = "COMPLETE" if behavioral_result.total_sessions >= 2 else "WAITING_FOR_COMPLETION"
 
-            # Run PII analysis (with error handling)
+            # Run PII analysis (works on all sessions - doesn't need completion)
             # Import lazily to avoid slow startup from presidio-analyzer
             pii_result = None
             try:
@@ -577,6 +633,7 @@ class InsightsEngine:
                 logger.warning(f"PII analysis failed (continuing without PII checks): {e}")
 
             # Run security assessment - generates complete security report
+            # Security analysis works on all sessions (doesn't require completion)
             security_report = generate_security_report(
                 agent_id,
                 agent_sessions,
@@ -584,12 +641,24 @@ class InsightsEngine:
                 pii_result
             )
 
-            # Create summary
+            # Determine overall evaluation status
+            if behavioral_status == "COMPLETE":
+                evaluation_status = "COMPLETE"
+            else:
+                evaluation_status = "PARTIAL"  # Security done, behavioral waiting
+            
+            # Create summary with session status info
             summary = {
                 "critical_issues": security_report.critical_issues,
                 "warnings": security_report.warnings,
                 "stability_score": behavioral_result.stability_score,
-                "predictability_score": behavioral_result.predictability_score
+                "predictability_score": behavioral_result.predictability_score,
+                # Add session completion status for UX
+                "total_sessions": len(agent_sessions),
+                "completed_sessions": len(completed_sessions),
+                "active_sessions": active_sessions_count,
+                "behavioral_status": behavioral_status,
+                "behavioral_message": behavioral_result.interpretation if hasattr(behavioral_result, 'interpretation') else None
             }
 
             # Add PII summary if available
@@ -602,19 +671,20 @@ class InsightsEngine:
                 agent_id=agent_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 sessions_analyzed=len(agent_sessions),
-                evaluation_status="COMPLETE",
+                evaluation_status=evaluation_status,
                 behavioral_analysis=behavioral_result,
                 security_report=security_report,
                 pii_analysis=pii_result,
                 summary=summary
             )
 
-            # Cache the result
-            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), len(agent_sessions))
+            # Cache the result with session and completion counts
+            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), cache_key)
 
             return result
             
         except Exception as e:
+            logger.error(f"[RISK ANALYSIS] Exception in risk analysis for agent {agent_id}: {e}", exc_info=True)
             return RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
                 agent_id=agent_id,

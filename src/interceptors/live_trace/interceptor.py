@@ -39,6 +39,10 @@ class LiveTraceInterceptor(BaseInterceptor):
         self.max_events = config.get("max_events", 10000)
         self.retention_minutes = config.get("retention_minutes", 30)
         self.refresh_interval = config.get("refresh_interval", 2)
+        
+        # Session completion configuration
+        self.session_completion_timeout = config.get("session_completion_timeout", 30)
+        self.completion_check_interval = config.get("completion_check_interval", 10)
 
         # Store provider configuration for API endpoint
         self.provider_name = provider_name
@@ -64,8 +68,15 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Server management
         self.server_thread = None
         self.server_started = False
+        
+        # Session completion checker
+        self.completion_checker_thread = None
+        self.completion_checker_running = False
+        self._completion_stop_event = threading.Event()
 
         logger.info(f"LiveTraceInterceptor initialized on {self.server_host}:{self.server_port}")
+        logger.info(f"Session completion timeout: {self.session_completion_timeout}s, "
+                   f"check interval: {self.completion_check_interval}s")
 
         # Start server only if interceptor is enabled
         if self.enabled:
@@ -74,6 +85,7 @@ class LiveTraceInterceptor(BaseInterceptor):
             download_model_async()
             
             self._start_server()
+            self._start_completion_checker()
         else:
             logger.info("LiveTraceInterceptor disabled; server not started")
 
@@ -215,3 +227,48 @@ class LiveTraceInterceptor(BaseInterceptor):
         """Get the URL for the dashboard."""
         host_display = "127.0.0.1" if self.server_host in ("0.0.0.0", "::") else self.server_host
         return f"http://{host_display}:{self.server_port}"
+    
+    def _start_completion_checker(self):
+        """Start the background thread that checks for completed sessions."""
+        if self.completion_checker_running:
+            return
+        
+        try:
+            self.completion_checker_thread = threading.Thread(
+                target=self._run_completion_checker,
+                daemon=True,
+                name="SessionCompletionChecker"
+            )
+            self.completion_checker_thread.start()
+            self.completion_checker_running = True
+            
+            logger.info(f"Session completion checker started (timeout={self.session_completion_timeout}s, "
+                       f"interval={self.completion_check_interval}s)")
+        except Exception as e:
+            logger.error(f"Failed to start session completion checker: {e}")
+    
+    def _run_completion_checker(self):
+        """Background thread that periodically checks and marks inactive sessions as completed."""
+        logger.info("Session completion checker thread started")
+        
+        while not self._completion_stop_event.is_set():
+            try:
+                # Check for sessions that should be marked as completed
+                self.store.check_and_complete_sessions(self.session_completion_timeout)
+            except Exception as e:
+                logger.error(f"Error in session completion checker: {e}")
+            
+            # Wait for the check interval (or until stop event is set)
+            self._completion_stop_event.wait(self.completion_check_interval)
+        
+        logger.info("Session completion checker thread stopped")
+    
+    def stop(self):
+        """Stop the completion checker thread and cleanup."""
+        if self.completion_checker_running:
+            logger.info("Stopping session completion checker...")
+            self._completion_stop_event.set()
+            if self.completion_checker_thread:
+                self.completion_checker_thread.join(timeout=5)
+            self.completion_checker_running = False
+            logger.info("Session completion checker stopped")

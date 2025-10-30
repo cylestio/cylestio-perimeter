@@ -105,6 +105,31 @@ export default function AgentPage() {
               />
             )}
 
+            {/* Behavioral Analysis Waiting Banner */}
+            {status.hasRiskData && status.behavioralStatus === 'WAITING_FOR_COMPLETION' && (
+              <div className="card mb-lg" style={{
+                background: 'linear-gradient(135deg, #667eea20 0%, #764ba220 100%)',
+                border: '2px solid var(--color-accent-primary)',
+                borderRadius: 'var(--radius-md)'
+              }}>
+                <div className="card-content" style={{ padding: 'var(--space-lg)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+                    <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
+                    <div>
+                      <div className="text-sm weight-semibold" style={{ color: 'var(--color-accent-primary)' }}>
+                        Behavioral Analysis In Progress
+                      </div>
+                      <div className="text-xs text-muted" style={{ marginTop: '4px' }}>
+                        Waiting for {status.activeSessions} active session{status.activeSessions !== 1 ? 's' : ''} to complete 
+                        ({status.completedSessions} of {status.totalSessions} completed). 
+                        Sessions are marked complete after 30 seconds of inactivity.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Report Summary Card */}
             {status.hasRiskData && (
               <div className="card card-elevated">
@@ -254,7 +279,7 @@ export default function AgentPage() {
                   )}
 
                   {/* Behavioral Snapshot */}
-                  {riskAnalysis?.behavioral_analysis && (
+                  {riskAnalysis?.behavioral_analysis && status.behavioralStatus === 'COMPLETE' && (
                     <div style={{
                       paddingTop: 'var(--space-2xl)',
                       marginTop: 'var(--space-2xl)',
@@ -267,6 +292,31 @@ export default function AgentPage() {
                       }}>
                         Behavioral Snapshot
                       </div>
+                      
+                      {/* Active Sessions Note */}
+                      {status.activeSessions > 0 && (
+                        <div style={{
+                          padding: 'var(--space-sm) var(--space-md)',
+                          background: 'linear-gradient(135deg, #667eea10 0%, #764ba210 100%)',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-accent-primary)',
+                          marginBottom: 'var(--space-md)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-sm)'
+                        }}>
+                          <div className="loading-spinner" style={{
+                            width: '12px',
+                            height: '12px',
+                            borderWidth: '2px'
+                          }}></div>
+                          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                            Based on <span className="weight-semibold">{status.completedSessions} analyzed session{status.completedSessions !== 1 ? 's' : ''}</span>
+                            {' — '}
+                            <span style={{ color: 'var(--color-accent-primary)' }}>{status.activeSessions} session{status.activeSessions !== 1 ? 's' : ''} still running</span>
+                          </span>
+                        </div>
+                      )}
                       
                       {/* Show scores only if clusters formed */}
                       {riskAnalysis.behavioral_analysis.num_clusters >= 1 ? (

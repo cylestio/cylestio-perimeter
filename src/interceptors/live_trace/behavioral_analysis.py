@@ -5,7 +5,7 @@ import math
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -110,14 +110,56 @@ def extract_session_features(session: SessionData) -> SessionFeatures:
 # Shingle Generation (Section 3.3)
 # ============================================================================
 
-def features_to_shingles(features: SessionFeatures) -> Set[str]:
+def _adaptive_bin(value: float, percentile_dict: Optional[Dict[str, float]], fallback_thresholds: List[float]) -> str:
+    """Bin a numerical value using adaptive percentiles or fallback thresholds.
+    
+    Args:
+        value: The numerical value to bin
+        percentile_dict: Dict with keys "p25", "p50", "p75" for adaptive binning
+        fallback_thresholds: List of 3 thresholds for fallback binning [low, mid, high]
+        
+    Returns:
+        Bin label: "very_low", "low", "medium", "high", or "very_high"
+    """
+    if percentile_dict and "p25" in percentile_dict:
+        # Use data-driven percentiles
+        p25 = percentile_dict["p25"]
+        p50 = percentile_dict["p50"]
+        p75 = percentile_dict["p75"]
+        
+        if value < p25:
+            return "very_low"
+        elif value < p50:
+            return "low"
+        elif value < p75:
+            return "medium"
+        else:
+            return "high"
+    else:
+        # Use fallback thresholds
+        if value < fallback_thresholds[0]:
+            return "very_low"
+        elif value < fallback_thresholds[1]:
+            return "low"
+        elif value < fallback_thresholds[2]:
+            return "medium"
+        else:
+            return "high"
+
+
+def features_to_shingles(features: SessionFeatures, percentiles: Dict[str, Dict[str, float]] = None) -> Set[str]:
     """Convert session features to behavioral shingles.
     
     This creates a set of tokens representing the session's behavior,
     enabling Jaccard similarity comparison.
     
+    Uses adaptive binning based on data distribution (percentiles) when available,
+    otherwise falls back to generic thresholds suitable for initial analysis.
+    
     Args:
         features: Extracted session features
+        percentiles: Optional dict of feature percentiles for adaptive binning.
+                    Format: {"feature_name": {"p25": value, "p50": value, "p75": value}}
         
     Returns:
         Set of shingle strings
@@ -171,27 +213,93 @@ def features_to_shingles(features: SessionFeatures) -> Set[str]:
     for model in features.llm_models:
         shingles.add(f"llm:{model}")
     
-    # 8. Intensity features (detect anomalous resource usage)
-    if features.session_duration > 90:
-        shingles.add("intensity_duration:excessive")
-    elif features.session_duration > 60:
-        shingles.add("intensity_duration:extended")
-    else:
-        shingles.add("intensity_duration:normal")
+    # 8-15. Adaptive numerical features using percentiles
+    # If percentiles are provided, use data-driven thresholds
+    # Otherwise, use generic fallback thresholds
     
-    if features.total_tool_calls > 15:
-        shingles.add("intensity_tools:excessive")
-    elif features.total_tool_calls > 8:
-        shingles.add("intensity_tools:high")
-    else:
-        shingles.add("intensity_tools:normal")
+    # 8. Session duration
+    duration_bin = _adaptive_bin(
+        features.session_duration,
+        percentiles.get("session_duration") if percentiles else None,
+        fallback_thresholds=[30, 60, 90]
+    )
+    shingles.add(f"duration:{duration_bin}")
     
-    if features.llm_request_count > 40:
-        shingles.add("intensity_llm:excessive")
-    elif features.llm_request_count > 15:
-        shingles.add("intensity_llm:high")
+    # 9. Tool call intensity
+    if features.total_tool_calls == 0:
+        shingles.add("tools:none")
     else:
-        shingles.add("intensity_llm:normal")
+        tools_bin = _adaptive_bin(
+            features.total_tool_calls,
+            percentiles.get("total_tool_calls") if percentiles else None,
+            fallback_thresholds=[1, 3, 8]
+        )
+        shingles.add(f"tools:{tools_bin}")
+        
+        # Tool diversity (ratio is universal, doesn't need adaptation)
+        unique_tools = len(features.tools_used)
+        diversity_ratio = unique_tools / features.total_tool_calls
+        if diversity_ratio > 0.75:
+            shingles.add("tool_diversity:high")
+        elif diversity_ratio > 0.4:
+            shingles.add("tool_diversity:moderate")
+        else:
+            shingles.add("tool_diversity:low")
+    
+    # 10. LLM request count
+    llm_bin = _adaptive_bin(
+        features.llm_request_count,
+        percentiles.get("llm_request_count") if percentiles else None,
+        fallback_thresholds=[5, 10, 20]
+    )
+    shingles.add(f"llm_requests:{llm_bin}")
+    
+    # 11. Token usage
+    tokens_bin = _adaptive_bin(
+        features.total_tokens,
+        percentiles.get("total_tokens") if percentiles else None,
+        fallback_thresholds=[1000, 5000, 15000]
+    )
+    shingles.add(f"tokens:{tokens_bin}")
+    
+    # 12. Input/Output token ratio (using mean from stats)
+    token_in_mean = features.token_in_stats.get('mean', 0)
+    token_out_mean = features.token_out_stats.get('mean', 0)
+    if token_in_mean > 0 and token_out_mean > 0:
+        io_ratio = token_out_mean / token_in_mean
+        if io_ratio > 1.5:
+            shingles.add("io_ratio:output_heavy")
+        elif io_ratio > 0.8:
+            shingles.add("io_ratio:balanced")
+        else:
+            shingles.add("io_ratio:input_heavy")
+    
+    # 13. Average event interval (temporal pattern)
+    interval_bin = _adaptive_bin(
+        features.avg_event_interval,
+        percentiles.get("avg_event_interval") if percentiles else None,
+        fallback_thresholds=[5, 15, 30]  # seconds between events
+    )
+    shingles.add(f"event_interval:{interval_bin}")
+    
+    # 14. Event count
+    event_bin = _adaptive_bin(
+        features.event_count,
+        percentiles.get("event_count") if percentiles else None,
+        fallback_thresholds=[10, 25, 50]
+    )
+    shingles.add(f"events:{event_bin}")
+    
+    # 15. Relative patterns (these are meaningful across agents)
+    # Ratio of tool calls to LLM requests (conversational intensity)
+    if features.llm_request_count > 0 and features.total_tool_calls > 0:
+        tool_ratio = features.total_tool_calls / features.llm_request_count
+        if tool_ratio > 0.6:
+            shingles.add("pattern:tool_heavy")
+        elif tool_ratio > 0.3:
+            shingles.add("pattern:balanced")
+        else:
+            shingles.add("pattern:conversation_heavy")
     
     return shingles
 
@@ -788,21 +896,156 @@ def calculate_centroid_distances(
 
 
 # ============================================================================
+# Percentile Calculation for Adaptive Binning
+# ============================================================================
+
+def _percentiles_differ_significantly(
+    old_percentiles: Dict[str, Dict[str, float]], 
+    new_percentiles: Dict[str, Dict[str, float]],
+    threshold: float = 0.10
+) -> bool:
+    """Check if new percentiles differ significantly from cached ones.
+    
+    Args:
+        old_percentiles: Previously cached percentiles
+        new_percentiles: Newly calculated percentiles
+        threshold: Relative difference threshold (default 10%)
+        
+    Returns:
+        True if percentiles differ by more than threshold, False otherwise
+    """
+    if not old_percentiles or not new_percentiles:
+        return True
+    
+    # Check each feature's percentiles
+    for feature_name in new_percentiles:
+        if feature_name not in old_percentiles:
+            return True
+        
+        old_vals = old_percentiles[feature_name]
+        new_vals = new_percentiles[feature_name]
+        
+        # Compare p50 (median) as the key stability indicator
+        if "p50" in old_vals and "p50" in new_vals:
+            old_p50 = old_vals["p50"]
+            new_p50 = new_vals["p50"]
+            
+            # Avoid division by zero
+            if old_p50 == 0:
+                if new_p50 > 0:
+                    return True
+                continue
+            
+            relative_change = abs(new_p50 - old_p50) / old_p50
+            if relative_change > threshold:
+                logger.info(f"[PERCENTILE STABILITY] Feature '{feature_name}' p50 changed by {relative_change:.1%} "
+                           f"(from {old_p50:.1f} to {new_p50:.1f})")
+                return True
+    
+    return False
+
+
+def _calculate_feature_percentiles(all_features: Dict[str, SessionFeatures]) -> Dict[str, Dict[str, float]]:
+    """Calculate percentiles for numerical features to enable adaptive binning.
+    
+    Args:
+        all_features: Dictionary mapping session_id to SessionFeatures
+        
+    Returns:
+        Dictionary mapping feature names to percentile values (p25, p50, p75)
+    """
+    if not all_features:
+        return {}
+    
+    # Collect all values for each feature
+    durations = [f.session_duration for f in all_features.values()]
+    tool_calls = [f.total_tool_calls for f in all_features.values()]
+    llm_requests = [f.llm_request_count for f in all_features.values()]
+    tokens = [f.total_tokens for f in all_features.values()]
+    event_counts = [f.event_count for f in all_features.values()]
+    avg_intervals = [f.avg_event_interval for f in all_features.values() if f.avg_event_interval > 0]
+    
+    percentiles = {}
+    
+    # Calculate 25th, 50th (median), 75th percentiles for each feature
+    if durations:
+        percentiles["session_duration"] = {
+            "p25": float(np.percentile(durations, 25)),
+            "p50": float(np.percentile(durations, 50)),
+            "p75": float(np.percentile(durations, 75))
+        }
+    
+    if tool_calls:
+        percentiles["total_tool_calls"] = {
+            "p25": float(np.percentile(tool_calls, 25)),
+            "p50": float(np.percentile(tool_calls, 50)),
+            "p75": float(np.percentile(tool_calls, 75))
+        }
+    
+    if llm_requests:
+        percentiles["llm_request_count"] = {
+            "p25": float(np.percentile(llm_requests, 25)),
+            "p50": float(np.percentile(llm_requests, 50)),
+            "p75": float(np.percentile(llm_requests, 75))
+        }
+    
+    if tokens:
+        percentiles["total_tokens"] = {
+            "p25": float(np.percentile(tokens, 25)),
+            "p50": float(np.percentile(tokens, 50)),
+            "p75": float(np.percentile(tokens, 75))
+        }
+    
+    if event_counts:
+        percentiles["event_count"] = {
+            "p25": float(np.percentile(event_counts, 25)),
+            "p50": float(np.percentile(event_counts, 50)),
+            "p75": float(np.percentile(event_counts, 75))
+        }
+    
+    if avg_intervals:
+        percentiles["avg_event_interval"] = {
+            "p25": float(np.percentile(avg_intervals, 25)),
+            "p50": float(np.percentile(avg_intervals, 50)),
+            "p75": float(np.percentile(avg_intervals, 75))
+        }
+    
+    return percentiles
+
+
+# ============================================================================
 # Main Analysis Function (Section 3.6)
 # ============================================================================
 
-def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisResult:
+def analyze_agent_behavior(
+    sessions: List[SessionData], 
+    cached_percentiles: Optional[Dict[str, Dict[str, float]]] = None
+) -> Tuple[BehavioralAnalysisResult, Optional[Dict[str, Dict[str, float]]]]:
     """Main entry point for behavioral analysis.
     
+    SIMPLIFIED APPROACH - Signatures are computed ONCE per session and stored:
+    1. Uses stored signatures for sessions that already have them
+    2. Only computes signatures for newly-completed sessions without signatures
+    3. Uses frozen percentiles after initial calculation (no recalculation)
+    
     Args:
-        sessions: List of completed sessions (minimum 5 recommended)
+        sessions: List of session data to analyze
+        cached_percentiles: Frozen percentiles from first calculation
         
     Returns:
-        BehavioralAnalysisResult with clusters, outliers, and insights
+        Tuple of (BehavioralAnalysisResult, frozen_percentiles)
     """
-    if len(sessions) < 2:
-        return BehavioralAnalysisResult(
-            total_sessions=len(sessions),
+    # Filter to only completed sessions
+    total_sessions = len(sessions)
+    completed_sessions = [s for s in sessions if s.is_completed]
+    active_sessions = total_sessions - len(completed_sessions)
+    
+    logger.info(f"[BEHAVIORAL ANALYSIS] Total sessions: {total_sessions}, "
+                f"Completed: {len(completed_sessions)}, Active: {active_sessions}")
+    
+    if len(completed_sessions) < 2:
+        result = BehavioralAnalysisResult(
+            total_sessions=len(completed_sessions),
             num_clusters=0,
             num_outliers=0,
             stability_score=0.0,
@@ -810,23 +1053,62 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
             cluster_diversity=0.0,
             clusters=[],
             outliers=[],
-            interpretation="Insufficient sessions for analysis (minimum 2 required)",
-            error="Insufficient sessions"
+            interpretation=f"Insufficient completed sessions for analysis (have {len(completed_sessions)}, need 2+). "
+                          f"{active_sessions} sessions are still active.",
+            error="Insufficient completed sessions"
         )
+        return (result, cached_percentiles)
     
-    # Step 1: Extract features from all sessions
+    # Step 1: Extract features and use/compute signatures
+    # Key optimization: Only compute signatures for sessions that don't have them
     all_features = {}
     all_signatures = {}
+    sessions_needing_signatures = []
     
-    minhash = MinHashSignature(num_hashes=512)
-    
-    for session in sessions:
-        features = extract_session_features(session)
-        shingles = features_to_shingles(features)
-        signature = minhash.compute_signature(shingles)
+    for session in completed_sessions:
+        # Always need features for clustering
+        if session.behavioral_features is None:
+            features = extract_session_features(session)
+            session.behavioral_features = features  # Cache on session
+        else:
+            features = session.behavioral_features
         
         all_features[session.session_id] = features
-        all_signatures[session.session_id] = signature
+        
+        # Use stored signature if available, otherwise mark for computation
+        if session.behavioral_signature is not None:
+            all_signatures[session.session_id] = session.behavioral_signature
+        else:
+            sessions_needing_signatures.append(session)
+    
+    # Step 2: Compute signatures ONLY for new sessions
+    if sessions_needing_signatures:
+        # Calculate or use frozen percentiles
+        if cached_percentiles is None:
+            # First time: calculate percentiles and freeze them
+            percentiles = _calculate_feature_percentiles(all_features)
+            logger.info(f"[SIGNATURE] Calculated and FROZE percentiles from {len(all_features)} sessions")
+        else:
+            # Use frozen percentiles for consistency
+            percentiles = cached_percentiles
+        
+        # Compute signatures for new sessions only
+        minhash = MinHashSignature(num_hashes=512)
+        for session in sessions_needing_signatures:
+            features = all_features[session.session_id]
+            shingles = features_to_shingles(features, percentiles)
+            signature = minhash.compute_signature(shingles)
+            
+            # Store signature on session (NEVER recalculate)
+            session.behavioral_signature = signature
+            all_signatures[session.session_id] = signature
+        
+        logger.info(f"[SIGNATURE] Computed signatures for {len(sessions_needing_signatures)} new sessions, "
+                   f"reused {len(completed_sessions) - len(sessions_needing_signatures)} existing")
+    else:
+        # All sessions already have signatures
+        percentiles = cached_percentiles  # Keep using frozen percentiles
+        logger.info(f"[SIGNATURE] Reused ALL {len(completed_sessions)} existing signatures (no computation needed)")
     
     # Step 2: Cluster using LSH
     lsh = LSHClustering(num_bands=64, rows_per_band=8)
@@ -841,7 +1123,7 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
     valid_clusters = normal_clusters + low_confidence_clusters
 
     # DEBUG: Log clustering results
-    logger.info(f"[BEHAVIORAL ANALYSIS] Total sessions: {len(sessions)}")
+    logger.info(f"[BEHAVIORAL ANALYSIS] Completed sessions analyzed: {len(completed_sessions)}")
     logger.info(f"[BEHAVIORAL ANALYSIS] Raw clusters from LSH: {len(clusters)}")
     logger.info(f"[BEHAVIORAL ANALYSIS] Normal clusters (≥3): {len(normal_clusters)}")
     for i, cluster in enumerate(normal_clusters):
@@ -900,11 +1182,13 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
         ))
     
     # Step 7: Calculate metrics
+    # Metrics are calculated ONLY against completed sessions that have been analyzed
+    # This ensures stability/predictability don't drop when new active sessions arrive
     # Stability score only considers normal-confidence clusters (≥3 sessions)
     # Low-confidence clusters (2 sessions) are too small to be reliable stability indicators
-    stability_score = calculate_stability_score(normal_clusters, len(sessions))
-    predictability_score = calculate_predictability_score(len(outlier_session_ids), len(sessions))
-    cluster_diversity = calculate_cluster_diversity(len(valid_clusters), len(sessions))
+    stability_score = calculate_stability_score(normal_clusters, len(completed_sessions))
+    predictability_score = calculate_predictability_score(len(outlier_session_ids), len(completed_sessions))
+    cluster_diversity = calculate_cluster_diversity(len(valid_clusters), len(completed_sessions))
     
     # Step 8: Generate interpretation
     interpretation = generate_behavioral_interpretation(
@@ -914,18 +1198,19 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
     # DEBUG: Final summary
     sessions_in_clusters = len(clustered_session_ids)
     sessions_as_outliers = len(outliers_with_causes)
-    sessions_unaccounted = len(sessions) - sessions_in_clusters - sessions_as_outliers
+    sessions_unaccounted = len(completed_sessions) - sessions_in_clusters - sessions_as_outliers
 
     logger.info(f"[BEHAVIORAL ANALYSIS] === FINAL SUMMARY ===")
-    logger.info(f"  Total sessions: {len(sessions)}")
+    logger.info(f"  Total sessions analyzed (completed): {len(completed_sessions)}")
+    logger.info(f"  Active sessions (not analyzed): {active_sessions}")
     logger.info(f"  Sessions in clusters: {sessions_in_clusters}")
     logger.info(f"  Sessions marked as outliers: {sessions_as_outliers}")
     logger.info(f"  Sessions UNACCOUNTED FOR: {sessions_unaccounted}")
     if sessions_unaccounted > 0:
         logger.error(f"  ⚠️  {sessions_unaccounted} sessions are missing from the report!")
 
-    return BehavioralAnalysisResult(
-        total_sessions=len(sessions),
+    result = BehavioralAnalysisResult(
+        total_sessions=len(completed_sessions),  # Only count analyzed sessions
         num_clusters=len(valid_clusters),
         num_outliers=len(outlier_session_ids),
         stability_score=stability_score,
@@ -936,6 +1221,9 @@ def analyze_agent_behavior(sessions: List[SessionData]) -> BehavioralAnalysisRes
         centroid_distances=centroid_distances,
         interpretation=interpretation
     )
+    
+    # Return both the result and the percentiles used (for caching)
+    return (result, percentiles)
 
 
 def calculate_cluster_characteristics(

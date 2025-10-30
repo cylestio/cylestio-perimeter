@@ -33,12 +33,22 @@ class SessionData:
         # Tool tracking
         self.tool_usage_details = defaultdict(int)  # {"tool_name": count}
         self.available_tools = set()  # All tools seen in this session
+        
+        # Session completion tracking
+        self.is_completed = False  # True when session is marked as completed
+        self.completed_at = None  # Timestamp when session was marked completed
+        self.behavioral_signature = None  # MinHash signature (computed when completed)
+        self.behavioral_features = None  # SessionFeatures (computed when completed)
 
     def add_event(self, event: BaseEvent):
         """Add an event to this session."""
         self.events.append(event)
         self.total_events += 1
         self.last_activity = datetime.now(timezone.utc)
+        
+        # If session was completed and new event arrives, reactivate it
+        if self.is_completed:
+            self.reactivate()
 
         # Update metrics based on event type
         event_name = event.name.value
@@ -89,6 +99,28 @@ class SessionData:
         if self.message_count == 0:
             return 0.0
         return (self.errors / self.message_count) * 100
+    
+    def mark_completed(self):
+        """Mark this session as completed (inactive for timeout period).
+        
+        Signatures and features are computed immediately upon completion and stored.
+        They are never recalculated to ensure clustering stability.
+        """
+        self.is_completed = True
+        self.is_active = False
+        self.completed_at = datetime.now(timezone.utc)
+        logger.info(f"Session {self.session_id[:8]}... marked as completed after inactivity")
+    
+    def reactivate(self):
+        """Reactivate a completed session when new events arrive."""
+        if self.is_completed:
+            logger.info(f"Session {self.session_id[:8]}... reactivated - clearing signature and analysis")
+            self.is_completed = False
+            self.is_active = True
+            self.completed_at = None
+            # Clear previous analysis - will be recomputed when session completes again
+            self.behavioral_signature = None
+            self.behavioral_features = None
 
 
 class AgentData:
@@ -113,6 +145,11 @@ class AgentData:
         self.available_tools = set()  # All tools this agent has access to
         self.used_tools = set()  # Tools this agent has actually used
         self.tool_usage_details = defaultdict(int)  # Total usage count per tool
+        
+        # Behavioral analysis - percentiles frozen for stability
+        # Once calculated, percentiles NEVER change to ensure clustering stability
+        self.cached_percentiles = None  # Frozen percentiles (calculated once from first sessions)
+        self.percentiles_session_count = 0  # Number of sessions when percentiles were frozen
 
     def add_session(self, session_id: str):
         """Add a session to this agent."""
@@ -219,11 +256,20 @@ class TraceStore:
                 self._cleanup_old_data()
 
     def _cleanup_old_data(self):
-        """Remove old inactive sessions."""
+        """Remove old INCOMPLETE sessions only.
+        
+        NEVER delete completed sessions - they contain valuable signatures and
+        analysis data that should be kept for the lifetime of the gateway.
+        """
         cutoff_time = datetime.now(timezone.utc).timestamp() - (self.retention_minutes * 60)
 
         sessions_to_remove = []
         for session_id, session in list(self.sessions.items()):
+            # CRITICAL: Never delete completed sessions - they have computed signatures!
+            if session.is_completed:
+                continue
+            
+            # Only clean up old INCOMPLETE/ABANDONED sessions
             if session.last_activity.timestamp() < cutoff_time:
                 sessions_to_remove.append(session_id)
                 session.is_active = False
@@ -231,7 +277,7 @@ class TraceStore:
         for session_id in sessions_to_remove:
             if len(self.sessions) > 10:  # Keep at least 10 sessions
                 del self.sessions[session_id]
-                logger.debug(f"Cleaned up old session: {session_id}")
+                logger.debug(f"Cleaned up old incomplete session: {session_id}")
 
     def get_active_sessions(self) -> List[SessionData]:
         """Get list of currently active sessions."""
@@ -286,6 +332,35 @@ class TraceStore:
                 "top_tools": dict(sorted(self.tool_usage.items(), key=lambda x: x[1], reverse=True)[:5]),
                 "top_errors": dict(sorted(self.error_types.items(), key=lambda x: x[1], reverse=True)[:5])
             }
+
+    def check_and_complete_sessions(self, timeout_seconds: int = 30):
+        """Check for inactive sessions and mark them as completed.
+        
+        Args:
+            timeout_seconds: Number of seconds of inactivity before marking complete
+            
+        Returns:
+            Number of sessions newly marked as completed
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            newly_completed = 0
+            
+            for session in self.sessions.values():
+                # Skip sessions that are already completed or inactive
+                if session.is_completed:
+                    continue
+                
+                # Check if session has been inactive for timeout period
+                inactive_seconds = (now - session.last_activity).total_seconds()
+                if inactive_seconds >= timeout_seconds:
+                    session.mark_completed()
+                    newly_completed += 1
+            
+            if newly_completed > 0:
+                logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
+            
+            return newly_completed
 
     def update_agent_metrics(self):
         """Update agent metrics from their sessions."""

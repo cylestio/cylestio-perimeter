@@ -332,8 +332,46 @@ export default function Dashboard() {
                             </div>
                           </div>
                           
-                          {/* Behavioral Snapshot */}
-                          {agent.analysis_summary.behavioral && (
+                          {/* Behavioral Analysis Status */}
+                          {agent.analysis_summary.behavioral_waiting ? (
+                            <div style={{
+                              paddingTop: 'var(--space-xl)',
+                              borderTop: '1px solid var(--color-border-subtle)'
+                            }}>
+                              <div className="text-xs weight-semibold mb-md" style={{
+                                color: 'var(--color-text-secondary)',
+                                letterSpacing: '0.08em',
+                                textTransform: 'uppercase'
+                              }}>
+                                Behavioral Analysis
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-sm)',
+                                fontSize: 'var(--text-sm)',
+                                color: 'var(--color-text-secondary)',
+                                padding: 'var(--space-md)',
+                                background: 'linear-gradient(135deg, #667eea10 0%, #764ba210 100%)',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid var(--color-accent-primary)'
+                              }}>
+                                <div className="loading-spinner" style={{
+                                  width: '12px',
+                                  height: '12px',
+                                  borderWidth: '2px'
+                                }}></div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 500, color: 'var(--color-accent-primary)' }}>
+                                    Analyzing...
+                                  </div>
+                                  <div className="text-xs text-muted" style={{ marginTop: '2px' }}>
+                                    Waiting for {agent.analysis_summary.active_sessions} session{agent.analysis_summary.active_sessions !== 1 ? 's' : ''} to complete
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : agent.analysis_summary.behavioral ? (
                             <div style={{
                               paddingTop: 'var(--space-xl)',
                               borderTop: '1px solid var(--color-border-subtle)'
@@ -345,6 +383,30 @@ export default function Dashboard() {
                               }}>
                                 Behavioral Snapshot
                               </div>
+                              
+                              {/* Active Sessions Note */}
+                              {agent.analysis_summary.active_sessions > 0 && (
+                                <div style={{
+                                  padding: 'var(--space-xs) var(--space-sm)',
+                                  background: 'linear-gradient(135deg, #667eea10 0%, #764ba210 100%)',
+                                  borderRadius: 'var(--radius-sm)',
+                                  border: '1px solid var(--color-accent-primary)',
+                                  marginBottom: 'var(--space-sm)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 'var(--space-xs)'
+                                }}>
+                                  <div className="loading-spinner" style={{
+                                    width: '10px',
+                                    height: '10px',
+                                    borderWidth: '2px'
+                                  }}></div>
+                                  <span className="text-xs" style={{ color: 'var(--color-text-secondary)', fontSize: '11px' }}>
+                                    {agent.analysis_summary.completed_sessions} analyzed, {agent.analysis_summary.active_sessions} running
+                                  </span>
+                                </div>
+                              )}
+                              
                               <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -471,7 +533,7 @@ export default function Dashboard() {
                                 </div>
                               </div>
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

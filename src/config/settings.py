@@ -73,6 +73,21 @@ class CylestioConfig(BaseModel):
         return v
 
 
+class LiveTraceConfig(BaseModel):
+    """Live trace global configuration."""
+    
+    session_completion_timeout: int = Field(
+        default=30, 
+        ge=1,
+        description="Seconds of inactivity before marking session as completed"
+    )
+    completion_check_interval: int = Field(
+        default=10,
+        ge=1, 
+        description="Seconds between checking for completed sessions"
+    )
+
+
 class Settings(BaseModel):
     """Main settings configuration."""
     
@@ -81,6 +96,7 @@ class Settings(BaseModel):
     interceptors: List[InterceptorConfig] = Field(default_factory=list)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     cylestio: Optional[CylestioConfig] = Field(default=None, description="Cylestio tracing configuration")
+    live_trace: Optional[LiveTraceConfig] = Field(default=None, description="Live trace global configuration")
     
     @classmethod
     def from_yaml(cls, config_path: str) -> "Settings":

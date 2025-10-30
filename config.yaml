@@ -67,6 +67,14 @@ logging:
   max_file_size: "10MB"
   backup_count: 5
 
+# Live trace configuration
+live_trace:
+  # Session completion timeout in seconds - session is marked as completed
+  # after this many seconds of inactivity (no new events)
+  session_completion_timeout: 30
+  # How often to check for completed sessions (in seconds)
+  completion_check_interval: 10
+
 # Example configurations for different scenarios:
 
 # Minimal configuration (equivalent to CLI: --base-url https://api.openai.com --type openai)
