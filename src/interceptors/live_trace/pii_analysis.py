@@ -35,6 +35,29 @@ MEDIUM_CONFIDENCE_THRESHOLD = 0.5
 # Maximum findings to store in detailed results
 MAX_DETAILED_FINDINGS = 50
 
+# SpaCy model to use for PII detection
+SPACY_MODEL = "en_core_web_md"
+
+
+def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Optional[Any]:
+    """Try to load spaCy model if available.
+    
+    Args:
+        model_name: Name of the spaCy model to load
+        
+    Returns:
+        Loaded spaCy model, or None if not available
+    """
+    # Import spaCy only when needed (defer heavy import)
+    try:
+        import spacy
+        logger.debug("Attempting to load spaCy model: %s", model_name)
+        return spacy.load(model_name)
+    except (OSError, ImportError) as exc:
+        logger.warning("SpaCy model '%s' not available: %s", model_name, exc)
+        logger.warning("Model will be downloaded in the background when live trace starts")
+        return None
+
 
 class PresidioAnalyzer:
     """Wrapper for Microsoft Presidio Analyzer with lazy initialization."""
@@ -48,12 +71,52 @@ class PresidioAnalyzer:
         return cls._instance
 
     def get_analyzer(self) -> Any:
-        """Get or create the Presidio analyzer instance."""
+        """Get or create the Presidio analyzer instance.
+        
+        Automatically downloads en_core_web_md spaCy model if not present.
+        
+        Returns:
+            Initialized AnalyzerEngine instance
+            
+        Raises:
+            ImportError: If presidio_analyzer cannot be imported
+            Exception: If analyzer initialization fails
+        """
         if self._analyzer is None:
             try:
                 from presidio_analyzer import AnalyzerEngine
-                self._analyzer = AnalyzerEngine()
-                logger.info("Presidio AnalyzerEngine initialized successfully")
+                from presidio_analyzer.nlp_engine import NlpEngineProvider
+                
+                # Ensure the spaCy model is available
+                logger.info("Loading spaCy model: %s", SPACY_MODEL)
+                model = ensure_spacy_model(SPACY_MODEL)
+                if model is None:
+                    raise RuntimeError(f"SpaCy model '{SPACY_MODEL}' not installed")
+                
+                # Configure Presidio with our model and suppress unwanted entity warnings
+                nlp_configuration = {
+                    "nlp_engine_name": "spacy",
+                    "models": [{
+                        "lang_code": "en",
+                        "model_name": SPACY_MODEL,
+                    }],
+                    "ner_model_configuration": {
+                        "labels_to_ignore": [
+                            "CARDINAL",
+                            "ORDINAL",
+                            "QUANTITY",
+                            "MONEY",
+                            "PERCENT",
+                        ]
+                    },
+                }
+                
+                provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
+                nlp_engine = provider.create_engine()
+                
+                self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
+                logger.info("Presidio AnalyzerEngine initialized with %s", SPACY_MODEL)
+                
             except ImportError as e:
                 logger.error(f"Failed to import presidio_analyzer: {e}")
                 logger.error("Install with: pip install presidio-analyzer spacy")

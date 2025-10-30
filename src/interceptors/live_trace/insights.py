@@ -9,7 +9,6 @@ from .store import TraceStore, AgentData
 from .risk_models import RiskAnalysisResult
 from .behavioral_analysis import analyze_agent_behavior
 from .security_assessment import generate_security_report
-from .pii_analysis import analyze_sessions_for_pii
 
 logger = logging.getLogger(__name__)
 
@@ -624,8 +623,10 @@ class InsightsEngine:
             behavioral_status = "COMPLETE" if behavioral_result.total_sessions >= 2 else "WAITING_FOR_COMPLETION"
 
             # Run PII analysis (works on all sessions - doesn't need completion)
+            # Import lazily to avoid slow startup from presidio-analyzer
             pii_result = None
             try:
+                from .pii_analysis import analyze_sessions_for_pii
                 pii_result = analyze_sessions_for_pii(agent_sessions)
                 logger.info(f"PII analysis completed: {pii_result.total_findings} findings")
             except Exception as e:
