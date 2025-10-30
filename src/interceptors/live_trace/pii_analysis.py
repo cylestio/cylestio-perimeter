@@ -48,6 +48,7 @@ def ensure_spacy_model(model_name: str = SPACY_MODEL) -> Optional[Any]:
     Returns:
         Loaded spaCy model, or None if not available
     """
+    # Import spaCy only when needed (defer heavy import)
     try:
         import spacy
         logger.debug("Attempting to load spaCy model: %s", model_name)
