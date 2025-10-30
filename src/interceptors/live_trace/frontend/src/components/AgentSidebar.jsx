@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import InfoCard from './InfoCard'
+import Tooltip from './Tooltip'
 import { formatNumber, timeAgo, getAgentStatus } from '../utils/helpers'
 
 export default function AgentSidebar({
@@ -78,16 +79,8 @@ export default function AgentSidebar({
           borderRadius: 'var(--radius-md)',
           padding: 'var(--space-md)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-sm)' }}>
-            <div style={{ fontSize: '16px' }}>⚠️</div>
-            <div>
-              <div className="text-xs weight-semibold" style={{ color: '#92400E', marginBottom: '2px' }}>
-                PII Detection Unavailable
-              </div>
-              <div className="text-xs" style={{ color: '#78350F', lineHeight: 1.4 }}>
-                {riskAnalysis.summary.pii_disabled_reason || 'Model download failed'}
-              </div>
-            </div>
+          <div className="text-xs weight-semibold" style={{ color: '#92400E' }}>
+            PII Detection Unavailable
           </div>
         </div>
       )}
