@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import InfoCard from './InfoCard'
 import Tooltip from './Tooltip'
-import { formatNumber, timeAgo, getAgentStatus } from '../utils/helpers'
+import { formatNumber, formatDuration, timeAgo, getAgentStatus } from '../utils/helpers'
 
 export default function AgentSidebar({
   agent,
   riskAnalysis,
+  statistics,
 }) {
   const status = getAgentStatus(riskAnalysis)
   return (
@@ -85,36 +86,224 @@ export default function AgentSidebar({
         </div>
       )}
 
-      {/* Quick Metrics */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-          <div className="stat-card-compact" style={{ flex: 1, padding: 'var(--space-sm) var(--space-md)' }}>
-            <div>
-              <h3 style={{ fontSize: 'var(--text-xs)' }}>Sessions</h3>
-            </div>
-            <div className="stat-value" style={{ fontSize: 'var(--text-lg)' }}>{agent.total_sessions}</div>
+      {/* Quick Metrics - Categorized */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+
+        {/* Sessions */}
+        <div className="stat-card-compact" style={{ padding: 'var(--space-md) var(--space-xl)' }}>
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-muted)',
+          }}>
+            Sessions
           </div>
-          <div className="stat-card-compact" style={{ flex: 1, padding: 'var(--space-sm) var(--space-md)' }}>
-            <div>
-              <h3 style={{ fontSize: 'var(--text-xs)' }}>Messages</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
+            <div style={{ textAlign: 'center', minWidth: '60px' }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--color-text-secondary)',
+                marginBottom: 'var(--space-xs)'
+              }}>
+                Total
+              </div>
+              <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                {agent.total_sessions}
+              </div>
             </div>
-            <div className="stat-value" style={{ fontSize: 'var(--text-lg)' }}>{formatNumber(agent.total_messages)}</div>
+            {statistics && (
+              <Tooltip content="Average session duration" position="top" delay={200}>
+                <div style={{ textAlign: 'center', minWidth: '60px', cursor: 'help' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--color-text-secondary)',
+                    marginBottom: 'var(--space-xs)'
+                  }}>
+                    Avg Time
+                  </div>
+                  <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                    {statistics.avg_session_time_minutes > 0 ? `${statistics.avg_session_time_minutes}m` : 'N/A'}
+                  </div>
+                </div>
+              </Tooltip>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-          <div className="stat-card-compact" style={{ flex: 1, padding: 'var(--space-sm) var(--space-md)' }}>
-            <div>
-              <h3 style={{ fontSize: 'var(--text-xs)' }}>Tokens</h3>
-            </div>
-            <div className="stat-value" style={{ fontSize: 'var(--text-lg)' }}>{formatNumber(agent.total_tokens)}</div>
+
+        {/* Tools */}
+        <div className="stat-card-compact" style={{ padding: 'var(--space-md) var(--space-xl)' }}>
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-muted)',
+          }}>
+            Tools
           </div>
-          <div className="stat-card-compact" style={{ flex: 1, padding: 'var(--space-sm) var(--space-md)' }}>
-            <div>
-              <h3 style={{ fontSize: 'var(--text-xs)' }}>Tools</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
+            <div style={{ textAlign: 'center', minWidth: '60px' }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--color-text-secondary)',
+                marginBottom: 'var(--space-xs)'
+              }}>
+                Total
+              </div>
+              <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                {agent.total_tools}
+              </div>
             </div>
-            <div className="stat-value" style={{ fontSize: 'var(--text-lg)' }}>{agent.total_tools}</div>
+            {statistics && (
+              <Tooltip content="Average tool calls per session" position="top" delay={200}>
+                <div style={{ textAlign: 'center', minWidth: '60px', cursor: 'help' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--color-text-secondary)',
+                    marginBottom: 'var(--space-xs)'
+                  }}>
+                    Per Session
+                  </div>
+                  <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                    {statistics.avg_tool_calls_per_session}
+                  </div>
+                </div>
+              </Tooltip>
+            )}
           </div>
         </div>
+
+        {/* LLM Response Time */}
+        {statistics && (
+          <div className="stat-card-compact" style={{ padding: 'var(--space-md) var(--space-xl)' }}>
+            <div style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              color: 'var(--color-text-muted)',
+            }}>
+              LLM Response Time
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
+              <div style={{ textAlign: 'center', minWidth: '60px' }}>
+                <div style={{
+                  fontSize: '11px',
+                  color: 'var(--color-text-secondary)',
+                  marginBottom: 'var(--space-xs)'
+                }}>
+                  Avg
+                </div>
+                <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                  {statistics.avg_response_time_ms > 0 ? formatDuration(statistics.avg_response_time_ms) : 'N/A'}
+                </div>
+              </div>
+              <Tooltip content="95th percentile - 95% of requests complete faster than this" position="top" delay={200}>
+                <div style={{ textAlign: 'center', minWidth: '60px', cursor: 'help' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--color-text-secondary)',
+                    marginBottom: 'var(--space-xs)'
+                  }}>
+                    P95
+                  </div>
+                  <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                    {statistics.p95_response_time_ms > 0 ? formatDuration(statistics.p95_response_time_ms) : 'N/A'}
+                  </div>
+                </div>
+              </Tooltip>
+            </div>
+          </div>
+        )}
+
+        {/* Tokens */}
+        <div className="stat-card-compact" style={{ padding: 'var(--space-md) var(--space-xl)' }}>
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-muted)',
+          }}>
+            Tokens
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
+            <div style={{ textAlign: 'center', minWidth: '60px' }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--color-text-secondary)',
+                marginBottom: 'var(--space-xs)'
+              }}>
+                Total
+              </div>
+              <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                {formatNumber(agent.total_tokens)}
+              </div>
+            </div>
+            {statistics && (
+              <Tooltip content="Average tokens per session" position="top" delay={200}>
+                <div style={{ textAlign: 'center', minWidth: '60px', cursor: 'help' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--color-text-secondary)',
+                    marginBottom: 'var(--space-xs)'
+                  }}>
+                    Per Session
+                  </div>
+                  <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                    {formatNumber(statistics.avg_tokens_per_session)}
+                  </div>
+                </div>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="stat-card-compact" style={{ padding: 'var(--space-md) var(--space-xl)' }}>
+          <div style={{
+            fontSize: '10px',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            color: 'var(--color-text-muted)',
+          }}>
+            Messages
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
+            <div style={{ textAlign: 'center', minWidth: '60px' }}>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--color-text-secondary)',
+                marginBottom: 'var(--space-xs)'
+              }}>
+                Total
+              </div>
+              <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                {formatNumber(agent.total_messages)}
+              </div>
+            </div>
+            {statistics && (
+              <Tooltip content="Average messages per session" position="top" delay={200}>
+                <div style={{ textAlign: 'center', minWidth: '60px', cursor: 'help' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    color: 'var(--color-text-secondary)',
+                    marginBottom: 'var(--space-xs)'
+                  }}>
+                    Per Session
+                  </div>
+                  <div className="stat-value" style={{ fontSize: 'var(--text-xl)', fontWeight: 600 }}>
+                    {statistics.avg_messages_per_session.toFixed(1)}
+                  </div>
+                </div>
+              </Tooltip>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   )

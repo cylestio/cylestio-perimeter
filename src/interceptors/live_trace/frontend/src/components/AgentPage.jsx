@@ -92,6 +92,7 @@ export default function AgentPage() {
           <AgentSidebar
             agent={agent}
             riskAnalysis={riskAnalysis}
+            statistics={data.statistics}
           />
 
           {/* MAIN CONTENT AREA */}

@@ -89,8 +89,8 @@ export default function Tooltip({ children, content, position = 'top', delay = 3
   }
 
   return (
-    <span
-      style={{ position: 'relative', display: 'inline-flex' }}
+    <div
+      style={{ position: 'relative', display: 'flex' }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -100,6 +100,6 @@ export default function Tooltip({ children, content, position = 'top', delay = 3
           {content}
         </span>
       )}
-    </span>
+    </div>
   )
 }

@@ -50,6 +50,68 @@ class InsightsEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
+    def _calculate_agent_statistics(self, agent: AgentData, risk_analysis: Optional[RiskAnalysisResult]) -> Dict[str, Any]:
+        """Calculate key statistics for display in agent sidebar.
+
+        Args:
+            agent: Agent data
+            risk_analysis: Risk analysis result (optional)
+
+        Returns:
+            Dictionary with statistics for categorized display
+        """
+        # Get agent sessions for detailed calculations
+        agent_sessions = [
+            self.store.sessions[sid] for sid in agent.sessions
+            if sid in self.store.sessions
+        ]
+
+        # 1. Average LLM Response Time - mean of all response times
+        # 2. P95 Response Time - 95th percentile of LLM response times
+        response_times = []
+        for session in agent_sessions:
+            for event in session.events:
+                if event.name.value == "llm.call.finish":
+                    duration_ms = event.attributes.get("llm.response.duration_ms")
+                    if duration_ms is not None:
+                        response_times.append(duration_ms)
+
+        avg_response_time = 0
+        p95_response_time = 0
+        if response_times:
+            avg_response_time = round(sum(response_times) / len(response_times))
+            response_times.sort()
+            p95_index = int(len(response_times) * 0.95)
+            p95_response_time = round(response_times[p95_index])
+
+        # 3. Average Tokens per Session
+        avg_tokens_per_session = 0
+        if agent.total_sessions > 0:
+            avg_tokens_per_session = round(agent.total_tokens / agent.total_sessions)
+
+        # 4. Average Session Time - mean session duration in minutes
+        durations = [s.duration_minutes for s in agent_sessions if s.duration_minutes > 0]
+        avg_session_time = 0.0
+        if durations:
+            avg_session_time = round(sum(durations) / len(durations), 1)
+
+        # 5. Average Tool Calls per Session
+        avg_tool_calls_per_session = 0.0
+        if agent.total_sessions > 0:
+            avg_tool_calls_per_session = round(agent.total_tools / agent.total_sessions, 1)
+
+        # 6. Average Messages per Session (already available in agent data)
+        avg_messages_per_session = agent.avg_messages_per_session
+
+        return {
+            "avg_response_time_ms": avg_response_time,
+            "p95_response_time_ms": p95_response_time,
+            "avg_tokens_per_session": avg_tokens_per_session,
+            "avg_session_time_minutes": avg_session_time,
+            "avg_tool_calls_per_session": avg_tool_calls_per_session,
+            "avg_messages_per_session": avg_messages_per_session
+        }
+
     @_with_store_lock
     def get_agent_data(self, agent_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific agent."""
@@ -89,6 +151,9 @@ class InsightsEngine:
         # Compute risk analysis
         risk_analysis = self.compute_risk_analysis(agent_id)
 
+        # Calculate detailed statistics
+        statistics = self._calculate_agent_statistics(agent, risk_analysis)
+
         return {
             "agent": {
                 "id": agent_id,
@@ -109,6 +174,7 @@ class InsightsEngine:
             "sessions": agent_sessions,
             "patterns": self._analyze_agent_patterns(agent),
             "risk_analysis": self._serialize_risk_analysis(risk_analysis) if risk_analysis else None,
+            "statistics": statistics,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
