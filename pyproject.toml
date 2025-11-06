@@ -38,11 +38,11 @@ dependencies = [
     "Jinja2>=3.1.0",
     "numpy>=1.24.3",
     "presidio-analyzer>=2.2.354",
-    "spacy>=3.7.0",
+    "spacy>=3.8.6",
 ]
 
 [project.optional-dependencies]
-dev = [
+dev = [ 
     "pytest>=7.4.4",
     "pytest-asyncio>=0.23.3",
     "pytest-mock>=3.12.0",
