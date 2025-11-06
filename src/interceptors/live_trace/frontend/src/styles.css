@@ -1383,3 +1383,70 @@ a:hover {
   gap: var(--space-xs);
   font-family: var(--font-mono);
 }
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+@media print {
+  /* Stack sidebar above main content */
+  .dashboard-split {
+    display: flex !important;
+    flex-direction: column;
+    gap: var(--space-2xl);
+  }
+  
+  /* Make sidebar full width and remove sticky positioning */
+  .dashboard-sidebar {
+    position: static !important;
+    max-height: none !important;
+    width: 100%;
+    overflow: visible;
+  }
+  
+  /* Make main content full width */
+  .dashboard-main {
+    width: 100%;
+  }
+  
+  /* Hide breadcrumb navigation */
+  .breadcrumb {
+    display: none;
+  }
+  
+  /* Hide loading spinners */
+  .loading-spinner {
+    display: none;
+  }
+  
+  /* Ensure cards print well */
+  .card {
+    page-break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #d1d5db;
+  }
+  
+  /* Remove hover effects */
+  .card:hover {
+    box-shadow: none;
+  }
+  
+  /* Ensure proper spacing for print */
+  body {
+    background-color: white;
+  }
+  
+  .container {
+    max-width: 100%;
+    padding: 0;
+  }
+  
+  /* Hide sticky app header */
+  .app-header {
+    display: none;
+  }
+  
+  /* Remove sticky positioning from session sidebar too */
+  .session-left {
+    position: static;
+  }
+}
