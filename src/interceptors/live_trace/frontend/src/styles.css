@@ -122,8 +122,6 @@ body {
   background-color: var(--color-bg-secondary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow: hidden;
-  height: 100vh;
 }
 
 /* ============================================
@@ -205,10 +203,6 @@ body {
   max-width: var(--container-max-width);
   margin: 0 auto;
   padding: var(--space-2xl);
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .container.full-width {
@@ -289,17 +283,16 @@ body {
   display: grid;
   grid-template-columns: var(--sidebar-width) 1fr;
   gap: var(--space-3xl);
-  align-items: stretch;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  align-items: start;
 }
 
 .dashboard-sidebar {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
-  height: 100%;
+  position: sticky;
+  top: var(--space-xl);
+  max-height: calc(100vh - 100px);
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: var(--space-sm);
@@ -329,9 +322,6 @@ body {
   flex-direction: column;
   gap: var(--space-2xl);
   padding-bottom: var(--space-4xl);
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
 }
 
 /* ============================================
