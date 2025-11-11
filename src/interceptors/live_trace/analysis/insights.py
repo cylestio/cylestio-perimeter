@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
-from .store import TraceStore, AgentData
+from ..store import TraceStore, AgentData
 from .risk_models import RiskAnalysisResult
 from .behavioral_analysis import analyze_agent_behavior
 from .security_assessment import generate_security_report

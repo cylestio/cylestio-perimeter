@@ -12,7 +12,7 @@ from .risk_models import (
     PIIAnalysisResult,
     SecurityReport,
 )
-from .store import SessionData
+from ..store import SessionData
 
 
 # Universal safety bounds (section 4.2, H3)

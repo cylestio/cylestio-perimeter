@@ -149,3 +149,4 @@ When writing tests for provider methods, create separate test files for methods 
 ## Development Warnings
 
 - Dont use TYPE_CHECKING
+- When moving files always use `git mv`

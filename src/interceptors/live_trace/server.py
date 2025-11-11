@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.utils.logger import get_logger
 
-from .insights import InsightsEngine
+from .analysis.insights import InsightsEngine
 
 logger = get_logger(__name__)
 

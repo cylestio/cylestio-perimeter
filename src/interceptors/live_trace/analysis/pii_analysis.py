@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
 from .risk_models import PIIAnalysisResult, PIIFinding
-from .store import SessionData
+from ..store import SessionData
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def is_pii_available() -> Tuple[bool, Optional[str]]:
         - (True, None) if PII analysis is available
         - (False, reason_string) if PII analysis is disabled or downloading
     """
-    from .model_downloader import get_model_status
+    from ..model_downloader import get_model_status
     
     status, error = get_model_status()
     

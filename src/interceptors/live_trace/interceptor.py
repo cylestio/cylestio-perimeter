@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.utils.logger import get_logger
 
-from .insights import InsightsEngine
+from .analysis.insights import InsightsEngine
 from .server import create_trace_server
 from .store import TraceStore
 
