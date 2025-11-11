@@ -204,6 +204,15 @@ class TraceStore:
         self.tool_usage = defaultdict(int)
         self.error_types = defaultdict(int)
 
+        # Performance indexes
+        self._sessions_by_agent: Dict[str, set] = defaultdict(set)  # {agent_id: {session_ids}}
+        self._active_sessions: set = set()  # {session_ids} - sessions with recent activity
+        self._completed_sessions: set = set()  # {session_ids} - sessions marked as completed
+
+        # Cleanup optimization
+        self._last_cleanup = datetime.now(timezone.utc)
+        self._cleanup_interval_seconds = 60  # Only cleanup once per minute
+
         logger.info(f"TraceStore initialized with max_events={max_events}, retention={retention_minutes}min")
 
     @property
@@ -230,19 +239,71 @@ class TraceStore:
 
             # Ensure we have session and agent data
             if effective_session_id:
-                if effective_session_id not in self.sessions:
+                is_new_session = effective_session_id not in self.sessions
+
+                if is_new_session:
                     self.sessions[effective_session_id] = SessionData(effective_session_id, agent_id)
+                    # Add to active sessions index
+                    self._active_sessions.add(effective_session_id)
 
                 if agent_id not in self.agents:
                     self.agents[agent_id] = AgentData(agent_id)
 
-                # Add session to agent
+                # Add session to agent and update index
                 self.agents[agent_id].add_session(effective_session_id)
+                self._sessions_by_agent[agent_id].add(effective_session_id)
 
-                # Add event to session
-                self.sessions[effective_session_id].add_event(event)
+                # Get session for metrics updates
+                session = self.sessions[effective_session_id]
+                agent = self.agents[agent_id]
 
-            # Track tool usage and errors
+                # Check if session was completed before adding event (for reactivation handling)
+                was_completed = session.is_completed
+
+                # Add event to session (may trigger reactivation if session was completed)
+                session.add_event(event)
+
+                # If session was reactivated, update indexes
+                if was_completed and not session.is_completed:
+                    self._completed_sessions.discard(session.session_id)
+                    self._active_sessions.add(session.session_id)
+
+                # Incremental metrics update - update agent metrics as events arrive
+                event_name = event.name.value
+                if event_name == "llm.call.start":
+                    agent.total_messages += 1
+                elif event_name == "llm.call.finish":
+                    # Update response metrics
+                    duration = event.attributes.get("llm.response.duration_ms", 0)
+                    agent.total_response_time_ms += duration
+                    agent.response_count += 1
+
+                    # Update token metrics
+                    tokens = event.attributes.get("llm.usage.total_tokens", 0)
+                    agent.total_tokens += tokens
+                elif event_name == "tool.execution":
+                    agent.total_tools += 1
+                    # Track specific tool usage
+                    tool_name = event.attributes.get("tool.name", "unknown")
+                    agent.tool_usage_details[tool_name] += 1
+                    agent.used_tools.add(tool_name)
+                elif event_name.endswith(".error"):
+                    agent.total_errors += 1
+
+                # Update agent's last seen timestamp
+                agent.last_seen = max(agent.last_seen, session.last_activity)
+
+                # Update agent's available tools (from llm.call.start events)
+                if event_name == "llm.call.start":
+                    request_data = event.attributes.get("llm.request.data", {})
+                    if isinstance(request_data, dict):
+                        tools = request_data.get("tools", [])
+                        if tools:
+                            for tool in tools:
+                                if isinstance(tool, dict) and "name" in tool:
+                                    agent.available_tools.add(tool["name"])
+
+            # Track global tool usage and errors
             event_name = event.name.value
             if event_name == "tool.execution":
                 tool_name = event.attributes.get("tool.name", "unknown")
@@ -257,35 +318,53 @@ class TraceStore:
 
     def _cleanup_old_data(self):
         """Remove old INCOMPLETE sessions only.
-        
+
         NEVER delete completed sessions - they contain valuable signatures and
         analysis data that should be kept for the lifetime of the gateway.
+
+        Rate limited to run at most once per _cleanup_interval_seconds.
         """
-        cutoff_time = datetime.now(timezone.utc).timestamp() - (self.retention_minutes * 60)
+        now = datetime.now(timezone.utc)
+
+        # Rate limiting: only cleanup if enough time has passed
+        if (now - self._last_cleanup).total_seconds() < self._cleanup_interval_seconds:
+            return
+
+        self._last_cleanup = now
+        cutoff_time = now.timestamp() - (self.retention_minutes * 60)
 
         sessions_to_remove = []
-        for session_id, session in list(self.sessions.items()):
-            # CRITICAL: Never delete completed sessions - they have computed signatures!
-            if session.is_completed:
+        # Optimization: Only iterate active sessions (skip completed)
+        for session_id in list(self._active_sessions):
+            session = self.sessions.get(session_id)
+            if not session:
                 continue
-            
+
             # Only clean up old INCOMPLETE/ABANDONED sessions
             if session.last_activity.timestamp() < cutoff_time:
                 sessions_to_remove.append(session_id)
                 session.is_active = False
 
+        # Remove old sessions and update indexes
         for session_id in sessions_to_remove:
             if len(self.sessions) > 10:  # Keep at least 10 sessions
                 del self.sessions[session_id]
+                self._active_sessions.discard(session_id)
+                # Also remove from agent's session index
+                for agent_sessions in self._sessions_by_agent.values():
+                    agent_sessions.discard(session_id)
                 logger.debug(f"Cleaned up old incomplete session: {session_id}")
 
     def get_active_sessions(self) -> List[SessionData]:
-        """Get list of currently active sessions."""
+        """Get list of currently active sessions (not completed, with activity in last 5 minutes)."""
         with self._lock:
             cutoff_time = datetime.now(timezone.utc).timestamp() - (5 * 60)  # 5 minutes
+            # Optimization: Only check active sessions index (skip completed sessions)
             return [
-                session for session in self.sessions.values()
-                if session.last_activity.timestamp() > cutoff_time
+                self.sessions[session_id]
+                for session_id in self._active_sessions
+                if session_id in self.sessions and
+                   self.sessions[session_id].last_activity.timestamp() > cutoff_time
             ]
 
     def get_recent_events(self, limit: int = 100) -> List[BaseEvent]:
@@ -350,41 +429,18 @@ class TraceStore:
                 # Skip sessions that are already completed or inactive
                 if session.is_completed:
                     continue
-                
+
                 # Check if session has been inactive for timeout period
                 inactive_seconds = (now - session.last_activity).total_seconds()
                 if inactive_seconds >= timeout_seconds:
                     session.mark_completed()
                     newly_completed += 1
+
+                    # Update indexes: move from active to completed
+                    self._active_sessions.discard(session.session_id)
+                    self._completed_sessions.add(session.session_id)
             
             if newly_completed > 0:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
             
             return newly_completed
-
-    def update_agent_metrics(self):
-        """Update agent metrics from their sessions."""
-        with self._lock:
-            for agent in self.agents.values():
-                # Reset metrics
-                agent.total_messages = 0
-                agent.total_tokens = 0
-                agent.total_tools = 0
-                agent.total_errors = 0
-                agent.total_response_time_ms = 0.0
-                agent.response_count = 0
-                agent.tool_usage_details.clear()
-                agent.used_tools.clear()
-                agent.available_tools.clear()
-
-                # Aggregate from sessions
-                for session_id in agent.sessions:
-                    session = self.sessions.get(session_id)
-                    if session:
-                        agent.update_metrics(session)
-                        # Update tool information
-                        agent.available_tools.update(session.available_tools)
-                        # Only mark tools as "used" if they were actually executed
-                        agent.used_tools.update(session.tool_usage_details.keys())
-                        for tool_name, count in session.tool_usage_details.items():
-                            agent.tool_usage_details[tool_name] += count

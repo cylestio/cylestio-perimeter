@@ -57,10 +57,7 @@ class InsightsEngine:
         if not agent:
             return {"error": "Agent not found"}
 
-        # Update agent metrics first
-        self.store.update_agent_metrics()
-
-        # Get agent's sessions
+        # Get agent's sessions (metrics are maintained incrementally)
         agent_sessions = []
         for session_id in agent.sessions:
             session = self.store.sessions.get(session_id)
@@ -194,9 +191,7 @@ class InsightsEngine:
 
     @_with_store_lock
     def _get_agent_summary(self) -> List[Dict[str, Any]]:
-        """Get summary data for all agents."""
-        self.store.update_agent_metrics()
-
+        """Get summary data for all agents (metrics are maintained incrementally)."""
         agents = []
         for agent in self.store.agents.values():
             # Get session status counts
