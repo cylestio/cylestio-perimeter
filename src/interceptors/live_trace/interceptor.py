@@ -27,6 +27,8 @@ class LiveTraceInterceptor(BaseInterceptor):
                 - max_events: Maximum events to keep in memory (default: 10000)
                 - retention_minutes: Session retention time (default: 30)
                 - refresh_interval: Page refresh interval in seconds (default: 2)
+                - storage_mode: Storage mode - "memory" for in-memory SQLite, "sqlite" for disk (default: "sqlite")
+                - db_path: Path to SQLite database file (default: "./trace_data/live_trace.db")
             provider_name: Name of the LLM provider (e.g., "openai", "anthropic")
             provider_config: Provider configuration including base_url
         """
@@ -39,7 +41,11 @@ class LiveTraceInterceptor(BaseInterceptor):
         self.max_events = config.get("max_events", 10000)
         self.retention_minutes = config.get("retention_minutes", 30)
         self.refresh_interval = config.get("refresh_interval", 2)
-        
+
+        # Storage configuration
+        self.storage_mode = config.get("storage_mode", "memory")
+        self.db_path = config.get("db_path", None)
+
         # Session completion configuration
         self.session_completion_timeout = config.get("session_completion_timeout", 30)
         self.completion_check_interval = config.get("completion_check_interval", 10)
@@ -51,7 +57,9 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Initialize storage and insights
         self.store = TraceStore(
             max_events=self.max_events,
-            retention_minutes=self.retention_minutes
+            retention_minutes=self.retention_minutes,
+            storage_mode=self.storage_mode,
+            db_path=self.db_path
         )
 
         # Pass configuration to insights engine

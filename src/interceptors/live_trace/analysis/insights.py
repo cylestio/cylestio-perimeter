@@ -53,17 +53,16 @@ class InsightsEngine:
     @_with_store_lock
     def get_agent_data(self, agent_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific agent."""
-        agent = self.store.agents.get(agent_id)
+        agent = self.store.get_agent(agent_id)
         if not agent:
             return {"error": "Agent not found"}
 
         # Get agent's sessions (metrics are maintained incrementally)
         agent_sessions = []
-        for session_id in agent.sessions:
-            session = self.store.sessions.get(session_id)
+        for session in self.store.get_agent_sessions(agent_id):
             if session:
                 agent_sessions.append({
-                    "id": session_id,
+                    "id": session.session_id,
                     "created_at": session.created_at.isoformat(),
                     "last_activity": session.last_activity.isoformat(),
                     "duration_minutes": session.duration_minutes,
@@ -140,7 +139,7 @@ class InsightsEngine:
     @_with_store_lock
     def get_session_data(self, session_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific session."""
-        session = self.store.sessions.get(session_id)
+        session = self.store.get_session(session_id)
         if not session:
             return {"error": "Session not found"}
 
@@ -193,12 +192,9 @@ class InsightsEngine:
     def _get_agent_summary(self) -> List[Dict[str, Any]]:
         """Get summary data for all agents (metrics are maintained incrementally)."""
         agents = []
-        for agent in self.store.agents.values():
+        for agent in self.store.get_all_agents():
             # Get session status counts
-            agent_session_objects = [
-                self.store.sessions[sid] for sid in agent.sessions
-                if sid in self.store.sessions
-            ]
+            agent_session_objects = self.store.get_agent_sessions(agent.agent_id)
             active_sessions = len([s for s in agent_session_objects if s.is_active])
             completed_sessions = len([s for s in agent_session_objects if s.is_completed])
 
@@ -397,7 +393,7 @@ class InsightsEngine:
     def _get_recent_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent sessions with summary data."""
         sessions = []
-        for session in self.store.sessions.values():
+        for session in self.store.get_all_sessions():
             # Determine user-friendly status
             if session.is_completed:
                 status = "COMPLETE"
@@ -432,12 +428,13 @@ class InsightsEngine:
     @_with_store_lock
     def _get_latest_active_session(self) -> Dict[str, Any] | None:
         """Get the most recent active session."""
-        active_sessions = [s for s in self.store.sessions.values() if s.is_active]
+        all_sessions = self.store.get_all_sessions()
+        active_sessions = [s for s in all_sessions if s.is_active]
 
         if not active_sessions:
             # If no active sessions, return the most recent one
-            if self.store.sessions:
-                latest = max(self.store.sessions.values(), key=lambda s: s.last_activity)
+            if all_sessions:
+                latest = max(all_sessions, key=lambda s: s.last_activity)
             else:
                 return None
         else:
@@ -456,11 +453,7 @@ class InsightsEngine:
     @_with_store_lock
     def _analyze_agent_patterns(self, agent: AgentData) -> Dict[str, Any]:
         """Analyze patterns for a specific agent."""
-        agent_sessions = [
-            self.store.sessions[session_id]
-            for session_id in agent.sessions
-            if session_id in self.store.sessions
-        ]
+        agent_sessions = self.store.get_agent_sessions(agent.agent_id)
 
         if not agent_sessions:
             return {}
@@ -552,15 +545,12 @@ class InsightsEngine:
         Returns:
             RiskAnalysisResult or None if insufficient sessions
         """
-        agent = self.store.agents.get(agent_id)
+        agent = self.store.get_agent(agent_id)
         if not agent:
             return None
-        
+
         # Get all sessions for this agent
-        agent_sessions = [
-            self.store.sessions[sid] for sid in agent.sessions
-            if sid in self.store.sessions
-        ]
+        agent_sessions = self.store.get_agent_sessions(agent_id)
         
         # Check minimum session requirement
         if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
@@ -704,15 +694,12 @@ class InsightsEngine:
             "evaluating" - Not enough sessions yet
             None - No data or error
         """
-        agent = self.store.agents.get(agent_id)
+        agent = self.store.get_agent(agent_id)
         if not agent:
             return None
 
         # Get all sessions for this agent
-        agent_sessions = [
-            self.store.sessions[sid] for sid in agent.sessions
-            if sid in self.store.sessions
-        ]
+        agent_sessions = self.store.get_agent_sessions(agent_id)
 
         # Check if we have enough sessions for analysis
         if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:

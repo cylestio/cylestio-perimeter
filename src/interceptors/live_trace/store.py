@@ -1,6 +1,9 @@
-"""In-memory data store for live tracing."""
+"""SQLite-based data store for live tracing."""
+import json
+import sqlite3
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional
 
@@ -8,6 +11,58 @@ from src.events import BaseEvent
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+# SQLite schema for persistent storage
+SQL_SCHEMA = """
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    last_activity REAL NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    is_completed INTEGER NOT NULL DEFAULT 0,
+    completed_at REAL,
+    total_events INTEGER DEFAULT 0,
+    message_count INTEGER DEFAULT 0,
+    tool_uses INTEGER DEFAULT 0,
+    errors INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    total_response_time_ms REAL DEFAULT 0.0,
+    response_count INTEGER DEFAULT 0,
+    tool_usage_details TEXT,
+    available_tools TEXT,
+    events_json TEXT,
+    behavioral_signature TEXT,
+    behavioral_features TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_is_completed ON sessions(is_completed);
+CREATE INDEX IF NOT EXISTS idx_sessions_is_active ON sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
+
+CREATE TABLE IF NOT EXISTS agents (
+    agent_id TEXT PRIMARY KEY,
+    first_seen REAL NOT NULL,
+    last_seen REAL NOT NULL,
+    total_sessions INTEGER DEFAULT 0,
+    total_messages INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    total_tools INTEGER DEFAULT 0,
+    total_errors INTEGER DEFAULT 0,
+    total_response_time_ms REAL DEFAULT 0.0,
+    response_count INTEGER DEFAULT 0,
+    sessions_set TEXT,
+    available_tools TEXT,
+    used_tools TEXT,
+    tool_usage_details TEXT,
+    cached_percentiles TEXT,
+    percentiles_session_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
+"""
 
 
 class SessionData:
@@ -184,41 +239,180 @@ class AgentData:
 
 
 class TraceStore:
-    """In-memory store for all trace data."""
+    """SQLite-based store for all trace data with constant memory usage."""
 
-    def __init__(self, max_events: int = 10000, retention_minutes: int = 30):
+    def __init__(
+        self,
+        max_events: int = 10000,
+        retention_minutes: int = 30,
+        storage_mode: str = "sqlite",
+        db_path: Optional[str] = None
+    ):
         self.max_events = max_events
         self.retention_minutes = retention_minutes
         self._lock = RLock()
 
-        # Storage
-        self.events = deque(maxlen=max_events)  # Global event stream
-        self.sessions: Dict[str, SessionData] = {}
-        self.agents: Dict[str, AgentData] = {}
+        # Initialize SQLite database
+        if storage_mode == "memory":
+            self.db = sqlite3.connect(':memory:', check_same_thread=False)
+            logger.info("TraceStore initialized with in-memory SQLite")
+        else:
+            # Default to disk storage
+            db_path = db_path or "./trace_data/live_trace.db"
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            self.db = sqlite3.connect(db_path, check_same_thread=False)
+            logger.info(f"TraceStore initialized with SQLite at {db_path}")
 
-        # Global stats
+        # Configure SQLite for performance
+        self.db.row_factory = sqlite3.Row  # Access columns by name
+        self.db.execute("PRAGMA journal_mode=WAL")  # Better concurrency
+        self.db.execute("PRAGMA synchronous=NORMAL")  # Balance safety/speed
+        self.db.execute("PRAGMA cache_size=-64000")  # 64MB cache
+
+        # Create schema
+        self.db.executescript(SQL_SCHEMA)
+        self.db.commit()
+
+        # Global stats (kept in memory for performance)
         self.start_time = datetime.now(timezone.utc)
         self.total_events = 0
+        self.events = deque(maxlen=max_events)  # Global event stream (circular buffer)
 
-        # Tool usage tracking
+        # Tool usage tracking (lightweight, kept in memory)
         self.tool_usage = defaultdict(int)
         self.error_types = defaultdict(int)
 
-        # Performance indexes
-        self._sessions_by_agent: Dict[str, set] = defaultdict(set)  # {agent_id: {session_ids}}
-        self._active_sessions: set = set()  # {session_ids} - sessions with recent activity
-        self._completed_sessions: set = set()  # {session_ids} - sessions marked as completed
-
         # Cleanup optimization
         self._last_cleanup = datetime.now(timezone.utc)
-        self._cleanup_interval_seconds = 60  # Only cleanup once per minute
+        self._cleanup_interval_seconds = 60
 
-        logger.info(f"TraceStore initialized with max_events={max_events}, retention={retention_minutes}min")
+        logger.info(f"TraceStore ready: max_events={max_events}, retention={retention_minutes}min")
 
     @property
     def lock(self) -> RLock:
         """Expose the underlying lock for coordinated read access."""
         return self._lock
+
+    def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
+        """Convert SessionData to dict for SQLite storage."""
+        return {
+            'session_id': session.session_id,
+            'agent_id': session.agent_id,
+            'created_at': session.created_at.timestamp(),
+            'last_activity': session.last_activity.timestamp(),
+            'is_active': 1 if session.is_active else 0,
+            'is_completed': 1 if session.is_completed else 0,
+            'completed_at': session.completed_at.timestamp() if session.completed_at else None,
+            'total_events': session.total_events,
+            'message_count': session.message_count,
+            'tool_uses': session.tool_uses,
+            'errors': session.errors,
+            'total_tokens': session.total_tokens,
+            'total_response_time_ms': session.total_response_time_ms,
+            'response_count': session.response_count,
+            'tool_usage_details': json.dumps(dict(session.tool_usage_details)),
+            'available_tools': json.dumps(list(session.available_tools)),
+            'events_json': json.dumps([e.model_dump() for e in session.events]),
+            'behavioral_signature': json.dumps(session.behavioral_signature) if session.behavioral_signature else None,
+            'behavioral_features': session.behavioral_features.model_dump_json() if session.behavioral_features else None,
+        }
+
+    def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
+        """Convert SQLite row back to SessionData object."""
+        session = SessionData(row['session_id'], row['agent_id'])
+        session.created_at = datetime.fromtimestamp(row['created_at'], tz=timezone.utc)
+        session.last_activity = datetime.fromtimestamp(row['last_activity'], tz=timezone.utc)
+        session.is_active = bool(row['is_active'])
+        session.is_completed = bool(row['is_completed'])
+        session.completed_at = datetime.fromtimestamp(row['completed_at'], tz=timezone.utc) if row['completed_at'] else None
+        session.total_events = row['total_events']
+        session.message_count = row['message_count']
+        session.tool_uses = row['tool_uses']
+        session.errors = row['errors']
+        session.total_tokens = row['total_tokens']
+        session.total_response_time_ms = row['total_response_time_ms']
+        session.response_count = row['response_count']
+        session.tool_usage_details = defaultdict(int, json.loads(row['tool_usage_details']))
+        session.available_tools = set(json.loads(row['available_tools']))
+        events_list = json.loads(row['events_json'])
+        session.events = deque([BaseEvent(**e) for e in events_list], maxlen=1000)
+        if row['behavioral_signature']:
+            session.behavioral_signature = json.loads(row['behavioral_signature'])
+        if row['behavioral_features']:
+            from .analysis.risk_models import SessionFeatures
+            session.behavioral_features = SessionFeatures.model_validate_json(row['behavioral_features'])
+        return session
+
+    def _serialize_agent(self, agent: AgentData) -> Dict[str, Any]:
+        """Convert AgentData to dict for SQLite storage."""
+        return {
+            'agent_id': agent.agent_id,
+            'first_seen': agent.first_seen.timestamp(),
+            'last_seen': agent.last_seen.timestamp(),
+            'total_sessions': agent.total_sessions,
+            'total_messages': agent.total_messages,
+            'total_tokens': agent.total_tokens,
+            'total_tools': agent.total_tools,
+            'total_errors': agent.total_errors,
+            'total_response_time_ms': agent.total_response_time_ms,
+            'response_count': agent.response_count,
+            'sessions_set': json.dumps(list(agent.sessions)),
+            'available_tools': json.dumps(list(agent.available_tools)),
+            'used_tools': json.dumps(list(agent.used_tools)),
+            'tool_usage_details': json.dumps(dict(agent.tool_usage_details)),
+            'cached_percentiles': json.dumps(agent.cached_percentiles) if agent.cached_percentiles else None,
+            'percentiles_session_count': agent.percentiles_session_count,
+        }
+
+    def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
+        """Convert SQLite row back to AgentData object."""
+        agent = AgentData(row['agent_id'])
+        agent.first_seen = datetime.fromtimestamp(row['first_seen'], tz=timezone.utc)
+        agent.last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
+        agent.total_sessions = row['total_sessions']
+        agent.total_messages = row['total_messages']
+        agent.total_tokens = row['total_tokens']
+        agent.total_tools = row['total_tools']
+        agent.total_errors = row['total_errors']
+        agent.total_response_time_ms = row['total_response_time_ms']
+        agent.response_count = row['response_count']
+        agent.sessions = set(json.loads(row['sessions_set']))
+        agent.available_tools = set(json.loads(row['available_tools']))
+        agent.used_tools = set(json.loads(row['used_tools']))
+        agent.tool_usage_details = defaultdict(int, json.loads(row['tool_usage_details']))
+        if row['cached_percentiles']:
+            agent.cached_percentiles = json.loads(row['cached_percentiles'])
+        agent.percentiles_session_count = row['percentiles_session_count']
+        return agent
+
+    def _save_session(self, session: SessionData):
+        """Save or update session in SQLite."""
+        data = self._serialize_session(session)
+        self.db.execute("""
+            INSERT OR REPLACE INTO sessions VALUES (
+                :session_id, :agent_id, :created_at, :last_activity,
+                :is_active, :is_completed, :completed_at,
+                :total_events, :message_count, :tool_uses, :errors,
+                :total_tokens, :total_response_time_ms, :response_count,
+                :tool_usage_details, :available_tools, :events_json,
+                :behavioral_signature, :behavioral_features
+            )
+        """, data)
+        self.db.commit()
+
+    def _save_agent(self, agent: AgentData):
+        """Save or update agent in SQLite."""
+        data = self._serialize_agent(agent)
+        self.db.execute("""
+            INSERT OR REPLACE INTO agents VALUES (
+                :agent_id, :first_seen, :last_seen,
+                :total_sessions, :total_messages, :total_tokens,
+                :total_tools, :total_errors, :total_response_time_ms, :response_count,
+                :sessions_set, :available_tools, :used_tools, :tool_usage_details,
+                :cached_percentiles, :percentiles_session_count
+            )
+        """, data)
+        self.db.commit()
 
     def add_event(self, event: BaseEvent, session_id: Optional[str] = None, agent_id: Optional[str] = None):
         """Add an event to the store."""
@@ -233,40 +427,28 @@ class TraceStore:
             if not agent_id:
                 agent_id = 'unknown'
 
-            # Add to global event stream
+            # Add to global event stream (kept in memory as circular buffer)
             self.events.append(event)
             self.total_events += 1
 
             # Ensure we have session and agent data
             if effective_session_id:
-                is_new_session = effective_session_id not in self.sessions
+                # Load existing session or create new one
+                session = self.get_session(effective_session_id)
+                if not session:
+                    session = SessionData(effective_session_id, agent_id)
 
-                if is_new_session:
-                    self.sessions[effective_session_id] = SessionData(effective_session_id, agent_id)
-                    # Add to active sessions index
-                    self._active_sessions.add(effective_session_id)
+                # Load existing agent or create new one
+                agent = self.get_agent(agent_id)
+                if not agent:
+                    agent = AgentData(agent_id)
 
-                if agent_id not in self.agents:
-                    self.agents[agent_id] = AgentData(agent_id)
-
-                # Add session to agent and update index
-                self.agents[agent_id].add_session(effective_session_id)
-                self._sessions_by_agent[agent_id].add(effective_session_id)
-
-                # Get session for metrics updates
-                session = self.sessions[effective_session_id]
-                agent = self.agents[agent_id]
-
-                # Check if session was completed before adding event (for reactivation handling)
-                was_completed = session.is_completed
+                # Add session to agent if not already tracked
+                if effective_session_id not in agent.sessions:
+                    agent.add_session(effective_session_id)
 
                 # Add event to session (may trigger reactivation if session was completed)
                 session.add_event(event)
-
-                # If session was reactivated, update indexes
-                if was_completed and not session.is_completed:
-                    self._completed_sessions.discard(session.session_id)
-                    self._active_sessions.add(session.session_id)
 
                 # Incremental metrics update - update agent metrics as events arrive
                 event_name = event.name.value
@@ -303,6 +485,10 @@ class TraceStore:
                                 if isinstance(tool, dict) and "name" in tool:
                                     agent.available_tools.add(tool["name"])
 
+                # Save updated session and agent back to SQLite
+                self._save_session(session)
+                self._save_agent(agent)
+
             # Track global tool usage and errors
             event_name = event.name.value
             if event_name == "tool.execution":
@@ -317,7 +503,7 @@ class TraceStore:
                 self._cleanup_old_data()
 
     def _cleanup_old_data(self):
-        """Remove old INCOMPLETE sessions only.
+        """Remove old INCOMPLETE sessions only from SQLite.
 
         NEVER delete completed sessions - they contain valuable signatures and
         analysis data that should be kept for the lifetime of the gateway.
@@ -333,39 +519,35 @@ class TraceStore:
         self._last_cleanup = now
         cutoff_time = now.timestamp() - (self.retention_minutes * 60)
 
-        sessions_to_remove = []
-        # Optimization: Only iterate active sessions (skip completed)
-        for session_id in list(self._active_sessions):
-            session = self.sessions.get(session_id)
-            if not session:
-                continue
+        # Count total sessions
+        cursor = self.db.execute("SELECT COUNT(*) FROM sessions")
+        total_sessions = cursor.fetchone()[0]
 
-            # Only clean up old INCOMPLETE/ABANDONED sessions
-            if session.last_activity.timestamp() < cutoff_time:
-                sessions_to_remove.append(session_id)
-                session.is_active = False
+        if total_sessions > 10:  # Keep at least 10 sessions
+            # Delete old incomplete sessions
+            cursor = self.db.execute("""
+                DELETE FROM sessions
+                WHERE is_completed = 0
+                  AND last_activity < ?
+            """, (cutoff_time,))
+            deleted_count = cursor.rowcount
+            self.db.commit()
 
-        # Remove old sessions and update indexes
-        for session_id in sessions_to_remove:
-            if len(self.sessions) > 10:  # Keep at least 10 sessions
-                del self.sessions[session_id]
-                self._active_sessions.discard(session_id)
-                # Also remove from agent's session index
-                for agent_sessions in self._sessions_by_agent.values():
-                    agent_sessions.discard(session_id)
-                logger.debug(f"Cleaned up old incomplete session: {session_id}")
+            if deleted_count > 0:
+                logger.debug(f"Cleaned up {deleted_count} old incomplete sessions")
 
     def get_active_sessions(self) -> List[SessionData]:
-        """Get list of currently active sessions (not completed, with activity in last 5 minutes)."""
+        """Get list of currently active sessions from SQLite (not completed, with activity in last 5 minutes)."""
         with self._lock:
             cutoff_time = datetime.now(timezone.utc).timestamp() - (5 * 60)  # 5 minutes
-            # Optimization: Only check active sessions index (skip completed sessions)
-            return [
-                self.sessions[session_id]
-                for session_id in self._active_sessions
-                if session_id in self.sessions and
-                   self.sessions[session_id].last_activity.timestamp() > cutoff_time
-            ]
+            cursor = self.db.execute("""
+                SELECT * FROM sessions
+                WHERE is_active = 1
+                  AND is_completed = 0
+                  AND last_activity > ?
+                ORDER BY last_activity DESC
+            """, (cutoff_time,))
+            return [self._deserialize_session(row) for row in cursor.fetchall()]
 
     def get_recent_events(self, limit: int = 100) -> List[BaseEvent]:
         """Get recent events from the global stream."""
@@ -373,36 +555,87 @@ class TraceStore:
             return list(self.events)[-limit:]
 
     def get_session(self, session_id: str) -> Optional[SessionData]:
-        """Get session data by ID."""
+        """Get session data by ID from SQLite."""
         with self._lock:
-            return self.sessions.get(session_id)
+            cursor = self.db.execute(
+                "SELECT * FROM sessions WHERE session_id = ?",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_session(row)
+            return None
 
     def get_agent(self, agent_id: str) -> Optional[AgentData]:
-        """Get agent data by ID."""
+        """Get agent data by ID from SQLite."""
         with self._lock:
-            return self.agents.get(agent_id)
+            cursor = self.db.execute(
+                "SELECT * FROM agents WHERE agent_id = ?",
+                (agent_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_agent(row)
+            return None
+
+    def get_agent_sessions(self, agent_id: str) -> List[SessionData]:
+        """Get all sessions for a specific agent from SQLite."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM sessions WHERE agent_id = ? ORDER BY created_at DESC",
+                (agent_id,)
+            )
+            return [self._deserialize_session(row) for row in cursor.fetchall()]
+
+    def get_all_sessions(self) -> List[SessionData]:
+        """Get all sessions from SQLite."""
+        with self._lock:
+            cursor = self.db.execute("SELECT * FROM sessions ORDER BY created_at DESC")
+            return [self._deserialize_session(row) for row in cursor.fetchall()]
+
+    def get_all_agents(self) -> List[AgentData]:
+        """Get all agents from SQLite."""
+        with self._lock:
+            cursor = self.db.execute("SELECT * FROM agents ORDER BY first_seen DESC")
+            return [self._deserialize_agent(row) for row in cursor.fetchall()]
 
     def get_global_stats(self) -> Dict[str, Any]:
-        """Get global statistics."""
+        """Get global statistics from SQLite."""
         with self._lock:
             active_sessions = self.get_active_sessions()
 
-            # Calculate aggregate metrics
-            total_tokens = sum(session.total_tokens for session in self.sessions.values())
-            total_response_time = sum(session.total_response_time_ms for session in self.sessions.values())
-            total_responses = sum(session.response_count for session in self.sessions.values())
-            total_errors = sum(session.errors for session in self.sessions.values())
+            # Calculate aggregate metrics from SQLite
+            cursor = self.db.execute("""
+                SELECT
+                    COUNT(*) as total_sessions,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(total_response_time_ms) as total_response_time,
+                    SUM(response_count) as total_responses,
+                    SUM(errors) as total_errors
+                FROM sessions
+            """)
+            row = cursor.fetchone()
+
+            total_sessions = row['total_sessions'] or 0
+            total_tokens = row['total_tokens'] or 0
+            total_response_time = row['total_response_time'] or 0
+            total_responses = row['total_responses'] or 0
+            total_errors = row['total_errors'] or 0
 
             avg_response_time = total_response_time / total_responses if total_responses > 0 else 0
             error_rate = (total_errors / self.total_events) * 100 if self.total_events > 0 else 0
+
+            # Count total agents
+            cursor = self.db.execute("SELECT COUNT(*) FROM agents")
+            total_agents = cursor.fetchone()[0]
 
             uptime_minutes = (datetime.now(timezone.utc) - self.start_time).total_seconds() / 60
 
             return {
                 "total_events": self.total_events,
-                "total_sessions": len(self.sessions),
+                "total_sessions": total_sessions,
                 "active_sessions": len(active_sessions),
-                "total_agents": len(self.agents),
+                "total_agents": total_agents,
                 "total_tokens": total_tokens,
                 "avg_response_time_ms": avg_response_time,
                 "error_rate": error_rate,
@@ -413,34 +646,35 @@ class TraceStore:
             }
 
     def check_and_complete_sessions(self, timeout_seconds: int = 30):
-        """Check for inactive sessions and mark them as completed.
-        
+        """Check for inactive sessions and mark them as completed in SQLite.
+
         Args:
             timeout_seconds: Number of seconds of inactivity before marking complete
-            
+
         Returns:
             Number of sessions newly marked as completed
         """
         with self._lock:
             now = datetime.now(timezone.utc)
-            newly_completed = 0
-            
-            for session in self.sessions.values():
-                # Skip sessions that are already completed or inactive
-                if session.is_completed:
-                    continue
+            cutoff_time = now.timestamp() - timeout_seconds
 
-                # Check if session has been inactive for timeout period
-                inactive_seconds = (now - session.last_activity).total_seconds()
-                if inactive_seconds >= timeout_seconds:
-                    session.mark_completed()
-                    newly_completed += 1
+            # Find sessions to mark as completed
+            cursor = self.db.execute("""
+                SELECT * FROM sessions
+                WHERE is_completed = 0
+                  AND is_active = 1
+                  AND last_activity < ?
+            """, (cutoff_time,))
 
-                    # Update indexes: move from active to completed
-                    self._active_sessions.discard(session.session_id)
-                    self._completed_sessions.add(session.session_id)
-            
+            sessions_to_complete = [self._deserialize_session(row) for row in cursor.fetchall()]
+
+            # Mark each session as completed and save
+            for session in sessions_to_complete:
+                session.mark_completed()
+                self._save_session(session)
+
+            newly_completed = len(sessions_to_complete)
             if newly_completed > 0:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
-            
+
             return newly_completed
