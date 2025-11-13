@@ -22,13 +22,9 @@ def _with_store_lock(func):
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        print(f"[LOCK] Acquiring store lock for {func.__name__}")
         with self.store.lock:
-            print(f"[LOCK] ... Store lock acquired for {func.__name__}")
-            try:
-                return func(self, *args, **kwargs)
-            finally:
-                print(f"[LOCK] ... Releasing store lock for {func.__name__}")
+            return func(self, *args, **kwargs)
+
 
     return wrapper
 
