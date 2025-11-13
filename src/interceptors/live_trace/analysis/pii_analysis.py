@@ -135,6 +135,15 @@ class PresidioAnalyzer:
                             "QUANTITY",
                             "MONEY",
                             "PERCENT",
+                            "WORK_OF_ART",
+                            "DATE",
+                            "TIME",
+                            "EVENT",
+                            "FAC",
+                            "LANGUAGE",
+                            "LAW",
+                            "PRODUCT",
+                            "NORP",
                         ]
                     },
                 }
