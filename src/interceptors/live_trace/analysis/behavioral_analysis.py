@@ -19,7 +19,7 @@ from .risk_models import (
     OutlierInfo,
     SessionFeatures,
 )
-from .store import SessionData
+from ..store import SessionData
 
 
 # ============================================================================

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.utils.logger import get_logger
 
-from .insights import InsightsEngine
+from .analysis.insights import InsightsEngine
 
 logger = get_logger(__name__)
 
@@ -58,7 +58,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_dashboard():
         """Get complete dashboard data as JSON."""
         try:
-            data = insights.get_dashboard_data()
+            data = await insights.get_dashboard_data()
             data["refresh_interval"] = refresh_interval
             return JSONResponse(data)
         except Exception as e:
@@ -69,7 +69,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_stats():
         """Get global statistics as JSON."""
         try:
-            data = insights.get_dashboard_data()
+            data = await insights.get_dashboard_data()
             return JSONResponse(data["stats"])
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
@@ -79,7 +79,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_agents():
         """Get all agents as JSON."""
         try:
-            data = insights.get_dashboard_data()
+            data = await insights.get_dashboard_data()
             return JSONResponse(data["agents"])
         except Exception as e:
             logger.error(f"Error getting agents: {e}")
@@ -89,7 +89,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_sessions():
         """Get all sessions as JSON."""
         try:
-            data = insights.get_dashboard_data()
+            data = await insights.get_dashboard_data()
             return JSONResponse(data["sessions"])
         except Exception as e:
             logger.error(f"Error getting sessions: {e}")
@@ -99,7 +99,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_agent(agent_id: str):
         """Get agent details as JSON."""
         try:
-            data = insights.get_agent_data(agent_id)
+            data = await insights.get_agent_data(agent_id)
             return JSONResponse(data)
         except Exception as e:
             logger.error(f"Error getting agent data: {e}")

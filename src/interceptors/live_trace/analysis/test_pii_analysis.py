@@ -7,7 +7,7 @@ from .pii_analysis import (
     extract_message_content,
     analyze_sessions_for_pii,
 )
-from .store import SessionData
+from ..store import SessionData
 from .risk_models import PIIAnalysisResult
 
 
@@ -163,7 +163,7 @@ class TestExtractMessageContent:
 class TestAnalyzeSessionsForPII:
     """Test analyze_sessions_for_pii function."""
 
-    @patch('src.interceptors.live_trace.pii_analysis.PresidioAnalyzer')
+    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
     def test_no_pii_found(self, mock_presidio_class):
         """Test when no PII is found."""
         # Mock analyzer to return no findings
@@ -189,7 +189,7 @@ class TestAnalyzeSessionsForPII:
         assert result.sessions_with_pii == 0
         assert result.sessions_without_pii == 1
 
-    @patch('src.interceptors.live_trace.pii_analysis.PresidioAnalyzer')
+    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
     def test_pii_detected(self, mock_presidio_class):
         """Test when PII is detected."""
         # Mock analyzer to return findings
@@ -223,7 +223,7 @@ class TestAnalyzeSessionsForPII:
         assert "EMAIL_ADDRESS" in result.findings_by_type
         assert result.findings_by_type["EMAIL_ADDRESS"] == 1
 
-    @patch('src.interceptors.live_trace.pii_analysis.PresidioAnalyzer')
+    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
     def test_multiple_pii_types(self, mock_presidio_class):
         """Test detection of multiple PII types."""
         # Mock analyzer to return multiple findings
@@ -262,7 +262,7 @@ class TestAnalyzeSessionsForPII:
         assert "EMAIL_ADDRESS" in result.findings_by_type
         assert "PHONE_NUMBER" in result.findings_by_type
 
-    @patch('src.interceptors.live_trace.pii_analysis.PresidioAnalyzer')
+    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
     def test_confidence_level_classification(self, mock_presidio_class):
         """Test that findings are classified by confidence level."""
         # Mock findings with different confidence levels
@@ -314,7 +314,7 @@ class TestAnalyzeSessionsForPII:
         assert result.sessions_with_pii == 0
         assert result.sessions_without_pii == 0
 
-    @patch('src.interceptors.live_trace.pii_analysis.PresidioAnalyzer')
+    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
     def test_most_common_entities(self, mock_presidio_class):
         """Test that most common entities are tracked."""
         # Mock multiple email findings
