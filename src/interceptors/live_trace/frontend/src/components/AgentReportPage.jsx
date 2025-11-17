@@ -389,6 +389,28 @@ export default function AgentReportPage() {
               <>
                 {Object.entries(riskAnalysis.security_report.categories).map(([categoryId, category]) => (
                   <div key={categoryId} className="card mb-lg">
+                    {/* Refreshing Banner - show for PRIVACY_COMPLIANCE when re-analyzing */}
+                    {categoryId === 'PRIVACY_COMPLIANCE' && riskAnalysis.summary?.pii_status === 'refreshing' && (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #667eea20 0%, #764ba220 100%)',
+                        borderBottom: '2px solid var(--color-accent-primary)',
+                        padding: 'var(--space-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-md)'
+                      }}>
+                        <div className="loading-spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div>
+                        <div>
+                          <div className="text-xs weight-semibold" style={{ color: 'var(--color-accent-primary)' }}>
+                            Refreshing PII Analysis
+                          </div>
+                          <div className="text-xs text-muted" style={{ marginTop: '2px' }}>
+                            Re-analyzing new sessions. Results below reflect previous analysis.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Category Header */}
                     <div className="card-header" style={{
                       background: getCategoryHeaderColor(category.highest_severity),

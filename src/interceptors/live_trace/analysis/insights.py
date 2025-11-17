@@ -1,6 +1,7 @@
 """Analytics and insights computation for trace data."""
 import asyncio
 import logging
+import threading
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
@@ -30,7 +31,24 @@ def _with_store_lock(func):
 
 
 class InsightsEngine:
-    """Computes various insights from trace data."""
+    """Computes various insights from trace data.
+    
+    PII Analysis Safety Guarantees:
+    -------------------------------
+    1. At most one PII analysis runs per agent at any time
+    2. Running PII tasks are never cancelled, stopped, or ignored
+    3. New sessions trigger fresh analysis only after previous task completes
+    4. All task launch decisions are protected by _pii_launch_lock (no race conditions)
+    5. Main code path never blocks - PII runs in background threads
+    
+    Deadlock Prevention:
+    -------------------
+    - _pii_launch_lock (threading.Lock) is held only for fast dictionary operations (< 1ms)
+    - Lock is synchronous (threading.Lock not asyncio.Lock) to avoid event loop issues
+    - No await occurs while holding the lock (helper method is synchronous)
+    - No nested locking or lock ordering issues
+    - Background tasks use asyncio.to_thread to avoid blocking event loop
+    """
 
     def __init__(self, store: TraceStore, proxy_config: Dict[str, Any] = None):
         self.store = store
@@ -40,6 +58,9 @@ class InsightsEngine:
         # Background task tracking for PII analysis
         self._pii_analysis_tasks: Dict[str, Any] = {}  # {agent_id: asyncio.Task}
         self._pii_results_cache: Dict[str, tuple] = {}  # {agent_id: (PIIAnalysisResult, cache_key)}
+        # Lock to prevent concurrent PII task launches for same agent
+        # Use threading.Lock since __init__ runs in synchronous context (no event loop)
+        self._pii_launch_lock = threading.Lock()
 
     async def get_dashboard_data(self) -> Dict[str, Any]:
         """Get all data needed for the main dashboard."""
@@ -616,9 +637,69 @@ class InsightsEngine:
         self._risk_analysis_cache[agent_id] = (updated_result, cached_time, cache_key)
         logger.info(f"[CACHE UPDATE] Successfully updated cache for {agent_id} with PII results")
 
+    def _should_run_pii_analysis(self, agent_id: str, cache_key: tuple) -> tuple[bool, Optional[Any], str]:
+        """Determine if PII analysis should run and get current PII status.
+        
+        This method centralizes all PII execution gating logic:
+        1. If PII is already running - do not run another
+        2. If PII was completed - check if sessions changed, run if needed
+        3. Never run more than one PII analysis at once per agent
+        4. Never cancel, stop, or ignore a running PII analysis
+        
+        This is a synchronous method that performs fast dictionary lookups only.
+        Must be called while holding _pii_launch_lock to ensure atomicity.
+        
+        Args:
+            agent_id: Agent identifier
+            cache_key: Current (session_count, completed_count) tuple
+            
+        Returns:
+            Tuple of (should_launch: bool, current_pii_result: Optional[PIIAnalysisResult], pii_status: str)
+            - should_launch: True if caller should launch new PII analysis
+            - current_pii_result: Existing PII result if available (may be stale)
+            - pii_status: One of "complete", "pending", "refreshing"
+        """
+        # Get cached PII data (result + the cache_key it was computed for)
+        old_pii_data = self._pii_results_cache.get(agent_id)
+        if old_pii_data:
+            old_pii_result, old_pii_cache_key = old_pii_data
+        else:
+            old_pii_result, old_pii_cache_key = None, None
+        
+        # Check if PII result is fresh (matches current sessions)
+        if old_pii_result and old_pii_cache_key == cache_key:
+            logger.info(f"[PII GUARD] Agent {agent_id}: Fresh PII result available (key={cache_key})")
+            return False, old_pii_result, "complete"
+        
+        # Check if analysis is already running
+        # IMPORTANT: Never launch a second task if one is running
+        if agent_id in self._pii_analysis_tasks:
+            task = self._pii_analysis_tasks[agent_id]
+            if not task.done():
+                # Task is actively running - use old data if available
+                pii_status = "refreshing" if old_pii_result else "pending"
+                logger.info(f"[PII GUARD] Agent {agent_id}: Analysis already running, status={pii_status}")
+                return False, old_pii_result, pii_status
+            else:
+                # Task completed/failed but wasn't cleaned up - remove it
+                logger.info(f"[PII GUARD] Agent {agent_id}: Cleaning up completed task")
+                del self._pii_analysis_tasks[agent_id]
+        
+        # Need new analysis: either no previous result or sessions changed
+        if old_pii_result:
+            logger.info(f"[PII GUARD] Agent {agent_id}: Sessions changed {old_pii_cache_key} → {cache_key}, need refresh")
+            return True, old_pii_result, "refreshing"
+        else:
+            logger.info(f"[PII GUARD] Agent {agent_id}: No previous PII data, need initial analysis (key={cache_key})")
+            return True, None, "pending"
+
     async def _run_pii_analysis(self, agent_id: str, agent_sessions: List[Any],
                                expected_cache_key: tuple) -> None:
         """Run PII analysis in background and cache results.
+        
+        This method runs in a background task and performs CPU-intensive PII analysis
+        without blocking the event loop. It validates that sessions haven't changed
+        during analysis before updating caches.
 
         Args:
             agent_id: Agent identifier
@@ -628,56 +709,61 @@ class InsightsEngine:
         start_time = datetime.now(timezone.utc)
         analysis_session_count = len(agent_sessions)
 
-        # try:
-        #     from .pii_analysis import analyze_sessions_for_pii
-        #     logger.info(f"[PII BACKGROUND] Starting PII analysis for agent {agent_id} ({analysis_session_count} sessions, key={expected_cache_key})")
+        try:
+            from .pii_analysis import analyze_sessions_for_pii
+            logger.info(f"[PII BACKGROUND] Starting PII analysis for agent {agent_id} ({analysis_session_count} sessions, key={expected_cache_key})")
 
-        #     # Run in background thread to avoid blocking event loop
-        #     # Use asyncio.wait_for to add timeout (60 seconds)
-        #     try:
-        #         pii_result = await asyncio.wait_for(
-        #             asyncio.to_thread(analyze_sessions_for_pii, agent_sessions),
-        #             timeout=60.0
-        #         )
-        #     except asyncio.TimeoutError:
-        #         logger.error(f"[PII BACKGROUND] PII analysis timed out for agent {agent_id} after 60 seconds")
-        #         raise Exception("PII analysis timed out after 60 seconds")
+            # Run in background thread to avoid blocking event loop
+            # Use asyncio.wait_for to add timeout (60 seconds)
+            try:
+                pii_result = await asyncio.wait_for(
+                    asyncio.to_thread(analyze_sessions_for_pii, agent_sessions),
+                    timeout=60.0
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"[PII BACKGROUND] PII analysis timed out for agent {agent_id} after 60 seconds")
+                raise Exception("PII analysis timed out after 60 seconds")
 
-        #     duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-        #     logger.info(f"[PII BACKGROUND] Completed PII analysis for agent {agent_id}: {pii_result.total_findings} findings in {duration:.1f}s")
+            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+            logger.info(f"[PII BACKGROUND] Completed PII analysis for agent {agent_id}: {pii_result.total_findings} findings in {duration:.1f}s")
 
-        #     # Always cache completed results (they're valid for the session count they analyzed)
-        #     self._pii_results_cache[agent_id] = (pii_result, expected_cache_key)
-        #     logger.info(f"[PII BACKGROUND] Cached PII result for {agent_id} with key {expected_cache_key}")
+            # Always cache completed results (they're valid for the session count they analyzed)
+            self._pii_results_cache[agent_id] = (pii_result, expected_cache_key)
+            logger.info(f"[PII BACKGROUND] Cached PII result for {agent_id} with key {expected_cache_key}")
 
-        #     # Check if sessions changed during analysis
-        #     current_sessions = self.store.get_agent_sessions(agent_id)
-        #     current_cache_key = (len(current_sessions), len([s for s in current_sessions if s.is_completed]))
+            # Check if sessions changed during analysis
+            current_sessions = self.store.get_agent_sessions(agent_id)
+            current_cache_key = (len(current_sessions), len([s for s in current_sessions if s.is_completed]))
 
-        #     if current_cache_key != expected_cache_key:
-        #         logger.info(f"[PII REFRESH] Sessions changed during analysis for {agent_id}: {expected_cache_key} → {current_cache_key}")
-        #         logger.info(f"[PII REFRESH] Cached results for {expected_cache_key}, will refresh automatically on next request")
-        #         # Don't update risk cache with stale data - skip _update_cache_with_pii
-        #         # Next compute_risk_analysis() will launch fresh analysis with current sessions
-        #     else:
-        #         # Sessions haven't changed - safe to update the cached risk analysis
-        #         await self._update_cache_with_pii(agent_id, pii_result)
+            if current_cache_key != expected_cache_key:
+                logger.info(f"[PII REFRESH] Sessions changed during analysis for {agent_id}: {expected_cache_key} → {current_cache_key}")
+                logger.info(f"[PII REFRESH] Cached results for {expected_cache_key}, will refresh automatically on next request")
+                # Don't update risk cache with stale data - skip _update_cache_with_pii
+                # Next compute_risk_analysis() will detect the cache_key mismatch and launch fresh analysis
+                # The _should_run_pii_analysis helper will see this task has completed and allow new launch
+            else:
+                # Sessions haven't changed - safe to update the cached risk analysis
+                await self._update_cache_with_pii(agent_id, pii_result)
 
-        # except Exception as e:
-        #     logger.error(f"[PII BACKGROUND] PII analysis failed for agent {agent_id}: {e}", exc_info=True)
-        #     # Store error result so we don't retry continuously
-        #     from .risk_models import PIIAnalysisResult
-        #     error_result = PIIAnalysisResult(
-        #         total_findings=0,
-        #         sessions_without_pii=len(agent_sessions),
-        #         disabled=True,
-        #         disabled_reason=f"Analysis failed: {str(e)}"
-        #     )
-        #     self._pii_results_cache[agent_id] = (error_result, expected_cache_key)
-        # finally:
-        #     # Remove from running tasks
-        #     if agent_id in self._pii_analysis_tasks:
-        #         del self._pii_analysis_tasks[agent_id]
+        except Exception as e:
+            logger.error(f"[PII BACKGROUND] PII analysis failed for agent {agent_id}: {e}", exc_info=True)
+            # Store error result so we don't retry continuously
+            from .risk_models import PIIAnalysisResult
+            error_result = PIIAnalysisResult(
+                total_findings=0,
+                sessions_without_pii=len(agent_sessions),
+                disabled=True,
+                disabled_reason=f"Analysis failed: {str(e)}"
+            )
+            self._pii_results_cache[agent_id] = (error_result, expected_cache_key)
+        finally:
+            # CRITICAL: Always cleanup task tracking to allow future analysis
+            # This removal signals to _should_run_pii_analysis that the task completed
+            # and new analysis can be launched if sessions changed
+            # Without this cleanup, the agent would be permanently stuck
+            if agent_id in self._pii_analysis_tasks:
+                del self._pii_analysis_tasks[agent_id]
+                logger.info(f"[PII BACKGROUND] Cleaned up task for agent {agent_id}")
 
     async def compute_risk_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
         """Compute risk analysis for an agent (behavioral + security).
@@ -721,17 +807,12 @@ class InsightsEngine:
             # Cache valid if session counts match (no TTL check)
             if cached_key == cache_key:
                 return cached_result
-            # Cache key changed (sessions added/completed) - cancel stale PII task
+            # Cache key changed (sessions added/completed) - invalidate risk cache
             else:
                 logger.info(f"[CACHE INVALIDATION] Session count changed for {agent_id}: {cached_key} → {cache_key}")
-                # DON'T delete PII cache - keep old results to show during refresh
-                # Cancel running PII task if any (it's for old session count)
-                if agent_id in self._pii_analysis_tasks:
-                    task = self._pii_analysis_tasks[agent_id]
-                    if not task.done():
-                        task.cancel()
-                        logger.info(f"[CACHE INVALIDATION] Cancelled stale PII task for {agent_id}")
-                    del self._pii_analysis_tasks[agent_id]
+                # NOTE: We do NOT cancel running PII tasks - they will complete naturally
+                # The _should_run_pii_analysis helper will handle stale task detection
+                # and ensure new sessions trigger fresh analysis when appropriate
 
         # Cache miss - computing fresh analysis
         logger.debug(f"[CACHE MISS] Computing fresh risk analysis for {agent_id} (cache_key={cache_key})")
@@ -764,33 +845,18 @@ class InsightsEngine:
             behavioral_status = "COMPLETE" if behavioral_result.total_sessions >= 2 else "WAITING_FOR_COMPLETION"
 
             # Run PII analysis (works on all sessions - doesn't need completion)
-            # Get old PII result if exists (with its cache_key)
-            old_pii_data = self._pii_results_cache.get(agent_id)
-            if old_pii_data:
-                old_pii_result, old_pii_cache_key = old_pii_data
-            else:
-                old_pii_result, old_pii_cache_key = None, None
-
-            # Determine PII status and result based on cache_key validation
-            if old_pii_result and old_pii_cache_key == cache_key:
-                # Fresh PII - matches current sessions
-                pii_result = old_pii_result
-                pii_status = "complete"
-                logger.info(f"[PII CACHE] Using fresh PII result for {agent_id} (key={cache_key})")
-
-            elif agent_id in self._pii_analysis_tasks:
-                # Analysis in progress - use old data if available
-                pii_result = old_pii_result
-                pii_status = "refreshing" if old_pii_result else "pending"
-                logger.info(f"[PII PENDING] Analysis running for {agent_id}, status={pii_status}")
-
-            else:
-                # Need new analysis - launch task with current cache_key
-                logger.info(f"[PII LAUNCH] Launching analysis for {agent_id} with key {cache_key}")
-                task = asyncio.create_task(self._run_pii_analysis(agent_id, agent_sessions, cache_key))
-                self._pii_analysis_tasks[agent_id] = task
-                pii_result = old_pii_result  # Use old data during analysis
-                pii_status = "refreshing" if old_pii_result else "pending"
+            # Use centralized helper to determine if we should launch PII analysis
+            # The lock ensures atomicity: check + task registration happen together
+            # This prevents race conditions where multiple coroutines try to launch PII simultaneously
+            # Note: Using threading.Lock (not asyncio.Lock) since lock is held for < 1ms
+            with self._pii_launch_lock:
+                should_launch, pii_result, pii_status = self._should_run_pii_analysis(agent_id, cache_key)
+                
+                if should_launch:
+                    # Launch new PII analysis task (runs in background, doesn't block)
+                    logger.info(f"[PII LAUNCH] Launching analysis for {agent_id} with key {cache_key}")
+                    task = asyncio.create_task(self._run_pii_analysis(agent_id, agent_sessions, cache_key))
+                    self._pii_analysis_tasks[agent_id] = task
 
             # Run security assessment - generates complete security report
             # Security analysis works on all sessions (doesn't require completion)
