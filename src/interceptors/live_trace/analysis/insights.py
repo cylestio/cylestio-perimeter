@@ -128,6 +128,9 @@ class InsightsEngine:
             }
 
             patterns = self._analyze_agent_patterns(agent)
+            
+            # Compute analytics data
+            analytics = self._compute_agent_analytics(agent, self.store.get_agent_sessions(agent_id))
 
         # Sort sessions by last activity
         agent_sessions.sort(key=lambda x: x["last_activity"], reverse=True)
@@ -139,6 +142,7 @@ class InsightsEngine:
             "agent": agent_dict,
             "sessions": agent_sessions,
             "patterns": patterns,
+            "analytics": analytics,
             "risk_analysis": self._serialize_risk_analysis(risk_analysis) if risk_analysis else None,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
@@ -514,6 +518,192 @@ class InsightsEngine:
             "avg_tools_per_session": round(sum(tools) / len(tools), 1) if tools else 0,
             "sessions_with_errors": len([s for s in agent_sessions if s.errors > 0]),
             "most_productive_session": max(agent_sessions, key=lambda s: s.message_count).session_id if agent_sessions else None
+        }
+
+    def _compute_agent_analytics(self, agent: AgentData, sessions: List) -> Dict[str, Any]:
+        """Compute comprehensive analytics for agent monitoring."""
+        from collections import defaultdict
+        from datetime import datetime, timezone
+        from .model_pricing import get_model_pricing, get_pricing_info
+        
+        # Aggregated data structures
+        model_stats = defaultdict(lambda: {
+            "requests": 0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "response_times": [],
+            "errors": 0
+        })
+        
+        tool_stats = defaultdict(lambda: {
+            "executions": 0,
+            "execution_times": [],
+            "failures": 0,
+            "successes": 0
+        })
+        
+        timeline_data = defaultdict(lambda: {
+            "requests": 0,
+            "tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 0
+        })
+        
+        # Process all events from all sessions
+        for session in sessions:
+            for event in session.events:
+                event_name = event.name.value
+                attrs = event.attributes
+                
+                # Collect model usage data
+                if event_name == "llm.call.finish":
+                    # Get model name from various possible attributes
+                    model = attrs.get("llm.model") or attrs.get("llm.request.model") or attrs.get("model")
+                    
+                    # If still no model, check in request data
+                    if not model:
+                        request_data = attrs.get("llm.request.data", {})
+                        if isinstance(request_data, dict):
+                            model = request_data.get("model")
+                    
+                    # Use "unknown" only as last resort
+                    if not model:
+                        model = "unknown"
+                    
+                    # Normalize model name (remove provider prefixes, trailing version numbers, etc.)
+                    model = model.strip()
+                    
+                    input_tokens = attrs.get("llm.usage.input_tokens", 0)
+                    output_tokens = attrs.get("llm.usage.output_tokens", 0)
+                    total_tokens = attrs.get("llm.usage.total_tokens", input_tokens + output_tokens)
+                    response_time = attrs.get("llm.response.duration_ms", 0)
+                    
+                    model_stats[model]["requests"] += 1
+                    model_stats[model]["input_tokens"] += input_tokens
+                    model_stats[model]["output_tokens"] += output_tokens
+                    model_stats[model]["total_tokens"] += total_tokens
+                    model_stats[model]["response_times"].append(response_time)
+                    
+                    # Timeline data (aggregate by date)
+                    timestamp = event.timestamp
+                    if hasattr(timestamp, 'date'):
+                        date_key = timestamp.date().isoformat()
+                    else:
+                        date_key = "unknown"
+                    
+                    timeline_data[date_key]["requests"] += 1
+                    timeline_data[date_key]["tokens"] += total_tokens
+                    timeline_data[date_key]["input_tokens"] += input_tokens
+                    timeline_data[date_key]["output_tokens"] += output_tokens
+                
+                elif event_name.endswith(".error"):
+                    model = attrs.get("llm.model") or attrs.get("model") or "unknown"
+                    if model in model_stats:
+                        model_stats[model]["errors"] += 1
+                
+                # Collect tool usage data
+                elif event_name == "tool.execution":
+                    tool_name = attrs.get("tool.name", "unknown")
+                    duration = attrs.get("tool.duration_ms", 0)
+                    
+                    tool_stats[tool_name]["executions"] += 1
+                    if duration > 0:
+                        tool_stats[tool_name]["execution_times"].append(duration)
+                
+                elif event_name == "tool.result":
+                    tool_name = attrs.get("tool.name", "unknown")
+                    status = attrs.get("tool.status", "success")
+                    
+                    if status == "success":
+                        tool_stats[tool_name]["successes"] += 1
+                    else:
+                        tool_stats[tool_name]["failures"] += 1
+        
+        # Compute token breakdowns
+        total_input_tokens = sum(stats["input_tokens"] for stats in model_stats.values())
+        total_output_tokens = sum(stats["output_tokens"] for stats in model_stats.values())
+        total_tokens = total_input_tokens + total_output_tokens
+        
+        # Compute costs using the pricing module
+        total_cost = 0.0
+        model_costs = {}
+        for model, stats in model_stats.items():
+            pricing = get_model_pricing(model)
+            input_cost = (stats["input_tokens"] / 1_000_000) * pricing[0]
+            output_cost = (stats["output_tokens"] / 1_000_000) * pricing[1]
+            model_cost = input_cost + output_cost
+            total_cost += model_cost
+            model_costs[model] = model_cost
+        
+        # Get pricing metadata
+        pricing_info = get_pricing_info()
+        
+        # Prepare model analytics
+        models_data = []
+        for model, stats in model_stats.items():
+            avg_response_time = sum(stats["response_times"]) / len(stats["response_times"]) if stats["response_times"] else 0
+            p95_response_time = sorted(stats["response_times"])[int(len(stats["response_times"]) * 0.95)] if len(stats["response_times"]) > 0 else 0
+            
+            models_data.append({
+                "model": model,
+                "requests": stats["requests"],
+                "input_tokens": stats["input_tokens"],
+                "output_tokens": stats["output_tokens"],
+                "total_tokens": stats["total_tokens"],
+                "avg_response_time_ms": round(avg_response_time, 2),
+                "p95_response_time_ms": round(p95_response_time, 2),
+                "errors": stats["errors"],
+                "cost": round(model_costs.get(model, 0), 4)
+            })
+        
+        # Sort models by total tokens
+        models_data.sort(key=lambda x: x["total_tokens"], reverse=True)
+        
+        # Prepare tool analytics
+        tools_data = []
+        for tool_name, stats in tool_stats.items():
+            avg_duration = sum(stats["execution_times"]) / len(stats["execution_times"]) if stats["execution_times"] else 0
+            max_duration = max(stats["execution_times"]) if stats["execution_times"] else 0
+            failure_rate = (stats["failures"] / (stats["successes"] + stats["failures"]) * 100) if (stats["successes"] + stats["failures"]) > 0 else 0
+            
+            tools_data.append({
+                "tool": tool_name,
+                "executions": stats["executions"],
+                "avg_duration_ms": round(avg_duration, 2),
+                "max_duration_ms": round(max_duration, 2),
+                "failures": stats["failures"],
+                "successes": stats["successes"],
+                "failure_rate": round(failure_rate, 2)
+            })
+        
+        # Sort tools by executions
+        tools_data.sort(key=lambda x: x["executions"], reverse=True)
+        
+        # Prepare timeline data
+        timeline = []
+        for date_key in sorted(timeline_data.keys()):
+            data = timeline_data[date_key]
+            timeline.append({
+                "date": date_key,
+                "requests": data["requests"],
+                "tokens": data["tokens"],
+                "input_tokens": data["input_tokens"],
+                "output_tokens": data["output_tokens"]
+            })
+        
+        return {
+            "token_summary": {
+                "total_tokens": total_tokens,
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "total_cost": round(total_cost, 4),
+                "models_used": len(model_stats),
+                "pricing_last_updated": pricing_info["last_updated"]
+            },
+            "models": models_data,
+            "tools": tools_data,
+            "timeline": timeline
         }
 
     def _create_session_timeline(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
