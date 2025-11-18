@@ -541,8 +541,7 @@ function CostTab({ analytics }) {
 }
 
 function TrendsTab({ analytics }) {
-  const [granularity, setGranularity] = useState('daily') // 'hourly', 'daily', 'weekly'
-  const [selectedMetric, setSelectedMetric] = useState('requests') // 'requests' or 'tokens'
+  const [granularity, setGranularity] = useState('daily') // 'daily' only for now (hourly would need backend support)
   
   if (!analytics.timeline || analytics.timeline.length === 0) {
     return (
@@ -610,44 +609,6 @@ function TrendsTab({ analytics }) {
           )}
         </div>
         
-        {/* Granularity selector */}
-        <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
-          <span className="text-xs weight-semibold text-muted" style={{ 
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase'
-          }}>
-            GRANULARITY
-          </span>
-          <div style={{ 
-            display: 'flex', 
-            gap: 'var(--space-xs)',
-            background: 'var(--color-bg-secondary)',
-            padding: 'var(--space-xs)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--color-border-subtle)'
-          }}>
-            {['hourly', 'daily', 'weekly'].map(g => (
-              <button
-                key={g}
-                onClick={() => setGranularity(g)}
-                style={{
-                  padding: 'var(--space-sm) var(--space-md)',
-                  borderRadius: 'var(--radius-sm)',
-                  border: 'none',
-                  background: granularity === g ? 'var(--color-accent-primary)' : 'transparent',
-                  color: granularity === g ? 'white' : 'var(--color-text-secondary)',
-                  fontSize: 'var(--text-xs)',
-                  fontWeight: 'var(--weight-semibold)',
-                  cursor: 'pointer',
-                  textTransform: 'capitalize',
-                  transition: 'all var(--transition-fast)'
-                }}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
       
       {/* Summary metrics */}
@@ -668,7 +629,7 @@ function TrendsTab({ analytics }) {
             {formatNumber(timelineToShow.reduce((sum, t) => sum + t.requests, 0))}
           </div>
           <div className="text-xs text-muted mt-xs">
-            Avg {Math.round(timelineToShow.reduce((sum, t) => sum + t.requests, 0) / timelineToShow.length)} per {granularity === 'weekly' ? 'week' : granularity === 'hourly' ? 'hour' : 'day'}
+            Avg {Math.round(timelineToShow.reduce((sum, t) => sum + t.requests, 0) / timelineToShow.length)} per day
           </div>
         </div>
         <div style={{
@@ -682,7 +643,7 @@ function TrendsTab({ analytics }) {
             {formatNumber(timelineToShow.reduce((sum, t) => sum + t.tokens, 0))}
           </div>
           <div className="text-xs text-muted mt-xs">
-            Avg {formatNumber(Math.round(timelineToShow.reduce((sum, t) => sum + t.tokens, 0) / timelineToShow.length))} per {granularity === 'weekly' ? 'week' : granularity === 'hourly' ? 'hour' : 'day'}
+            Avg {formatNumber(Math.round(timelineToShow.reduce((sum, t) => sum + t.tokens, 0) / timelineToShow.length))} per day
           </div>
         </div>
       </div>

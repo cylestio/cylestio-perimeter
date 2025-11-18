@@ -8,7 +8,7 @@ export default function ToolUsageAnalytics({ analytics }) {
     return (
       <div className="card">
         <div className="card-header">
-          <h2>🔧 Tool Usage Analysis</h2>
+          <h2>Tool Usage Analysis</h2>
         </div>
         <div className="card-content">
           <div className="text-center text-muted" style={{ padding: 'var(--space-4xl)' }}>
@@ -139,13 +139,26 @@ function UsageTab({ analytics }) {
 }
 
 function SlowToolsTab({ analytics }) {
-  // Define threshold for "slow" tools (in milliseconds)
-  const SLOW_THRESHOLD_MS = 5000 // 5 seconds
-  
-  // Filter and sort tools by average duration
+  // Sort tools by average duration
   const sortedTools = [...analytics.tools]
-    .filter(t => t.avg_duration_ms > 0)
     .sort((a, b) => b.avg_duration_ms - a.avg_duration_ms)
+  
+  // Check if we have any duration data
+  const hasDurationData = sortedTools.some(t => t.avg_duration_ms > 0)
+  
+  if (sortedTools.length === 0) {
+    return (
+      <div className="text-center text-muted loading">
+        No tool data available yet
+      </div>
+    )
+  }
+
+  // If no duration data, show tools sorted by executions instead
+  const displayTools = hasDurationData ? sortedTools : [...analytics.tools].sort((a, b) => b.executions - a.executions)
+  const maxValue = hasDurationData 
+    ? Math.max(...displayTools.map(t => t.avg_duration_ms), 1)
+    : Math.max(...displayTools.map(t => t.executions), 1)
   
   return (
     <div>
@@ -156,180 +169,300 @@ function SlowToolsTab({ analytics }) {
       }}>
         Performance Analysis
       </div>
-      <h3 className="text-lg weight-bold mb-lg">Tools with Execution Times Above Thresholds</h3>
+      <h3 className="text-lg weight-bold mb-md">Tool Performance Overview</h3>
+      <div className="text-sm text-muted mb-2xl">
+        {hasDurationData ? 'Average execution times and failure rates' : 'Tool execution frequency (duration data not available)'}
+      </div>
       
-      {sortedTools.length > 0 ? (
-        <table style={{ width: '100%' }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left' }}>Tool Name</th>
-              <th style={{ textAlign: 'left' }}>Type</th>
-              <th style={{ textAlign: 'right' }}>Avg Duration</th>
-              <th style={{ textAlign: 'right' }}>Max Duration</th>
-              <th style={{ textAlign: 'right' }}>Call Count</th>
-              <th style={{ textAlign: 'right' }}>Failure Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedTools.map((tool, idx) => {
-              const isVerySlow = tool.avg_duration_ms > SLOW_THRESHOLD_MS
-              const hasFails = tool.failure_rate > 0
-              
-              return (
-                <tr key={idx} style={{
-                  background: isVerySlow ? 'var(--color-critical-bg)' : 'transparent'
-                }}>
-                  <td className="weight-medium">{tool.tool}</td>
-                  <td>
-                    <span className="badge" style={{
-                      background: 'var(--color-accent-primary)',
-                      color: 'white'
-                    }}>
-                      External
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <span className={`font-mono weight-semibold ${isVerySlow ? 'text-error' : ''}`}>
-                      {(tool.avg_duration_ms / 1000).toFixed(2)}s
-                    </span>
-                  </td>
-                  <td style={{ textAlign: 'right' }} className="font-mono">
-                    {(tool.max_duration_ms / 1000).toFixed(2)}s
-                  </td>
-                  <td style={{ textAlign: 'right' }} className="font-mono">
-                    {tool.executions}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <span className={`font-mono ${
-                      tool.failure_rate > 50 ? 'text-error' : 
-                      tool.failure_rate > 10 ? 'text-warning' : 
-                      'text-success'
-                    }`}>
-                      {tool.failure_rate.toFixed(1)}%
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      ) : (
-        <div className="text-center text-muted" style={{ padding: 'var(--space-4xl)' }}>
-          No slow tools detected
-        </div>
-      )}
-
-      {sortedTools.length > 0 && (
+      {!hasDurationData && (
         <div style={{
-          marginTop: 'var(--space-2xl)',
-          padding: 'var(--space-lg)',
-          background: 'var(--color-bg-secondary)',
+          padding: 'var(--space-md)',
+          background: 'var(--color-warning-bg)',
+          border: '1px solid var(--color-warning)',
           borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--color-border-medium)'
+          marginBottom: 'var(--space-2xl)',
+          color: 'var(--color-warning)'
         }}>
-          <h4 className="text-sm weight-semibold mb-sm">Performance Summary</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-lg)' }}>
-            <div>
-              <div className="text-xs text-muted">Slowest Tool</div>
-              <div className="text-md weight-semibold font-mono text-primary">
-                {sortedTools[0].tool}
-              </div>
-              <div className="text-xs text-muted">
-                {(sortedTools[0].avg_duration_ms / 1000).toFixed(2)}s avg
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted">Highest Failure Rate</div>
-              <div className="text-md weight-semibold font-mono text-warning">
-                {Math.max(...sortedTools.map(t => t.failure_rate)).toFixed(1)}%
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted">Total Tools Analyzed</div>
-              <div className="text-md weight-semibold font-mono text-primary">
-                {sortedTools.length}
-              </div>
-            </div>
+          <div className="text-sm weight-semibold mb-xs">Duration Data Missing</div>
+          <div className="text-xs">
+            Tool execution times are not being tracked. Make sure tool events include <code style={{
+              padding: '2px 4px',
+              background: 'rgba(0,0,0,0.1)',
+              borderRadius: '2px',
+              fontFamily: 'var(--font-mono)'
+            }}>tool.duration_ms</code> attribute. Showing execution frequency instead.
           </div>
         </div>
       )}
+      
+      {/* Performance comparison chart */}
+      <div style={{ 
+        padding: 'var(--space-3xl) var(--space-2xl)',
+        background: 'var(--color-bg-secondary)',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--color-border-subtle)',
+        marginBottom: 'var(--space-3xl)'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: 'var(--space-xl)'
+        }}>
+          {displayTools.map((tool, idx) => {
+            const value = hasDurationData ? tool.avg_duration_ms : tool.executions
+            const widthPercent = (value / maxValue) * 100
+            const colors = hasDurationData ? [
+              '#ef4444', // red - slowest
+              '#f59e0b', // amber
+              '#eab308', // yellow
+              '#84cc16', // lime
+              '#22c55e'  // green - fastest
+            ] : [
+              '#6366f1', // indigo - most used
+              '#8b5cf6', // violet
+              '#a855f7', // purple
+              '#c084fc', // light purple
+              '#d8b4fe'  // lightest purple
+            ]
+            const colorIdx = Math.min(Math.floor((idx / displayTools.length) * colors.length), colors.length - 1)
+            const color = colors[colorIdx]
+            
+            return (
+              <div key={idx}>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  marginBottom: 'var(--space-xs)',
+                  alignItems: 'baseline'
+                }}>
+                  <span className="text-sm weight-semibold">{tool.tool}</span>
+                  <div style={{ display: 'flex', gap: 'var(--space-lg)', alignItems: 'baseline' }}>
+                    <span className="text-xs text-muted">
+                      {tool.executions} calls
+                    </span>
+                    <span className={`text-sm font-mono weight-bold ${tool.failure_rate > 10 ? 'text-error' : 'text-primary'}`}>
+                      {hasDurationData ? `${(tool.avg_duration_ms / 1000).toFixed(2)}s` : `${tool.executions} execs`}
+                    </span>
+                  </div>
+                </div>
+                <div style={{
+                  height: '40px',
+                  background: 'var(--color-bg-tertiary)',
+                  borderRadius: 'var(--radius-md)',
+                  overflow: 'hidden',
+                  border: '1px solid var(--color-border-subtle)',
+                  position: 'relative'
+                }}>
+                  <div style={{
+                    width: `${widthPercent}%`,
+                    height: '100%',
+                    background: `linear-gradient(90deg, ${color}, ${color}dd)`,
+                    transition: 'width var(--transition-base)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    paddingLeft: 'var(--space-md)',
+                    gap: 'var(--space-md)'
+                  }}>
+                    {hasDurationData && widthPercent > 20 && (
+                      <span className="text-xs weight-semibold font-mono" style={{ color: 'white' }}>
+                        Max: {(tool.max_duration_ms / 1000).toFixed(2)}s
+                      </span>
+                    )}
+                    {tool.failure_rate > 0 && widthPercent > 40 && (
+                      <span className="text-xs weight-semibold" style={{ 
+                        color: 'white',
+                        background: 'rgba(0,0,0,0.3)',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-sm)'
+                      }}>
+                        {tool.failure_rate.toFixed(1)}% fail
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(3, 1fr)', 
+        gap: 'var(--space-lg)' 
+      }}>
+        {hasDurationData ? (
+          <>
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)'
+            }}>
+              <div className="text-xs text-muted mb-xs weight-semibold">SLOWEST TOOL</div>
+              <div className="text-lg weight-bold font-mono text-error mb-xs">
+                {(displayTools[0].avg_duration_ms / 1000).toFixed(2)}s
+              </div>
+              <div className="text-sm text-primary">{displayTools[0].tool}</div>
+            </div>
+            
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)'
+            }}>
+              <div className="text-xs text-muted mb-xs weight-semibold">FASTEST TOOL</div>
+              <div className="text-lg weight-bold font-mono text-success mb-xs">
+                {(displayTools[displayTools.length - 1].avg_duration_ms / 1000).toFixed(2)}s
+              </div>
+              <div className="text-sm text-primary">{displayTools[displayTools.length - 1].tool}</div>
+            </div>
+            
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)'
+            }}>
+              <div className="text-xs text-muted mb-xs weight-semibold">AVG PERFORMANCE</div>
+              <div className="text-lg weight-bold font-mono text-primary mb-xs">
+                {(displayTools.reduce((sum, t) => sum + t.avg_duration_ms, 0) / displayTools.length / 1000).toFixed(2)}s
+              </div>
+              <div className="text-sm text-muted">Across all tools</div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)'
+            }}>
+              <div className="text-xs text-muted mb-xs weight-semibold">MOST USED TOOL</div>
+              <div className="text-lg weight-bold font-mono text-primary mb-xs">
+                {displayTools[0].executions}
+              </div>
+              <div className="text-sm text-primary">{displayTools[0].tool}</div>
+            </div>
+            
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)'
+            }}>
+              <div className="text-xs text-muted mb-xs weight-semibold">TOTAL EXECUTIONS</div>
+              <div className="text-lg weight-bold font-mono text-primary mb-xs">
+                {displayTools.reduce((sum, t) => sum + t.executions, 0)}
+              </div>
+              <div className="text-sm text-muted">All tools combined</div>
+            </div>
+            
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--color-bg-secondary)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border-subtle)'
+            }}>
+              <div className="text-xs text-muted mb-xs weight-semibold">TOOLS TRACKED</div>
+              <div className="text-lg weight-bold font-mono text-primary mb-xs">
+                {displayTools.length}
+              </div>
+              <div className="text-sm text-muted">Unique tools</div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
 
 function TrendsTab({ analytics }) {
   const [selectedTools, setSelectedTools] = useState(
-    analytics.tools.slice(0, 5).map(t => t.tool)
+    analytics.tools.slice(0, Math.min(3, analytics.tools.length)).map(t => t.tool)
   )
   
-  const colors = {
-    0: '#6366f1', // indigo
-    1: '#8b5cf6', // violet
-    2: '#10b981', // emerald
-    3: '#f59e0b', // amber
-    4: '#ef4444'  // red
+  // Check if we have tool timeline data
+  if (!analytics.tool_timeline || analytics.tool_timeline.length === 0) {
+    return (
+      <div className="text-center text-muted loading">
+        Tool timeline data is being collected. Check back soon!
+      </div>
+    )
   }
+
+  // Sort timeline and filter valid dates
+  const validTimeline = [...analytics.tool_timeline]
+    .filter(t => t.date && t.date !== 'unknown')
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+  
+  if (validTimeline.length === 0) {
+    return (
+      <div className="text-center text-muted loading">
+        Tool timeline data is being collected. Check back soon!
+      </div>
+    )
+  }
+
+  // Get date range
+  const dateRange = {
+    start: new Date(validTimeline[0].date).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    }),
+    end: new Date(validTimeline[validTimeline.length - 1].date).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    })
+  }
+
+  const colors = [
+    '#6366f1', // indigo
+    '#8b5cf6', // violet
+    '#10b981', // emerald
+    '#f59e0b', // amber
+    '#ef4444'  // red
+  ]
   
   const toggleTool = (toolName) => {
     if (selectedTools.includes(toolName)) {
       setSelectedTools(selectedTools.filter(t => t !== toolName))
-    } else if (selectedTools.length < 5) {
+    } else if (selectedTools.length < 3) {
       setSelectedTools([...selectedTools, toolName])
     }
   }
+
+  // Calculate max executions for scaling
+  const maxExecutions = Math.max(...validTimeline.map(day => 
+    Math.max(...selectedTools.map(tool => day.tools[tool]?.executions || 0))
+  ), 1)
   
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2xl)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2xl)' }}>
         <div>
           <div className="text-xs weight-semibold mb-xs" style={{
             color: 'var(--color-text-secondary)',
             letterSpacing: '0.08em',
             textTransform: 'uppercase'
           }}>
-            Comparative Analysis
+            Historical Data
           </div>
-          <h3 className="text-lg weight-bold mb-xs">Tool Executions by Tool</h3>
-          <div className="text-sm text-muted">Select up to 5 tools to compare</div>
-        </div>
-        
-        <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-          <button
-            style={{
-              background: 'var(--color-accent-primary)',
-              color: 'white',
-              border: 'none',
-              padding: 'var(--space-xs) var(--space-md)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 'var(--text-xs)',
-              fontWeight: 'var(--weight-semibold)',
-              fontFamily: 'var(--font-mono)',
-              cursor: 'pointer',
-              transition: 'all var(--transition-base)'
-            }}
-          >
-            Aggregated
-          </button>
-          <button
-            style={{
-              background: 'var(--color-surface)',
-              color: 'var(--color-text-secondary)',
-              border: '1px solid var(--color-border-medium)',
-              padding: 'var(--space-xs) var(--space-md)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 'var(--text-xs)',
-              fontWeight: 'var(--weight-semibold)',
-              fontFamily: 'var(--font-mono)',
-              cursor: 'pointer',
-              transition: 'all var(--transition-base)'
-            }}
-          >
-            By Tool
-          </button>
+          <h3 className="text-lg weight-bold mb-xs">Tool Execution Trends</h3>
+          {dateRange && (
+            <div className="text-sm text-muted">
+              {dateRange.start} - {dateRange.end}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Legend with tool selection */}
+      {/* Tool selection */}
       <div style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -337,9 +470,10 @@ function TrendsTab({ analytics }) {
         marginBottom: 'var(--space-2xl)',
         padding: 'var(--space-lg)',
         background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--radius-md)'
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--color-border-subtle)'
       }}>
-        {analytics.tools.slice(0, 10).map((tool, idx) => {
+        {analytics.tools.map((tool, idx) => {
           const isSelected = selectedTools.includes(tool.tool)
           const colorIdx = selectedTools.indexOf(tool.tool)
           const color = colorIdx >= 0 ? colors[colorIdx] : '#d1d5db'
@@ -348,29 +482,29 @@ function TrendsTab({ analytics }) {
             <button
               key={idx}
               onClick={() => toggleTool(tool.tool)}
+              disabled={!isSelected && selectedTools.length >= 3}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 'var(--space-xs)',
                 padding: 'var(--space-xs) var(--space-md)',
-                background: isSelected ? 'var(--color-surface)' : 'transparent',
-                border: `1px solid ${isSelected ? color : 'var(--color-border-medium)'}`,
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
+                background: isSelected ? 'white' : 'transparent',
+                border: `2px solid ${isSelected ? color : 'var(--color-border-subtle)'}`,
+                borderRadius: 'var(--radius-md)',
+                cursor: !isSelected && selectedTools.length >= 3 ? 'not-allowed' : 'pointer',
                 fontSize: 'var(--text-xs)',
-                fontWeight: isSelected ? 'var(--weight-semibold)' : 'var(--weight-normal)',
-                color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
+                fontWeight: isSelected ? 'var(--weight-semibold)' : 'var(--weight-medium)',
+                color: isSelected ? color : 'var(--color-text-muted)',
                 transition: 'all var(--transition-fast)',
-                opacity: !isSelected && selectedTools.length >= 5 ? 0.5 : 1
+                opacity: !isSelected && selectedTools.length >= 3 ? 0.4 : 1
               }}
-              disabled={!isSelected && selectedTools.length >= 5}
             >
               <div style={{ 
-                width: '12px', 
-                height: '12px', 
+                width: '10px', 
+                height: '10px', 
                 borderRadius: '50%',
-                background: color,
-                border: isSelected ? 'none' : '2px solid var(--color-border-medium)'
+                background: isSelected ? color : 'transparent',
+                border: `2px solid ${isSelected ? color : 'var(--color-border-subtle)'}`
               }}></div>
               {tool.tool}
               {isSelected && ' ×'}
@@ -379,116 +513,176 @@ function TrendsTab({ analytics }) {
         })}
       </div>
 
-      {/* Simple visualization */}
-      <div style={{
-        height: '200px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--radius-md)',
-        padding: 'var(--space-2xl)'
-      }}>
-        {selectedTools.length > 0 ? (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-            {selectedTools.map((toolName, idx) => {
-              const tool = analytics.tools.find(t => t.tool === toolName)
-              const maxExec = Math.max(...selectedTools.map(t => 
-                analytics.tools.find(tool => tool.tool === t)?.executions || 0
-              ))
-              const percent = (tool.executions / maxExec) * 100
+      {/* Trend chart */}
+      {selectedTools.length > 0 ? (
+        <div style={{ 
+          minHeight: '400px',
+          padding: 'var(--space-2xl) var(--space-3xl) var(--space-2xl) 60px',
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border-subtle)',
+          position: 'relative'
+        }}>
+          <div style={{ position: 'relative', width: '100%', height: '320px' }}>
+            <svg width="100%" height="100%" viewBox="0 0 1000 320" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+              <defs>
+                {selectedTools.map((tool, idx) => (
+                  <linearGradient key={`gradient-${idx}`} id={`toolGradient${idx}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor={colors[idx]} stopOpacity="0.2" />
+                    <stop offset="100%" stopColor={colors[idx]} stopOpacity="0.02" />
+                  </linearGradient>
+                ))}
+              </defs>
               
+              {/* Grid lines */}
+              {[0, 25, 50, 75, 100].map((percent) => (
+                <line
+                  key={percent}
+                  x1="0"
+                  y1={320 - (percent * 3.2)}
+                  x2="1000"
+                  y2={320 - (percent * 3.2)}
+                  stroke="var(--color-border-subtle)"
+                  strokeWidth="1"
+                  strokeDasharray="5 5"
+                  opacity="0.5"
+                />
+              ))}
+
+              {/* Draw lines and areas for each selected tool */}
+              {selectedTools.map((toolName, toolIdx) => {
+                const color = colors[toolIdx]
+                
+                return (
+                  <g key={toolName}>
+                    {/* Area fill */}
+                    <path
+                      d={
+                        validTimeline.map((day, idx) => {
+                          const x = (idx / (validTimeline.length - 1)) * 1000
+                          const executions = day.tools[toolName]?.executions || 0
+                          const y = 320 - ((executions / maxExecutions) * 290)
+                          return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`
+                        }).join(' ') + ` L 1000 320 L 0 320 Z`
+                      }
+                      fill={`url(#toolGradient${toolIdx})`}
+                    />
+                    
+                    {/* Line */}
+                    <path
+                      d={
+                        validTimeline.map((day, idx) => {
+                          const x = (idx / (validTimeline.length - 1)) * 1000
+                          const executions = day.tools[toolName]?.executions || 0
+                          const y = 320 - ((executions / maxExecutions) * 290)
+                          return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`
+                        }).join(' ')
+                      }
+                      fill="none"
+                      stroke={color}
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+
+                    {/* Data points */}
+                    {validTimeline.map((day, idx) => {
+                      const x = (idx / (validTimeline.length - 1)) * 1000
+                      const executions = day.tools[toolName]?.executions || 0
+                      const y = 320 - ((executions / maxExecutions) * 290)
+                      return (
+                        <circle
+                          key={idx}
+                          cx={x}
+                          cy={y}
+                          r="5"
+                          fill="white"
+                          stroke={color}
+                          strokeWidth="3"
+                        />
+                      )
+                    })}
+                  </g>
+                )
+              })}
+            </svg>
+
+            {/* Y-axis labels */}
+            <div style={{
+              position: 'absolute',
+              left: '-50px',
+              top: '0',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end'
+            }}>
+              {[100, 75, 50, 25, 0].map((percent) => (
+                <div key={percent} className="text-xs font-mono text-muted">
+                  {Math.round(maxExecutions * percent / 100)}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* X-axis labels */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            marginTop: 'var(--space-lg)',
+            paddingLeft: '0',
+            paddingRight: '0'
+          }}>
+            {validTimeline.map((day, idx) => {
+              const formattedDate = new Date(day.date).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              })
               return (
-                <div key={idx}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between',
-                    marginBottom: 'var(--space-xs)'
-                  }}>
-                    <span className="text-sm weight-medium">{toolName}</span>
-                    <span className="text-sm font-mono weight-bold text-primary">
-                      {tool.executions} executions
-                    </span>
-                  </div>
-                  <div style={{
-                    height: '20px',
-                    background: 'var(--color-bg-tertiary)',
-                    borderRadius: 'var(--radius-sm)',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${percent}%`,
-                      height: '100%',
-                      background: colors[idx],
-                      transition: 'width var(--transition-base)'
-                    }}></div>
-                  </div>
+                <div key={idx} className="text-xs weight-semibold font-mono text-center" style={{
+                  color: 'var(--color-text-secondary)'
+                }}>
+                  {formattedDate}
                 </div>
               )
             })}
           </div>
-        ) : (
-          <div className="text-muted text-center" style={{ padding: 'var(--space-2xl)' }}>
-            <div className="text-md weight-medium mb-xs" style={{ color: 'var(--color-text-secondary)' }}>
-              No Tools Selected
-            </div>
-            <div className="text-sm">Select tools above to view execution trends</div>
-          </div>
-        )}
-      </div>
 
-      {/* Add more tools section */}
-      {analytics.tools.length > 10 && (
-        <div style={{
-          marginTop: 'var(--space-xl)',
-          padding: 'var(--space-md)',
-          background: 'var(--color-bg-tertiary)',
-          borderRadius: 'var(--radius-sm)',
-          textAlign: 'center'
-        }}>
-          <div className="text-xs text-muted">
-            <strong>Add more tools to compare:</strong>
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            flexWrap: 'wrap',
-            gap: 'var(--space-sm)',
-            marginTop: 'var(--space-sm)',
-            justifyContent: 'center'
+          {/* Legend */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: 'var(--space-2xl)',
+            marginTop: 'var(--space-2xl)',
+            padding: 'var(--space-md)',
+            background: 'var(--color-bg-tertiary)',
+            borderRadius: 'var(--radius-md)'
           }}>
-            {analytics.tools.slice(10).map((tool, idx) => (
-              <button
-                key={idx}
-                onClick={() => toggleTool(tool.tool)}
-                disabled={selectedTools.length >= 5 && !selectedTools.includes(tool.tool)}
-                style={{
-                  padding: 'var(--space-xs) var(--space-sm)',
-                  background: 'var(--color-surface)',
-                  border: '1px solid var(--color-border-medium)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: 'var(--text-xs)',
-                  cursor: 'pointer',
-                  opacity: selectedTools.length >= 5 && !selectedTools.includes(tool.tool) ? 0.5 : 1
-                }}
-              >
-                {tool.tool} ({tool.executions})
-              </button>
+            {selectedTools.map((tool, idx) => (
+              <div key={tool} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+                <div style={{
+                  width: '20px',
+                  height: '3px',
+                  background: colors[idx],
+                  borderRadius: '2px'
+                }}></div>
+                <span className="text-xs weight-medium">{tool}</span>
+              </div>
             ))}
           </div>
         </div>
-      )}
-
-      {selectedTools.length === 0 && (
-        <div style={{
-          marginTop: 'var(--space-xl)',
-          padding: 'var(--space-lg)',
-          background: 'var(--color-info-bg)',
-          border: '1px solid var(--color-info-border)',
-          borderRadius: 'var(--radius-md)',
-          color: 'var(--color-info)'
+      ) : (
+        <div className="text-center text-muted" style={{ 
+          padding: 'var(--space-4xl)',
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border-subtle)'
         }}>
-          <div className="text-sm weight-semibold mb-xs">No tools selected</div>
-          <div className="text-xs">Click on tool names above to select up to 5 tools for comparison</div>
+          <div className="text-md weight-medium mb-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            No Tools Selected
+          </div>
+          <div className="text-sm">Select up to 3 tools above to view execution trends</div>
         </div>
       )}
     </div>

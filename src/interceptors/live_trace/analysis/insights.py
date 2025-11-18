@@ -540,7 +540,8 @@ class InsightsEngine:
             "executions": 0,
             "execution_times": [],
             "failures": 0,
-            "successes": 0
+            "successes": 0,
+            "last_start_time": None  # Track last start time for duration calculation
         })
         
         timeline_data = defaultdict(lambda: {
@@ -549,6 +550,11 @@ class InsightsEngine:
             "input_tokens": 0,
             "output_tokens": 0
         })
+        
+        tool_timeline_data = defaultdict(lambda: defaultdict(lambda: {
+            "executions": 0,
+            "total_duration": 0
+        }))
         
         # Process all events from all sessions
         for session in sessions:
@@ -622,12 +628,77 @@ class InsightsEngine:
                     duration = attrs.get("tool.duration_ms", 0)
                     
                     tool_stats[tool_name]["executions"] += 1
+                    
+                    # Store start time for duration calculation
+                    tool_stats[tool_name]["last_start_time"] = event.timestamp
+                    
+                    # If duration is provided, use it
                     if duration > 0:
                         tool_stats[tool_name]["execution_times"].append(duration)
+                    
+                    # Track tool execution timeline
+                    timestamp = event.timestamp
+                    date_key = None
+                    
+                    if isinstance(timestamp, str):
+                        date_key = timestamp.split('T')[0] if 'T' in timestamp else timestamp.split(' ')[0]
+                    elif hasattr(timestamp, 'date'):
+                        date_key = timestamp.date().isoformat()
+                    elif hasattr(timestamp, 'isoformat'):
+                        date_key = timestamp.isoformat().split('T')[0]
+                    
+                    if not date_key or date_key == "unknown" or not date_key.strip():
+                        date_key = datetime.now(timezone.utc).date().isoformat()
+                    
+                    tool_timeline_data[date_key][tool_name]["executions"] += 1
+                    if duration > 0:
+                        tool_timeline_data[date_key][tool_name]["total_duration"] += duration
                 
                 elif event_name == "tool.result":
                     tool_name = attrs.get("tool.name", "unknown")
                     status = attrs.get("tool.status", "success")
+                    
+                    # Calculate duration if we have a start time
+                    if tool_stats[tool_name]["last_start_time"] is not None:
+                        start_time_str = tool_stats[tool_name]["last_start_time"]
+                        end_time_str = event.timestamp
+                        
+                        try:
+                            # Parse timestamps
+                            if isinstance(start_time_str, str):
+                                start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                            else:
+                                start_time = start_time_str
+                                
+                            if isinstance(end_time_str, str):
+                                end_time = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+                            else:
+                                end_time = end_time_str
+                            
+                            # Calculate duration in milliseconds
+                            duration_ms = (end_time - start_time).total_seconds() * 1000
+                            
+                            if duration_ms > 0 and duration_ms < 3600000:  # Sanity check: less than 1 hour
+                                tool_stats[tool_name]["execution_times"].append(duration_ms)
+                                
+                                # Update timeline data with calculated duration
+                                timestamp = event.timestamp
+                                date_key = None
+                                
+                                if isinstance(timestamp, str):
+                                    date_key = timestamp.split('T')[0] if 'T' in timestamp else timestamp.split(' ')[0]
+                                elif hasattr(timestamp, 'date'):
+                                    date_key = timestamp.date().isoformat()
+                                elif hasattr(timestamp, 'isoformat'):
+                                    date_key = timestamp.isoformat().split('T')[0]
+                                
+                                if date_key and date_key != "unknown" and date_key.strip():
+                                    tool_timeline_data[date_key][tool_name]["total_duration"] += duration_ms
+                            
+                            # Clear start time
+                            tool_stats[tool_name]["last_start_time"] = None
+                        except Exception as e:
+                            logger.warning(f"Failed to calculate tool duration for {tool_name}: {e}")
                     
                     if status == "success":
                         tool_stats[tool_name]["successes"] += 1
@@ -706,6 +777,21 @@ class InsightsEngine:
                 "output_tokens": data["output_tokens"]
             })
         
+        # Prepare tool timeline data
+        tool_timeline = []
+        for date_key in sorted(tool_timeline_data.keys()):
+            tools_by_date = tool_timeline_data[date_key]
+            tool_timeline.append({
+                "date": date_key,
+                "tools": {
+                    tool_name: {
+                        "executions": data["executions"],
+                        "avg_duration_ms": round(data["total_duration"] / data["executions"], 2) if data["executions"] > 0 else 0
+                    }
+                    for tool_name, data in tools_by_date.items()
+                }
+            })
+        
         return {
             "token_summary": {
                 "total_tokens": total_tokens,
@@ -717,7 +803,8 @@ class InsightsEngine:
             },
             "models": models_data,
             "tools": tools_data,
-            "timeline": timeline
+            "timeline": timeline,
+            "tool_timeline": tool_timeline
         }
 
     def _create_session_timeline(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
