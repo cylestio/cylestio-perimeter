@@ -587,10 +587,24 @@ class InsightsEngine:
                     
                     # Timeline data (aggregate by date)
                     timestamp = event.timestamp
-                    if hasattr(timestamp, 'date'):
+                    date_key = None
+                    
+                    # Extract date from timestamp (timestamps are ISO format strings)
+                    if isinstance(timestamp, str):
+                        # String timestamp like "2025-11-13T10:30:45.123456+00:00"
+                        # Extract date part before 'T'
+                        date_key = timestamp.split('T')[0] if 'T' in timestamp else timestamp.split(' ')[0]
+                    elif hasattr(timestamp, 'date'):
+                        # datetime object
                         date_key = timestamp.date().isoformat()
-                    else:
-                        date_key = "unknown"
+                    elif hasattr(timestamp, 'isoformat'):
+                        # datetime object, get date part
+                        date_key = timestamp.isoformat().split('T')[0]
+                    
+                    if not date_key or date_key == "unknown" or not date_key.strip():
+                        # Fallback: use event's session created_at or current date
+                        logger.warning(f"Could not extract date from timestamp: {timestamp}, using fallback")
+                        date_key = datetime.now(timezone.utc).date().isoformat()
                     
                     timeline_data[date_key]["requests"] += 1
                     timeline_data[date_key]["tokens"] += total_tokens

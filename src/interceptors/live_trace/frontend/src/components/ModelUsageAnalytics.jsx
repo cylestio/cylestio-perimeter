@@ -8,10 +8,10 @@ export default function ModelUsageAnalytics({ analytics, agentId }) {
     return (
       <div className="card">
         <div className="card-header">
-          <h2>📈 Model Usage Analytics</h2>
+          <h2>Model Usage Analytics</h2>
         </div>
         <div className="card-content">
-          <div className="text-center text-muted" style={{ padding: 'var(--space-4xl)' }}>
+          <div className="text-center text-muted loading">
             No model usage data available yet
           </div>
         </div>
@@ -266,14 +266,25 @@ function PerformanceTab({ analytics }) {
         marginBottom: 'var(--space-2xl)',
         padding: 'var(--space-md)',
         background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--radius-md)'
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--color-border-subtle)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <div style={{ width: '16px', height: '16px', background: '#93c5fd', borderRadius: 'var(--radius-sm)' }}></div>
-          <span className="text-sm weight-medium">Response Time (ms)</span>
+          <div style={{ 
+            width: '16px', 
+            height: '16px', 
+            background: 'var(--color-accent-primary)', 
+            borderRadius: 'var(--radius-sm)' 
+          }}></div>
+          <span className="text-sm weight-medium">Avg Response Time (ms)</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <div style={{ width: '16px', height: '16px', background: '#c4b5fd', borderRadius: 'var(--radius-sm)' }}></div>
+          <div style={{ 
+            width: '16px', 
+            height: '16px', 
+            background: 'var(--color-accent-secondary)', 
+            borderRadius: 'var(--radius-sm)' 
+          }}></div>
           <span className="text-sm weight-medium">p95 Response Time (ms)</span>
         </div>
       </div>
@@ -282,80 +293,95 @@ function PerformanceTab({ analytics }) {
       <div style={{ 
         display: 'flex', 
         alignItems: 'flex-end', 
-        gap: 'var(--space-3xl)',
-        height: '300px',
-        padding: '0 var(--space-2xl)',
+        justifyContent: 'space-around',
+        gap: 'var(--space-lg)',
+        minHeight: '320px',
+        padding: 'var(--space-2xl)',
+        background: 'var(--color-bg-secondary)',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--color-border-subtle)',
         marginBottom: 'var(--space-xl)'
       }}>
         {analytics.models.map((model, idx) => {
-          const avgHeight = (model.avg_response_time_ms / maxValue) * 100
-          const p95Height = (model.p95_response_time_ms / maxValue) * 100
+          const avgHeight = Math.max((model.avg_response_time_ms / maxValue) * 100, 5)
+          const p95Height = Math.max((model.p95_response_time_ms / maxValue) * 100, 5)
           
           return (
             <div key={idx} style={{ 
-              flex: 1, 
+              flex: 1,
+              maxWidth: '120px',
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'center',
-              gap: 'var(--space-sm)'
+              gap: 'var(--space-md)'
             }}>
               <div style={{ 
                 display: 'flex', 
-                gap: 'var(--space-xs)', 
+                gap: 'var(--space-sm)', 
                 alignItems: 'flex-end',
-                height: '250px'
+                height: '240px',
+                width: '100%',
+                justifyContent: 'center'
               }}>
                 {/* Average bar */}
                 <div style={{
-                  width: '40px',
+                  width: '36px',
                   height: `${avgHeight}%`,
-                  background: '#93c5fd',
-                  borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
+                  background: 'linear-gradient(180deg, var(--color-accent-primary) 0%, #0e7490 100%)',
+                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
                   position: 'relative',
-                  transition: 'all var(--transition-base)'
-                }}>
+                  transition: 'all var(--transition-base)',
+                  boxShadow: '0 2px 8px rgba(8, 145, 178, 0.3)',
+                  cursor: 'pointer'
+                }} title={`Avg: ${model.avg_response_time_ms.toFixed(0)}ms`}>
                   <div style={{
                     position: 'absolute',
-                    top: '-20px',
+                    top: '-24px',
                     left: '50%',
                     transform: 'translateX(-50%)',
                     fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--weight-semibold)',
-                    color: 'var(--color-text-secondary)',
+                    fontWeight: 'var(--weight-bold)',
+                    color: 'var(--color-accent-primary)',
+                    fontFamily: 'var(--font-mono)',
                     whiteSpace: 'nowrap'
                   }}>
-                    {model.avg_response_time_ms.toFixed(0)}ms
+                    {(model.avg_response_time_ms / 1000).toFixed(1)}s
                   </div>
                 </div>
                 
                 {/* P95 bar */}
                 <div style={{
-                  width: '40px',
+                  width: '36px',
                   height: `${p95Height}%`,
-                  background: '#c4b5fd',
-                  borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
+                  background: 'linear-gradient(180deg, var(--color-accent-secondary) 0%, #6d28d9 100%)',
+                  borderRadius: 'var(--radius-md) var(--radius-md) 0 0',
                   position: 'relative',
-                  transition: 'all var(--transition-base)'
-                }}>
+                  transition: 'all var(--transition-base)',
+                  boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
+                  cursor: 'pointer'
+                }} title={`P95: ${model.p95_response_time_ms.toFixed(0)}ms`}>
                   <div style={{
                     position: 'absolute',
-                    top: '-20px',
+                    top: '-24px',
                     left: '50%',
                     transform: 'translateX(-50%)',
                     fontSize: 'var(--text-xs)',
-                    fontWeight: 'var(--weight-semibold)',
-                    color: 'var(--color-text-secondary)',
+                    fontWeight: 'var(--weight-bold)',
+                    color: 'var(--color-accent-secondary)',
+                    fontFamily: 'var(--font-mono)',
                     whiteSpace: 'nowrap'
                   }}>
-                    {model.p95_response_time_ms.toFixed(0)}ms
+                    {(model.p95_response_time_ms / 1000).toFixed(1)}s
                   </div>
                 </div>
               </div>
               
               {/* Model name */}
-              <div className="text-xs weight-medium text-center" style={{ 
-                maxWidth: '100px',
-                wordWrap: 'break-word'
+              <div className="text-xs weight-semibold text-center font-mono" style={{ 
+                width: '100%',
+                wordBreak: 'break-word',
+                lineHeight: '1.3',
+                color: 'var(--color-text-secondary)'
               }}>
                 {model.model}
               </div>
@@ -373,35 +399,78 @@ function CostTab({ analytics }) {
   
   return (
     <div>
-      <div className="text-xs weight-semibold mb-xs" style={{
-        color: 'var(--color-text-secondary)',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase'
-      }}>
-        Cost Breakdown
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-lg)' }}>
+        <div>
+          <div className="text-xs weight-semibold mb-xs" style={{
+            color: 'var(--color-text-secondary)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase'
+          }}>
+            Cost Breakdown
+          </div>
+          <h3 className="text-lg weight-bold mb-xs">Cost Analysis</h3>
+          <div className="text-sm text-muted">Total cost and cost efficiency by model</div>
+        </div>
+        {analytics.token_summary.pricing_last_updated && (
+          <div style={{
+            padding: 'var(--space-sm) var(--space-md)',
+            background: 'var(--color-bg-secondary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border-subtle)'
+          }}>
+            <div style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-muted)',
+              fontFamily: 'var(--font-mono)',
+              textAlign: 'right'
+            }}>
+              <span style={{ fontWeight: 'var(--weight-medium)' }}>Pricing updated:</span>
+              <br />
+              <span style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-secondary)' }}>
+                {new Date(analytics.token_summary.pricing_last_updated).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
-      <h3 className="text-lg weight-bold mb-md">Cost Analysis</h3>
-      <div className="text-sm text-muted mb-2xl">Total cost and cost efficiency by model</div>
       
       {/* Cost metrics */}
-      <div style={{ marginBottom: 'var(--space-3xl)' }}>
+      <div style={{ marginBottom: 'var(--space-3xl)', marginTop: 'var(--space-2xl)' }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          padding: 'var(--space-xl)',
+          justifyContent: 'space-between',
+          padding: 'var(--space-2xl) var(--space-3xl)',
           background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
           borderRadius: 'var(--radius-lg)',
-          border: '2px solid var(--color-warning-border)'
+          border: '2px solid var(--color-warning-border)',
+          boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ flex: 1 }}>
-            <div className="text-xs text-muted mb-xs weight-semibold">TOTAL COST</div>
-            <div className="text-3xl weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
+          <div>
+            <div className="text-xs weight-semibold mb-xs" style={{ 
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#92400e'
+            }}>
+              TOTAL COST
+            </div>
+            <div className="text-4xl weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
               ${totalCost.toFixed(2)}
             </div>
           </div>
-          <div style={{ flex: 1, textAlign: 'right' }}>
-            <div className="text-xs text-muted mb-xs weight-semibold">COST PER 1K TOKENS</div>
-            <div className="text-xl weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div className="text-xs weight-semibold mb-xs" style={{ 
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#92400e'
+            }}>
+              COST PER 1K TOKENS
+            </div>
+            <div className="text-2xl weight-bold font-mono" style={{ color: '#d97706' }}>
               ${((totalCost / analytics.token_summary.total_tokens) * 1000).toFixed(4)}
             </div>
           </div>
@@ -409,140 +478,460 @@ function CostTab({ analytics }) {
       </div>
 
       {/* Cost by model */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
         {analytics.models.map((model, idx) => {
           const costPercent = (model.cost / maxCost) * 100
           const costPer1k = (model.cost / model.total_tokens) * 1000
           
           return (
             <div key={idx} style={{
-              padding: 'var(--space-lg)',
-              background: 'var(--color-bg-secondary)',
+              padding: 'var(--space-lg) var(--space-xl)',
+              background: 'var(--color-surface)',
               borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border-medium)'
+              border: '1px solid var(--color-border-medium)',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all var(--transition-base)'
             }}>
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between',
-                marginBottom: 'var(--space-md)'
+                alignItems: 'center',
+                marginBottom: 'var(--space-sm)'
               }}>
-                <div>
-                  <div className="text-md weight-semibold">{model.model}</div>
-                  <div className="text-xs text-muted">
-                    {formatNumber(model.total_tokens)} tokens across {formatNumber(model.requests)} requests
+                <div style={{ flex: 1 }}>
+                  <div className="text-md weight-bold font-mono" style={{ marginBottom: 'var(--space-xs)' }}>
+                    {model.model}
+                  </div>
+                  <div className="text-xs text-muted font-mono">
+                    {formatNumber(model.total_tokens)} tokens · {formatNumber(model.requests)} requests
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div className="text-lg weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
+                  <div className="text-xl weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
                     ${model.cost.toFixed(2)}
                   </div>
-                  <div className="text-xs text-muted">
+                  <div className="text-xs text-muted font-mono">
                     ${costPer1k.toFixed(4)} per 1K
                   </div>
                 </div>
               </div>
               
-              <div className="progress-bar-container">
-                <div 
-                  className="progress-bar-fill warning" 
-                  style={{ width: `${costPercent}%` }}
-                ></div>
+              <div style={{
+                height: '8px',
+                background: 'var(--color-bg-tertiary)',
+                borderRadius: 'var(--radius-sm)',
+                overflow: 'hidden',
+                border: '1px solid var(--color-border-subtle)',
+                marginTop: 'var(--space-md)'
+              }}>
+                <div style={{
+                  width: `${costPercent}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, var(--color-warning) 0%, #f59e0b 100%)',
+                  transition: 'width var(--transition-slow)',
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+                }}></div>
               </div>
             </div>
           )
         })}
-      </div>
-
-      <div className="text-xs text-muted" style={{ 
-        marginTop: 'var(--space-2xl)',
-        padding: 'var(--space-md)',
-        background: 'var(--color-bg-tertiary)',
-        borderRadius: 'var(--radius-sm)',
-        fontStyle: 'italic'
-      }}>
-        * Total Cost uses square root scale to display both large and small values effectively
       </div>
     </div>
   )
 }
 
 function TrendsTab({ analytics }) {
+  const [granularity, setGranularity] = useState('daily') // 'hourly', 'daily', 'weekly'
+  const [selectedMetric, setSelectedMetric] = useState('requests') // 'requests' or 'tokens'
+  
   if (!analytics.timeline || analytics.timeline.length === 0) {
     return (
-      <div className="text-center text-muted" style={{ padding: 'var(--space-4xl)' }}>
-        No trend data available yet
+      <div className="text-center text-muted loading">
+        No trend data available yet. Trends will appear as the agent processes more sessions over time.
       </div>
     )
   }
 
-  const maxRequests = Math.max(...analytics.timeline.map(t => t.requests))
-  const maxTokens = Math.max(...analytics.timeline.map(t => t.tokens))
+  // Sort timeline data, keeping "unknown" dates at the end
+  const validTimeline = [...analytics.timeline]
+    .filter(t => t.date && t.date !== 'unknown')
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+  
+  // If no valid dates, show all data including "unknown"
+  const timelineToShow = validTimeline.length > 0 ? validTimeline : analytics.timeline
+  
+  if (timelineToShow.length === 0) {
+    return (
+      <div className="text-center text-muted loading">
+        Timeline data is being collected. Check back soon!
+      </div>
+    )
+  }
+
+  // Get date range
+  const dateRange = timelineToShow.length > 0 ? {
+    start: new Date(timelineToShow[0].date).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    }),
+    end: new Date(timelineToShow[timelineToShow.length - 1].date).toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    })
+  } : null
+
+  const maxRequests = Math.max(...timelineToShow.map(t => t.requests), 1)
+  const maxTokens = Math.max(...timelineToShow.map(t => t.tokens), 1)
+  const totalCost = timelineToShow.reduce((sum, t) => {
+    // Calculate cost for this day's tokens
+    const dayCost = (t.input_tokens / 1_000_000) * 3 + (t.output_tokens / 1_000_000) * 15
+    return sum + dayCost
+  }, 0)
   
   return (
     <div>
-      <div className="text-xs weight-semibold mb-xs" style={{
-        color: 'var(--color-text-secondary)',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase'
-      }}>
-        Historical Data
-      </div>
-      <h3 className="text-lg weight-bold mb-md">Model Usage Trends</h3>
-      <div className="text-sm text-muted mb-2xl">Request volumes and costs over time</div>
-      
-      {/* Legend */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center',
-        gap: 'var(--space-2xl)',
-        marginBottom: 'var(--space-2xl)',
-        padding: 'var(--space-md)',
-        background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--radius-md)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <div style={{ width: '16px', height: '4px', background: '#93c5fd', borderRadius: 'var(--radius-sm)' }}></div>
-          <span className="text-sm weight-medium">Requests</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <div style={{ width: '16px', height: '4px', background: '#10b981', borderRadius: 'var(--radius-sm)' }}></div>
-          <span className="text-sm weight-medium">Cost ($)</span>
-        </div>
-      </div>
-
-      {/* Simple line chart visualization */}
-      <div style={{ 
-        height: '200px',
-        position: 'relative',
-        padding: 'var(--space-lg)',
-        background: 'var(--color-bg-secondary)',
-        borderRadius: 'var(--radius-md)'
-      }}>
-        {analytics.timeline.map((point, idx) => (
-          <div key={idx} style={{
-            position: 'absolute',
-            left: `${(idx / (analytics.timeline.length - 1)) * 90 + 5}%`,
-            bottom: '20px',
-            textAlign: 'center'
+      {/* Header with granularity controls */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-2xl)' }}>
+        <div>
+          <div className="text-xs weight-semibold mb-xs" style={{
+            color: 'var(--color-text-secondary)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase'
           }}>
-            <div style={{
-              width: '8px',
-              height: `${(point.requests / maxRequests) * 150}px`,
-              background: '#93c5fd',
-              borderRadius: 'var(--radius-sm)',
-              margin: '0 auto var(--space-xs)',
-              minHeight: '4px'
-            }}></div>
-            <div className="text-xs text-muted font-mono" style={{
-              transform: 'rotate(-45deg)',
-              transformOrigin: 'center',
-              width: '60px',
-              marginLeft: '-26px'
-            }}>
-              {point.date}
+            Historical Data
+          </div>
+          <h3 className="text-lg weight-bold mb-xs">Model Usage Trends</h3>
+          {dateRange && (
+            <div className="text-sm text-muted">
+              {dateRange.start} - {dateRange.end}
+            </div>
+          )}
+        </div>
+        
+        {/* Granularity selector */}
+        <div style={{ display: 'flex', gap: 'var(--space-md)', alignItems: 'center' }}>
+          <span className="text-xs weight-semibold text-muted" style={{ 
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase'
+          }}>
+            GRANULARITY
+          </span>
+          <div style={{ 
+            display: 'flex', 
+            gap: 'var(--space-xs)',
+            background: 'var(--color-bg-secondary)',
+            padding: 'var(--space-xs)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border-subtle)'
+          }}>
+            {['hourly', 'daily', 'weekly'].map(g => (
+              <button
+                key={g}
+                onClick={() => setGranularity(g)}
+                style={{
+                  padding: 'var(--space-sm) var(--space-md)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none',
+                  background: granularity === g ? 'var(--color-accent-primary)' : 'transparent',
+                  color: granularity === g ? 'white' : 'var(--color-text-secondary)',
+                  fontSize: 'var(--text-xs)',
+                  fontWeight: 'var(--weight-semibold)',
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                  transition: 'all var(--transition-fast)'
+                }}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      {/* Summary metrics */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 'var(--space-lg)',
+        marginBottom: 'var(--space-3xl)'
+      }}>
+        <div style={{
+          padding: 'var(--space-lg)',
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--color-border-subtle)'
+        }}>
+          <div className="text-xs text-muted mb-xs weight-semibold">TOTAL REQUESTS</div>
+          <div className="text-2xl weight-bold font-mono text-primary">
+            {formatNumber(timelineToShow.reduce((sum, t) => sum + t.requests, 0))}
+          </div>
+          <div className="text-xs text-muted mt-xs">
+            Avg {Math.round(timelineToShow.reduce((sum, t) => sum + t.requests, 0) / timelineToShow.length)} per {granularity === 'weekly' ? 'week' : granularity === 'hourly' ? 'hour' : 'day'}
+          </div>
+        </div>
+        <div style={{
+          padding: 'var(--space-lg)',
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--color-border-subtle)'
+        }}>
+          <div className="text-xs text-muted mb-xs weight-semibold">TOTAL TOKENS</div>
+          <div className="text-2xl weight-bold font-mono text-primary">
+            {formatNumber(timelineToShow.reduce((sum, t) => sum + t.tokens, 0))}
+          </div>
+          <div className="text-xs text-muted mt-xs">
+            Avg {formatNumber(Math.round(timelineToShow.reduce((sum, t) => sum + t.tokens, 0) / timelineToShow.length))} per {granularity === 'weekly' ? 'week' : granularity === 'hourly' ? 'hour' : 'day'}
+          </div>
+        </div>
+      </div>
+      
+      {/* Combined Trend Chart */}
+      <div>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 'var(--space-lg)'
+        }}>
+          <div>
+            <h4 className="text-md weight-bold">Usage Trends</h4>
+            <div className="text-xs text-muted">Requests and token consumption over time</div>
+          </div>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 'var(--space-lg)',
+            padding: 'var(--space-sm) var(--space-md)',
+            background: 'var(--color-bg-secondary)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border-subtle)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+              <div style={{ 
+                width: '20px', 
+                height: '3px', 
+                background: 'var(--color-accent-primary)',
+                borderRadius: '2px'
+              }}></div>
+              <span className="text-xs weight-medium">Requests</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+              <div style={{ 
+                width: '20px', 
+                height: '3px', 
+                background: 'var(--color-accent-secondary)',
+                borderRadius: '2px'
+              }}></div>
+              <span className="text-xs weight-medium">Tokens</span>
             </div>
           </div>
-        ))}
+        </div>
+
+        <div style={{ 
+          minHeight: '400px',
+          padding: 'var(--space-2xl) var(--space-3xl) var(--space-2xl) 60px',
+          background: 'var(--color-bg-secondary)',
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border-subtle)',
+          position: 'relative'
+        }}>
+          {/* Chart container */}
+          <div style={{ position: 'relative', width: '100%', height: '320px' }}>
+            <svg width="100%" height="100%" viewBox="0 0 1000 320" preserveAspectRatio="none" style={{ overflow: 'visible' }}>
+              <defs>
+                <linearGradient id="requestGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="var(--color-accent-primary)" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="var(--color-accent-primary)" stopOpacity="0.02" />
+                </linearGradient>
+                <linearGradient id="tokenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="var(--color-accent-secondary)" stopOpacity="0.15" />
+                  <stop offset="100%" stopColor="var(--color-accent-secondary)" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              
+              {/* Grid lines */}
+              {[0, 25, 50, 75, 100].map((percent) => (
+                <line
+                  key={percent}
+                  x1="0"
+                  y1={320 - (percent * 3.2)}
+                  x2="1000"
+                  y2={320 - (percent * 3.2)}
+                  stroke="var(--color-border-subtle)"
+                  strokeWidth="1"
+                  strokeDasharray="5 5"
+                  opacity="0.5"
+                />
+              ))}
+
+              {/* Requests area and line */}
+              {timelineToShow.length > 1 && (
+                <>
+                  <path
+                    d={
+                      timelineToShow.map((point, idx) => {
+                        const x = (idx / (timelineToShow.length - 1)) * 1000
+                        const y = 320 - ((point.requests / maxRequests) * 290)
+                        return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`
+                      }).join(' ') + ` L 1000 320 L 0 320 Z`
+                    }
+                    fill="url(#requestGradient)"
+                  />
+                  
+                  <path
+                    d={
+                      timelineToShow.map((point, idx) => {
+                        const x = (idx / (timelineToShow.length - 1)) * 1000
+                        const y = 320 - ((point.requests / maxRequests) * 290)
+                        return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`
+                      }).join(' ')
+                    }
+                    fill="none"
+                    stroke="var(--color-accent-primary)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </>
+              )}
+
+              {/* Tokens area and line */}
+              {timelineToShow.length > 1 && (
+                <>
+                  <path
+                    d={
+                      timelineToShow.map((point, idx) => {
+                        const x = (idx / (timelineToShow.length - 1)) * 1000
+                        const y = 320 - ((point.tokens / maxTokens) * 290)
+                        return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`
+                      }).join(' ') + ` L 1000 320 L 0 320 Z`
+                    }
+                    fill="url(#tokenGradient)"
+                  />
+                  
+                  <path
+                    d={
+                      timelineToShow.map((point, idx) => {
+                        const x = (idx / (timelineToShow.length - 1)) * 1000
+                        const y = 320 - ((point.tokens / maxTokens) * 290)
+                        return `${idx === 0 ? 'M' : 'L'} ${x} ${y}`
+                      }).join(' ')
+                    }
+                    fill="none"
+                    stroke="var(--color-accent-secondary)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </>
+              )}
+
+              {/* Data points for requests */}
+              {timelineToShow.map((point, idx) => {
+                const x = (idx / (timelineToShow.length - 1)) * 1000
+                const y = 320 - ((point.requests / maxRequests) * 290)
+                return (
+                  <g key={`req-${idx}`}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="6"
+                      fill="white"
+                      stroke="var(--color-accent-primary)"
+                      strokeWidth="3"
+                    />
+                  </g>
+                )
+              })}
+
+              {/* Data points for tokens */}
+              {timelineToShow.map((point, idx) => {
+                const x = (idx / (timelineToShow.length - 1)) * 1000
+                const y = 320 - ((point.tokens / maxTokens) * 290)
+                return (
+                  <g key={`tok-${idx}`}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="6"
+                      fill="white"
+                      stroke="var(--color-accent-secondary)"
+                      strokeWidth="3"
+                    />
+                  </g>
+                )
+              })}
+            </svg>
+
+            {/* Left Y-axis labels (Requests) */}
+            <div style={{
+              position: 'absolute',
+              left: '-50px',
+              top: '0',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'flex-end'
+            }}>
+              {[100, 75, 50, 25, 0].map((percent) => (
+                <div key={percent} className="text-xs font-mono" style={{ color: 'var(--color-accent-primary)' }}>
+                  {Math.round(maxRequests * percent / 100)}
+                </div>
+              ))}
+            </div>
+
+            {/* Right Y-axis labels (Tokens) */}
+            <div style={{
+              position: 'absolute',
+              right: '-60px',
+              top: '0',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start'
+            }}>
+              {[100, 75, 50, 25, 0].map((percent) => (
+                <div key={percent} className="text-xs font-mono" style={{ color: 'var(--color-accent-secondary)' }}>
+                  {formatNumber(Math.round(maxTokens * percent / 100))}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* X-axis labels */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            marginTop: 'var(--space-lg)',
+            paddingLeft: '0',
+            paddingRight: '0'
+          }}>
+            {timelineToShow.map((point, idx) => {
+              let formattedDate = 'Today'
+              if (point.date && point.date !== 'unknown') {
+                try {
+                  formattedDate = new Date(point.date).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                  })
+                } catch (e) {
+                  formattedDate = point.date
+                }
+              }
+              return (
+                <div key={idx} className="text-xs weight-semibold font-mono text-center" style={{
+                  color: 'var(--color-text-secondary)'
+                }}>
+                  {formattedDate}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
     </div>
   )
