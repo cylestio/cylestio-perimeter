@@ -1,5 +1,5 @@
 """
-Model pricing data for cost calculations with automatic updates.
+Model pricing data for cost calculations.
 
 Pricing last updated: November 19, 2025
 Source: https://raw.githubusercontent.com/cylestio/ai-model-pricing/main/latest.json
@@ -10,10 +10,11 @@ Latest Models Included (as of November 2025):
 - Plus all previous GPT-4o, o1, and Claude models
 
 Features:
-- Automatic price refresh if data is older than 1 day
+- Loads pricing once on module import (no auto-refresh)
 - Fallback to local default pricing if live fetch fails
 - Caching mechanism for persistent storage
 - Comprehensive model coverage: 50+ models tracked
+- Manual refresh available via force_refresh_pricing()
 
 DEPENDENCIES:
 - requests: For HTTP requests (pip install requests)
@@ -33,7 +34,7 @@ USAGE:
   success = force_refresh_pricing()
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import Dict, Tuple, Optional
@@ -385,29 +386,6 @@ def _fetch_live_pricing() -> Optional[Dict]:
         return None
 
 
-def _should_update_pricing(last_updated_str: str) -> bool:
-    """Check if pricing data is older than 1 day."""
-    try:
-        # Handle both ISO format and date-only format
-        if 'T' not in last_updated_str:
-            last_updated_str = f"{last_updated_str}T00:00:00+00:00"
-        
-        last_updated = datetime.fromisoformat(last_updated_str.replace('Z', '+00:00'))
-        
-        # Ensure timezone-aware comparison
-        if last_updated.tzinfo is None:
-            last_updated = last_updated.replace(tzinfo=timezone.utc)
-        
-        now = datetime.now(timezone.utc)
-        age = now - last_updated
-        
-        logger.debug(f"Pricing age: {age.days} days, {age.seconds // 3600} hours")
-        return age > timedelta(days=1)
-    except Exception as e:
-        logger.warning(f"Failed to check pricing age: {e}")
-        return True  # If we can't determine age, try to update
-
-
 def _flatten_pricing_data(pricing_data: Dict) -> Dict[str, Tuple[float, float]]:
     """
     Convert the nested pricing data structure to a flat dict for easy lookups.
@@ -436,43 +414,26 @@ def _flatten_pricing_data(pricing_data: Dict) -> Dict[str, Tuple[float, float]]:
 
 def get_current_pricing() -> Tuple[Dict[str, Tuple[float, float]], str]:
     """
-    Get current pricing data, automatically updating if needed.
+    Get current pricing data on library load ONLY.
     Returns (flat_pricing_dict, last_updated_iso).
     
     Logic:
-    1. Check cache
-    2. If cache is fresh (< 1 day old), use it
-    3. If cache is stale, try to fetch live data
-    4. If live fetch fails, fall back to cached or default data
+    1. Check cache - if exists, use it (regardless of age)
+    2. If no cache, try to fetch live data once
+    3. If live fetch fails, fall back to default data
+    4. Never auto-refreshes - use force_refresh_pricing() to manually update
     """
-    # Try to load from cache
+    # Try to load from cache first
     cached = _load_cached_pricing()
     
     if cached:
         last_updated = cached.get("last_updated")
-        
-        # Check if we need to update
-        if last_updated and not _should_update_pricing(last_updated):
-            logger.info(f"Using cached pricing from {last_updated} (still fresh)")
-            flat_pricing = _flatten_pricing_data(cached)
-            return flat_pricing, last_updated
-        
-        # Cache is stale, try to fetch live pricing
-        logger.info(f"Cached pricing from {last_updated} is stale, attempting live fetch...")
-        live_data = _fetch_live_pricing()
-        
-        if live_data:
-            _save_cached_pricing(live_data)
-            logger.info(f"Successfully updated pricing from live source")
-            flat_pricing = _flatten_pricing_data(live_data)
-            return flat_pricing, live_data.get("last_updated")
-        else:
-            logger.warning("Failed to fetch live pricing, using stale cached data")
-            flat_pricing = _flatten_pricing_data(cached)
-            return flat_pricing, last_updated
+        logger.info(f"Using cached pricing from {last_updated}")
+        flat_pricing = _flatten_pricing_data(cached)
+        return flat_pricing, last_updated
     
-    # No cache exists, try to fetch live data first
-    logger.info("No pricing cache found, attempting live fetch...")
+    # No cache exists, try to fetch live data once
+    logger.info("No pricing cache found, attempting one-time fetch...")
     live_data = _fetch_live_pricing()
     
     if live_data:
@@ -489,7 +450,8 @@ def get_current_pricing() -> Tuple[Dict[str, Tuple[float, float]], str]:
 
 
 # Global pricing data (loaded once per module import)
-# This will automatically check age and update if needed
+# Uses cache if available, otherwise fetches once from GitHub
+# Never auto-refreshes - use force_refresh_pricing() to manually update
 _CURRENT_PRICING, _LAST_UPDATED = get_current_pricing()
 
 
@@ -532,7 +494,7 @@ def get_pricing_info() -> dict:
         "total_models": len(_CURRENT_PRICING) - 2,  # Exclude default and unknown
         "source": PRICING_JSON_URL,
         "note": "Prices are per 1M tokens (input/output)",
-        "auto_update": "Pricing automatically refreshes if older than 1 day"
+        "refresh_note": "Use force_refresh_pricing() to manually update pricing data"
     }
 
 
@@ -584,7 +546,8 @@ if __name__ == "__main__":
     info = get_pricing_info()
     print(f"Last Updated: {info['last_updated']}")
     print(f"Total Models: {info['total_models']}")
-    print(f"Auto-Update: {info['auto_update']}")
+    print(f"Source: {info['source']}")
+    print(f"Note: {info['refresh_note']}")
     print()
     
     # Test some models
