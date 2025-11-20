@@ -173,6 +173,12 @@ class InsightsEngine:
                         result['security_report']['categories'][category_id]['critical_checks'] = category.critical_checks
                         result['security_report']['categories'][category_id]['warning_checks'] = category.warning_checks
         
+        # Add computed properties for BehavioralAnalysis
+        if hasattr(risk_analysis, 'behavioral_analysis') and risk_analysis.behavioral_analysis:
+            # Calculate and add confidence level
+            confidence = self._calculate_behavioral_confidence(risk_analysis.behavioral_analysis)
+            result['behavioral_analysis']['confidence'] = confidence
+        
         return result
 
     @_with_store_lock
@@ -619,8 +625,7 @@ class InsightsEngine:
                 
                 elif event_name.endswith(".error"):
                     model = attrs.get("llm.model") or attrs.get("model") or "unknown"
-                    if model in model_stats:
-                        model_stats[model]["errors"] += 1
+                    model_stats[model]["errors"] += 1
                 
                 # Collect tool usage data
                 elif event_name == "tool.execution":
