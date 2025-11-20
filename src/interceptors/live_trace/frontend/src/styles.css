@@ -1338,7 +1338,7 @@ a:hover {
 }
 
 /* ============================================
-   CLUSTER VISUALIZATION
+   Behavior patterns
    ============================================ */
 .cluster-viz-container {
   margin-bottom: var(--space-2xl);
@@ -1375,68 +1375,217 @@ a:hover {
 }
 
 /* ============================================
-   PRINT STYLES
+   ANALYTICS & CHARTS
    ============================================ */
-@media print {
-  /* Stack sidebar above main content */
-  .dashboard-split {
-    display: flex !important;
-    flex-direction: column;
-    gap: var(--space-2xl);
+
+/* Tab buttons styling */
+button {
+  font-family: var(--font-sans);
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Chart containers */
+.chart-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  padding: var(--space-lg);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* Bar chart styling */
+.bar-chart-bar {
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.bar-chart-bar:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+
+/* Pie chart SVG styling */
+svg circle {
+  transition: stroke-width var(--transition-base);
+}
+
+svg circle:hover {
+  stroke-width: 22;
+}
+
+/* Legend items */
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.legend-item:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Stat cards in grid - ensure proper spacing */
+.stats-grid .stat-card {
+  min-width: 0; /* Allow flexbox to properly shrink items */
+}
+
+/* Analytics table styling */
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.analytics-table th,
+.analytics-table td {
+  padding: var(--space-md) var(--space-lg);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.analytics-table th {
+  background: var(--color-bg-secondary);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.analytics-table tr:hover {
+  background: var(--color-surface-hover);
+}
+
+/* Tab panel animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-content {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Metric cards with icons */
+.metric-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-base);
+}
+
+.metric-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.metric-icon {
+  font-size: var(--text-3xl);
+  line-height: 1;
+}
+
+/* Cost indicator styling */
+.cost-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-family: var(--font-mono);
+}
+
+/* Performance indicators */
+.performance-good {
+  color: var(--color-success);
+  font-weight: var(--weight-semibold);
+}
+
+.performance-warning {
+  color: var(--color-warning);
+  font-weight: var(--weight-semibold);
+}
+
+.performance-critical {
+  color: var(--color-critical);
+  font-weight: var(--weight-semibold);
+}
+
+/* Tooltip for chart elements */
+.chart-tooltip {
+  position: absolute;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-text-primary);
+  color: var(--color-text-inverse);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: 1000;
+}
+
+.chart-tooltip.visible {
+  opacity: 1;
+}
+
+/* Responsive chart adjustments */
+@media (max-width: 1200px) {
+  .chart-container {
+    height: 250px;
   }
   
-  /* Make sidebar full width and remove sticky positioning */
-  .dashboard-sidebar {
-    position: static !important;
-    max-height: none !important;
-    width: 100%;
-    overflow: visible;
+  .stats-grid-4col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .chart-container {
+    height: 200px;
+    padding: var(--space-md);
   }
   
-  /* Make main content full width */
-  .dashboard-main {
-    width: 100%;
+  .stats-grid-4col {
+    grid-template-columns: 1fr;
   }
   
-  /* Hide breadcrumb navigation */
-  .breadcrumb {
-    display: none;
-  }
-  
-  /* Hide loading spinners */
-  .loading-spinner {
-    display: none;
-  }
-  
-  /* Ensure cards print well */
-  .card {
-    page-break-inside: avoid;
-    box-shadow: none;
-    border: 1px solid #d1d5db;
-  }
-  
-  /* Remove hover effects */
-  .card:hover {
-    box-shadow: none;
-  }
-  
-  /* Ensure proper spacing for print */
-  body {
-    background-color: white;
-  }
-  
-  .container {
-    max-width: 100%;
-    padding: 0;
-  }
-  
-  /* Hide sticky app header */
-  .app-header {
-    display: none;
-  }
-  
-  /* Remove sticky positioning from session sidebar too */
-  .session-left {
-    position: static;
+  /* Stack legend items on mobile */
+  .legend-item {
+    font-size: var(--text-xs);
   }
 }

@@ -1,0 +1,7 @@
+# Cache files
+*.json
+*.cache
+
+# But track the directory
+!.gitignore
+

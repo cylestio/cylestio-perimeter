@@ -3,6 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import Tooltip from './Tooltip'
 import AgentSidebar from './AgentSidebar'
 import EvaluationProgress from './EvaluationProgress'
+import TokenUsageInsights from './TokenUsageInsights'
+import ModelUsageAnalytics from './ModelUsageAnalytics'
+import ToolUsageAnalytics from './ToolUsageAnalytics'
 import { formatNumber, timeAgo, getAgentStatus, BEHAVIORAL_TOOLTIPS } from '../utils/helpers'
 
 export default function AgentPage() {
@@ -462,6 +465,20 @@ export default function AgentPage() {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Analytics Components */}
+            {data.analytics && (
+              <>
+                {/* Token Usage Insights */}
+                <TokenUsageInsights analytics={data.analytics} />
+
+                {/* Model Usage Analytics */}
+                <ModelUsageAnalytics analytics={data.analytics} agentId={agentId} />
+
+                {/* Tool Usage Analysis */}
+                <ToolUsageAnalytics analytics={data.analytics} />
+              </>
             )}
 
             {/* Sessions Table */}

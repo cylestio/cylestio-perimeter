@@ -42,3 +42,6 @@ release-notes.md
 # OS
 .DS_Store
 Thumbs.db
+
+# Data and traces
+trace_data/
