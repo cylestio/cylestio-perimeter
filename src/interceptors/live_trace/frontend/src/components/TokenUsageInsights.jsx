@@ -58,9 +58,11 @@ export default function TokenUsageInsights({ analytics }) {
           <div className="stat-card" style={{ borderLeftColor: 'var(--color-warning)' }}>
             <h3>Estimated Cost</h3>
             <div className="stat-value" style={{ color: 'var(--color-warning)' }}>
-              ${token_summary.total_cost.toFixed(2)}
+              {token_summary.total_cost > 0 ? `$${token_summary.total_cost.toFixed(2)}` : '-'}
             </div>
-            <div className="stat-change">Based on API pricing</div>
+            <div className="stat-change">
+              {token_summary.total_cost > 0 ? 'Based on API pricing' : 'Pricing unavailable'}
+            </div>
           </div>
 
           {/* Models Used */}

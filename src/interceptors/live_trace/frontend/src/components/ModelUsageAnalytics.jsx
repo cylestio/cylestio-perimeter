@@ -229,7 +229,7 @@ function OverviewTab({ analytics }) {
                     {(model.avg_response_time_ms / 1000).toFixed(2)}s
                   </td>
                   <td style={{ padding: 'var(--space-sm)', textAlign: 'right' }} className="font-mono">
-                    ${model.cost.toFixed(2)}
+                    {model.cost > 0 ? `$${model.cost.toFixed(2)}` : '-'}
                   </td>
                 </tr>
               ))}
@@ -459,7 +459,7 @@ function CostTab({ analytics }) {
               TOTAL COST
             </div>
             <div className="text-4xl weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
-              ${totalCost.toFixed(2)}
+              {totalCost > 0 ? `$${totalCost.toFixed(2)}` : '-'}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -471,7 +471,7 @@ function CostTab({ analytics }) {
               COST PER 1K TOKENS
             </div>
             <div className="text-2xl weight-bold font-mono" style={{ color: '#d97706' }}>
-              ${((totalCost / analytics.token_summary.total_tokens) * 1000).toFixed(4)}
+              {totalCost > 0 ? `$${((totalCost / analytics.token_summary.total_tokens) * 1000).toFixed(4)}` : '-'}
             </div>
           </div>
         </div>
@@ -508,10 +508,10 @@ function CostTab({ analytics }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className="text-xl weight-bold font-mono" style={{ color: 'var(--color-warning)' }}>
-                    ${model.cost.toFixed(2)}
+                    {model.cost > 0 ? `$${model.cost.toFixed(2)}` : '-'}
                   </div>
                   <div className="text-xs text-muted font-mono">
-                    ${costPer1k.toFixed(4)} per 1K
+                    {model.cost > 0 ? `$${costPer1k.toFixed(4)} per 1K` : 'Pricing unavailable'}
                   </div>
                 </div>
               </div>

@@ -524,7 +524,7 @@ class InsightsEngine:
         """Compute comprehensive analytics for agent monitoring."""
         from collections import defaultdict
         from datetime import datetime, timezone
-        from .model_pricing import get_model_pricing, get_pricing_info
+        from .model_pricing import get_model_pricing, get_last_updated
         
         # Aggregated data structures
         model_stats = defaultdict(lambda: {
@@ -721,9 +721,6 @@ class InsightsEngine:
             total_cost += model_cost
             model_costs[model] = model_cost
         
-        # Get pricing metadata
-        pricing_info = get_pricing_info()
-        
         # Prepare model analytics
         models_data = []
         for model, stats in model_stats.items():
@@ -799,7 +796,7 @@ class InsightsEngine:
                 "output_tokens": total_output_tokens,
                 "total_cost": round(total_cost, 4),
                 "models_used": len(model_stats),
-                "pricing_last_updated": pricing_info["last_updated"]
+                "pricing_last_updated": get_last_updated()
             },
             "models": models_data,
             "tools": tools_data,
