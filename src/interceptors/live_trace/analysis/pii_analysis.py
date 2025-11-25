@@ -150,8 +150,12 @@ class PresidioAnalyzer:
                 
                 provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
                 nlp_engine = provider.create_engine()
-                
-                self._analyzer = AnalyzerEngine(nlp_engine=nlp_engine)
+
+                # Only support English to avoid warnings about non-English recognizers
+                self._analyzer = AnalyzerEngine(
+                    nlp_engine=nlp_engine,
+                    supported_languages=["en"]
+                )
                 logger.info("Presidio AnalyzerEngine initialized with %s", SPACY_MODEL)
                 
             except ImportError as e:

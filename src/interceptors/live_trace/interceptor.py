@@ -93,9 +93,12 @@ class LiveTraceInterceptor(BaseInterceptor):
 
         # Start server only if interceptor is enabled
         if self.enabled:
-            # Start background model check/download (exits quickly if model exists)
-            from .model_downloader import download_model_async
-            download_model_async()
+            # Start background model check/download only if PII analysis is enabled
+            if self.enable_presidio:
+                from .model_downloader import download_model_async
+                download_model_async()
+            else:
+                logger.info("PII analysis disabled (enable_presidio: false) - skipping model download")
             
             self._start_server()
             self._start_completion_checker()

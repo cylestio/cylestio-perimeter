@@ -21,6 +21,5 @@ interceptors:
       retention_minutes: 30
       refresh_interval: 2
       storage_mode: "sqlite"
-      # db_path: "./trace_data/anthropic-live-trac2e.db"
-      db_path: "/Users/eyalben/Projects/cylestio/agent-inspector/agent-inspector-trace.db"
-      enable_presidio: false  # Disable PII detection (enabled by default)
+      db_path: "./trace_data/anthropic-live-trac2e.db"
+      # enable_presidio: false  # Disable PII detection (enabled by default)
