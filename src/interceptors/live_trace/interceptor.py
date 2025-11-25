@@ -29,6 +29,7 @@ class LiveTraceInterceptor(BaseInterceptor):
                 - refresh_interval: Page refresh interval in seconds (default: 2)
                 - storage_mode: Storage mode - "memory" for in-memory SQLite, "sqlite" for disk (default: "sqlite")
                 - db_path: Path to SQLite database file (default: "./trace_data/live_trace.db")
+                - enable_presidio: Enable PII detection using Presidio (default: True)
             provider_name: Name of the LLM provider (e.g., "openai", "anthropic")
             provider_config: Provider configuration including base_url
         """
@@ -50,6 +51,9 @@ class LiveTraceInterceptor(BaseInterceptor):
         self.session_completion_timeout = config.get("session_completion_timeout", 30)
         self.completion_check_interval = config.get("completion_check_interval", 10)
 
+        # PII analysis configuration
+        self.enable_presidio = config.get("enable_presidio", True)
+
         # Store provider configuration for API endpoint
         self.provider_name = provider_name
         self.provider_config = provider_config or {}
@@ -69,7 +73,8 @@ class LiveTraceInterceptor(BaseInterceptor):
             "provider_type": self.provider_name,
             "provider_base_url": self.provider_config.get("base_url", "unknown"),
             "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
-            "proxy_port": self.provider_config.get("proxy_port", 3000)
+            "proxy_port": self.provider_config.get("proxy_port", 3000),
+            "enable_presidio": self.enable_presidio
         }
         self.insights = InsightsEngine(self.store, proxy_config)
 
@@ -88,9 +93,12 @@ class LiveTraceInterceptor(BaseInterceptor):
 
         # Start server only if interceptor is enabled
         if self.enabled:
-            # Start background model check/download (exits quickly if model exists)
-            from .model_downloader import download_model_async
-            download_model_async()
+            # Start background model check/download only if PII analysis is enabled
+            if self.enable_presidio:
+                from .model_downloader import download_model_async
+                download_model_async()
+            else:
+                logger.info("PII analysis disabled (enable_presidio: false) - skipping model download")
             
             self._start_server()
             self._start_completion_checker()
