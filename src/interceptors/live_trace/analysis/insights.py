@@ -53,6 +53,7 @@ class InsightsEngine:
     def __init__(self, store: TraceStore, proxy_config: Dict[str, Any] = None):
         self.store = store
         self.proxy_config = proxy_config or {}
+        self.enable_presidio = proxy_config.get("enable_presidio", True)
         # Cache for risk analysis results
         self._risk_analysis_cache: Dict[str, tuple] = {}  # {agent_id: (result, timestamp, cache_key)}
         # Background task tracking for PII analysis
@@ -952,6 +953,18 @@ class InsightsEngine:
             - current_pii_result: Existing PII result if available (may be stale)
             - pii_status: One of "complete", "pending", "refreshing"
         """
+        # Check if PII analysis is disabled by configuration
+        if not self.enable_presidio:
+            from .risk_models import PIIAnalysisResult
+            disabled_result = PIIAnalysisResult(
+                total_findings=0,
+                sessions_without_pii=0,
+                disabled=True,
+                disabled_reason="PII analysis disabled by configuration (enable_presidio: false)"
+            )
+            logger.info(f"[PII GUARD] Agent {agent_id}: PII analysis disabled by configuration")
+            return False, disabled_result, "disabled"
+        
         # Get cached PII data (result + the cache_key it was computed for)
         old_pii_data = self._pii_results_cache.get(agent_id)
         if old_pii_data:
@@ -1010,7 +1023,7 @@ class InsightsEngine:
             # Use asyncio.wait_for to add timeout (60 seconds)
             try:
                 pii_result = await asyncio.wait_for(
-                    asyncio.to_thread(analyze_sessions_for_pii, agent_sessions),
+                    asyncio.to_thread(analyze_sessions_for_pii, agent_sessions, enable_presidio=self.enable_presidio),
                     timeout=60.0
                 )
             except asyncio.TimeoutError:

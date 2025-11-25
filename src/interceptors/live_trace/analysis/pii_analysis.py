@@ -283,7 +283,8 @@ def analyze_pii(
 def analyze_sessions_for_pii(
     sessions: List[SessionData],
     entities: Optional[List[str]] = None,
-    threshold: float = MEDIUM_CONFIDENCE_THRESHOLD
+    threshold: float = MEDIUM_CONFIDENCE_THRESHOLD,
+    enable_presidio: bool = True
 ) -> PIIAnalysisResult:
     """Analyze all sessions for PII content.
 
@@ -291,10 +292,21 @@ def analyze_sessions_for_pii(
         sessions: List of SessionData objects
         entities: Entity types to detect (None = default set)
         threshold: Minimum confidence score
+        enable_presidio: Enable PII detection using Presidio (default: True)
 
     Returns:
         PIIAnalysisResult with aggregated findings (or disabled result if unavailable)
     """
+    # Check if PII analysis is disabled by configuration
+    if not enable_presidio:
+        logger.info("PII analysis disabled by configuration (enable_presidio: false)")
+        return PIIAnalysisResult(
+            total_findings=0,
+            sessions_without_pii=len(sessions) if sessions else 0,
+            disabled=True,
+            disabled_reason="PII analysis disabled by configuration (enable_presidio: false)"
+        )
+    
     # Check if PII analysis is available
     available, disabled_reason = is_pii_available()
     if not available:
