@@ -1,16 +1,17 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
-export default function Timeline({ timeline }) {
+export default function Timeline({ timeline, sessionId }) {
   return (
     <div className="timeline">
       {timeline.map((item, index) => (
-        <TimelineItem key={index} item={item} />
+        <TimelineItem key={index} item={item} sessionId={sessionId} />
       ))}
     </div>
   )
 }
 
-function TimelineItem({ item }) {
+function TimelineItem({ item, sessionId }) {
   const [showRaw, setShowRaw] = useState(false)
 
   // Determine alignment
@@ -34,6 +35,15 @@ function TimelineItem({ item }) {
           <span className="text-xs text-muted">
             {timeAgo(item.timestamp)}
           </span>
+          {/* Replay button for llm.call.start */}
+          {item.event_type === 'llm.call.start' && sessionId && item.id && (
+            <Link
+              to={`/replay/${sessionId}/${item.id}`}
+              className="btn btn-sm btn-secondary ml-sm replay-btn"
+            >
+              Edit & Replay
+            </Link>
+          )}
         </div>
 
         {/* LLM Call Start - show request message */}

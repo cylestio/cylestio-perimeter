@@ -1,8 +1,10 @@
 """FastAPI server for the live trace dashboard."""
+import os
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.utils.logger import get_logger
@@ -123,6 +125,188 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             return JSONResponse(config)
         except Exception as e:
             logger.error(f"Error getting config: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/replay/config")
+    async def api_replay_config():
+        """Get configuration for replay requests."""
+        try:
+            config = insights.get_proxy_config()
+            provider_type = config.get("provider_type", "unknown")
+            base_url = config.get("provider_base_url", "")
+
+            # Get API key from proxy config or environment
+            api_key = insights.proxy_config.get("api_key")
+            api_key_source = None
+
+            if api_key:
+                api_key_source = "proxy_config"
+            else:
+                # Try environment variables based on provider
+                env_var_map = {
+                    "openai": "OPENAI_API_KEY",
+                    "anthropic": "ANTHROPIC_API_KEY",
+                }
+                env_var = env_var_map.get(provider_type)
+                if env_var:
+                    api_key = os.environ.get(env_var)
+                    if api_key:
+                        api_key_source = f"environment ({env_var})"
+
+            # Mask API key for display (show only last 4 chars)
+            masked_key = None
+            if api_key:
+                masked_key = "•" * 8 + api_key[-4:] if len(api_key) > 4 else "•" * len(api_key)
+
+            return JSONResponse({
+                "provider_type": provider_type,
+                "base_url": base_url,
+                "api_key_available": api_key is not None,
+                "api_key_masked": masked_key,
+                "api_key_source": api_key_source,
+            })
+        except Exception as e:
+            logger.error(f"Error getting replay config: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/replay")
+    async def api_replay(request: Request):
+        """Send a replay request directly to the LLM provider (not through proxy)."""
+        try:
+            body = await request.json()
+
+            provider = body.get("provider", insights.proxy_config.get("provider_type", "openai"))
+            base_url = body.get("base_url", insights.proxy_config.get("provider_base_url", ""))
+            request_data = body.get("request_data", {})
+
+            # Get API key: from request, proxy config, or environment
+            api_key = body.get("api_key")
+            if not api_key:
+                api_key = insights.proxy_config.get("api_key")
+            if not api_key:
+                env_var_map = {
+                    "openai": "OPENAI_API_KEY",
+                    "anthropic": "ANTHROPIC_API_KEY",
+                }
+                env_var = env_var_map.get(provider)
+                if env_var:
+                    api_key = os.environ.get(env_var)
+
+            if not api_key:
+                return JSONResponse(
+                    {"error": "No API key available. Please provide an API key."},
+                    status_code=400
+                )
+
+            # Construct request based on provider
+            if provider == "openai":
+                url = f"{base_url.rstrip('/')}/v1/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                }
+            elif provider == "anthropic":
+                url = f"{base_url.rstrip('/')}/v1/messages"
+                headers = {
+                    "x-api-key": api_key,
+                    "Content-Type": "application/json",
+                    "anthropic-version": "2023-06-01",
+                }
+            else:
+                return JSONResponse(
+                    {"error": f"Unsupported provider: {provider}"},
+                    status_code=400
+                )
+
+            # Ensure stream is false for replay
+            request_data["stream"] = False
+
+            # Send request to LLM
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(url, json=request_data, headers=headers)
+
+                if response.status_code != 200:
+                    return JSONResponse({
+                        "error": f"LLM API error: {response.status_code}",
+                        "details": response.text,
+                    }, status_code=response.status_code)
+
+                llm_response = response.json()
+
+            # Parse response based on provider
+            if provider == "openai":
+                # Extract content from OpenAI response
+                choices = llm_response.get("choices", [])
+                content = []
+                tool_calls = []
+
+                if choices:
+                    message = choices[0].get("message", {})
+                    if message.get("content"):
+                        content.append({"type": "text", "text": message["content"]})
+                    if message.get("tool_calls"):
+                        for tc in message["tool_calls"]:
+                            tool_calls.append({
+                                "name": tc.get("function", {}).get("name"),
+                                "input": tc.get("function", {}).get("arguments"),
+                            })
+                            content.append({
+                                "type": "tool_use",
+                                "name": tc.get("function", {}).get("name"),
+                                "input": tc.get("function", {}).get("arguments"),
+                            })
+
+                return JSONResponse({
+                    "provider": provider,
+                    "raw_response": llm_response,
+                    "parsed": {
+                        "content": content,
+                        "tool_calls": tool_calls,
+                        "model": llm_response.get("model"),
+                        "usage": llm_response.get("usage"),
+                        "finish_reason": choices[0].get("finish_reason") if choices else None,
+                    }
+                })
+
+            elif provider == "anthropic":
+                # Extract content from Anthropic response
+                content_blocks = llm_response.get("content", [])
+                content = []
+                tool_calls = []
+
+                for block in content_blocks:
+                    if block.get("type") == "text":
+                        content.append({"type": "text", "text": block.get("text", "")})
+                    elif block.get("type") == "tool_use":
+                        tool_calls.append({
+                            "name": block.get("name"),
+                            "input": block.get("input"),
+                        })
+                        content.append({
+                            "type": "tool_use",
+                            "name": block.get("name"),
+                            "input": block.get("input"),
+                        })
+
+                return JSONResponse({
+                    "provider": provider,
+                    "raw_response": llm_response,
+                    "parsed": {
+                        "content": content,
+                        "tool_calls": tool_calls,
+                        "model": llm_response.get("model"),
+                        "usage": llm_response.get("usage"),
+                        "finish_reason": llm_response.get("stop_reason"),
+                    }
+                })
+
+        except httpx.TimeoutException:
+            return JSONResponse(
+                {"error": "Request timed out. The LLM took too long to respond."},
+                status_code=504
+            )
+        except Exception as e:
+            logger.error(f"Error in replay request: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/health")

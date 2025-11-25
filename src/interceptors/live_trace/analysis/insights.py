@@ -819,6 +819,7 @@ class InsightsEngine:
         timeline = []
         for event in events:
             timeline_item = {
+                "id": event.get("id"),  # Include event ID for replay functionality
                 "timestamp": event["timestamp"],
                 "event_type": event["name"],
                 "description": self._get_event_description(event),
