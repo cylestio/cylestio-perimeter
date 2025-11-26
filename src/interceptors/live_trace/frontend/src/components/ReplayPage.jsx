@@ -254,17 +254,8 @@ export default function ReplayPage() {
             </div>
             <div className="card-content">
               <div className="form-group">
-                <label>Provider</label>
-                <div className="provider-display">
-                  <span className={`provider-badge provider-${provider}`}>
-                    {provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : provider}
-                  </span>
-                </div>
-              </div>
-
-              <div className="form-group">
                 <label className="api-key-label">
-                  <span>API Key</span>
+                  <span>{provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : provider} API Key</span>
                   <Tooltip
                     content="API keys are not stored in the platform. We retrieve them from your environment variables or proxy configuration for this replay request only."
                     position="right"
