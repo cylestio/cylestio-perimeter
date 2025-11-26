@@ -1654,7 +1654,7 @@ svg circle:hover {
 .form-textarea {
   width: 100%;
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--color-border);
+  border: 1px solid #d1d5db;
   border-radius: var(--radius-sm);
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
@@ -1662,12 +1662,18 @@ svg circle:hover {
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
+.form-input:hover,
+.form-select:hover,
+.form-textarea:hover {
+  border-color: #9ca3af;
+}
+
 .form-input:focus,
 .form-select:focus,
 .form-textarea:focus {
   outline: none;
   border-color: var(--color-accent-primary);
-  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.15);
 }
 
 .form-input-sm {
