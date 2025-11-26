@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import Tooltip from './Tooltip'
 
 export default function ReplayPage() {
   const { sessionId, eventId } = useParams()
@@ -254,19 +255,22 @@ export default function ReplayPage() {
             <div className="card-content">
               <div className="form-group">
                 <label>Provider</label>
-                <select
-                  value={provider}
-                  onChange={(e) => setProvider(e.target.value)}
-                  className="form-select"
-                >
-                  <option value="openai">OpenAI</option>
-                  <option value="anthropic">Anthropic</option>
-                </select>
+                <div className="provider-display">
+                  <span className={`provider-badge provider-${provider}`}>
+                    {provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : provider}
+                  </span>
+                </div>
               </div>
 
               <div className="form-group">
-                <label>
-                  API Key
+                <label className="api-key-label">
+                  <span>API Key</span>
+                  <Tooltip
+                    content="API keys are not stored in the platform. We retrieve them from your environment variables or proxy configuration for this replay request only."
+                    position="right"
+                  >
+                    <span className="api-key-warning">⚠️</span>
+                  </Tooltip>
                   {apiKeySource && (
                     <span className="api-key-source">({apiKeySource})</span>
                   )}
@@ -357,7 +361,7 @@ export default function ReplayPage() {
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   className="form-textarea"
-                  rows={4}
+                  rows={8}
                   placeholder="System instructions..."
                 />
               </div>
