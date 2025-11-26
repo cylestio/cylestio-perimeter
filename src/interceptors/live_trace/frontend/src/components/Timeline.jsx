@@ -39,8 +39,9 @@ function TimelineItem({ item, sessionId }) {
           {item.event_type === 'llm.call.start' && sessionId && item.id && (
             <Link
               to={`/replay/${sessionId}/${item.id}`}
-              className="btn btn-sm btn-secondary ml-sm replay-btn"
+              className="replay-btn"
             >
+              <span className="replay-btn-icon">↻</span>
               Edit & Replay
             </Link>
           )}

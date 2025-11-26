@@ -1671,10 +1671,39 @@ svg circle:hover {
 
 /* Replay button in timeline */
 .replay-btn {
-  margin-left: var(--space-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--space-md);
+  padding: 5px 12px;
   font-size: var(--text-xs);
-  padding: var(--space-xs) var(--space-sm);
+  font-weight: var(--weight-semibold);
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  box-shadow: 0 2px 4px rgba(8, 145, 178, 0.25);
+  transition: all var(--transition-fast);
   vertical-align: middle;
+}
+
+.replay-btn:hover {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #0e7490 0%, #0c5e73 100%);
+  box-shadow: 0 4px 8px rgba(8, 145, 178, 0.35);
+  transform: translateY(-1px);
+  text-decoration: none;
+}
+
+.replay-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(8, 145, 178, 0.25);
+}
+
+.replay-btn-icon {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
 }
 
 /* Form styles */
@@ -1924,6 +1953,41 @@ svg circle:hover {
 
 .response-tool .tool-name-badge {
   margin-bottom: var(--space-sm);
+}
+
+/* Tool execution style matching timeline */
+.response-tool-execution {
+  background: var(--color-info-bg);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--color-info);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.response-tool-header {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid rgba(37, 99, 235, 0.15);
+}
+
+.response-tool-type {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  font-family: var(--font-mono);
+  color: var(--color-info);
+}
+
+.response-tool-content {
+  padding: var(--space-md) var(--space-lg);
+}
+
+.response-tool-content .tool-name-badge {
+  margin-bottom: var(--space-sm);
+}
+
+.response-tool-content .monospace-content {
+  margin-top: var(--space-sm);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-sm);
 }
 
 /* Empty state styling */

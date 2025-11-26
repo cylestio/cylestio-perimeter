@@ -468,12 +468,17 @@ export default function ReplayPage() {
                         </div>
                       )}
                       {item.type === 'tool_use' && (
-                        <div className="response-tool">
-                          <div className="tool-name-badge">{item.name}</div>
-                          <div className="monospace-content mt-sm">
-                            {typeof item.input === 'string'
-                              ? item.input
-                              : JSON.stringify(item.input, null, 2)}
+                        <div className="response-tool-execution">
+                          <div className="response-tool-header">
+                            <span className="response-tool-type">tool.execution</span>
+                          </div>
+                          <div className="response-tool-content">
+                            <div className="tool-name-badge">{item.name}</div>
+                            <div className="monospace-content">
+                              {typeof item.input === 'string'
+                                ? item.input
+                                : JSON.stringify(item.input, null, 2)}
+                            </div>
                           </div>
                         </div>
                       )}
