@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Tooltip from './Tooltip'
+import JsonEditor from './JsonEditor'
 
 export default function ReplayPage() {
   const { sessionId, eventId } = useParams()
@@ -247,60 +248,54 @@ export default function ReplayPage() {
       <div className="replay-layout">
         {/* Left Column: Editor */}
         <div className="replay-editor">
-          {/* Provider Settings */}
+          {/* API Key Card */}
           <div className="card">
             <div className="card-header">
-              <h3>Provider Settings</h3>
+              <h3 className="api-key-header">
+                <span>{provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : provider} API Key</span>
+                <Tooltip
+                  content="API keys are not stored in the platform. We retrieve them from your environment variables or proxy configuration for this replay request only."
+                  position="right"
+                >
+                  <span className="api-key-warning">⚠️</span>
+                </Tooltip>
+              </h3>
             </div>
             <div className="card-content">
-              <div className="form-group">
-                <label className="api-key-label">
-                  <span>{provider === 'openai' ? 'OpenAI' : provider === 'anthropic' ? 'Anthropic' : provider} API Key</span>
-                  <Tooltip
-                    content="API keys are not stored in the platform. We retrieve them from your environment variables or proxy configuration for this replay request only."
-                    position="right"
-                  >
-                    <span className="api-key-warning">⚠️</span>
-                  </Tooltip>
-                  {apiKeySource && (
-                    <span className="api-key-source">({apiKeySource})</span>
-                  )}
-                </label>
-                {replayConfig?.api_key_available ? (
-                  <div className="api-key-toggle">
-                    <label className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={useDefaultKey}
-                        onChange={(e) => setUseDefaultKey(e.target.checked)}
-                      />
-                      Use saved key ({replayConfig.api_key_masked})
-                    </label>
-                    {!useDefaultKey && (
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="Enter API key"
-                        className="form-input mt-sm"
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    <div className="text-warning text-sm mb-sm">
-                      No API key found in proxy config or environment
-                    </div>
+              {replayConfig?.api_key_available ? (
+                <div className="api-key-toggle">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={useDefaultKey}
+                      onChange={(e) => setUseDefaultKey(e.target.checked)}
+                    />
+                    Use saved key ({replayConfig.api_key_masked})
+                  </label>
+                  {!useDefaultKey && (
                     <input
                       type="password"
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder="Enter API key"
-                      className="form-input"
+                      className="form-input mt-sm"
                     />
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Enter API key"
+                    className="form-input"
+                  />
+                  <div className="text-warning text-sm mt-sm">
+                    No API key found in proxy config or environment
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -358,17 +353,11 @@ export default function ReplayPage() {
               </div>
 
               <div className="form-group">
-                <label>
-                  Messages
-                  <span className="text-muted text-xs ml-sm">(JSON array of message objects)</span>
-                </label>
-                <textarea
+                <JsonEditor
                   value={messagesJson}
-                  onChange={(e) => setMessagesJson(e.target.value)}
-                  className="form-textarea font-mono"
-                  rows={10}
-                  spellCheck={false}
-                  placeholder='[{"role": "user", "content": "Hello"}]'
+                  onChange={setMessagesJson}
+                  label="Messages"
+                  placeholder='Click "+ Add Item" to add a message'
                 />
               </div>
 
@@ -384,17 +373,11 @@ export default function ReplayPage() {
 
               {showTools && (
                 <div className="form-group">
-                  <label>
-                    Tools
-                    <span className="text-muted text-xs ml-sm">(JSON array of tool definitions)</span>
-                  </label>
-                  <textarea
+                  <JsonEditor
                     value={toolsJson}
-                    onChange={(e) => setToolsJson(e.target.value)}
-                    className="form-textarea font-mono"
-                    rows={8}
-                    spellCheck={false}
-                    placeholder='[{"type": "function", "function": {...}}]'
+                    onChange={setToolsJson}
+                    label="Tools"
+                    placeholder='Click "+ Add Item" to add a tool'
                   />
                 </div>
               )}

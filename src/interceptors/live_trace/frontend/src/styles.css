@@ -2012,14 +2012,6 @@ svg circle:hover {
   overflow: auto;
 }
 
-/* Provider settings card visual distinction */
-.replay-editor .card:first-child {
-  border-top: 3px solid var(--color-accent-primary);
-}
-
-.replay-editor .card:first-child .card-header {
-  background: linear-gradient(to bottom, rgba(8, 145, 178, 0.05), transparent);
-}
 
 /* Utility classes */
 .ml-sm {
@@ -2123,8 +2115,8 @@ svg circle:hover {
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-/* API Key label with warning */
-.api-key-label {
+/* API Key Header */
+.api-key-header {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
@@ -2139,4 +2131,117 @@ svg circle:hover {
 
 .api-key-warning:hover {
   opacity: 1;
+}
+
+/* JSON Editor Styles */
+.json-editor {
+  width: 100%;
+}
+
+.json-editor-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.json-editor-container {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+  max-height: 450px;
+  overflow: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Custom scrollbar for json editor */
+.json-editor-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.json-editor-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.json-editor-container::-webkit-scrollbar-thumb {
+  background: var(--color-border-medium);
+  border-radius: 3px;
+}
+
+.json-editor-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* Override json-edit-react internal styles for polish */
+.json-editor-container [class*="jer-"] {
+  transition: background-color 0.15s ease;
+}
+
+.json-editor-container button {
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.json-editor-container button:hover {
+  opacity: 0.8;
+}
+
+.json-editor-container button:active {
+  transform: scale(0.95);
+}
+
+.json-editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-xl);
+  background: linear-gradient(135deg, var(--color-bg-secondary) 0%, var(--color-surface) 100%);
+  border: 2px dashed var(--color-border-medium);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.json-editor-empty:hover {
+  border-color: var(--color-accent-primary);
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.03) 0%, var(--color-surface) 100%);
+}
+
+.json-editor-empty-text {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+
+.json-editor-error {
+  padding: var(--space-lg);
+  background: linear-gradient(135deg, var(--color-critical-bg) 0%, #fff5f5 100%);
+  border: 1px solid var(--color-critical-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.json-editor-error-title {
+  font-weight: var(--weight-semibold);
+  color: var(--color-critical);
+  margin-bottom: var(--space-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.json-editor-error-title::before {
+  content: "⚠";
+}
+
+.json-editor-error-message {
+  font-size: var(--text-sm);
+  color: var(--color-critical);
+  margin-bottom: var(--space-md);
+  font-family: var(--font-mono);
+  padding: var(--space-sm);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-sm);
 }
