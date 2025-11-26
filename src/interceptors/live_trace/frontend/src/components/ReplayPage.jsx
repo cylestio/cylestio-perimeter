@@ -363,13 +363,17 @@ export default function ReplayPage() {
               </div>
 
               <div className="form-group">
-                <label>Messages (JSON)</label>
+                <label>
+                  Messages
+                  <span className="text-muted text-xs ml-sm">(JSON array of message objects)</span>
+                </label>
                 <textarea
                   value={messagesJson}
                   onChange={(e) => setMessagesJson(e.target.value)}
                   className="form-textarea font-mono"
                   rows={10}
                   spellCheck={false}
+                  placeholder='[{"role": "user", "content": "Hello"}]'
                 />
               </div>
 
@@ -385,13 +389,17 @@ export default function ReplayPage() {
 
               {showTools && (
                 <div className="form-group">
-                  <label>Tools (JSON)</label>
+                  <label>
+                    Tools
+                    <span className="text-muted text-xs ml-sm">(JSON array of tool definitions)</span>
+                  </label>
                   <textarea
                     value={toolsJson}
                     onChange={(e) => setToolsJson(e.target.value)}
                     className="form-textarea font-mono"
                     rows={8}
                     spellCheck={false}
+                    placeholder='[{"type": "function", "function": {...}}]'
                   />
                 </div>
               )}
@@ -418,24 +426,30 @@ export default function ReplayPage() {
         <div className="replay-response">
           <div className="card">
             <div className="card-header">
-              <h3>Response</h3>
-              {response?.parsed?.usage && (
-                <span className="text-muted text-sm">
-                  {response.parsed.usage.total_tokens} tokens
-                </span>
-              )}
+              <h3>
+                Response
+                {response?.parsed?.usage && (
+                  <span className="token-usage ml-sm">
+                    <span className="token-usage-value">{response.parsed.usage.total_tokens}</span>
+                    <span className="token-usage-label">tokens</span>
+                  </span>
+                )}
+              </h3>
             </div>
             <div className="card-content">
               {!response && !responseError && !sending && (
-                <div className="text-muted text-center py-xl">
-                  Send a replay request to see the response here
+                <div className="response-empty-state">
+                  <div className="response-empty-icon">↻</div>
+                  <div className="response-empty-text">
+                    Edit the request parameters and click "Send Replay" to see the response here
+                  </div>
                 </div>
               )}
 
               {sending && (
-                <div className="loading">
+                <div className="response-loading">
                   <div className="loading-spinner"></div>
-                  Waiting for response...
+                  <div className="response-loading-text">Waiting for response...</div>
                 </div>
               )}
 
@@ -449,16 +463,20 @@ export default function ReplayPage() {
               {response && (
                 <div className="response-content">
                   {/* Response metadata */}
-                  <div className="response-meta mb-md">
-                    <span className="badge">{response.parsed?.model}</span>
+                  <div className="response-meta">
+                    <span className="badge badge-success">{response.parsed?.model}</span>
                     {response.parsed?.finish_reason && (
                       <span className="badge badge-secondary">
                         {response.parsed.finish_reason}
                       </span>
                     )}
                     {response.parsed?.usage && (
-                      <span className="text-muted text-sm">
-                        {response.parsed.usage.prompt_tokens} in / {response.parsed.usage.completion_tokens} out
+                      <span className="token-usage">
+                        <span className="token-usage-value">{response.parsed.usage.prompt_tokens}</span>
+                        <span className="token-usage-label">in</span>
+                        <span>/</span>
+                        <span className="token-usage-value">{response.parsed.usage.completion_tokens}</span>
+                        <span className="token-usage-label">out</span>
                       </span>
                     )}
                   </div>
@@ -486,10 +504,8 @@ export default function ReplayPage() {
 
                   {/* Raw response toggle */}
                   <details className="mt-lg">
-                    <summary className="text-muted text-sm cursor-pointer">
-                      Show raw response
-                    </summary>
-                    <pre className="monospace-content mt-sm">
+                    <summary>Show raw response</summary>
+                    <pre className="monospace-content">
                       {JSON.stringify(response.raw_response, null, 2)}
                     </pre>
                   </details>
