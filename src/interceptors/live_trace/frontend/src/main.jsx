@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard'
 import SessionPage from './components/SessionPage'
 import AgentPage from './components/AgentPage'
 import AgentReportPage from './components/AgentReportPage'
+import ReplayPage from './components/ReplayPage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/session/:sessionId" element={<SessionPage />} />
         <Route path="/agent/:agentId" element={<AgentPage />} />
         <Route path="/agent/:agentId/report" element={<AgentReportPage />} />
+        <Route path="/replay/:sessionId/:eventId" element={<ReplayPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

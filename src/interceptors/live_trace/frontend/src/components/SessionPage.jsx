@@ -148,7 +148,7 @@ export default function SessionPage() {
               </div>
               <div className="card-content">
                 {data.timeline && data.timeline.length > 0 ? (
-                  <Timeline timeline={data.timeline} />
+                  <Timeline timeline={data.timeline} sessionId={sessionId} />
                 ) : (
                   <div className="loading text-muted">
                     <p>No events found for this session.</p>
