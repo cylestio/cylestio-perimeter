@@ -129,8 +129,11 @@ function renderLLMCallStart(details) {
   const lastMessage = messages[messages.length - 1]
   const content = lastMessage.content || ''
 
-  if (typeof content === 'string') {
-    const truncated = content.length > 500 ? content.substring(0, 500) + '...' : content
+  // Extract text content - handles both string and Anthropic content blocks array
+  const textContent = extractTextContent(content)
+
+  if (textContent) {
+    const truncated = textContent.length > 500 ? textContent.substring(0, 500) + '...' : textContent
     return (
       <div className="mt-md text-sm text-primary" style={{
         whiteSpace: 'pre-wrap',
@@ -140,11 +143,70 @@ function renderLLMCallStart(details) {
         {truncated}
       </div>
     )
-  } else {
-    const contentStr = JSON.stringify(content, null, 2)
-    const truncated = contentStr.length > 400 ? contentStr.substring(0, 400) + '...' : contentStr
-    return <div className="monospace-content">{truncated}</div>
   }
+
+  // Fallback for complex content that couldn't be extracted as text
+  const contentStr = JSON.stringify(content, null, 2)
+  const truncated = contentStr.length > 400 ? contentStr.substring(0, 400) + '...' : contentStr
+  return <div className="monospace-content">{truncated}</div>
+}
+
+// Helper to recursively extract text from various Anthropic content formats
+// Handles: string, text blocks, tool_use blocks, tool_result blocks (with nested content)
+function extractTextContent(content) {
+  // Simple string content
+  if (typeof content === 'string') {
+    return content
+  }
+
+  // Null or undefined
+  if (!content) {
+    return null
+  }
+
+  // Array of content blocks
+  if (Array.isArray(content)) {
+    const textParts = []
+
+    for (const block of content) {
+      if (!block) continue
+
+      // Text block: {"type": "text", "text": "..."}
+      if (block.type === 'text' && block.text) {
+        textParts.push(block.text)
+      }
+      // Tool use block: {"type": "tool_use", "name": "...", "input": {...}}
+      // Show as a summary rather than raw JSON
+      else if (block.type === 'tool_use' && block.name) {
+        textParts.push(`[Calling tool: ${block.name}]`)
+      }
+      // Tool result block: {"type": "tool_result", "content": [...], ...}
+      // Has nested content array that needs recursive extraction
+      else if (block.type === 'tool_result') {
+        if (block.content) {
+          const nestedText = extractTextContent(block.content)
+          if (nestedText) {
+            textParts.push(`[Tool result]: ${nestedText}`)
+          }
+        }
+      }
+      // Fallback: block with direct text property
+      else if (block.text) {
+        textParts.push(block.text)
+      }
+    }
+
+    if (textParts.length > 0) {
+      return textParts.join('\n\n')
+    }
+  }
+
+  // Single object with text property
+  if (typeof content === 'object' && content.text) {
+    return content.text
+  }
+
+  return null
 }
 
 function renderLLMCallFinish(details) {
