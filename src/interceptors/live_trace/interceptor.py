@@ -74,7 +74,8 @@ class LiveTraceInterceptor(BaseInterceptor):
             "provider_base_url": self.provider_config.get("base_url", "unknown"),
             "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
             "proxy_port": self.provider_config.get("proxy_port", 3000),
-            "enable_presidio": self.enable_presidio
+            "enable_presidio": self.enable_presidio,
+            "api_key": self.provider_config.get("api_key"),
         }
         self.insights = InsightsEngine(self.store, proxy_config)
 
