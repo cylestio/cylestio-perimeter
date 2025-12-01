@@ -61,7 +61,9 @@ class SessionDetectionUtility:
         # Thread-safe session storage
         self._lock = RLock()
         self._sessions: OrderedDict[str, SessionRecord] = OrderedDict()
-        self._signature_to_session: Dict[str, str] = {}  # signature -> session_id
+        # Multi-mapping: signature -> list of session_ids (most recent last)
+        # This handles concurrent sessions with identical content
+        self._signature_to_sessions: Dict[str, List[str]] = {}
         
         # Metrics
         self._metrics = {
@@ -81,9 +83,9 @@ class SessionDetectionUtility:
         """Detect session from message history using hash-based lookup.
         
         This method implements a hash-based session detection algorithm:
-        1. For first messages, create a new session
-        2. For continuing conversations, look up previous conversation state
-        3. Update existing session with new conversation state
+        1. Always try to find an existing session first (by looking up previous state)
+        2. If found, continue that session
+        3. If not found, create a new session (flagged as fragmented if it looks like a continuation)
         
         Args:
             messages: List of message dictionaries
@@ -100,20 +102,21 @@ class SessionDetectionUtility:
         with self._lock:
             self._cleanup_expired_sessions()
             
-            # Handle first message case
-            is_first = self._is_first_message(messages)
-            
-            if is_first:
-                return self._create_new_session(messages, system_prompt, metadata, is_fragmented=False)
-            
-            # Try to find existing session for continuing conversation
+            # Always try to find existing session FIRST
+            # This handles cases like [user, assistant] where we should continue
+            # the session that was created for [user]
             existing_session_id = self._find_existing_session(messages, system_prompt)
             
             if existing_session_id:
                 return self._continue_existing_session(existing_session_id, messages, system_prompt)
             
-            # No existing session found, create new one (this is fragmentation)
-            return self._create_new_session(messages, system_prompt, metadata, is_fragmented=True)
+            # No existing session found - determine if this is expected (new conversation)
+            # or unexpected (fragmentation - looks like a continuation but no match)
+            is_first = self._is_first_message(messages)
+            
+            # If is_first is True, this is genuinely a new conversation
+            # If is_first is False, we expected to find a session but didn't (fragmentation)
+            return self._create_new_session(messages, system_prompt, metadata, is_fragmented=not is_first)
     
     def get_session_info(self, session_id: str) -> Optional[SessionRecord]:
         """Get information about a session.
@@ -207,14 +210,55 @@ class SessionDetectionUtility:
         messages: List[Dict[str, Any]], 
         system_prompt: Optional[str]
     ) -> Optional[str]:
-        """Find existing session by looking up previous conversation state."""
+        """Find existing session by looking up previous conversation state.
+        
+        When multiple sessions share the same signature (concurrent identical starts),
+        we need to find the right one. Strategy:
+        1. Look up all sessions with matching previous-state signature
+        2. Prefer sessions whose CURRENT signature matches the lookup (haven't progressed yet)
+        3. Among those, return the oldest one (FIFO order for fairness)
+        """
         previous_messages = self._get_messages_without_last_exchange(messages)
         
         if not previous_messages:
             return None
         
         lookup_signature = self._compute_signature(previous_messages, system_prompt)
-        return self._signature_to_session.get(lookup_signature)
+        session_ids = self._signature_to_sessions.get(lookup_signature, [])
+        
+        if not session_ids:
+            return None
+        
+        # First pass: find sessions still at the lookup state (haven't progressed)
+        # These are sessions whose current signature matches the lookup signature
+        sessions_at_state = []
+        sessions_progressed = []
+        
+        for session_id in session_ids:
+            if session_id not in self._sessions:
+                continue
+            session_info = self._sessions[session_id]
+            if session_info.signature == lookup_signature:
+                # Session is still at this exact state
+                sessions_at_state.append(session_id)
+            else:
+                # Session has progressed past this state
+                sessions_progressed.append(session_id)
+        
+        # Return the oldest session that's still at the lookup state (FIFO)
+        # This ensures fair ordering when multiple concurrent sessions start identically
+        if sessions_at_state:
+            return sessions_at_state[0]
+        
+        # Fallback: return the most recently created progressed session
+        # This handles cases where a session has already been updated but we're
+        # receiving a delayed/repeated request for an earlier state.
+        # We prefer newer sessions because older ones are more likely to be
+        # from different conversations that have moved on.
+        if sessions_progressed:
+            return sessions_progressed[-1]  # Most recent
+        
+        return None
     
     def _continue_existing_session(
         self, 
@@ -311,10 +355,9 @@ class SessionDetectionUtility:
         """
         # Enforce max sessions limit (LRU eviction)
         if len(self._sessions) >= self.max_sessions:
-            # Remove oldest session and clean up signature mapping
+            # Remove oldest session and clean up its signature mappings from lists
             oldest_id, oldest_info = self._sessions.popitem(last=False)
-            if oldest_info.signature in self._signature_to_session:
-                del self._signature_to_session[oldest_info.signature]
+            self._remove_session_from_signature_maps(oldest_id)
             logger.debug(f"Evicted oldest session: {oldest_id[:8]}")
         
         # Create session info
@@ -332,7 +375,12 @@ class SessionDetectionUtility:
         
         # Store session
         self._sessions[session_id] = session_info
-        self._signature_to_session[signature] = session_id
+        
+        # Add to signature multi-mapping (append to list, don't overwrite)
+        if signature not in self._signature_to_sessions:
+            self._signature_to_sessions[signature] = []
+        self._signature_to_sessions[signature].append(session_id)
+        
         self._metrics["sessions_created"] += 1
     
     def _cleanup_expired_sessions(self):
@@ -345,11 +393,50 @@ class SessionDetectionUtility:
                 expired_sessions.append(session_id)
         
         for session_id in expired_sessions:
-            session_info = self._sessions.pop(session_id)
-            if session_info.signature in self._signature_to_session:
-                del self._signature_to_session[session_info.signature]
+            self._sessions.pop(session_id)
+            
+            # Remove this session from all signature mappings
+            self._remove_session_from_signature_maps(session_id)
+            
             self._metrics["sessions_expired"] += 1
             logger.debug(f"Expired session: {session_id[:8]}")
+    
+    def _remove_session_from_signature_maps(self, session_id: str):
+        """Remove a session from all signature multi-mappings.
+        
+        Args:
+            session_id: Session identifier to remove
+        """
+        # Find all signatures that contain this session and remove it
+        empty_signatures = []
+        for sig, session_ids in self._signature_to_sessions.items():
+            if session_id in session_ids:
+                session_ids.remove(session_id)
+                if not session_ids:
+                    empty_signatures.append(sig)
+        
+        # Clean up empty signature entries
+        for sig in empty_signatures:
+            del self._signature_to_sessions[sig]
+    
+    def _is_llm_message(self, msg: Dict[str, Any]) -> bool:
+        """Check if a message is LLM-initiated (assistant response or function call).
+        
+        LLM messages include:
+        - assistant responses (role: assistant)
+        - function calls (type: function_call) - OpenAI Responses API format
+        """
+        role = msg.get('role')
+        msg_type = msg.get('type')
+        
+        if role == 'assistant':
+            return True
+        
+        # OpenAI Responses API format for tool calls
+        if msg_type == 'function_call':
+            return True
+        
+        return False
     
     def _get_messages_without_last_exchange(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Get messages representing the previous conversation state.
@@ -359,14 +446,15 @@ class SessionDetectionUtility:
         - The assistant's response from the previous request
         - Any tool results for tools that assistant requested
         
-        So to find the "previous state", we return everything BEFORE the last assistant message.
+        So to find the "previous state", we return everything BEFORE the last LLM message.
         This works correctly even when multiple tool results are submitted at once.
         
         Examples:
-        - [sys, user] → [] (no assistant yet, this is first message)
+        - [sys, user] → [] (no LLM response yet, this is first message)
         - [sys, user, asst] → [sys, user] (before the assistant)
         - [sys, user, asst, tool] → [sys, user] (before the assistant that triggered tool)
         - [sys, user, asst, tool, asst, tool*4] → [sys, user, asst, tool] (before last assistant)
+        - [user, function_call, function_call_output] → [user] (OpenAI Responses API format)
         
         Args:
             messages: List of messages
@@ -377,20 +465,20 @@ class SessionDetectionUtility:
         if len(messages) <= 1:
             return []
         
-        # Find the index of the LAST assistant message
+        # Find the index of the LAST LLM message (assistant or function_call)
         # Everything before it represents the previous stored state
-        last_assistant_index = -1
+        last_llm_index = -1
         for i in range(len(messages) - 1, -1, -1):
-            if messages[i].get('role') == 'assistant':
-                last_assistant_index = i
+            if self._is_llm_message(messages[i]):
+                last_llm_index = i
                 break
         
-        if last_assistant_index <= 0:
-            # No assistant message or assistant is first message - no previous state
+        if last_llm_index <= 0:
+            # No LLM message or LLM message is first - no previous state
             return []
         
-        # Return everything before the last assistant message
-        return messages[:last_assistant_index]
+        # Return everything before the last LLM message
+        return messages[:last_llm_index]
     
     def _trim_to_last_client_message(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Trim messages to end at the last client message.
@@ -428,6 +516,12 @@ class SessionDetectionUtility:
     def _update_session_signature(self, session_id: str, new_signature: str, message_count: int):
         """Update a session's signature and message count.
         
+        Note: We keep OLD signature mappings so that lookups from intermediate 
+        conversation states still find this session. For example, if we have:
+        - [user] → session A
+        - [user, asst] → continues A, adds new signature
+        - [user, asst, tool] → should still find A via hash([user]) lookup
+        
         Args:
             session_id: Session identifier
             new_signature: New signature to set
@@ -437,17 +531,21 @@ class SessionDetectionUtility:
             return
         
         session_info = self._sessions[session_id]
-        old_signature = session_info.signature
         
-        # Remove old signature mapping
-        if old_signature in self._signature_to_session:
-            del self._signature_to_session[old_signature]
+        # DON'T remove old signature - keep it as a valid lookup path
+        # This allows intermediate states to still find this session
+        # Old signatures will be cleaned up when the session expires
         
-        # Update signature, message count, and access time
+        # Update the session's current signature, message count, and access time
         session_info.signature = new_signature
         session_info.message_count = message_count
         session_info.last_accessed = datetime.utcnow()
-        self._signature_to_session[new_signature] = session_id
+        
+        # Add new signature mapping (append to list if not already present)
+        if new_signature not in self._signature_to_sessions:
+            self._signature_to_sessions[new_signature] = []
+        if session_id not in self._signature_to_sessions[new_signature]:
+            self._signature_to_sessions[new_signature].append(session_id)
         
         # Move to end of OrderedDict to maintain LRU order
         self._sessions.move_to_end(session_id)
