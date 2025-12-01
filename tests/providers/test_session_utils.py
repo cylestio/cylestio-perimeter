@@ -417,3 +417,415 @@ def test_math_assistant_conversation():
     # Test fragmentation detection doesn't happen for valid cases
     metrics = detector.get_metrics()
     assert metrics["sessions_fragmented"] == 0
+
+
+def test_intermediate_states_multiple_tool_calls():
+    """Test that intermediate conversation states don't break session continuity.
+    
+    This is a regression test for a bug where adding messages incrementally
+    (like [user] -> [user, assistant] -> [user, assistant, tool]) would create
+    new sessions at intermediate states instead of continuing the existing session.
+    
+    The bug was caused by:
+    1. _is_first_message being checked before _find_existing_session
+    2. Old signature mappings being deleted when updating session signatures
+    3. Not recognizing OpenAI Responses API format (type: function_call)
+    """
+    detector = SessionDetectionUtility()
+    
+    # Simulate a conversation with multiple tool calls, adding messages incrementally
+    # This mimics how broadcast_conversation works and tests intermediate states
+    
+    # Step 1: User asks a question
+    messages = [{"role": "user", "content": "Calculate 25 + 17, then multiply by 2"}]
+    session_id1, is_new1, is_fragmented1, _ = detector.detect_session(messages)
+    assert is_new1 is True
+    assert is_fragmented1 is False
+    
+    # Step 2: Assistant responds with first tool call
+    # BUG FIX: This used to create a new session because is_first_message returned True
+    messages = [
+        {"role": "user", "content": "Calculate 25 + 17, then multiply by 2"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_add", "function": {"name": "add", "arguments": '{"a": 25, "b": 17}'}}
+        ]}
+    ]
+    session_id2, is_new2, is_fragmented2, _ = detector.detect_session(messages)
+    assert is_new2 is False, "Adding assistant message should continue existing session"
+    assert is_fragmented2 is False
+    assert session_id2 == session_id1, "Session should be same after assistant response"
+    
+    # Step 3: Tool result for first calculation
+    messages = [
+        {"role": "user", "content": "Calculate 25 + 17, then multiply by 2"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_add", "function": {"name": "add", "arguments": '{"a": 25, "b": 17}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_add", "content": "42"}
+    ]
+    session_id3, is_new3, is_fragmented3, _ = detector.detect_session(messages)
+    assert is_new3 is False
+    assert is_fragmented3 is False
+    assert session_id3 == session_id1, "Session should be same after tool result"
+    
+    # Step 4: Assistant responds with second tool call
+    messages = [
+        {"role": "user", "content": "Calculate 25 + 17, then multiply by 2"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_add", "function": {"name": "add", "arguments": '{"a": 25, "b": 17}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_add", "content": "42"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_multiply", "function": {"name": "multiply", "arguments": '{"a": 42, "b": 2}'}}
+        ]}
+    ]
+    session_id4, is_new4, is_fragmented4, _ = detector.detect_session(messages)
+    assert is_new4 is False
+    assert is_fragmented4 is False
+    assert session_id4 == session_id1, "Session should be same after second tool call"
+    
+    # Step 5: Tool result for second calculation
+    messages = [
+        {"role": "user", "content": "Calculate 25 + 17, then multiply by 2"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_add", "function": {"name": "add", "arguments": '{"a": 25, "b": 17}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_add", "content": "42"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_multiply", "function": {"name": "multiply", "arguments": '{"a": 42, "b": 2}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_multiply", "content": "84"}
+    ]
+    session_id5, is_new5, is_fragmented5, _ = detector.detect_session(messages)
+    assert is_new5 is False
+    assert is_fragmented5 is False
+    assert session_id5 == session_id1, "Session should be same after second tool result"
+    
+    # Step 6: Final assistant response
+    messages = [
+        {"role": "user", "content": "Calculate 25 + 17, then multiply by 2"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_add", "function": {"name": "add", "arguments": '{"a": 25, "b": 17}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_add", "content": "42"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_multiply", "function": {"name": "multiply", "arguments": '{"a": 42, "b": 2}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_multiply", "content": "84"},
+        {"role": "assistant", "content": "25 + 17 = 42, and 42 × 2 = 84. The final answer is 84!"}
+    ]
+    session_id6, is_new6, is_fragmented6, _ = detector.detect_session(messages)
+    assert is_new6 is False
+    assert is_fragmented6 is False
+    assert session_id6 == session_id1, "Session should be same after final response"
+    
+    # Step 7: User asks follow-up question
+    messages = [
+        {"role": "user", "content": "Calculate 25 + 17, then multiply by 2"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_add", "function": {"name": "add", "arguments": '{"a": 25, "b": 17}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_add", "content": "42"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_multiply", "function": {"name": "multiply", "arguments": '{"a": 42, "b": 2}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_multiply", "content": "84"},
+        {"role": "assistant", "content": "25 + 17 = 42, and 42 × 2 = 84. The final answer is 84!"},
+        {"role": "user", "content": "Now divide that by 4"}
+    ]
+    session_id7, is_new7, is_fragmented7, _ = detector.detect_session(messages)
+    assert is_new7 is False
+    assert is_fragmented7 is False
+    assert session_id7 == session_id1, "Session should be same for follow-up question"
+    
+    # Verify no fragmentation occurred
+    metrics = detector.get_metrics()
+    assert metrics["sessions_fragmented"] == 0, "No sessions should be fragmented"
+    assert metrics["sessions_created"] == 1, "Only one session should have been created"
+
+
+def test_openai_responses_api_multiple_tool_calls():
+    """Test session continuity with OpenAI Responses API format and multiple tool calls.
+    
+    This is a regression test for a bug where the Responses API format (using
+    `type: "function_call"` instead of `role: "assistant"`) wasn't recognized
+    as an LLM-initiated message, causing session continuity to break.
+    
+    The Responses API format differs from Chat Completions:
+    - Tool calls use `type: "function_call"` with `id`, `name`, `arguments`
+    - Tool results use `type: "function_call_output"` with `call_id`, `output`
+    - Assistant messages may use content arrays with `type: "output_text"`
+    """
+    detector = SessionDetectionUtility()
+    
+    # Step 1: User asks a multi-step question
+    messages = [{"role": "user", "content": "What's 25 + 17, then multiply by 2?"}]
+    session_id1, is_new1, is_fragmented1, _ = detector.detect_session(messages)
+    assert is_new1 is True
+    assert is_fragmented1 is False
+    
+    # Step 2: First function call (Responses API format)
+    messages = [
+        {"role": "user", "content": "What's 25 + 17, then multiply by 2?"},
+        {
+            "type": "function_call",
+            "id": "call_add_123",
+            "name": "add",
+            "arguments": '{"a": 25, "b": 17}'
+        }
+    ]
+    session_id2, is_new2, is_fragmented2, _ = detector.detect_session(messages)
+    assert is_new2 is False, "function_call should continue existing session"
+    assert is_fragmented2 is False
+    assert session_id2 == session_id1
+    
+    # Step 3: First function output
+    messages = [
+        {"role": "user", "content": "What's 25 + 17, then multiply by 2?"},
+        {
+            "type": "function_call",
+            "id": "call_add_123",
+            "name": "add",
+            "arguments": '{"a": 25, "b": 17}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_add_123",
+            "output": "42"
+        }
+    ]
+    session_id3, is_new3, is_fragmented3, _ = detector.detect_session(messages)
+    assert is_new3 is False
+    assert is_fragmented3 is False
+    assert session_id3 == session_id1
+    
+    # Step 4: Second function call
+    messages = [
+        {"role": "user", "content": "What's 25 + 17, then multiply by 2?"},
+        {
+            "type": "function_call",
+            "id": "call_add_123",
+            "name": "add",
+            "arguments": '{"a": 25, "b": 17}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_add_123",
+            "output": "42"
+        },
+        {
+            "type": "function_call",
+            "id": "call_multiply_456",
+            "name": "multiply",
+            "arguments": '{"a": 42, "b": 2}'
+        }
+    ]
+    session_id4, is_new4, is_fragmented4, _ = detector.detect_session(messages)
+    assert is_new4 is False, "Second function_call should continue session"
+    assert is_fragmented4 is False
+    assert session_id4 == session_id1
+    
+    # Step 5: Second function output
+    messages = [
+        {"role": "user", "content": "What's 25 + 17, then multiply by 2?"},
+        {
+            "type": "function_call",
+            "id": "call_add_123",
+            "name": "add",
+            "arguments": '{"a": 25, "b": 17}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_add_123",
+            "output": "42"
+        },
+        {
+            "type": "function_call",
+            "id": "call_multiply_456",
+            "name": "multiply",
+            "arguments": '{"a": 42, "b": 2}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_multiply_456",
+            "output": "84"
+        }
+    ]
+    session_id5, is_new5, is_fragmented5, _ = detector.detect_session(messages)
+    assert is_new5 is False
+    assert is_fragmented5 is False
+    assert session_id5 == session_id1
+    
+    # Step 6: Final assistant response (Responses API style with content array)
+    messages = [
+        {"role": "user", "content": "What's 25 + 17, then multiply by 2?"},
+        {
+            "type": "function_call",
+            "id": "call_add_123",
+            "name": "add",
+            "arguments": '{"a": 25, "b": 17}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_add_123",
+            "output": "42"
+        },
+        {
+            "type": "function_call",
+            "id": "call_multiply_456",
+            "name": "multiply",
+            "arguments": '{"a": 42, "b": 2}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_multiply_456",
+            "output": "84"
+        },
+        {
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "25 + 17 = 42, and 42 × 2 = 84!"}]
+        }
+    ]
+    session_id6, is_new6, is_fragmented6, _ = detector.detect_session(messages)
+    assert is_new6 is False
+    assert is_fragmented6 is False
+    assert session_id6 == session_id1
+    
+    # Step 7: User follow-up
+    messages = [
+        {"role": "user", "content": "What's 25 + 17, then multiply by 2?"},
+        {
+            "type": "function_call",
+            "id": "call_add_123",
+            "name": "add",
+            "arguments": '{"a": 25, "b": 17}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_add_123",
+            "output": "42"
+        },
+        {
+            "type": "function_call",
+            "id": "call_multiply_456",
+            "name": "multiply",
+            "arguments": '{"a": 42, "b": 2}'
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_multiply_456",
+            "output": "84"
+        },
+        {
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "25 + 17 = 42, and 42 × 2 = 84!"}]
+        },
+        {"role": "user", "content": "Now divide that by 4"}
+    ]
+    session_id7, is_new7, is_fragmented7, _ = detector.detect_session(messages)
+    assert is_new7 is False
+    assert is_fragmented7 is False
+    assert session_id7 == session_id1
+    
+    # Verify no fragmentation and only one session created
+    metrics = detector.get_metrics()
+    assert metrics["sessions_fragmented"] == 0, "No sessions should be fragmented"
+    assert metrics["sessions_created"] == 1, "Only one session should have been created"
+
+
+def test_concurrent_identical_sessions():
+    """Test that concurrent sessions with identical initial messages stay separate.
+    
+    This is a regression test for a bug where two sessions starting with the exact
+    same content would conflict:
+    1. Session A starts with [system, user: "Calculate sqrt(144)"]
+    2. Session B starts with [system, user: "Calculate sqrt(144)"] (identical!)
+    3. Session B's signature overwrites Session A's mapping
+    4. When Session A continues, it incorrectly finds Session B
+    
+    The fix uses multi-mapping (signature -> list of sessions) so both sessions
+    can coexist with the same initial signature.
+    """
+    detector = SessionDetectionUtility()
+    
+    # Common system prompt
+    system_prompt = "You are a math assistant."
+    
+    # Both sessions start with identical messages
+    initial_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Calculate the square root of 144"}
+    ]
+    
+    # Session A starts
+    session_a_id, is_new_a, _, _ = detector.detect_session(initial_messages, system_prompt)
+    assert is_new_a is True, "Session A should be new"
+    
+    # Session B starts (identical content!)
+    session_b_id, is_new_b, _, _ = detector.detect_session(initial_messages, system_prompt)
+    assert is_new_b is True, "Session B should also be new"
+    assert session_a_id != session_b_id, "Sessions should have different IDs"
+    
+    # Session A continues with tool result
+    session_a_continued = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Calculate the square root of 144"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_a", "function": {"name": "sqrt", "arguments": '{"n": 144}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_a", "content": "12.0"}
+    ]
+    session_a_id_2, is_new_a2, _, _ = detector.detect_session(session_a_continued, system_prompt)
+    assert is_new_a2 is False, "Session A should continue"
+    assert session_a_id_2 == session_a_id, "Should find Session A, not B"
+    
+    # Session B continues with its own tool result
+    session_b_continued = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Calculate the square root of 144"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_b", "function": {"name": "sqrt", "arguments": '{"n": 144}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_b", "content": "12.0"}
+    ]
+    session_b_id_2, is_new_b2, _, _ = detector.detect_session(session_b_continued, system_prompt)
+    assert is_new_b2 is False, "Session B should continue"
+    assert session_b_id_2 == session_b_id, "Should find Session B, not A"
+    
+    # Both sessions should still exist and be distinct
+    assert session_a_id != session_b_id
+    
+    # Session A asks follow-up
+    session_a_followup = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Calculate the square root of 144"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_a", "function": {"name": "sqrt", "arguments": '{"n": 144}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_a", "content": "12.0"},
+        {"role": "assistant", "content": "The square root of 144 is 12."},
+        {"role": "user", "content": "Now calculate sqrt(36)"}
+    ]
+    session_a_id_3, is_new_a3, _, _ = detector.detect_session(session_a_followup, system_prompt)
+    assert is_new_a3 is False, "Session A should continue for follow-up"
+    assert session_a_id_3 == session_a_id, "Should still be Session A"
+    
+    # Session B asks different follow-up  
+    session_b_followup = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": "Calculate the square root of 144"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "call_b", "function": {"name": "sqrt", "arguments": '{"n": 144}'}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_b", "content": "12.0"},
+        {"role": "assistant", "content": "The square root of 144 is 12."},
+        {"role": "user", "content": "Now calculate sqrt(49)"}
+    ]
+    session_b_id_3, is_new_b3, _, _ = detector.detect_session(session_b_followup, system_prompt)
+    assert is_new_b3 is False, "Session B should continue for follow-up"
+    assert session_b_id_3 == session_b_id, "Should still be Session B"
+    
+    # Verify correct number of sessions created
+    metrics = detector.get_metrics()
+    assert metrics["sessions_created"] == 2, "Exactly 2 sessions should have been created"
+    assert metrics["sessions_fragmented"] == 0, "No fragmentation should occur"
