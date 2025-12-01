@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Tooltip from './Tooltip'
 import JsonEditor from './JsonEditor'
+import ModelCombobox from './ModelCombobox'
 
 export default function ReplayPage() {
   const { sessionId, eventId } = useParams()
@@ -12,6 +13,7 @@ export default function ReplayPage() {
 
   // Replay config state
   const [replayConfig, setReplayConfig] = useState(null)
+  const [modelsData, setModelsData] = useState(null)
 
   // Form state
   const [provider, setProvider] = useState('openai')
@@ -35,14 +37,27 @@ export default function ReplayPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch session data and replay config in parallel
-        const [sessionRes, configRes] = await Promise.all([
+        // Fetch session data, replay config, and models in parallel
+        const [sessionRes, configRes, modelsRes] = await Promise.all([
           fetch(`/api/session/${sessionId}`),
-          fetch('/api/replay/config')
+          fetch('/api/replay/config'),
+          fetch('/api/models')
         ])
 
         const sessionData = await sessionRes.json()
         const configData = await configRes.json()
+
+        // Models endpoint is optional - don't fail if it's not available
+        if (modelsRes.ok) {
+          try {
+            const modelsJson = await modelsRes.json()
+            if (!modelsJson.error) {
+              setModelsData(modelsJson)
+            }
+          } catch {
+            // Ignore models fetch errors - feature degrades gracefully
+          }
+        }
 
         if (sessionData.error) {
           setError(sessionData.error)
@@ -308,12 +323,11 @@ export default function ReplayPage() {
               <div className="form-row">
                 <div className="form-group flex-1">
                   <label>Model</label>
-                  <input
-                    type="text"
+                  <ModelCombobox
                     value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="form-input"
-                    placeholder="gpt-4, claude-3-opus, etc."
+                    onChange={setModel}
+                    models={modelsData?.models?.[provider] || []}
+                    provider={provider}
                   />
                 </div>
                 <div className="form-group">
@@ -448,16 +462,45 @@ export default function ReplayPage() {
                         {response.parsed.finish_reason}
                       </span>
                     )}
-                    {response.parsed?.usage && (
-                      <span className="token-usage">
-                        <span className="token-usage-value">{response.parsed.usage.prompt_tokens}</span>
-                        <span className="token-usage-label">in</span>
-                        <span>/</span>
-                        <span className="token-usage-value">{response.parsed.usage.completion_tokens}</span>
-                        <span className="token-usage-label">out</span>
+                    {response.elapsed_ms && (
+                      <span className="response-time-badge">
+                        {response.elapsed_ms >= 1000
+                          ? `${(response.elapsed_ms / 1000).toFixed(2)}s`
+                          : `${Math.round(response.elapsed_ms)}ms`}
+                      </span>
+                    )}
+                    {response.cost?.total > 0 && (
+                      <span className="response-cost-badge">
+                        ${response.cost.total < 0.01
+                          ? response.cost.total.toFixed(4)
+                          : response.cost.total.toFixed(3)}
                       </span>
                     )}
                   </div>
+
+                  {/* Token usage and cost breakdown */}
+                  {response.parsed?.usage && (
+                    <div className="response-stats">
+                      <div className="response-stat">
+                        <span className="response-stat-label">Input</span>
+                        <span className="response-stat-value">
+                          {(response.parsed.usage.prompt_tokens || response.parsed.usage.input_tokens || 0).toLocaleString()} tokens
+                          {response.cost?.input > 0 && (
+                            <span className="response-stat-cost"> (${response.cost.input.toFixed(4)})</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="response-stat">
+                        <span className="response-stat-label">Output</span>
+                        <span className="response-stat-value">
+                          {(response.parsed.usage.completion_tokens || response.parsed.usage.output_tokens || 0).toLocaleString()} tokens
+                          {response.cost?.output > 0 && (
+                            <span className="response-stat-cost"> (${response.cost.output.toFixed(4)})</span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Response content */}
                   {response.parsed?.content?.map((item, idx) => (
