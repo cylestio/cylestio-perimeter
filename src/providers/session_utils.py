@@ -101,11 +101,14 @@ class SessionDetectionUtility:
             self._cleanup_expired_sessions()
             
             # Handle first message case
-            if self._is_first_message(messages):
+            is_first = self._is_first_message(messages)
+            
+            if is_first:
                 return self._create_new_session(messages, system_prompt, metadata, is_fragmented=False)
             
             # Try to find existing session for continuing conversation
             existing_session_id = self._find_existing_session(messages, system_prompt)
+            
             if existing_session_id:
                 return self._continue_existing_session(existing_session_id, messages, system_prompt)
             
@@ -206,13 +209,12 @@ class SessionDetectionUtility:
     ) -> Optional[str]:
         """Find existing session by looking up previous conversation state."""
         previous_messages = self._get_messages_without_last_exchange(messages)
+        
         if not previous_messages:
             return None
         
         lookup_signature = self._compute_signature(previous_messages, system_prompt)
-        session_id = self._signature_to_session.get(lookup_signature)
-        
-        return session_id
+        return self._signature_to_session.get(lookup_signature)
     
     def _continue_existing_session(
         self, 
@@ -262,8 +264,7 @@ class SessionDetectionUtility:
         
         # Create hash - using MD5 for consistency with providers
         signature_string = "|".join(sig_parts)
-        signature_hash = hashlib.md5(signature_string.encode()).hexdigest()
-        return signature_hash
+        return hashlib.md5(signature_string.encode()).hexdigest()
 
     def _extract_content_text(self, content: Any) -> str:
         """Safely extract text content from various content formats.
@@ -354,14 +355,18 @@ class SessionDetectionUtility:
         """Get messages representing the previous conversation state.
         
         This finds the conversation state that should match an existing session's signature.
-        If messages don't end with a client message, we first trim back to the last client message,
-        then apply the normal logic.
+        The key insight is that each LLM request adds:
+        - The assistant's response from the previous request
+        - Any tool results for tools that assistant requested
+        
+        So to find the "previous state", we return everything BEFORE the last assistant message.
+        This works correctly even when multiple tool results are submitted at once.
         
         Examples:
-        - [user1, assistant1, user2] → [user1] (to match original session with just user1)
-        - [user1, assistant1, user2, tool1, assistant2] → [user1, assistant1, user2] (trim to tool1, then get previous)
-        - [user1, assistant1, tool1] → [user1] (trim to tool1, then get previous)
-        - [user1] → [] (no previous state)
+        - [sys, user] → [] (no assistant yet, this is first message)
+        - [sys, user, asst] → [sys, user] (before the assistant)
+        - [sys, user, asst, tool] → [sys, user] (before the assistant that triggered tool)
+        - [sys, user, asst, tool, asst, tool*4] → [sys, user, asst, tool] (before last assistant)
         
         Args:
             messages: List of messages
@@ -372,31 +377,20 @@ class SessionDetectionUtility:
         if len(messages) <= 1:
             return []
         
-        # First, trim messages to end at the last client message if not already
-        trimmed_messages = self._trim_to_last_client_message(messages)
-        if len(trimmed_messages) <= 1:
+        # Find the index of the LAST assistant message
+        # Everything before it represents the previous stored state
+        last_assistant_index = -1
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get('role') == 'assistant':
+                last_assistant_index = i
+                break
+        
+        if last_assistant_index <= 0:
+            # No assistant message or assistant is first message - no previous state
             return []
         
-        # Find all client message indices in trimmed messages
-        client_indices = []
-        for i, msg in enumerate(trimmed_messages):
-            if self._is_client_message(msg):
-                client_indices.append(i)
-        
-        if len(client_indices) < 2:
-            # Only one client message - return everything up to that client message
-            # This allows matching against the previous conversation state
-            if client_indices:
-                return trimmed_messages[:client_indices[0] + 1]
-            return []
-        
-        # Get the second-to-last client message index
-        # This represents where the previous conversation state ended
-        second_last_client_index = client_indices[-2]
-        
-        # Return all messages up to and including the second-to-last client message
-        # This should match the signature when that client message was first processed
-        return trimmed_messages[:second_last_client_index + 1]
+        # Return everything before the last assistant message
+        return messages[:last_assistant_index]
     
     def _trim_to_last_client_message(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Trim messages to end at the last client message.
