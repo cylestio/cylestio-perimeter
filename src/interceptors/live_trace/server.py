@@ -1,5 +1,6 @@
 """FastAPI server for the live trace dashboard."""
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -127,6 +128,33 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting config: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/models")
+    async def api_models():
+        """Get available models with pricing information."""
+        try:
+            from .analysis.default_pricing import DEFAULT_PRICING_DATA
+            from .analysis.model_pricing import get_last_updated
+
+            models_by_provider = {}
+            for provider, models_dict in DEFAULT_PRICING_DATA["models"].items():
+                models_by_provider[provider] = [
+                    {
+                        "id": model_id,
+                        "name": model_info.get("description", model_id),
+                        "input": model_info.get("input", 0),
+                        "output": model_info.get("output", 0)
+                    }
+                    for model_id, model_info in models_dict.items()
+                ]
+
+            return JSONResponse({
+                "models": models_by_provider,
+                "last_updated": get_last_updated()
+            })
+        except Exception as e:
+            logger.error(f"Error getting models: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/replay/config")
     async def api_replay_config():
         """Get configuration for replay requests."""
@@ -229,9 +257,11 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             # Ensure stream is false for replay
             request_data["stream"] = False
 
-            # Send request to LLM
+            # Send request to LLM with timing
+            start_time = time.time()
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(url, json=request_data, headers=headers)
+                elapsed_ms = (time.time() - start_time) * 1000
 
                 if response.status_code != 200:
                     return JSONResponse({
@@ -240,6 +270,21 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     }, status_code=response.status_code)
 
                 llm_response = response.json()
+
+            # Calculate cost using model pricing
+            from .analysis.model_pricing import get_model_pricing
+            model_name = llm_response.get("model", request_data.get("model", ""))
+            input_price, output_price = get_model_pricing(model_name)
+
+            # Get token counts from usage
+            usage = llm_response.get("usage", {})
+            prompt_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+            completion_tokens = usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+
+            # Calculate cost (pricing is per 1M tokens)
+            input_cost = (prompt_tokens / 1_000_000) * input_price
+            output_cost = (completion_tokens / 1_000_000) * output_price
+            total_cost = input_cost + output_cost
 
             # Parse response based on provider
             if provider == "openai":
@@ -267,6 +312,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 return JSONResponse({
                     "provider": provider,
                     "raw_response": llm_response,
+                    "elapsed_ms": round(elapsed_ms, 2),
+                    "cost": {
+                        "input": round(input_cost, 6),
+                        "output": round(output_cost, 6),
+                        "total": round(total_cost, 6),
+                    },
                     "parsed": {
                         "content": content,
                         "tool_calls": tool_calls,
@@ -299,6 +350,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 return JSONResponse({
                     "provider": provider,
                     "raw_response": llm_response,
+                    "elapsed_ms": round(elapsed_ms, 2),
+                    "cost": {
+                        "input": round(input_cost, 6),
+                        "output": round(output_cost, 6),
+                        "total": round(total_cost, 6),
+                    },
                     "parsed": {
                         "content": content,
                         "tool_calls": tool_calls,
