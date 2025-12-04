@@ -30,6 +30,22 @@ const meta: Meta<typeof AgentCard> = {
       control: { type: 'select' },
       options: ['ok', 'evaluating'],
     },
+    stability: {
+      control: { type: 'number', min: 0, max: 100 },
+    },
+    predictability: {
+      control: { type: 'number', min: 0, max: 100 },
+    },
+    confidence: {
+      control: { type: 'select' },
+      options: ['high', 'medium', 'low'],
+    },
+    failedChecks: {
+      control: { type: 'number', min: 0 },
+    },
+    warnings: {
+      control: { type: 'number', min: 0 },
+    },
     onClick: { action: 'clicked' },
   },
 };
@@ -47,6 +63,9 @@ export const OK: Story = {
     totalTools: 55,
     lastSeen: '1d ago',
     riskStatus: 'ok',
+    stability: 85,
+    predictability: 92,
+    confidence: 'high',
     onClick: fn(),
   },
   play: async ({ canvas, args }) => {
@@ -63,9 +82,16 @@ export const OK: Story = {
     // Verify risk status badge
     await expect(canvas.getByText('OK')).toBeInTheDocument();
 
+    // Verify behavioral metrics
+    await expect(canvas.getByText('Stability')).toBeInTheDocument();
+    await expect(canvas.getByText('85%')).toBeInTheDocument();
+    await expect(canvas.getByText('Predictability')).toBeInTheDocument();
+    await expect(canvas.getByText('92%')).toBeInTheDocument();
+    await expect(canvas.getByText('Confidence')).toBeInTheDocument();
+    await expect(canvas.getByText('high')).toBeInTheDocument();
+
     // Verify stats
     await expect(canvas.getByText('12')).toBeInTheDocument();
-    await expect(canvas.getByText('0')).toBeInTheDocument();
     await expect(canvas.getByText('55')).toBeInTheDocument();
 
     // Verify last seen
@@ -141,6 +167,11 @@ export const ActionRequired: Story = {
     lastSeen: '3d ago',
     riskStatus: 'ok',
     hasCriticalFinding: true,
+    stability: 45,
+    predictability: 38,
+    confidence: 'low',
+    failedChecks: 3,
+    warnings: 5,
   },
   play: async ({ canvas }) => {
     // Verify card renders
@@ -148,5 +179,68 @@ export const ActionRequired: Story = {
 
     // Verify action required message
     await expect(canvas.getByText('⚠ Action required')).toBeInTheDocument();
+
+    // Verify low confidence badge
+    await expect(canvas.getByText('low')).toBeInTheDocument();
+
+    // Verify warnings display
+    await expect(canvas.getByText('⚠ 3 failed checks')).toBeInTheDocument();
+    await expect(canvas.getByText('⚠ 5 warnings')).toBeInTheDocument();
+  },
+};
+
+export const MediumConfidence: Story = {
+  args: {
+    id: 'analysis-agent-v2',
+    name: 'AnalysisAgent',
+    initials: 'AA',
+    totalSessions: 8,
+    totalErrors: 1,
+    totalTools: 22,
+    lastSeen: '5h ago',
+    riskStatus: 'ok',
+    stability: 72,
+    predictability: 68,
+    confidence: 'medium',
+    warnings: 2,
+  },
+  play: async ({ canvas }) => {
+    // Verify card renders
+    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+
+    // Verify medium confidence badge
+    await expect(canvas.getByText('medium')).toBeInTheDocument();
+
+    // Verify behavioral metrics
+    await expect(canvas.getByText('72%')).toBeInTheDocument();
+    await expect(canvas.getByText('68%')).toBeInTheDocument();
+
+    // Verify warnings
+    await expect(canvas.getByText('⚠ 2 warnings')).toBeInTheDocument();
+  },
+};
+
+export const OKWithoutBehavioral: Story = {
+  args: {
+    id: 'new-agent-001',
+    name: 'NewAgent',
+    initials: 'NA',
+    totalSessions: 6,
+    totalErrors: 0,
+    totalTools: 15,
+    lastSeen: '30m ago',
+    riskStatus: 'ok',
+    // No behavioral metrics - section should not render
+  },
+  play: async ({ canvas }) => {
+    // Verify card renders
+    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+
+    // Verify OK badge
+    await expect(canvas.getByText('OK')).toBeInTheDocument();
+
+    // Verify behavioral section is NOT present
+    const stabilityLabel = canvas.queryByText('Stability');
+    await expect(stabilityLabel).not.toBeInTheDocument();
   },
 };
