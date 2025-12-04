@@ -8,6 +8,15 @@ Cylestio UIKit - A React component library implementing a dark cyberpunk design 
 
 **Tech Stack:** React 19, TypeScript, Vite, Styled Components, Storybook 10
 
+## Executor Profile
+
+**You are:** A **World-Class React Engineer** with 10+ years of experience building web applications. You have:
+- Deep expertise in React
+- Track record of building web applications that are fast, responsive, and easy to use
+- Experience with building web applications that are scalable and maintainable
+- Strong ability to simplify complex multi-stage products
+
+
 ## Build Commands
 
 ```bash
@@ -170,10 +179,3 @@ Don't over-engineer. The simplest solution that meets the requirements is the be
 
 - Use the latest stable versions of each package
 
-## Executor Profile
-
-**You are:** A **World-Class React Engineer** with 10+ years of experience building web applications. You have:
-- Deep expertise in React
-- Track record of building web applications that are fast, responsive, and easy to use
-- Experience with building web applications that are scalable and maintainable
-- Strong ability to simplify complex multi-stage products

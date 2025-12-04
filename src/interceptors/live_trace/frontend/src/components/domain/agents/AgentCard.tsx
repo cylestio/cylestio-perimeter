@@ -19,10 +19,20 @@ import {
   CardFooter,
   LastSeen,
   ViewButton,
+  BehavioralSection,
+  BehavioralRow,
+  BehavioralLabel,
+  MiniProgressBarContainer,
+  MiniProgressBarFill,
+  BehavioralValue,
+  ConfidenceBadge,
+  WarningsText,
 } from './AgentCard.styles';
 
 // Types
 export type RiskStatus = 'evaluating' | 'ok';
+
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 export interface AgentCardProps {
   id: string;
@@ -37,6 +47,12 @@ export interface AgentCardProps {
   currentSessions?: number;
   minSessionsRequired?: number;
   hasCriticalFinding?: boolean;
+  // Behavioral metrics (shown when evaluation complete)
+  stability?: number;
+  predictability?: number;
+  confidence?: ConfidenceLevel;
+  failedChecks?: number;
+  warnings?: number;
   onClick?: () => void;
 }
 
@@ -52,6 +68,11 @@ export const AgentCard: FC<AgentCardProps> = ({
   currentSessions = 0,
   minSessionsRequired = 5,
   hasCriticalFinding = false,
+  stability,
+  predictability,
+  confidence,
+  failedChecks = 0,
+  warnings = 0,
   onClick,
 }) => {
   const isEvaluating = riskStatus === 'evaluating';
@@ -59,6 +80,11 @@ export const AgentCard: FC<AgentCardProps> = ({
     (currentSessions / minSessionsRequired) * 100,
     100
   );
+
+  // Show behavioral section when evaluation is complete and we have metrics
+  const showBehavioral =
+    riskStatus === 'ok' &&
+    (stability !== undefined || predictability !== undefined || confidence);
 
   return (
     <CardContainer
@@ -89,6 +115,47 @@ export const AgentCard: FC<AgentCardProps> = ({
               <ProgressBarFill $percent={progressPercent} />
             </ProgressBarContainer>
           </EvaluatingContainer>
+        )}
+
+        {showBehavioral && (
+          <BehavioralSection>
+            {stability !== undefined && (
+              <BehavioralRow>
+                <BehavioralLabel>Stability</BehavioralLabel>
+                <MiniProgressBarContainer>
+                  <MiniProgressBarFill $percent={stability} $color="cyan" />
+                </MiniProgressBarContainer>
+                <BehavioralValue>{stability}%</BehavioralValue>
+              </BehavioralRow>
+            )}
+            {predictability !== undefined && (
+              <BehavioralRow>
+                <BehavioralLabel>Predictability</BehavioralLabel>
+                <MiniProgressBarContainer>
+                  <MiniProgressBarFill $percent={predictability} $color="purple" />
+                </MiniProgressBarContainer>
+                <BehavioralValue>{predictability}%</BehavioralValue>
+              </BehavioralRow>
+            )}
+            {confidence && (
+              <BehavioralRow>
+                <BehavioralLabel>Confidence</BehavioralLabel>
+                <ConfidenceBadge $confidence={confidence}>{confidence}</ConfidenceBadge>
+              </BehavioralRow>
+            )}
+            {(failedChecks > 0 || warnings > 0) && (
+              <BehavioralRow>
+                {failedChecks > 0 && (
+                  <WarningsText>⚠ {failedChecks} failed checks</WarningsText>
+                )}
+                {warnings > 0 && (
+                  <WarningsText style={{ marginLeft: failedChecks > 0 ? '8px' : 0 }}>
+                    ⚠ {warnings} warnings
+                  </WarningsText>
+                )}
+              </BehavioralRow>
+            )}
+          </BehavioralSection>
         )}
 
         <StatsGrid>

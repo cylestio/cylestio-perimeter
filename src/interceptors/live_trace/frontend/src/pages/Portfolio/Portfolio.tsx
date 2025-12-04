@@ -1,10 +1,12 @@
-import { useState, useEffect, type FC } from 'react';
+import { useCallback, type FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
-import type { APIAgent, APISession } from '@api/types/dashboard';
+import type { APIAgent, APISession, DashboardResponse } from '@api/types/dashboard';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { formatAgentName, formatDuration } from '@utils/formatting';
+import { usePolling } from '@hooks/usePolling';
 
 import { Card } from '@ui/core/Card';
 import { EmptyState } from '@ui/feedback/EmptyState';
@@ -30,6 +32,12 @@ const transformAgent = (agent: APIAgent) => ({
   currentSessions: agent.current_sessions,
   minSessionsRequired: agent.min_sessions_required,
   hasCriticalFinding: agent.analysis_summary?.action_required ?? false,
+  // Behavioral metrics (when evaluation complete)
+  stability: agent.analysis_summary?.behavioral?.stability,
+  predictability: agent.analysis_summary?.behavioral?.predictability,
+  confidence: agent.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
+  failedChecks: agent.analysis_summary?.failed_checks ?? 0,
+  warnings: agent.analysis_summary?.warnings ?? 0,
 });
 
 // Helper to map API session status to SessionItem status
@@ -40,38 +48,29 @@ const getSessionStatus = (session: APISession): 'ACTIVE' | 'COMPLETE' | 'ERROR' 
 };
 
 export const Portfolio: FC = () => {
+  const navigate = useNavigate();
+
   usePageMeta({
     breadcrumbs: [{ label: 'Portfolio' }],
   });
 
-  const [agents, setAgents] = useState<APIAgent[]>([]);
-  const [sessions, setSessions] = useState<APISession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Use polling for live updates every 2 seconds
+  const fetchFn = useCallback(() => fetchDashboard(), []);
+  const { data, error, loading } = usePolling<DashboardResponse>(fetchFn, {
+    interval: 2000,
+    enabled: true,
+  });
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        setLoading(true);
-        const data = await fetchDashboard();
-        setAgents(data.agents);
-        setSessions(data.sessions);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load agents');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDashboard();
-  }, []);
+  const agents = data?.agents ?? [];
+  const sessions = data?.sessions ?? [];
 
   // Calculate summary stats from agents
   const totalAgents = agents.length;
   const totalErrors = agents.reduce((sum, a) => sum + a.total_errors, 0);
   const totalSessions = agents.reduce((sum, a) => sum + a.total_sessions, 0);
   const activeAgents = agents.filter((a) => a.active_sessions > 0).length;
+
+  const isLoading = loading && !data;
 
   return (
     <>
@@ -82,7 +81,7 @@ export const Portfolio: FC = () => {
             icon={<Bot size={16} />}
             iconColor="cyan"
             label="Total Agents"
-            value={loading ? '-' : totalAgents}
+            value={isLoading ? '-' : totalAgents}
             detail={`${activeAgents} active sessions`}
             size="sm"
           />
@@ -90,7 +89,7 @@ export const Portfolio: FC = () => {
             icon={<AlertTriangle size={16} />}
             iconColor="red"
             label="Total Errors"
-            value={loading ? '-' : totalErrors}
+            value={isLoading ? '-' : totalErrors}
             valueColor={totalErrors > 0 ? 'red' : undefined}
             detail="Across all agents"
             size="sm"
@@ -99,9 +98,7 @@ export const Portfolio: FC = () => {
             icon={<CheckCircle size={16} />}
             iconColor="green"
             label="OK Status"
-            value={
-              loading ? '-' : agents.filter((a) => a.risk_status === 'ok').length
-            }
+            value={isLoading ? '-' : agents.filter((a) => a.risk_status === 'ok').length}
             valueColor="green"
             detail="Evaluated agents"
             size="sm"
@@ -110,7 +107,7 @@ export const Portfolio: FC = () => {
             icon={<Activity size={16} />}
             iconColor="purple"
             label="Total Sessions"
-            value={loading ? '-' : totalSessions}
+            value={isLoading ? '-' : totalSessions}
             valueColor="purple"
             detail="All time"
             size="sm"
@@ -119,11 +116,7 @@ export const Portfolio: FC = () => {
             icon={<Target size={16} />}
             iconColor="orange"
             label="Evaluating"
-            value={
-              loading
-                ? '-'
-                : agents.filter((a) => a.risk_status === 'evaluating').length
-            }
+            value={isLoading ? '-' : agents.filter((a) => a.risk_status === 'evaluating').length}
             valueColor="orange"
             detail="Need more sessions"
             size="sm"
@@ -134,7 +127,7 @@ export const Portfolio: FC = () => {
         <TwoColumn
           main={
             <AgentsGrid>
-              {loading ? (
+              {isLoading ? (
                 // Loading skeletons
                 <>
                   <Skeleton variant="rect" height={200} />
@@ -148,9 +141,19 @@ export const Portfolio: FC = () => {
                   title="Failed to load agents"
                   description={error}
                 />
+              ) : agents.length === 0 ? (
+                <EmptyState
+                  icon={<Bot size={24} />}
+                  title="No agents yet"
+                  description="Connect your first agent to get started. Go to the Connect page for instructions."
+                />
               ) : (
                 agents.map((agent) => (
-                  <AgentCard key={agent.id} {...transformAgent(agent)} />
+                  <AgentCard
+                    key={agent.id}
+                    {...transformAgent(agent)}
+                    onClick={() => navigate(`/portfolio/agent/${agent.id}`)}
+                  />
                 ))
               )}
             </AgentsGrid>
@@ -159,12 +162,23 @@ export const Portfolio: FC = () => {
             <Card>
               <Card.Header title="Recent Sessions" />
               <Card.Content>
-                {loading ? (
+                {isLoading ? (
                   <SessionsList>
                     <Skeleton variant="rect" height={60} />
                     <Skeleton variant="rect" height={60} />
                     <Skeleton variant="rect" height={60} />
                   </SessionsList>
+                ) : sessions.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '24px',
+                      textAlign: 'center',
+                      color: 'var(--color-white-50)',
+                      fontSize: '13px',
+                    }}
+                  >
+                    No sessions yet
+                  </div>
                 ) : (
                   <SessionsList>
                     {sessions.slice(0, 10).map((session) => (
@@ -178,6 +192,7 @@ export const Portfolio: FC = () => {
                         duration={formatDuration(session.duration_minutes)}
                         lastActivity={session.last_activity_relative}
                         hasErrors={session.errors > 0}
+                        onClick={() => navigate(`/portfolio/session/${session.id}`)}
                       />
                     ))}
                   </SessionsList>

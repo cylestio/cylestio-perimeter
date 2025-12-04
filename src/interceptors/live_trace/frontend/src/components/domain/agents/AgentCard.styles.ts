@@ -176,3 +176,111 @@ export const ViewButton = styled.button`
     color: ${({ theme }) => theme.colors.void};
   }
 `;
+
+// Behavioral Metrics Section (shown when evaluation is complete)
+export const BehavioralSection = styled.div`
+  margin-bottom: 16px;
+  padding: 12px;
+  background: ${({ theme }) => theme.colors.white04};
+  border-radius: 8px;
+`;
+
+export const BehavioralRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+export const BehavioralLabel = styled.span`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.white50};
+  width: 80px;
+  flex-shrink: 0;
+`;
+
+interface MiniProgressBarProps {
+  $percent: number;
+  $color: 'cyan' | 'purple' | 'green';
+}
+
+export const MiniProgressBarContainer = styled.div`
+  flex: 1;
+  height: 6px;
+  background: ${({ theme }) => theme.colors.white08};
+  border-radius: 3px;
+  overflow: hidden;
+`;
+
+export const MiniProgressBarFill = styled.div<MiniProgressBarProps>`
+  height: 100%;
+  width: ${({ $percent }) => $percent}%;
+  background: ${({ $color, theme }) => {
+    switch ($color) {
+      case 'cyan':
+        return theme.colors.cyan;
+      case 'purple':
+        return theme.colors.purple;
+      case 'green':
+        return theme.colors.green;
+      default:
+        return theme.colors.cyan;
+    }
+  }};
+  border-radius: 3px;
+  transition: width 0.3s ease;
+`;
+
+export const BehavioralValue = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  color: ${({ theme }) => theme.colors.white70};
+  width: 36px;
+  text-align: right;
+`;
+
+interface ConfidenceBadgeProps {
+  $confidence: 'high' | 'medium' | 'low';
+}
+
+export const ConfidenceBadge = styled.span<ConfidenceBadgeProps>`
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: ${({ $confidence, theme }) => {
+    switch ($confidence) {
+      case 'high':
+        return theme.colors.greenSoft;
+      case 'medium':
+        return theme.colors.yellowSoft;
+      case 'low':
+        return theme.colors.redSoft;
+      default:
+        return theme.colors.white08;
+    }
+  }};
+  color: ${({ $confidence, theme }) => {
+    switch ($confidence) {
+      case 'high':
+        return theme.colors.green;
+      case 'medium':
+        return theme.colors.yellow;
+      case 'low':
+        return theme.colors.red;
+      default:
+        return theme.colors.white50;
+    }
+  }};
+`;
+
+export const WarningsText = styled.span`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.orange};
+`;

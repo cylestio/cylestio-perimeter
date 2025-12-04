@@ -5,6 +5,9 @@ export type { FormLabelProps, FormErrorProps, FormHintProps } from './FormLabel'
 export { Input } from './Input';
 export type { InputProps } from './Input';
 
+export { JsonEditor } from './JsonEditor';
+export type { JsonEditorProps } from './JsonEditor';
+
 export { Select } from './Select';
 export type { SelectProps, SelectOption } from './Select';
 

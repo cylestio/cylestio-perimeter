@@ -16,8 +16,7 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { Connect, Dashboard, Findings, Portfolio, Sessions, Settings } from '@pages/index';
-import { SessionPage, AgentPage, AgentReportPage, ReplayPage, LegacyDashboard } from '@pages/Legacy/index';
+import { AgentDetail, AgentReport, Connect, Dashboard, Findings, Portfolio, SessionDetail, Sessions, Settings } from '@pages/index';
 
 const agents: Agent[] = [
   { id: '1', name: 'CustomerAgent', initials: 'CA', status: 'online' },
@@ -91,14 +90,6 @@ function AppLayout() {
               onClick={() => navigate('/settings')}
             />
           </NavGroup>
-          <NavGroup label="Old Legacy Pages">
-            <NavItem
-              label="Dashboard"
-              icon={<LayoutDashboard size={18} />}
-              active={location.pathname === '/legacy/'}
-              onClick={() => navigate('/legacy/')}
-            />
-          </NavGroup>
         </Sidebar.Section>
         <Sidebar.Footer>
           <LocalModeIndicator storageMode="in-memory" />
@@ -136,13 +127,9 @@ function App() {
               <Route path="/sessions" element={<Sessions />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/portfolio" element={<Portfolio />} />
-
-
-              <Route path="/legacy/" element={<LegacyDashboard />} />
-              <Route path="/legacy/session/:sessionId" element={<SessionPage />} />
-              <Route path="/legacy/agent/:agentId" element={<AgentPage />} />
-              <Route path="/legacy/agent/:agentId/report" element={<AgentReportPage />} />
-              <Route path="/legacy/replay/:sessionId/:eventId" element={<ReplayPage />} />
+              <Route path="/portfolio/session/:sessionId" element={<SessionDetail />} />
+              <Route path="/portfolio/agent/:agentId" element={<AgentDetail />} />
+              <Route path="/portfolio/agent/:agentId/report" element={<AgentReport />} />
             </Route>
           </Routes>
         </BrowserRouter>
