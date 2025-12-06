@@ -12,7 +12,7 @@ import {
 } from '../../utils/formatting';
 
 import { Badge } from '@ui/core/Badge';
-import { Spinner } from '@ui/feedback/Spinner';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Tooltip } from '@ui/overlays/Tooltip';
@@ -161,7 +161,7 @@ export const AgentReport: FC = () => {
   if (loading && !data) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-        <Spinner size="lg" />
+        <OrbLoader size="lg" />
       </div>
     );
   }
@@ -271,7 +271,7 @@ export const AgentReport: FC = () => {
         {/* Behavioral Analysis Waiting Banner */}
         {status.hasRiskData && status.behavioralStatus === 'WAITING_FOR_COMPLETION' && (
           <WaitingBanner>
-            <Spinner size="sm" />
+            <OrbLoader size="sm" />
             <WaitingContent>
               <WaitingTitle>Behavioral Analysis In Progress</WaitingTitle>
               <WaitingDescription>
@@ -519,7 +519,7 @@ export const AgentReport: FC = () => {
                   {/* Active Sessions Note */}
                   {(status.activeSessions || 0) > 0 && (
                     <ActiveSessionsNote>
-                      <Spinner size="sm" />
+                      <OrbLoader size="sm" />
                       <span>
                         Based on{' '}
                         <strong>

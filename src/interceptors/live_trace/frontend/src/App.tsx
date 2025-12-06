@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { LayoutDashboard, Bug, Activity, Settings as SettingsIcon, File, Plug } from 'lucide-react';
+import { File, Plug } from 'lucide-react';
 
 import { theme, GlobalStyles } from '@theme/index';
 import { Main } from '@ui/layout/Main';
@@ -16,7 +16,7 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Dashboard, Findings, Portfolio, SessionDetail, Sessions, Settings } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail } from '@pages/index';
 
 const agents: Agent[] = [
   { id: '1', name: 'CustomerAgent', initials: 'CA', status: 'online' },
@@ -62,34 +62,6 @@ function AppLayout() {
               onClick={() => navigate('/portfolio')}
             />
           </NavGroup>
-          <NavGroup label="Example Pages">
-            <NavItem
-              label="Dashboard"
-              icon={<LayoutDashboard size={18} />}
-              active={location.pathname === '/'}
-              onClick={() => navigate('/')}
-            />
-            <NavItem
-              label="Findings"
-              icon={<Bug size={18} />}
-              badge={5}
-              badgeColor="red"
-              active={location.pathname === '/findings'}
-              onClick={() => navigate('/findings')}
-            />
-            <NavItem
-              label="Sessions"
-              icon={<Activity size={18} />}
-              active={location.pathname === '/sessions'}
-              onClick={() => navigate('/sessions')}
-            />
-            <NavItem
-              label="Settings"
-              icon={<SettingsIcon size={18} />}
-              active={location.pathname === '/settings'}
-              onClick={() => navigate('/settings')}
-            />
-          </NavGroup>
         </Sidebar.Section>
         <Sidebar.Footer>
           <LocalModeIndicator storageMode="in-memory" />
@@ -121,11 +93,8 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Portfolio />} />
               <Route path="/connect" element={<Connect />} />
-              <Route path="/findings" element={<Findings />} />
-              <Route path="/sessions" element={<Sessions />} />
-              <Route path="/settings" element={<Settings />} />
               <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/portfolio/session/:sessionId" element={<SessionDetail />} />
               <Route path="/portfolio/agent/:agentId" element={<AgentDetail />} />

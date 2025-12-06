@@ -6,7 +6,7 @@ import type { SessionResponse, TimelineEvent } from '@api/types/session';
 import { usePolling } from '@hooks/usePolling';
 
 import { Badge } from '@ui/core/Badge';
-import { Spinner } from '@ui/feedback/Spinner';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Timeline } from '@ui/data-display/Timeline';
 
@@ -75,7 +75,7 @@ export const SessionDetail: FC = () => {
   if (loading && !data) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-        <Spinner size="lg" />
+        <OrbLoader size="lg" />
       </div>
     );
   }

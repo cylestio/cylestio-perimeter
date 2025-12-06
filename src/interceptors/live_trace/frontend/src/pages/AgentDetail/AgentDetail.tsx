@@ -12,7 +12,7 @@ import {
 } from '../../utils/formatting';
 
 import { Badge } from '@ui/core/Badge';
-import { Spinner } from '@ui/feedback/Spinner';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Table, type Column } from '@ui/data-display/Table';
@@ -198,7 +198,7 @@ export const AgentDetail: FC = () => {
   if (loading && !data) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-        <Spinner size="lg" />
+        <OrbLoader size="lg" />
       </div>
     );
   }
@@ -327,7 +327,7 @@ export const AgentDetail: FC = () => {
         {/* Behavioral Analysis Waiting Banner */}
         {status.hasRiskData && status.behavioralStatus === 'WAITING_FOR_COMPLETION' && (
           <AlertBanner $variant="info">
-            <Spinner size="sm" />
+            <OrbLoader size="sm" />
             <AlertContent>
               <AlertTitle $color="var(--color-purple)">
                 Behavioral Analysis In Progress
@@ -436,7 +436,7 @@ export const AgentDetail: FC = () => {
                     {/* Active Sessions Note */}
                     {(status.activeSessions || 0) > 0 && (
                       <ActiveSessionsNote>
-                        <Spinner size="sm" />
+                        <OrbLoader size="sm" />
                         <span>
                           Based on{' '}
                           <strong>

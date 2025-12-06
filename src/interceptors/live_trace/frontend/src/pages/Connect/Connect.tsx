@@ -7,7 +7,7 @@ import { Text } from '@ui/core/Text';
 import { Code } from '@ui/core/Code';
 import { Button } from '@ui/core/Button';
 import { Label } from '@ui/core/Label';
-import { Spinner } from '@ui/feedback/Spinner';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Skeleton } from '@ui/feedback/Skeleton';
 
 import { usePageMeta } from '../../context';
@@ -155,7 +155,7 @@ export const Connect: FC = () => {
             <StatusDot $status={displayStatus} />
           ) : (
             <StatusSpinner>
-              <Spinner size="sm" color="cyan" />
+              <OrbLoader size="sm" />
             </StatusSpinner>
           )}
           <Text size="sm" weight="medium" color={isConnected ? 'green' : 'muted'}>

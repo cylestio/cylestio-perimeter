@@ -8,7 +8,7 @@ import { Badge } from '@ui/core/Badge';
 import { Input } from '@ui/form/Input';
 import { TextArea } from '@ui/form/TextArea';
 import { Checkbox } from '@ui/form/Checkbox';
-import { Spinner } from '@ui/feedback/Spinner';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { JsonEditor } from '@ui/form/JsonEditor';
 
 import {
@@ -330,7 +330,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
               <ReplayButton onClick={handleReplay} disabled={sending}>
                 {sending ? (
                   <>
-                    <Spinner size="sm" />
+                    <OrbLoader size="sm" />
                     Sending...
                   </>
                 ) : (
@@ -363,7 +363,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
 
             {sending && (
               <ResponseEmpty>
-                <Spinner size="lg" />
+                <OrbLoader size="lg" />
                 <div>Waiting for response...</div>
               </ResponseEmpty>
             )}

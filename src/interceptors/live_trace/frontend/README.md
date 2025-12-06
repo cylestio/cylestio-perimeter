@@ -35,7 +35,7 @@ npm run build      # Build for production
 | Core | Button, Badge, Card, StatCard, Avatar, Text, Heading, Code, Label |
 | Form | Input, Select, Checkbox, Radio, TextArea |
 | Navigation | NavItem, Tabs, Breadcrumb, ToggleGroup |
-| Feedback | ProgressBar, Spinner, Skeleton, EmptyState, Toast |
+| Feedback | ProgressBar, OrbLoader, Skeleton, EmptyState, Toast |
 | Data Display | Table, ActivityFeed, CodeBlock, ToolChain |
 | Visualization | RiskScore, LifecycleProgress, ClusterVisualization, SurfaceNode, ComplianceGauge |
 | Overlays | Modal, ConfirmDialog, Tooltip, Popover, Dropdown |
