@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Inspector - Component Library</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           DESIGN SYSTEM TOKENS
+           ============================================ */
+        :root {
+            /* Surfaces */
+            --void: #000000;
+            --surface: #0a0a0f;
+            --surface-2: #12121a;
+            --surface-3: #1a1a24;
+            --surface-4: #22222e;
+            
+            /* Borders */
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-medium: rgba(255, 255, 255, 0.12);
+            --border-strong: rgba(255, 255, 255, 0.20);
+            
+            /* Text */
+            --white: #ffffff;
+            --white-90: rgba(255, 255, 255, 0.9);
+            --white-70: rgba(255, 255, 255, 0.7);
+            --white-50: rgba(255, 255, 255, 0.5);
+            --white-30: rgba(255, 255, 255, 0.3);
+            --white-15: rgba(255, 255, 255, 0.15);
+            --white-08: rgba(255, 255, 255, 0.08);
+            --white-04: rgba(255, 255, 255, 0.04);
+            
+            /* Signals */
+            --cyan: #00f0ff;
+            --cyan-soft: rgba(0, 240, 255, 0.12);
+            --green: #00ff88;
+            --green-soft: rgba(0, 255, 136, 0.12);
+            --orange: #ff9f43;
+            --orange-soft: rgba(255, 159, 67, 0.12);
+            --red: #ff4757;
+            --red-soft: rgba(255, 71, 87, 0.12);
+            --purple: #a855f7;
+            --purple-soft: rgba(168, 85, 247, 0.12);
+            --yellow: #f59e0b;
+            --yellow-soft: rgba(245, 158, 11, 0.12);
+            
+            /* Typography */
+            --font: 'Space Grotesk', -apple-system, sans-serif;
+            --mono: 'JetBrains Mono', monospace;
+            
+            /* Spacing */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 20px;
+            --space-2xl: 24px;
+            --space-3xl: 32px;
+            
+            /* Radius */
+            --radius-sm: 4px;
+            --radius-md: 6px;
+            --radius-lg: 8px;
+            --radius-xl: 12px;
+            --radius-full: 9999px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font);
+            background: var(--void);
+            color: var(--white);
+            padding: 48px;
+            min-height: 100vh;
+        }
+        
+        /* Cosmic Background */
+        .cosmos {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background: 
+                radial-gradient(ellipse at 20% 20%, rgba(0, 240, 255, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(168, 85, 247, 0.02) 0%, transparent 50%);
+        }
+        
+        .content { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; }
+        
+        h1 {
+            font-size: 48px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--cyan) 0%, var(--green) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            color: var(--white-50);
+            margin-bottom: 64px;
+        }
+        
+        .section {
+            margin-bottom: 64px;
+        }
+        
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--cyan);
+            margin-bottom: 24px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .component-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        
+        .component-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .component-label {
+            font-size: 12px;
+            color: var(--white-30);
+            margin-bottom: 8px;
+            font-family: var(--mono);
+        }
+        
+        /* ============================================
+           1. BUTTONS
+           ============================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: var(--font);
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--cyan);
+            color: var(--void);
+        }
+        .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        
+        .btn-secondary {
+            background: var(--white-08);
+            color: var(--white-90);
+            border: 1px solid var(--border-medium);
+        }
+        .btn-secondary:hover { background: var(--white-15); }
+        
+        .btn-success {
+            background: var(--green);
+            color: var(--void);
+        }
+        .btn-success:hover { filter: brightness(1.1); }
+        
+        .btn-danger {
+            background: var(--red);
+            color: var(--white);
+        }
+        .btn-danger:hover { filter: brightness(0.9); }
+        
+        .btn-ghost {
+            background: transparent;
+            color: var(--white-50);
+            border: none;
+        }
+        .btn-ghost:hover { color: var(--white-90); background: var(--white-04); }
+        
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border-radius: var(--radius-md);
+            justify-content: center;
+        }
+        
+        .btn-lg { padding: 14px 24px; font-size: 15px; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        
+        /* ============================================
+           2. BADGES & SEVERITY INDICATORS
+           ============================================ */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-family: var(--mono);
+        }
+        
+        .badge-critical { background: var(--red-soft); color: var(--red); }
+        .badge-high { background: var(--orange-soft); color: var(--orange); }
+        .badge-medium { background: var(--yellow-soft); color: var(--yellow); }
+        .badge-low { background: var(--white-08); color: var(--white-50); }
+        .badge-success { background: var(--green-soft); color: var(--green); }
+        .badge-info { background: var(--cyan-soft); color: var(--cyan); }
+        .badge-ai { background: var(--purple-soft); color: var(--purple); }
+        
+        /* Severity Dots */
+        .severity-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .severity-dot.critical { background: var(--red); box-shadow: 0 0 8px var(--red); }
+        .severity-dot.high { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+        .severity-dot.medium { background: var(--yellow); }
+        .severity-dot.low { background: var(--white-30); }
+        
+        /* Mode Pills */
+        .mode-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid;
+        }
+        .mode-pill.active { border-color: var(--green); color: var(--green); }
+        .mode-pill.inactive { border-color: var(--white-15); color: var(--white-30); }
+        
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        /* ============================================
+           3. CORRELATION BADGES (1+1=3)
+           ============================================ */
+        .correlation-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--mono);
+        }
+        
+        .correlation-confirmed {
+            background: var(--green-soft);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: var(--green);
+        }
+        
+        .correlation-controlled {
+            background: var(--green-soft);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: var(--green);
+        }
+        
+        .correlation-discovered {
+            background: var(--purple-soft);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            color: var(--purple);
+        }
+        
+        .correlation-pending {
+            background: var(--white-04);
+            border: 1px dashed var(--white-30);
+            color: var(--white-50);
+        }
+        
+        .correlation-triggered {
+            background: var(--red-soft);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+            color: var(--red);
+            animation: pulseGlow 2s infinite;
+        }
+        
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4); }
+            50% { box-shadow: 0 0 12px 4px rgba(255, 71, 87, 0.2); }
+        }
+        
+        /* ============================================
+           4. CARDS
+           ============================================ */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .card-content {
+            padding: 20px;
+        }
+        
+        .card-elevated {
+            border: 2px solid var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.1);
+        }
+        
+        .card-status {
+            border-left: 4px solid var(--cyan);
+        }
+        .card-status.critical { border-left-color: var(--red); }
+        .card-status.high { border-left-color: var(--orange); }
+        .card-status.success { border-left-color: var(--green); }
+        
+        /* ============================================
+           5. STAT CARDS
+           ============================================ */
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            min-width: 180px;
+        }
+        
+        .stat-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .stat-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        .stat-icon.risk { background: var(--orange-soft); }
+        .stat-icon.findings { background: var(--red-soft); }
+        .stat-icon.fixed { background: var(--green-soft); }
+        .stat-icon.compliance { background: var(--purple-soft); }
+        
+        .stat-label {
+            font-size: 12px;
+            color: var(--white-50);
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            font-family: var(--mono);
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+        .stat-value.risk { color: var(--orange); }
+        .stat-value.findings { color: var(--red); }
+        .stat-value.fixed { color: var(--green); }
+        .stat-value.compliance { color: var(--purple); }
+        
+        .stat-detail {
+            font-size: 11px;
+            color: var(--white-30);
+        }
+        
+        /* ============================================
+           6. RISK SCORE DISPLAY
+           ============================================ */
+        .risk-hero {
+            text-align: center;
+            padding: 32px;
+            background: var(--surface);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-xl);
+        }
+        
+        .risk-score-ring {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            margin: 0 auto 16px;
+        }
+        
+        .risk-score-ring svg {
+            transform: rotate(-90deg);
+        }
+        
+        .risk-score-ring .track {
+            fill: none;
+            stroke: var(--white-08);
+            stroke-width: 8;
+        }
+        
+        .risk-score-ring .progress {
+            fill: none;
+            stroke: var(--orange);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 408;
+            stroke-dashoffset: 196;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+        
+        .risk-score-number {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .risk-score-value {
+            font-size: 48px;
+            font-weight: 800;
+            font-family: var(--mono);
+            color: var(--orange);
+        }
+        
+        .risk-score-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--white-50);
+        }
+        
+        .risk-status {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--orange);
+        }
+        
+        /* ============================================
+           7. PROGRESS BARS
+           ============================================ */
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--white-08);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--cyan);
+            border-radius: var(--radius-full);
+            transition: width 0.3s ease;
+        }
+        .progress-fill.success { background: var(--green); }
+        .progress-fill.warning { background: var(--orange); }
+        .progress-fill.danger { background: var(--red); }
+        
+        /* ============================================
+           8. NAVIGATION
+           ============================================ */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius-md);
+            color: var(--white-50);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        
+        .nav-item:hover {
+            background: var(--white-04);
+            color: var(--white-90);
+        }
+        
+        .nav-item.active {
+            background: var(--white-08);
+            color: var(--white);
+        }
+        
+        .nav-badge {
+            margin-left: auto;
+            padding: 2px 6px;
+            background: var(--orange);
+            color: var(--void);
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
+        }
+        
+        /* ============================================
+           9. INPUTS & FORMS
+           ============================================ */
+        .input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--surface-2);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-md);
+            color: var(--white-90);
+            font-size: 13px;
+            font-family: var(--font);
+            transition: all 0.2s;
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: var(--cyan);
+            background: var(--surface-3);
+        }
+        
+        .input.error {
+            border-color: var(--red);
+            background: var(--red-soft);
+        }
+        
+        .input-mono {
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+        
+        /* ============================================
+           10. ACTIVITY FEED ITEM
+           ============================================ */
+        .activity-item {
+            display: flex;
+            gap: 12px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .activity-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 12px;
+        }
+        .activity-icon.fixed { background: var(--green-soft); color: var(--green); }
+        .activity-icon.found { background: var(--orange-soft); color: var(--orange); }
+        .activity-icon.session { background: var(--cyan-soft); color: var(--cyan); }
+        .activity-icon.scan { background: var(--purple-soft); color: var(--purple); }
+        
+        .activity-content { flex: 1; min-width: 0; }
+        
+        .activity-text {
+            font-size: 12px;
+            color: var(--white-90);
+            margin-bottom: 2px;
+        }
+        
+        .activity-detail {
+            font-size: 11px;
+            color: var(--white-30);
+        }
+        
+        .activity-time {
+            font-size: 10px;
+            color: var(--white-15);
+            font-family: var(--mono);
+        }
+        
+        /* ============================================
+           11. CODE BLOCK
+           ============================================ */
+        .code-block {
+            background: var(--void);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .code-file {
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--white-50);
+        }
+        
+        .code-content {
+            padding: 16px;
+            font-family: var(--mono);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .code-line {
+            display: flex;
+        }
+        
+        .code-num {
+            width: 36px;
+            color: var(--white-15);
+            text-align: right;
+            padding-right: 16px;
+            user-select: none;
+        }
+        
+        .code-text {
+            color: var(--white-70);
+        }
+        
+        .code-line.highlight {
+            background: var(--red-soft);
+            margin: 0 -16px;
+            padding: 0 16px;
+        }
+        .code-line.highlight .code-text { color: var(--white); }
+        
+        .code-line.add .code-text { color: var(--green); }
+        
+        /* ============================================
+           12. EMPTY STATES
+           ============================================ */
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+        }
+        
+        .empty-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            border-radius: var(--radius-xl);
+            background: var(--white-04);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: var(--white-15);
+        }
+        
+        .empty-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--white-90);
+            margin-bottom: 8px;
+        }
+        
+        .empty-text {
+            font-size: 13px;
+            color: var(--white-50);
+            max-width: 280px;
+            margin: 0 auto 20px;
+        }
+        
+        /* ============================================
+           13. TOOLTIPS
+           ============================================ */
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip-content {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 12px;
+            background: var(--surface-3);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-md);
+            font-size: 11px;
+            color: var(--white-90);
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            margin-bottom: 8px;
+        }
+        
+        .tooltip:hover .tooltip-content {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* ============================================
+           14. BEHAVIORAL CLUSTER VISUALIZATION
+           ============================================ */
+        .cluster-viz {
+            background: var(--surface-2);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+        }
+        
+        .cluster-canvas {
+            position: relative;
+            height: 200px;
+            margin-bottom: 16px;
+        }
+        
+        .cluster-node {
+            position: absolute;
+            border-radius: 50%;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .cluster-node:hover {
+            transform: scale(1.1);
+        }
+        
+        .cluster-node.cluster {
+            background: rgba(0, 240, 255, 0.15);
+            border: 2px solid var(--cyan);
+        }
+        
+        .cluster-node.outlier {
+            background: var(--orange);
+        }
+        
+        .cluster-node.dangerous {
+            background: var(--red);
+            animation: pulseGlow 2s infinite;
+        }
+        
+        .cluster-legend {
+            display: flex;
+            gap: 24px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-subtle);
+            font-size: 11px;
+            color: var(--white-50);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* ============================================
+           15. ATTACK SURFACE VISUALIZATION
+           ============================================ */
+        .attack-surface-map {
+            background: var(--surface-2);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            min-height: 300px;
+        }
+        
+        .surface-node {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--surface-3);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            font-family: var(--mono);
+        }
+        
+        .surface-node.entry { border-left: 3px solid var(--cyan); }
+        .surface-node.tool { border-left: 3px solid var(--purple); }
+        .surface-node.exit { border-left: 3px solid var(--orange); }
+        .surface-node.risky { border-color: var(--red); background: var(--red-soft); }
+        
+        .surface-connector {
+            width: 40px;
+            height: 2px;
+            background: var(--white-15);
+        }
+        .surface-connector.risky { background: var(--red); }
+        
+        /* ============================================
+           16. DANGEROUS TOOL CHAIN
+           ============================================ */
+        .tool-chain {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            background: var(--surface-2);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-lg);
+        }
+        
+        .tool-chain.dangerous {
+            border-color: var(--red);
+            background: linear-gradient(90deg, var(--red-soft) 0%, transparent 100%);
+        }
+        
+        .chain-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: var(--surface-3);
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-family: var(--mono);
+        }
+        
+        .chain-arrow {
+            color: var(--white-30);
+            font-size: 14px;
+        }
+        
+        .chain-step.risky {
+            background: var(--red-soft);
+            color: var(--red);
+        }
+        
+        /* ============================================
+           17. LIFECYCLE PROGRESS
+           ============================================ */
+        .lifecycle-progress {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 20px;
+            background: var(--surface);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-lg);
+        }
+        
+        .lifecycle-stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+        }
+        
+        .stage-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            border: 2px solid var(--border-medium);
+            background: var(--surface-2);
+            transition: all 0.2s;
+        }
+        
+        .stage-icon.active {
+            border-color: var(--cyan);
+            background: var(--cyan-soft);
+            color: var(--cyan);
+        }
+        
+        .stage-icon.completed {
+            border-color: var(--green);
+            background: var(--green-soft);
+            color: var(--green);
+        }
+        
+        .stage-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--white-30);
+        }
+        
+        .stage-label.active { color: var(--cyan); }
+        .stage-label.completed { color: var(--green); }
+        
+        .stage-stat {
+            font-size: 12px;
+            font-family: var(--mono);
+            color: var(--white-50);
+        }
+        
+        .lifecycle-connector {
+            flex: 0 0 40px;
+            height: 2px;
+            background: var(--border-medium);
+        }
+        
+        .lifecycle-connector.completed {
+            background: var(--green);
+        }
+        
+        /* ============================================
+           18. SKELETON LOADING
+           ============================================ */
+        .skeleton {
+            background: linear-gradient(90deg, var(--white-04) 0%, var(--white-08) 50%, var(--white-04) 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: var(--radius-sm);
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .skeleton-text {
+            height: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .skeleton-title {
+            height: 24px;
+            width: 60%;
+            margin-bottom: 12px;
+        }
+        
+        .skeleton-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+        
+        /* ============================================
+           19. LOGO ORB
+           ============================================ */
+        .logo-orb {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, var(--cyan), var(--green), var(--cyan));
+            animation: orbSpin 8s linear infinite;
+            position: relative;
+        }
+        
+        .logo-orb::after {
+            content: '';
+            position: absolute;
+            inset: 5px;
+            border-radius: 50%;
+            background: var(--surface);
+        }
+        
+        @keyframes orbSpin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* ============================================
+           20. TABLE
+           ============================================ */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--white-30);
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border-medium);
+        }
+        
+        .table td {
+            padding: 12px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .table tr:hover {
+            background: var(--white-04);
+        }
+        
+        /* Demo container styles */
+        .demo-box {
+            padding: 24px;
+            background: var(--surface-2);
+            border-radius: var(--radius-lg);
+            margin-bottom: 16px;
+        }
+        
+        .demo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="cosmos"></div>
+    
+    <div class="content">
+        <h1>Component Library</h1>
+        <p class="subtitle">Agent Inspector Design System v1.0</p>
+        
+        <!-- BUTTONS -->
+        <section class="section">
+            <h2 class="section-title">1. Buttons</h2>
+            <div class="component-row">
+                <button class="btn btn-primary">Primary Action</button>
+                <button class="btn btn-secondary">Secondary</button>
+                <button class="btn btn-success">Success</button>
+                <button class="btn btn-danger">Danger</button>
+                <button class="btn btn-ghost">Ghost</button>
+                <button class="btn btn-icon btn-secondary">⚙</button>
+            </div>
+            <div class="component-row">
+                <button class="btn btn-primary btn-lg">Large Button</button>
+                <button class="btn btn-primary">Default</button>
+                <button class="btn btn-primary btn-sm">Small</button>
+            </div>
+        </section>
+        
+        <!-- BADGES -->
+        <section class="section">
+            <h2 class="section-title">2. Badges & Severity</h2>
+            <div class="component-row">
+                <span class="badge badge-critical">Critical</span>
+                <span class="badge badge-high">High</span>
+                <span class="badge badge-medium">Medium</span>
+                <span class="badge badge-low">Low</span>
+                <span class="badge badge-success">Success</span>
+                <span class="badge badge-info">Info</span>
+                <span class="badge badge-ai">AI</span>
+            </div>
+            <div class="component-label">Severity Dots</div>
+            <div class="component-row">
+                <span class="severity-dot critical"></span>
+                <span class="severity-dot high"></span>
+                <span class="severity-dot medium"></span>
+                <span class="severity-dot low"></span>
+            </div>
+            <div class="component-label">Mode Pills</div>
+            <div class="component-row">
+                <span class="mode-pill active"><span class="pulse-dot"></span> Auto-Fix ON</span>
+                <span class="mode-pill active"><span class="pulse-dot"></span> Static ON</span>
+                <span class="mode-pill active"><span class="pulse-dot"></span> Dynamic ON</span>
+                <span class="mode-pill inactive">Inactive</span>
+            </div>
+        </section>
+        
+        <!-- CORRELATION BADGES -->
+        <section class="section">
+            <h2 class="section-title">3. Correlation Badges (1+1=3)</h2>
+            <div class="component-row">
+                <span class="correlation-badge correlation-confirmed">✓ CONFIRMED</span>
+                <span class="correlation-badge correlation-controlled">🛡 CONTROLLED</span>
+                <span class="correlation-badge correlation-discovered">⊕ DISCOVERED</span>
+                <span class="correlation-badge correlation-pending">○ PENDING</span>
+                <span class="correlation-badge correlation-triggered">⚠ TRIGGERED</span>
+            </div>
+        </section>
+        
+        <!-- STAT CARDS -->
+        <section class="section">
+            <h2 class="section-title">4. Stat Cards</h2>
+            <div class="demo-grid">
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon risk">⚠</div>
+                        <span class="stat-label">Risk Score</span>
+                    </div>
+                    <div class="stat-value risk">52</div>
+                    <div class="stat-detail">Medium risk · ↑3 this week</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon findings">△</div>
+                        <span class="stat-label">Open Findings</span>
+                    </div>
+                    <div class="stat-value findings">5</div>
+                    <div class="stat-detail">1 critical · 2 high · 2 medium</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon fixed">✓</div>
+                        <span class="stat-label">Auto-Fixed</span>
+                    </div>
+                    <div class="stat-value fixed">12</div>
+                    <div class="stat-detail">3 today · by Claude</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-header">
+                        <div class="stat-icon compliance">◉</div>
+                        <span class="stat-label">OWASP Coverage</span>
+                    </div>
+                    <div class="stat-value compliance">45%</div>
+                    <div class="stat-detail">5 of 11 controls passed</div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- RISK SCORE HERO -->
+        <section class="section">
+            <h2 class="section-title">5. Risk Score Display</h2>
+            <div style="display: flex; gap: 32px;">
+                <div class="risk-hero" style="width: 200px;">
+                    <div class="risk-score-ring">
+                        <svg width="140" height="140">
+                            <circle class="track" cx="70" cy="70" r="65"></circle>
+                            <circle class="progress" cx="70" cy="70" r="65"></circle>
+                        </svg>
+                        <div class="risk-score-number">
+                            <span class="risk-score-value">52</span>
+                            <span class="risk-score-label">/100</span>
+                        </div>
+                    </div>
+                    <div class="risk-status">MEDIUM RISK</div>
+                </div>
+                
+                <div class="card" style="flex: 1;">
+                    <div class="card-header">
+                        <span class="card-title">Compact Score</span>
+                    </div>
+                    <div class="card-content">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 28px; font-weight: 700; color: var(--orange); font-family: var(--mono);">52</span>
+                            <span class="badge badge-high">MEDIUM</span>
+                            <span style="font-size: 12px; color: var(--white-30);">↑3 this week</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- PROGRESS BARS -->
+        <section class="section">
+            <h2 class="section-title">6. Progress Bars</h2>
+            <div style="display: flex; flex-direction: column; gap: 16px; max-width: 400px;">
+                <div>
+                    <div class="component-label">Default (72%)</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 72%;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="component-label">Success (94%)</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill success" style="width: 94%;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="component-label">Warning (45%)</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill warning" style="width: 45%;"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="component-label">Danger (25%)</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill danger" style="width: 25%;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- LIFECYCLE PROGRESS -->
+        <section class="section">
+            <h2 class="section-title">7. Lifecycle Progress</h2>
+            <div class="lifecycle-progress">
+                <div class="lifecycle-stage">
+                    <div class="stage-icon completed">✓</div>
+                    <div class="stage-label completed">Auto-Fix</div>
+                    <div class="stage-stat">3 fixed</div>
+                </div>
+                <div class="lifecycle-connector completed"></div>
+                <div class="lifecycle-stage">
+                    <div class="stage-icon completed">✓</div>
+                    <div class="stage-label completed">Static</div>
+                    <div class="stage-stat">2 issues</div>
+                </div>
+                <div class="lifecycle-connector completed"></div>
+                <div class="lifecycle-stage">
+                    <div class="stage-icon active">●</div>
+                    <div class="stage-label active">Dynamic</div>
+                    <div class="stage-stat">1 confirmed</div>
+                </div>
+                <div class="lifecycle-connector"></div>
+                <div class="lifecycle-stage">
+                    <div class="stage-icon">📄</div>
+                    <div class="stage-label">Report</div>
+                    <div class="stage-stat">Ready</div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- DANGEROUS TOOL CHAIN -->
+        <section class="section">
+            <h2 class="section-title">8. Dangerous Tool Chain</h2>
+            <div class="tool-chain dangerous">
+                <span class="chain-step">search_customer</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-step">get_permissions</span>
+                <span class="chain-arrow">→</span>
+                <span class="chain-step risky">delete_record</span>
+                <span style="margin-left: auto;">
+                    <span class="badge badge-critical">No Confirmation</span>
+                </span>
+            </div>
+        </section>
+        
+        <!-- ACTIVITY FEED -->
+        <section class="section">
+            <h2 class="section-title">9. Activity Feed</h2>
+            <div class="card" style="max-width: 400px;">
+                <div class="card-header">
+                    <span class="card-title">Recent Activity</span>
+                </div>
+                <div class="card-content" style="padding: 0;">
+                    <div style="padding: 0 20px;">
+                        <div class="activity-item">
+                            <div class="activity-icon fixed">✓</div>
+                            <div class="activity-content">
+                                <div class="activity-text"><strong>Auto-fixed:</strong> Error handling added</div>
+                                <div class="activity-detail">agent.py:156 · by Claude</div>
+                            </div>
+                            <span class="activity-time">2m</span>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon found">!</div>
+                            <div class="activity-content">
+                                <div class="activity-text"><strong>Found:</strong> PII exposure in logs</div>
+                                <div class="activity-detail">Static scan · utils/logger.py</div>
+                            </div>
+                            <span class="activity-time">8m</span>
+                        </div>
+                        <div class="activity-item" style="border-bottom: none;">
+                            <div class="activity-icon session">◉</div>
+                            <div class="activity-content">
+                                <div class="activity-text"><strong>Session:</strong> 47 requests analyzed</div>
+                                <div class="activity-detail">Duration 3.2s · No anomalies</div>
+                            </div>
+                            <span class="activity-time">15m</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- CODE BLOCK -->
+        <section class="section">
+            <h2 class="section-title">10. Code Block</h2>
+            <div class="code-block" style="max-width: 600px;">
+                <div class="code-header">
+                    <span class="code-file">agent.py</span>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-ghost">Copy</button>
+                        <button class="btn btn-sm btn-ghost">Open</button>
+                    </div>
+                </div>
+                <div class="code-content">
+                    <div class="code-line">
+                        <span class="code-num">21</span>
+                        <span class="code-text">class Agent:</span>
+                    </div>
+                    <div class="code-line highlight">
+                        <span class="code-num">22</span>
+                        <span class="code-text">    def __init__(self, max_steps: int = 20):</span>
+                    </div>
+                    <div class="code-line highlight">
+                        <span class="code-num">23</span>
+                        <span class="code-text">        self.max_steps = max_steps  # global only</span>
+                    </div>
+                    <div class="code-line add">
+                        <span class="code-num">+</span>
+                        <span class="code-text">        self.user_limiter = UserRateLimiter()</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- EMPTY STATE -->
+        <section class="section">
+            <h2 class="section-title">11. Empty State</h2>
+            <div class="card" style="max-width: 400px;">
+                <div class="empty-state">
+                    <div class="empty-icon">◎</div>
+                    <div class="empty-title">No sessions yet</div>
+                    <div class="empty-text">Run your agent through the proxy to see behavioral analysis and security insights.</div>
+                    <button class="btn btn-primary">View Setup Guide</button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- SKELETON LOADING -->
+        <section class="section">
+            <h2 class="section-title">12. Loading States</h2>
+            <div class="card" style="max-width: 400px;">
+                <div class="card-content">
+                    <div style="display: flex; gap: 16px; align-items: flex-start;">
+                        <div class="skeleton skeleton-avatar"></div>
+                        <div style="flex: 1;">
+                            <div class="skeleton skeleton-title"></div>
+                            <div class="skeleton skeleton-text"></div>
+                            <div class="skeleton skeleton-text" style="width: 80%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- INPUTS -->
+        <section class="section">
+            <h2 class="section-title">13. Form Inputs</h2>
+            <div style="display: flex; gap: 16px; max-width: 600px;">
+                <div style="flex: 1;">
+                    <div class="component-label">Default</div>
+                    <input type="text" class="input" placeholder="Enter text...">
+                </div>
+                <div style="flex: 1;">
+                    <div class="component-label">Monospace</div>
+                    <input type="text" class="input input-mono" value="session_abc123">
+                </div>
+                <div style="flex: 1;">
+                    <div class="component-label">Error</div>
+                    <input type="text" class="input error" value="Invalid input">
+                </div>
+            </div>
+        </section>
+        
+        <!-- LOGO -->
+        <section class="section">
+            <h2 class="section-title">14. Logo Orb</h2>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div class="logo-orb"></div>
+                <span style="font-size: 18px; font-weight: 600;">Agent Inspector</span>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
