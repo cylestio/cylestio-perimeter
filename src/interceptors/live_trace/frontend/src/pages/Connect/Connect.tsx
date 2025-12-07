@@ -90,7 +90,7 @@ export const Connect: FC = () => {
       <StyledCard>
         <Card.Header
           title="Connect Your Agent"
-          subtitle="Point your OpenAI client to this proxy URL to start capturing requests"
+          subtitle="Point your client to this proxy URL to start capturing requests"
           centered
         />
         <Card.Content>

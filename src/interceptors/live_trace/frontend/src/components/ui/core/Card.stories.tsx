@@ -224,7 +224,7 @@ export const CenteredHeader: Story = {
       <Card>
         <Card.Header
           title="Connect Your Agent"
-          subtitle="Point your OpenAI client to this proxy URL to start capturing requests"
+          subtitle="Point your client to this proxy URL to start capturing requests"
           centered
         />
         <Card.Content>
@@ -236,7 +236,7 @@ export const CenteredHeader: Story = {
   play: async ({ canvas }) => {
     await expect(canvas.getByText('Connect Your Agent')).toBeInTheDocument();
     await expect(
-      canvas.getByText('Point your OpenAI client to this proxy URL to start capturing requests')
+      canvas.getByText('Point your client to this proxy URL to start capturing requests')
     ).toBeInTheDocument();
   },
 };

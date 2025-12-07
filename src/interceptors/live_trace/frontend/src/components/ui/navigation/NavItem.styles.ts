@@ -29,7 +29,7 @@ export const StyledNavItem = styled.a<StyledNavItemProps>`
 
     if ($active) {
       return css`
-        background: ${theme.colors.white08};
+        background: ${theme.colors.white15};
         color: ${theme.colors.white};
       `;
     }
@@ -38,8 +38,8 @@ export const StyledNavItem = styled.a<StyledNavItemProps>`
       color: ${theme.colors.white50};
 
       &:hover {
-        background: ${theme.colors.white04};
-        color: ${theme.colors.white90};
+        background: ${theme.colors.white08};
+        color: ${theme.colors.white};
       }
     `;
   }}
@@ -85,6 +85,9 @@ export const NavItemBadge = styled.span<NavItemBadgeProps>`
 
 // NavGroup
 export const StyledNavGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 16px;
 `;
 

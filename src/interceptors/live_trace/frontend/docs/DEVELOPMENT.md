@@ -1,6 +1,78 @@
 # Development Guide
 
-This guide covers everything you need to contribute to Cylestio UIKit.
+This is the source of truth for developing in the Cylestio UIKit frontend.
+
+---
+
+## Executor Profile
+
+**You are:** A **World-Class React Engineer** with 10+ years of experience building web applications. You have:
+- Deep expertise in React
+- Track record of building web applications that are fast, responsive, and easy to use
+- Experience with building web applications that are scalable and maintainable
+- Strong ability to simplify complex multi-stage products
+
+---
+
+## Development Principles
+
+1. **Keep It Simple** - The most important principle. Simple over complex, boring over clever, working over perfect, incremental over big-bang, explicit over implicit. Don't over-engineer.
+2. **Read First, Then Act** - Read the ENTIRE task before starting. Understand scope and dependencies.
+3. **Research Before Implementing** - Look online for best practices. Study similar tools. Validate your approach.
+4. **Test-First When Applicable** - Tests serve as documentation and prevent regressions.
+5. **Document Decisions** - Explain WHY, not just what. But don't create redundant markdown files.
+6. **Deliver Incrementally** - Show progress regularly. Break large deliverables into checkpoints.
+7. **Ask for Clarification** - If ambiguous, ask before proceeding. State assumptions explicitly.
+8. **Use Up-to-Date Versions** - Use the latest stable versions of packages.
+
+---
+
+## Quick Reference Checklists
+
+### Before Starting
+
+- [ ] Read task fully before acting
+- [ ] Check existing components in [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md)
+- [ ] Research patterns if needed
+
+### Import Organization
+
+- [ ] Follow exact order: React → External → Internal (`@api`, `@theme`, `@utils`) → `@ui` → `@domain` → Relative
+- [ ] Add blank line between each group
+- [ ] Sort alphabetically within each group
+
+See [Import Organization](#import-organization-1) for full details.
+
+### Component Placement (Decision Tree)
+
+1. Can it be a standalone npm package? → `ui/`
+2. Does it know about agents, security, monitoring? → `domain/`
+3. Otherwise → `features/`
+
+### Path Aliases
+
+- [ ] Use `@ui/*`, `@domain/*`, `@features/*` for cross-directory imports
+- [ ] Use relative imports (`./`) only for same-directory
+
+### Component Changes
+
+- [ ] Update stories with new props
+- [ ] Add `play()` function with tests to every story
+- [ ] Ensure types match implementation
+- [ ] Update [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md)
+- [ ] Verify usages still work (find usages, check nothing broke)
+
+### Testing
+
+- [ ] Run `npm run build` (TypeScript check)
+- [ ] Run `npm run test-storybook`
+- [ ] Keep Storybook running (don't restart without asking)
+
+### Before Committing
+
+- [ ] Use `git mv` for file moves (not `mv`)
+- [ ] Run `npm run lint`
+- [ ] Remove any over-engineering
 
 ---
 
@@ -13,21 +85,74 @@ npm install
 # Start Storybook (component development)
 npm run storybook
 
-# Run build
+# Run build (TypeScript check + Vite build)
 npm run build
 
 # Run linting
 npm run lint
 
-# Run Storybook tests
+# Run Storybook tests (assumes Storybook is running on port 6006)
 npm run test-storybook
+```
+
+**Testing Workflow:**
+1. Storybook is usually already running on port 6006
+2. Run `npm run build` to check TypeScript errors
+3. Run `npm run test-storybook` directly
+4. If tests fail due to Storybook not running, ask the user before starting it
+
+**DO NOT:**
+- Kill existing Storybook processes
+- Start a new Storybook instance without asking
+- Run `npm run storybook` unless explicitly needed
+
+---
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── ui/                    # Generic UI primitives (reusable anywhere)
+│   │   ├── core/              # Button, Card, Badge, Text, Heading, Avatar, Code, Label
+│   │   ├── form/              # Input, Select, Checkbox, Radio, TextArea, FormLabel
+│   │   ├── feedback/          # OrbLoader, Skeleton, Toast, ProgressBar, EmptyState
+│   │   ├── navigation/        # NavItem, Breadcrumb, Tabs, ToggleGroup
+│   │   ├── overlays/          # Modal, Tooltip, Popover, Dropdown, ConfirmDialog
+│   │   ├── data-display/      # Table, CodeBlock
+│   │   └── layout/            # Grid, Content, Main
+│   │
+│   ├── domain/                # Domain-specific (AI security monitoring)
+│   │   ├── layout/            # Shell, Sidebar, TopBar, UserMenu, Logo
+│   │   ├── agents/            # AgentSelector, ModeIndicators
+│   │   ├── metrics/           # StatCard, RiskScore, ComplianceGauge
+│   │   ├── activity/          # ActivityFeed, ToolChain, LifecycleProgress
+│   │   └── visualization/     # ClusterVisualization, SurfaceNode
+│   │
+│   └── features/              # Feature-specific (tied to specific pages)
+│       └── ...
+│
+├── pages/               # Demo pages
+├── theme/               # Design system (theme.ts, animations.ts, GlobalStyles.ts)
+├── api/                 # API layer (types, endpoints, mocks)
+├── hooks/               # Custom hooks
+└── utils/               # Utility functions
+```
+
+### Component File Pattern
+
+```
+ComponentName/
+├── ComponentName.tsx         # Component + types
+├── ComponentName.styles.ts   # Styled components
+└── ComponentName.stories.tsx # Stories + tests
 ```
 
 ---
 
 ## Import Organization
 
-**IMPORTANT: Follow this exact order. Separate each group with a blank line.**
+**Follow this exact order. Separate each group with a blank line.**
 
 | Order | Group | Aliases/Patterns | Example |
 |-------|-------|------------------|---------|
@@ -38,17 +163,6 @@ npm run test-storybook
 | 5 | Domain components | `@domain/*` | `import { Shell } from '@domain/layout/Shell'` |
 | 6 | Pages/Features | `@pages/*`, `@features/*` | `import { Dashboard } from '@pages/index'` |
 | 7 | Relative imports | `./`, `../` | `import { styles } from './Component.styles'` |
-
-### Checklist for Import Review
-
-- [ ] React imports first?
-- [ ] External libraries after React?
-- [ ] `@api/*`, `@theme/*`, `@utils/*` grouped together?
-- [ ] `@ui/*` imports together (alphabetical)?
-- [ ] `@domain/*` imports together (alphabetical)?
-- [ ] Relative imports (`./`, `../`) last?
-- [ ] Blank line between each group?
-- [ ] Alphabetical within each group?
 
 ### Example
 
@@ -92,26 +206,20 @@ import { StyledContainer } from './App.styles';
 ### Examples
 
 ```typescript
-// ✓ Good - UI component imports
+// ✓ Good - cross-directory imports
 import { Button } from '@ui/core/Button';
-import { Modal } from '@ui/overlays/Modal';
-
-// ✓ Good - Domain component imports
 import { StatCard } from '@domain/metrics/StatCard';
-import { Shell } from '@domain/layout/Shell';
 
 // ✓ Good - same-directory imports stay relative
 import { StyledButton } from './Button.styles';
-import type { ButtonProps } from './Button';
 
 // ✗ Bad - relative paths for cross-directory
 import { Button } from '../../components/ui/core/Button';
-import { theme } from '../../../theme';
 ```
 
 ---
 
-## Component Reuse (CRITICAL)
+## Component Reuse
 
 **ALWAYS check for existing components before creating new ones.**
 
@@ -122,7 +230,7 @@ import { theme } from '../../../theme';
 |----------|------------|
 | `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label |
 | `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
-| `ui/feedback/` | Spinner, Skeleton, Toast, EmptyState, ProgressBar |
+| `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown |
 | `ui/data-display/` | Table, CodeBlock |
@@ -137,127 +245,15 @@ import { theme } from '../../../theme';
 | `domain/activity/` | ActivityFeed, ToolChain, LifecycleProgress |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
 
-See [`COMPONENTS_INDEX.md`](./COMPONENTS_INDEX.md) for full API reference with props and usage examples.
+See [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md) for full API reference with props and usage examples.
 
-**When adding/removing/updating components, update `COMPONENTS_INDEX.md`!**
-
-### Import Pattern
-
-```typescript
-// From same category
-import { Button } from './Button';
-
-// From different category - use path aliases
-import { Card } from '@ui/core/Card';
-import { StatCard } from '@domain/metrics/StatCard';
-```
-
-### Where to Put New Components
-
-| Category | Use When | Examples |
-|----------|----------|----------|
-| `ui/` | Generic, reusable in any project. No domain knowledge. | Button, Modal, Table |
-| `domain/` | Specific to AI security, but reusable across pages. | StatCard, RiskScore |
-| `features/` | Tied to a specific feature/page. | AlertsPanel, ReportBuilder |
-
----
-
-## Project Structure
-
-```
-src/
-├── components/
-│   ├── ui/                    # Generic UI primitives (reusable anywhere)
-│   │   ├── core/              # Button, Card, Badge, Text, Heading, Avatar, Code, Label
-│   │   ├── form/              # Input, Select, Checkbox, Radio, TextArea, FormLabel
-│   │   ├── feedback/          # Skeleton, Toast, Spinner, ProgressBar, EmptyState
-│   │   ├── navigation/        # NavItem, Breadcrumb, Tabs, ToggleGroup
-│   │   ├── overlays/          # Modal, Tooltip, Popover, Dropdown, ConfirmDialog
-│   │   ├── data-display/      # Table, CodeBlock
-│   │   └── layout/            # Grid, Content, Main
-│   │
-│   ├── domain/                # Domain-specific (AI security monitoring)
-│   │   ├── layout/            # Shell, Sidebar, TopBar, UserMenu, Logo
-│   │   ├── agents/            # AgentSelector, ModeIndicators
-│   │   ├── metrics/           # StatCard, RiskScore, ComplianceGauge
-│   │   ├── activity/          # ActivityFeed, ToolChain, LifecycleProgress
-│   │   ├── visualization/     # ClusterVisualization, SurfaceNode
-│   │
-│   └── features/              # Feature-specific (tied to specific pages)
-│       └── ...
-│
-├── pages/               # Demo pages
-│   ├── Dashboard/
-│   ├── Findings/
-│   ├── Sessions/
-│   └── Settings/
-│
-├── theme/               # Design system
-│   ├── theme.ts         # Design tokens and theme object
-│   ├── GlobalStyles.ts  # CSS reset
-│   ├── animations.ts    # Keyframe animations
-│   └── index.ts
-│
-├── api/                 # API layer
-│   └── mocks/           # Mock data for development
-│
-├── App.tsx              # Root component
-└── main.tsx             # Entry point
-```
-
-### Component File Pattern
-
-Each component follows this structure:
-
-```
-ComponentName.tsx         # Component + types (inline)
-ComponentName.styles.ts   # Styled components
-ComponentName.stories.tsx # Storybook stories + tests
-```
-
----
-
-## Updating Components (CRITICAL)
-
-**When modifying a component, you MUST update its stories and tests.**
-
-### Checklist for Component Changes
-
-Before considering a component update complete, verify:
-
-1. **Stories updated** - All stories reflect the current component API
-   - New props have corresponding stories demonstrating their use
-   - Removed props are cleaned from all stories
-   - Changed behavior is reflected in story examples
-
-2. **Tests updated** - All interaction tests pass and cover new behavior
-   - New functionality has `play` functions testing it
-   - Edge cases are covered (empty states, error states, etc.)
-   - Existing tests still pass with the changes
-
-3. **Types updated** - TypeScript interfaces match the implementation
-   - New props are properly typed and documented
-   - Removed props are removed from interfaces
-   - Default values are documented in JSDoc comments
-
-4. **Documentation updated** - `COMPONENTS_INDEX.md` reflects changes
-   - Props table is accurate
-   - Usage examples work with current API
-
-
-### Running Tests After Changes
-
-```bash
-# Always run after component changes
-npm run build              # Verify TypeScript compiles
-npm run test-storybook     # Verify all stories pass
-```
+**When adding/removing/updating components, update COMPONENTS_INDEX.md!**
 
 ---
 
 ## Component Development
 
-### 1. File Structure
+### File Structure
 
 ```typescript
 // ComponentName.tsx
@@ -287,7 +283,7 @@ export const ComponentName: FC<ComponentNameProps> = ({
 };
 ```
 
-### 2. Styled Components (Transient Props)
+### Styled Components (Transient Props)
 
 Use `$` prefix for props that control styling:
 
@@ -324,7 +320,7 @@ export const StyledComponent = styled.div<StyledComponentProps>`
 `;
 ```
 
-### 3. Theme Tokens
+### Theme Tokens
 
 Access via styled-components theme prop:
 
@@ -350,12 +346,12 @@ theme.radii.md    // 6px
 theme.shadows.glowCyan
 ```
 
-### 4. Animations
+### Animations
 
 ```typescript
 import { pulse, spin, fadeInUp } from '@theme/animations';
 
-const Spinner = styled.div`
+const LoadingIcon = styled.div`
   animation: ${spin} 0.8s linear infinite;
 `;
 ```
@@ -404,20 +400,19 @@ export const WithIcon: Story = {
   ),
 };
 
-// Stateful
+// Stateful (requires useState import)
 export const Interactive: Story = {
   render: function InteractiveComponent() {
     const [value, setValue] = useState('');
     return <Input value={value} onChange={setValue} />;
   },
 };
+// Note: Add `import { useState } from 'react';` at top of file
 ```
 
 ### Interaction Tests (REQUIRED)
 
-**⚠️ Every story MUST have a `play` function with interaction tests!**
-
-Tests ensure components work correctly and prevent regressions:
+**Every story MUST have a `play` function with interaction tests!**
 
 ```typescript
 export const Default: Story = {
@@ -453,14 +448,11 @@ src/api/
 │   └── index.ts
 ├── mocks/           # Mock data for development
 │   ├── stats.ts
-│   ├── findings.ts
 │   └── index.ts
 └── index.ts         # Barrel export
 ```
 
 ### Type Definitions
-
-Define API response types in the `types/` folder:
 
 ```typescript
 // src/api/types/dashboard.ts
@@ -470,7 +462,6 @@ export interface APIAgent {
   total_sessions: number;
   active_sessions: number;
   risk_status: 'evaluating' | 'ok';
-  // ...
 }
 
 export interface DashboardResponse {
@@ -481,8 +472,6 @@ export interface DashboardResponse {
 ```
 
 ### Endpoint Functions
-
-Create fetch functions in the `endpoints/` folder:
 
 ```typescript
 // src/api/endpoints/dashboard.ts
@@ -495,22 +484,6 @@ export const fetchDashboard = async (): Promise<DashboardResponse> => {
   }
   return response.json();
 };
-```
-
-### Development Proxy
-
-Vite proxies `/api/*` requests to the backend server (avoids CORS issues):
-
-```typescript
-// vite.config.ts
-server: {
-  proxy: {
-    '/api': {
-      target: 'http://127.0.0.1:8080',
-      changeOrigin: true,
-    },
-  },
-},
 ```
 
 ### Usage in Components
@@ -536,14 +509,6 @@ useEffect(() => {
   };
   load();
 }, []);
-```
-
-### Mock Data (for Storybook/Tests)
-
-Mock data remains in `mocks/` for use in stories and tests:
-
-```typescript
-import { mockFindings } from '@api/mocks/findings';
 ```
 
 ---
@@ -574,7 +539,7 @@ import { mockFindings } from '@api/mocks/findings';
 Each category folder has an `index.ts`:
 
 ```typescript
-// src/components/core/index.ts
+// src/components/ui/core/index.ts
 export { Button } from './Button';
 export type { ButtonProps, ButtonVariant } from './Button';
 

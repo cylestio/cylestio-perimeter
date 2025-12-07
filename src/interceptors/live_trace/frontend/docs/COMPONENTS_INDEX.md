@@ -14,7 +14,7 @@
 |----------|------------|
 | `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label |
 | `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
-| `ui/feedback/` | Spinner, Skeleton, Toast, EmptyState, ProgressBar |
+| `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown |
 | `ui/data-display/` | Table, CodeBlock |
@@ -25,7 +25,7 @@
 | Category | Components |
 |----------|------------|
 | `domain/layout/` | Shell, Sidebar, TopBar, UserMenu, Logo |
-| `domain/agents/` | AgentSelector, ModeIndicators, AgentCard |
+| `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
@@ -355,15 +355,35 @@ interface ToggleGroupProps {
 
 ## Feedback Components
 
-### Spinner
+### OrbLoader
 
-Loading spinner with size and color options.
+Animated loading indicator based on the Agent Inspector logo orb.
 
 ```typescript
-interface SpinnerProps {
-  size?: 'sm' | 'md' | 'lg';
-  color?: 'default' | 'cyan' | 'white';
+type OrbLoaderSize = 'sm' | 'md' | 'lg' | 'xl';
+type OrbLoaderVariant = 'morph' | 'whip';
+
+interface OrbLoaderProps {
+  size?: OrbLoaderSize;
+  variant?: OrbLoaderVariant;
+  className?: string;
 }
+
+interface FullPageLoaderProps {
+  text?: string;
+  variant?: OrbLoaderVariant;
+}
+```
+
+**Variants:**
+- `morph` (default): Circle transforms to square and back while spinning
+- `whip`: Circle accelerates rapidly then decelerates
+
+**Usage:**
+```tsx
+<OrbLoader size="md" />
+<OrbLoader size="lg" variant="whip" />
+<FullPageLoader text="Loading..." />
 ```
 
 ### Skeleton
@@ -664,6 +684,29 @@ Root layout container.
     <Content>...</Content>
   </Main>
 </Shell>
+```
+
+### AgentListItem
+
+Individual agent display for sidebar list.
+
+```typescript
+interface AgentListItemProps {
+  agent: APIAgent;          // Agent data from dashboard API
+  active?: boolean;         // Highlights when on agent's detail page
+  collapsed?: boolean;      // Show only avatar when sidebar collapsed
+  onClick?: () => void;     // Click handler for navigation
+}
+```
+
+**Usage:**
+```tsx
+<AgentListItem
+  agent={agent}
+  active={currentAgentId === agent.id}
+  collapsed={sidebarCollapsed}
+  onClick={() => navigate(`/dashboard/agent/${agent.id}`)}
+/>
 ```
 
 ### AgentSelector

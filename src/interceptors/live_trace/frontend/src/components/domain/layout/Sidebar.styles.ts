@@ -53,6 +53,9 @@ export const SidebarHeaderContainer = styled.div`
 `;
 
 export const SidebarSectionContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   padding: ${({ theme }) => theme.spacing[4]};
   flex: 1;
 `;

@@ -189,7 +189,7 @@ export const AgentDetail: FC = () => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Dashboard', href: '/' },
+      { label: 'Portfolio', href: '/' },
       { label: 'Agent' },
       { label: agentId?.substring(0, 12) + '...' || '' },
     ],
