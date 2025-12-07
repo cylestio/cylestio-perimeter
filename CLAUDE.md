@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python LLM Proxy Server that acts as an intermediary for LLM API requests (OpenAI, Anthropic, etc.) with request tracing capabilities. The project is in initial development phase and follows the specifications in INSTRUCTIONS.md.
+This is a Python LLM Proxy Server that acts as an intermediary for LLM API requests (OpenAI, Anthropic, etc.) with request tracing, analysis, and replay capabilities. The project provides security analysis features including PII detection, behavioral analysis, and live tracing. Specifications for future development are in `specs/`.
 
 ## Development Commands
 
@@ -14,7 +14,7 @@ This is a Python LLM Proxy Server that acts as an intermediary for LLM API reque
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies (once requirements.txt is created)
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -34,6 +34,15 @@ python -m src.main run --base-url https://api.openai.com --type openai
 
 # Production mode
 uvicorn src.main:app --host 0.0.0.0 --port 3000 --workers 4
+```
+
+### Replay Recorded Traffic
+```bash
+# Replay HTTP recordings through interceptors
+python -m src.main replay test_data/input_http_recordings/ --config examples/configs/anthropic-basic.yaml
+
+# With delay between requests
+python -m src.main replay test_data/input_http_recordings/ --delay 0.5 --config config.yaml
 ```
 
 ### Testing
@@ -65,13 +74,16 @@ pytest -v
 ## Architecture
 
 ### Project Structure
-- `src/main.py` - FastAPI application entry point
+- `src/main.py` - FastAPI application entry point and CLI commands
 - `src/config/` - Configuration management using Pydantic
-- `src/proxy/` - Core proxy logic, middleware, and session management
+- `src/proxy/` - Core proxy logic, middleware, session management, and tools
 - `src/providers/` - LLM provider implementations (OpenAI, Anthropic)
-- `src/interceptors/` - Request/response interceptors for tracing and logging
+- `src/interceptors/` - Request/response interceptors for tracing, logging, and analysis
+  - `live_trace/` - Live tracing with web UI, analysis modules (PII, security, behavioral)
+  - `cylestio_trace/` - Cylestio platform integration
 - `src/events/` - Event system for request/response tracking
-- `src/utils/` - Utilities for logging and HTTP requests
+- `src/replay/` - HTTP traffic replay service and pipeline
+- `src/utils/` - Utilities for logging
 
 ### Key Design Patterns
 1. **Configuration Hierarchy**: CLI args > Config file > Defaults
@@ -86,6 +98,7 @@ pytest -v
 - **uvicorn**: ASGI server for running the application
 - **typer**: CLI framework for command-line interface
 - **descope**: Authentication service integration
+- **presidio-analyzer/spacy**: PII detection and NLP
 
 ### Interceptor System
 The proxy supports configurable interceptors specified in config.yaml:
@@ -93,6 +106,8 @@ The proxy supports configurable interceptors specified in config.yaml:
 - **message_logger**: Logs messages to files
 - **cylestio_trace**: Traces requests to Cylestio platform
 - **event_recorder**: Records events for analysis and replay
+- **http_recorder**: Records HTTP request/response pairs for replay
+- **live_trace**: Real-time tracing with web UI, security analysis, PII detection
 - **test_recorder**: Records test scenarios
 
 ### Configuration System
@@ -121,14 +136,12 @@ Priority: CLI arguments override config file settings
 - Streaming support for SSE responses
 - Session detection and management
 - Event system for request/response tracking
-- CLI interface with Typer
+- CLI interface with Typer (run, replay, validate-config, generate-config)
+- HTTP recording and replay functionality
+- Live trace with web UI and analysis (PII detection, security assessment, behavioral analysis)
 - Comprehensive test suite
 - Docker support with docker-compose
-
-🔄 **Current Development:**
-- External session/agent ID support
-- Enhanced session management features
-- Performance optimizations
+- CI/CD pipeline
 
 ## Development Style
 
