@@ -11,7 +11,8 @@ import type { BreadcrumbItem } from '@ui/navigation/Breadcrumb';
 
 // Types
 export interface PageMeta {
-  breadcrumbs: BreadcrumbItem[];
+  breadcrumbs?: BreadcrumbItem[];
+  hide: boolean;
 }
 
 interface PageMetaContextValue {
@@ -24,7 +25,7 @@ const PageMetaContext = createContext<PageMetaContextValue | null>(null);
 
 // Provider
 export const PageMetaProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const [pageMeta, setPageMetaState] = useState<PageMeta>({ breadcrumbs: [] });
+  const [pageMeta, setPageMetaState] = useState<PageMeta>({ breadcrumbs: [], hide: false });
 
   const setPageMeta = useCallback((meta: Partial<PageMeta>) => {
     setPageMetaState((prev) => ({ ...prev, ...meta }));
@@ -44,7 +45,7 @@ export const usePageMeta = (meta: Partial<PageMeta>) => {
   useEffect(() => {
     context?.setPageMeta(meta);
     // Reset breadcrumbs on unmount
-    return () => context?.setPageMeta({ breadcrumbs: [] });
+    return () => context?.setPageMeta({ breadcrumbs: [], hide: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(meta)]);
 };
@@ -52,5 +53,5 @@ export const usePageMeta = (meta: Partial<PageMeta>) => {
 // Hook for layout to read metadata
 export const usePageMetaValue = () => {
   const context = useContext(PageMetaContext);
-  return context?.pageMeta ?? { breadcrumbs: [] };
+  return context?.pageMeta ?? { breadcrumbs: [], hide: false };
 };

@@ -17,6 +17,11 @@ import type { ConfigResponse } from '@api/types/config';
 
 import {
   ConnectContainer,
+  HeroSection,
+  LogoOrb,
+  HeroTitle,
+  HeroHighlight,
+  HeroSubtitle,
   UrlSection,
   UrlBox,
   ConfigDetails,
@@ -32,7 +37,7 @@ type ConnectionStatus = 'loading' | 'waiting' | 'connected';
 
 export const Connect: FC = () => {
   usePageMeta({
-    breadcrumbs: [{ label: 'How to Connect' }],
+    hide: true,
   });
 
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -86,13 +91,19 @@ export const Connect: FC = () => {
 
   return (
     <ConnectContainer>
+      {/* Hero Section */}
+      <HeroSection>
+        <LogoOrb />
+        <HeroTitle>
+          Connect Your <HeroHighlight>Agent</HeroHighlight>
+        </HeroTitle>
+        <HeroSubtitle>
+          Point your client to this proxy URL to start capturing requests
+        </HeroSubtitle>
+      </HeroSection>
+
       {/* Main Action Card */}
       <StyledCard>
-        <Card.Header
-          title="Connect Your Agent"
-          subtitle="Point your client to this proxy URL to start capturing requests"
-          centered
-        />
         <Card.Content>
           {isLoading ? (
             <Skeleton variant="rect" height={56} />
