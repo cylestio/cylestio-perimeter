@@ -1,40 +1,77 @@
 import styled from 'styled-components';
 import { Card } from '@ui/core/Card';
 import { Button } from '@ui/core/Button';
+import { orbSpin } from '@theme/animations';
 
 export const ConnectContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
   max-width: 640px;
   margin: 0 auto;
-  padding-top: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[12]} ${({ theme }) => theme.spacing[6]};
+  text-align: center;
+`;
+
+// ============ Hero Section ============
+export const HeroSection = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing[10]};
+`;
+
+export const LogoOrb = styled.div`
+  width: 64px;
+  height: 64px;
+  margin: 0 auto ${({ theme }) => theme.spacing[6]};
+  border-radius: ${({ theme }) => theme.radii.full};
+  background: conic-gradient(
+    from 0deg,
+    ${({ theme }) => theme.colors.cyan},
+    ${({ theme }) => theme.colors.green},
+    rgba(168, 85, 247, 0.5),
+    ${({ theme }) => theme.colors.cyan}
+  );
+  animation: ${orbSpin} 10s linear infinite;
+  position: relative;
+  box-shadow:
+    0 0 40px rgba(0, 240, 255, 0.3),
+    0 0 80px rgba(0, 255, 136, 0.2);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border-radius: ${({ theme }) => theme.radii.full};
+    background: ${({ theme }) => theme.colors.void};
+  }
+`;
+
+export const HeroTitle = styled.h1`
+  font-size: 40px;
+  font-weight: ${({ theme }) => theme.typography.weightExtrabold};
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: ${({ theme }) => theme.spacing[3]};
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const HeroHighlight = styled.span`
+  color: ${({ theme }) => theme.colors.cyan};
+`;
+
+export const HeroSubtitle = styled.p`
+  font-size: 16px;
+  color: ${({ theme }) => theme.colors.white50};
+  line-height: 1.6;
 `;
 
 // Styled Card with custom styling for Connect page
 export const StyledCard = styled(Card)`
+  width: 100%;
   margin-bottom: ${({ theme }) => theme.spacing[6]};
   border-radius: ${({ theme }) => theme.radii.xl};
-
-  /* Override Card.Header styles for hero-style centered header */
-  > div:first-child {
-    border-bottom: none;
-    padding: ${({ theme }) => theme.spacing[8]} ${({ theme }) => theme.spacing[8]} ${({ theme }) => theme.spacing[6]};
-
-    /* Title - larger for hero card */
-    h3 {
-      font-size: 24px;
-      font-weight: 600;
-      color: ${({ theme }) => theme.colors.white};
-    }
-
-    /* Subtitle */
-    p {
-      margin-top: ${({ theme }) => theme.spacing[2]};
-    }
-  }
-
-  /* Override Card.Content padding */
-  > div:last-child {
-    padding: 0 ${({ theme }) => theme.spacing[8]} ${({ theme }) => theme.spacing[8]};
-  }
+  text-align: left;
 `;
 
 // ============ URL Copy Section ============

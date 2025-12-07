@@ -30,7 +30,7 @@ function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Get breadcrumbs from page context
-  const { breadcrumbs } = usePageMetaValue();
+  const { breadcrumbs, hide: hideTopBar } = usePageMetaValue();
 
   // Poll dashboard data at app level
   const fetchFn = useCallback(() => fetchDashboard(), []);
@@ -90,14 +90,15 @@ function AppLayout() {
         </Sidebar.Footer>
       </Sidebar>
       <Main>
-        <TopBar
+
+        {!hideTopBar && <TopBar
           breadcrumb={breadcrumbs}
-          search={{
-            onSearch: (query: string) => { console.log(query); },
-            placeholder: 'Search sessions...',
-            shortcut: '⌘K'
-          }}
-        />
+          // search={{
+          //   onSearch: (query: string) => { console.log(query); },
+          //   placeholder: 'Search sessions...',
+          //   shortcut: '⌘K'
+          // }}
+        />}
 
         <Content>
           <Outlet context={{ dashboardData: data, dashboardLoading: loading }} />
