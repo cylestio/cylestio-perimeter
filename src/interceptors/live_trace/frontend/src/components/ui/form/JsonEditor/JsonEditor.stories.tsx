@@ -52,10 +52,11 @@ export const Empty: Story = {
 export const WithError: Story = {
   render: function ErrorStory() {
     const [value, setValue] = useState('{ invalid json }');
-    return <JsonEditor value={value} onChange={setValue} label="Invalid JSON" />;
+    return <JsonEditor value={value} onChange={setValue} label="Error Example" />;
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('Invalid JSON')).toBeInTheDocument();
+    await expect(canvas.getByText('Error Example')).toBeInTheDocument();
+    await expect(canvas.getByText(/Expected property name/)).toBeInTheDocument();
   },
 };
 

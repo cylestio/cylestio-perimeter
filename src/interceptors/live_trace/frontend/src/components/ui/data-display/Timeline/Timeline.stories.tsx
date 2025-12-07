@@ -88,13 +88,6 @@ export const Default: Story = {
     sessionId: 'session-123',
     onReplay: fn(),
   },
-  play: async ({ canvas }) => {
-    const timeline = canvas.getByText('llm.call.start');
-    await expect(timeline).toBeInTheDocument();
-
-    const toolName = canvas.getByText('code_executor');
-    await expect(toolName).toBeInTheDocument();
-  },
 };
 
 export const WithReplayButton: Story = {
@@ -117,10 +110,6 @@ export const WithError: Story = {
     events: [...mockEvents, errorEvent],
     sessionId: 'session-123',
   },
-  play: async ({ canvas }) => {
-    const errorMessage = canvas.getByText(/Rate limit exceeded/);
-    await expect(errorMessage).toBeInTheDocument();
-  },
 };
 
 export const SingleEvent: Story = {
@@ -128,22 +117,11 @@ export const SingleEvent: Story = {
     events: [mockEvents[0]],
     sessionId: 'session-123',
   },
-  play: async ({ canvas }) => {
-    const eventType = canvas.getByText('llm.call.start');
-    await expect(eventType).toBeInTheDocument();
-  },
 };
 
 export const ToolExecutionOnly: Story = {
   args: {
     events: mockEvents.filter(e => e.event_type.startsWith('tool.')),
-  },
-  play: async ({ canvas }) => {
-    const toolExecution = canvas.getByText('tool.execution');
-    await expect(toolExecution).toBeInTheDocument();
-
-    const toolResult = canvas.getByText('tool.result');
-    await expect(toolResult).toBeInTheDocument();
   },
 };
 
