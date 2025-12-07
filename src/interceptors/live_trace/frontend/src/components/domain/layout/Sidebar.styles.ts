@@ -48,7 +48,7 @@ export const SidebarNav = styled.nav`
 `;
 
 export const SidebarHeaderContainer = styled.div`
-  padding: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[5]};
   border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
 `;
 

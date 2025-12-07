@@ -43,11 +43,6 @@ function AppLayout() {
           <Logo />
         </Sidebar.Header>
         <Sidebar.Section>
-          <AgentSelector
-            agents={agents}
-            selectedAgent={selectedAgent}
-            onSelect={setSelectedAgent}
-          />
           <NavGroup>
             <NavItem
               label="How to Connect"

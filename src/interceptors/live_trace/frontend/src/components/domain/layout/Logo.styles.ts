@@ -26,6 +26,7 @@ export const Orb = styled.div`
   align-items: center;
   justify-content: center;
   animation: ${orbSpin} 8s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.5)) drop-shadow(0 0 16px rgba(0, 255, 136, 0.3));
   flex-shrink: 0;
 `;
 
