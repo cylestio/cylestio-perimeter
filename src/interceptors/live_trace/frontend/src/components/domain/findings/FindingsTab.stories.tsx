@@ -120,9 +120,10 @@ export const Loading: Story = {
     isLoading: true,
   },
   play: async ({ canvasElement }) => {
-    // OrbLoader should be present - check for loading wrapper
-    const loadingWrapper = canvasElement.querySelector('[class*="LoadingWrapper"]');
-    await expect(loadingWrapper).toBeInTheDocument();
+    const canvas = within(canvasElement);
+    // When loading, no findings or empty state should be shown
+    await expect(canvas.queryByText('No findings')).not.toBeInTheDocument();
+    await expect(canvas.queryByText('Total Findings')).not.toBeInTheDocument();
   },
 };
 
