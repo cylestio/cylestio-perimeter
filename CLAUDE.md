@@ -127,6 +127,19 @@ Priority: CLI arguments override config file settings
 7. Interceptor post-processing (e.g., tracing, logging)
 8. Return response to client
 
+## MCP Server
+
+The `live_trace` interceptor includes an MCP (Model Context Protocol) server at `/mcp` endpoint for AI assistant integration.
+
+**Source of truth:** `src/interceptors/live_trace/mcp/tools.py`
+
+**When modifying MCP tools, update these files:**
+- `src/templates/INSTALLATION.md` - Tool documentation
+- `src/templates/cursor-rules/.cursorrules` - Cursor rules
+- `src/templates/cursor-rules/agent-inspector.mdc` - MDC format rules
+- `src/templates/skills/static-analysis/SKILL.md` - Static analysis skill
+- `src/templates/skills/auto-fix/SKILL.md` - Auto-fix skill
+
 ## Implementation Status
 ✅ **Completed Features:**
 - Project structure and configuration system

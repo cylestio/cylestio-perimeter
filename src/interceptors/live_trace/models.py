@@ -1,4 +1,4 @@
-"""Data models for MCP (Model Context Protocol) tools."""
+"""Data models for security findings and analysis sessions."""
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -104,20 +104,6 @@ class AnalysisSessionCreate(BaseModel):
     agent_id: str
     agent_name: Optional[str] = None
     session_type: SessionType = SessionType.STATIC
-
-
-class MCPToolResponse(BaseModel):
-    """Response model for MCP tool calls."""
-    success: bool
-    data: Optional[Dict[str, Any]] = None
-    error: Optional[Dict[str, Any]] = None
-
-
-class MCPError(BaseModel):
-    """Error model for MCP operations."""
-    code: str
-    message: str
-    suggestion: Optional[str] = None
 
 
 # Helper Functions

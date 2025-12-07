@@ -9,10 +9,20 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.mcp.server import initialize_mcp, list_tools, call_tool
+from src.kb.loader import get_kb_loader
 from src.utils.logger import get_logger
 
 from .analysis.insights import InsightsEngine
+from .mcp import create_mcp_router
+from .models import (
+    FindingSeverity,
+    SessionType,
+    Finding,
+    FindingEvidence,
+    generate_finding_id,
+    generate_session_id,
+    calculate_risk_score,
+)
 
 logger = get_logger(__name__)
 
@@ -36,8 +46,9 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         version="1.0.0"
     )
 
-    # Initialize MCP tools with the store
-    initialize_mcp(insights.store)
+    # Include MCP router
+    mcp_router = create_mcp_router(lambda: insights.store)
+    app.include_router(mcp_router)
 
     # Mount static files (for React build)
     if STATIC_DIR.exists():
@@ -379,43 +390,66 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error in replay request: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    # ==================== MCP Endpoints ====================
+    # ==================== Security Knowledge Endpoints ====================
 
-    @app.get("/mcp/tools")
-    async def mcp_list_tools():
-        """List all available MCP tools for IDE discovery."""
+    @app.get("/api/security/patterns")
+    async def api_get_security_patterns(
+        context: str = "all",
+        min_severity: str = "LOW",
+    ):
+        """Get OWASP LLM security patterns for code analysis."""
         try:
-            tools = list_tools()
+            loader = get_kb_loader()
+            patterns = loader.get_security_patterns(context=context, min_severity=min_severity)
             return JSONResponse({
-                "tools": tools,
-                "total_count": len(tools),
-                "version": "1.0.0",
+                "patterns": patterns,
+                "total_count": len(patterns),
+                "context": context,
+                "min_severity": min_severity,
             })
         except Exception as e:
-            logger.error(f"Error listing MCP tools: {e}")
+            logger.error(f"Error getting security patterns: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.post("/mcp/call/{tool_name}")
-    async def mcp_call_tool(tool_name: str, request: Request):
-        """Execute an MCP tool.
-
-        Body: {"arguments": {...}}
-        """
+    @app.get("/api/security/owasp/{control_id}")
+    async def api_get_owasp_control(control_id: str):
+        """Get detailed info for a specific OWASP LLM control."""
         try:
-            body = await request.json()
-            arguments = body.get("arguments", {})
-
-            result = call_tool(tool_name, arguments)
-            return JSONResponse(result)
-        except Exception as e:
-            logger.error(f"Error calling MCP tool {tool_name}: {e}")
+            loader = get_kb_loader()
+            control = loader.get_owasp_control(control_id)
+            if not control:
+                available = loader.get_all_owasp_controls()
+                return JSONResponse({
+                    "error": f"Control '{control_id}' not found",
+                    "available_controls": available,
+                }, status_code=404)
             return JSONResponse({
-                "success": False,
-                "error": {
-                    "code": "TOOL_CALL_ERROR",
-                    "message": str(e),
-                },
-            }, status_code=500)
+                "control": control,
+                "control_id": control_id,
+            })
+        except Exception as e:
+            logger.error(f"Error getting OWASP control: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/security/fix-template/{finding_type}")
+    async def api_get_fix_template(finding_type: str):
+        """Get remediation template for fixing a security issue."""
+        try:
+            loader = get_kb_loader()
+            template = loader.get_fix_template(finding_type)
+            if not template:
+                available = loader.get_all_fix_types()
+                return JSONResponse({
+                    "error": f"Template for '{finding_type}' not found",
+                    "available_templates": available,
+                }, status_code=404)
+            return JSONResponse({
+                "template": template,
+                "finding_type": finding_type,
+            })
+        except Exception as e:
+            logger.error(f"Error getting fix template: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
 
     # ==================== Findings API Endpoints ====================
 
@@ -443,6 +477,77 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting agent findings: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.post("/api/findings")
+    async def api_store_finding(request: Request):
+        """Store a security finding discovered during analysis."""
+        try:
+            body = await request.json()
+
+            # Required fields
+            session_id = body.get("session_id")
+            file_path = body.get("file_path")
+            finding_type = body.get("finding_type")
+            severity = body.get("severity")
+            title = body.get("title")
+
+            if not all([session_id, file_path, finding_type, severity, title]):
+                return JSONResponse({
+                    "error": "Missing required fields",
+                    "required": ["session_id", "file_path", "finding_type", "severity", "title"],
+                }, status_code=400)
+
+            # Validate severity
+            try:
+                severity_enum = FindingSeverity(severity.upper())
+            except ValueError:
+                return JSONResponse({
+                    "error": f"Invalid severity '{severity}'",
+                    "valid_severities": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                }, status_code=400)
+
+            # Get session to extract agent_id
+            session = insights.store.get_analysis_session(session_id)
+            if not session:
+                return JSONResponse({"error": "Session not found"}, status_code=404)
+
+            agent_id = session["agent_id"]
+
+            # Optional fields
+            description = body.get("description")
+            line_start = body.get("line_start")
+            line_end = body.get("line_end")
+            code_snippet = body.get("code_snippet")
+            context = body.get("context")
+            owasp_mapping = body.get("owasp_mapping")
+
+            # Build evidence
+            evidence = {}
+            if code_snippet:
+                evidence["code_snippet"] = code_snippet
+            if context:
+                evidence["context"] = context
+
+            finding_id = generate_finding_id()
+            finding = insights.store.store_finding(
+                finding_id=finding_id,
+                session_id=session_id,
+                agent_id=agent_id,
+                file_path=file_path,
+                finding_type=finding_type,
+                severity=severity_enum.value,
+                title=title,
+                description=description,
+                line_start=line_start,
+                line_end=line_end,
+                evidence=evidence if evidence else None,
+                owasp_mapping=owasp_mapping,
+            )
+
+            return JSONResponse({"finding": finding})
+        except Exception as e:
+            logger.error(f"Error storing finding: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/sessions/analysis")
     async def api_get_analysis_sessions(
         agent_id: Optional[str] = None,
@@ -462,6 +567,83 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             })
         except Exception as e:
             logger.error(f"Error getting analysis sessions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/sessions/analysis")
+    async def api_create_analysis_session(request: Request):
+        """Create a new analysis session."""
+        try:
+            body = await request.json()
+            agent_id = body.get("agent_id")
+            session_type = body.get("session_type", "STATIC")
+            agent_name = body.get("agent_name")
+
+            if not agent_id:
+                return JSONResponse({"error": "agent_id is required"}, status_code=400)
+
+            # Validate session_type
+            try:
+                session_type_enum = SessionType(session_type.upper())
+            except ValueError:
+                return JSONResponse({
+                    "error": f"Invalid session_type '{session_type}'",
+                    "valid_types": ["STATIC", "DYNAMIC", "AUTOFIX"],
+                }, status_code=400)
+
+            session_id = generate_session_id()
+            session = insights.store.create_analysis_session(
+                session_id=session_id,
+                agent_id=agent_id,
+                session_type=session_type_enum.value,
+                agent_name=agent_name,
+            )
+
+            return JSONResponse({"session": session})
+        except Exception as e:
+            logger.error(f"Error creating analysis session: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/sessions/analysis/{session_id}/complete")
+    async def api_complete_analysis_session(session_id: str, request: Request):
+        """Complete an analysis session and calculate risk score."""
+        try:
+            body = await request.json() if await request.body() else {}
+            calculate_risk = body.get("calculate_risk", True)
+
+            # Verify session exists
+            session = insights.store.get_analysis_session(session_id)
+            if not session:
+                return JSONResponse({"error": "Session not found"}, status_code=404)
+
+            # Calculate risk score if requested
+            risk_score = None
+            if calculate_risk:
+                findings = insights.store.get_findings(session_id=session_id)
+                finding_objects = []
+                for f in findings:
+                    try:
+                        evidence_data = f.get("evidence")
+                        if isinstance(evidence_data, dict):
+                            f["evidence"] = FindingEvidence(**evidence_data)
+                        elif evidence_data is None:
+                            f["evidence"] = FindingEvidence()
+                        finding_obj = Finding(**f)
+                        finding_objects.append(finding_obj)
+                    except Exception:
+                        pass  # Skip invalid findings
+                risk_score = calculate_risk_score(finding_objects)
+
+            completed_session = insights.store.complete_analysis_session(
+                session_id=session_id,
+                risk_score=risk_score,
+            )
+
+            return JSONResponse({
+                "session": completed_session,
+                "risk_score": risk_score,
+            })
+        except Exception as e:
+            logger.error(f"Error completing analysis session: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/session/{session_id}/analysis")

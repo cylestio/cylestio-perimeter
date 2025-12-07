@@ -44,5 +44,10 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
    - notes: Description of fix applied
 
 ## MCP Tools Reference
+
+**Core Workflow Tools:**
 - `get_fix_template` - Get remediation guidance (finding_type)
 - `update_finding_status` - Mark finding as fixed (finding_id, status, notes)
+
+**Additional Tools:**
+- `get_findings` - Retrieve findings to fix (session_id, agent_id, severity, status)

@@ -5,6 +5,26 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 
 # Security Analysis with Agent Inspector
 
-Connect to Agent Inspector MCP server at localhost:3000.
-Use MCP tools for all security patterns and fix templates.
-Never hardcode security patterns - fetch from get_security_patterns tool.
+Connect to Agent Inspector MCP server at localhost:3000/mcp.
+
+## Available MCP Tools (8 total)
+
+| Tool | Description |
+|------|-------------|
+| `get_security_patterns` | Get OWASP LLM Top 10 patterns for analysis |
+| `get_owasp_control` | Get specific OWASP control details (LLM01-LLM10) |
+| `get_fix_template` | Get remediation template for a finding type |
+| `create_analysis_session` | Start a new analysis session |
+| `store_finding` | Record a security finding |
+| `complete_analysis_session` | Finalize session and calculate risk score |
+| `get_findings` | Retrieve stored findings with filters |
+| `update_finding_status` | Mark finding as FIXED or IGNORED |
+
+## Workflows
+
+**Security Scan:** get_security_patterns → create_analysis_session → store_finding (repeat) → complete_analysis_session
+
+**Fix Issue:** get_findings → get_fix_template → apply fix → update_finding_status
+
+## Important
+Never hardcode security patterns - always fetch from MCP tools.

@@ -43,7 +43,13 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
    Summarize findings and provide dashboard link: `http://localhost:3000/agent/{agent_id}`
 
 ## MCP Tools Reference
+
+**Core Workflow Tools:**
 - `get_security_patterns` - Get patterns to check (context, min_severity)
 - `create_analysis_session` - Start session (agent_id, session_type)
 - `store_finding` - Record finding (session_id, file_path, finding_type, severity, title, description)
 - `complete_analysis_session` - Finalize (session_id)
+
+**Additional Tools:**
+- `get_owasp_control` - Get detailed info for specific OWASP control (control_id)
+- `get_findings` - Retrieve existing findings (session_id, agent_id, severity, status)
