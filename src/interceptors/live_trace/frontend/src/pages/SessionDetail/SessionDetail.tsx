@@ -55,7 +55,7 @@ export const SessionDetail: FC = () => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Dashboard', href: '/' },
+      { label: 'Portfolio', href: '/' },
       ...(data?.session.agent_id
         ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: `/dashboard/agent/${data.session.agent_id}` }]
         : []),
