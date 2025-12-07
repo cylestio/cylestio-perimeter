@@ -62,6 +62,45 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
+
+CREATE TABLE IF NOT EXISTS analysis_sessions (
+    session_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    agent_name TEXT,
+    session_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    completed_at REAL,
+    findings_count INTEGER DEFAULT 0,
+    risk_score INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_sessions_agent_id ON analysis_sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_sessions_status ON analysis_sessions(status);
+
+CREATE TABLE IF NOT EXISTS findings (
+    finding_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    line_start INTEGER,
+    line_end INTEGER,
+    finding_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    evidence TEXT,
+    owasp_mapping TEXT,
+    status TEXT DEFAULT 'OPEN',
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES analysis_sessions(session_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_findings_session_id ON findings(session_id);
+CREATE INDEX IF NOT EXISTS idx_findings_agent_id ON findings(agent_id);
+CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
+CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
 """
 
 
@@ -265,6 +304,7 @@ class TraceStore:
 
         # Configure SQLite for performance
         self.db.row_factory = sqlite3.Row  # Access columns by name
+        self.db.execute("PRAGMA foreign_keys=ON")  # Enable foreign key constraints
         self.db.execute("PRAGMA journal_mode=WAL")  # Better concurrency
         self.db.execute("PRAGMA synchronous=NORMAL")  # Balance safety/speed
         self.db.execute("PRAGMA cache_size=-64000")  # 64MB cache
@@ -678,3 +718,319 @@ class TraceStore:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
 
             return newly_completed
+
+    # Analysis Session and Finding Methods
+
+    def _deserialize_analysis_session(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to analysis session dict."""
+        return {
+            'session_id': row['session_id'],
+            'agent_id': row['agent_id'],
+            'agent_name': row['agent_name'],
+            'session_type': row['session_type'],
+            'status': row['status'],
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+            'completed_at': datetime.fromtimestamp(row['completed_at'], tz=timezone.utc).isoformat() if row['completed_at'] else None,
+            'findings_count': row['findings_count'],
+            'risk_score': row['risk_score'],
+        }
+
+    def _deserialize_finding(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to finding dict."""
+        return {
+            'finding_id': row['finding_id'],
+            'session_id': row['session_id'],
+            'agent_id': row['agent_id'],
+            'file_path': row['file_path'],
+            'line_start': row['line_start'],
+            'line_end': row['line_end'],
+            'finding_type': row['finding_type'],
+            'severity': row['severity'],
+            'title': row['title'],
+            'description': row['description'],
+            'evidence': json.loads(row['evidence']) if row['evidence'] else None,
+            'owasp_mapping': json.loads(row['owasp_mapping']) if row['owasp_mapping'] else [],
+            'status': row['status'],
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+            'updated_at': datetime.fromtimestamp(row['updated_at'], tz=timezone.utc).isoformat(),
+        }
+
+    def create_analysis_session(
+        self,
+        session_id: str,
+        agent_id: str,
+        session_type: str,
+        agent_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a new analysis session."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+
+            self.db.execute("""
+                INSERT INTO analysis_sessions (
+                    session_id, agent_id, agent_name, session_type, status,
+                    created_at, findings_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, agent_id, agent_name, session_type, 'IN_PROGRESS', created_at, 0))
+            self.db.commit()
+
+            return {
+                'session_id': session_id,
+                'agent_id': agent_id,
+                'agent_name': agent_name,
+                'session_type': session_type,
+                'status': 'IN_PROGRESS',
+                'created_at': now.isoformat(),
+                'completed_at': None,
+                'findings_count': 0,
+                'risk_score': None,
+            }
+
+    def complete_analysis_session(
+        self,
+        session_id: str,
+        risk_score: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Mark an analysis session as completed."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            completed_at = now.timestamp()
+
+            self.db.execute("""
+                UPDATE analysis_sessions
+                SET status = ?, completed_at = ?, risk_score = ?
+                WHERE session_id = ?
+            """, ('COMPLETED', completed_at, risk_score, session_id))
+            self.db.commit()
+
+            # Return the updated session
+            return self.get_analysis_session(session_id)
+
+    def get_analysis_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get an analysis session by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM analysis_sessions WHERE session_id = ?",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_analysis_session(row)
+            return None
+
+    def get_analysis_sessions(
+        self,
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get analysis sessions with optional filtering."""
+        with self._lock:
+            query = "SELECT * FROM analysis_sessions WHERE 1=1"
+            params = []
+
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
+
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_analysis_session(row) for row in cursor.fetchall()]
+
+    def store_finding(
+        self,
+        finding_id: str,
+        session_id: str,
+        agent_id: str,
+        file_path: str,
+        finding_type: str,
+        severity: str,
+        title: str,
+        description: Optional[str] = None,
+        line_start: Optional[int] = None,
+        line_end: Optional[int] = None,
+        evidence: Optional[Dict[str, Any]] = None,
+        owasp_mapping: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Store a security finding."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+            updated_at = created_at
+
+            # Serialize JSON fields
+            evidence_json = json.dumps(evidence) if evidence else None
+            owasp_mapping_json = json.dumps(owasp_mapping) if owasp_mapping else None
+
+            self.db.execute("""
+                INSERT INTO findings (
+                    finding_id, session_id, agent_id, file_path, line_start, line_end,
+                    finding_type, severity, title, description, evidence, owasp_mapping,
+                    status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                finding_id, session_id, agent_id, file_path, line_start, line_end,
+                finding_type, severity, title, description, evidence_json, owasp_mapping_json,
+                'OPEN', created_at, updated_at
+            ))
+
+            # Increment session's findings_count
+            self.db.execute("""
+                UPDATE analysis_sessions
+                SET findings_count = findings_count + 1
+                WHERE session_id = ?
+            """, (session_id,))
+
+            self.db.commit()
+
+            return {
+                'finding_id': finding_id,
+                'session_id': session_id,
+                'agent_id': agent_id,
+                'file_path': file_path,
+                'line_start': line_start,
+                'line_end': line_end,
+                'finding_type': finding_type,
+                'severity': severity,
+                'title': title,
+                'description': description,
+                'evidence': evidence,
+                'owasp_mapping': owasp_mapping or [],
+                'status': 'OPEN',
+                'created_at': now.isoformat(),
+                'updated_at': now.isoformat(),
+            }
+
+    def get_finding(self, finding_id: str) -> Optional[Dict[str, Any]]:
+        """Get a finding by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM findings WHERE finding_id = ?",
+                (finding_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_finding(row)
+            return None
+
+    def get_findings(
+        self,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get findings with optional filtering."""
+        with self._lock:
+            query = "SELECT * FROM findings WHERE 1=1"
+            params = []
+
+            if session_id:
+                query += " AND session_id = ?"
+                params.append(session_id)
+
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
+
+            if severity:
+                query += " AND severity = ?"
+                params.append(severity)
+
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_finding(row) for row in cursor.fetchall()]
+
+    def update_finding_status(
+        self,
+        finding_id: str,
+        status: str,
+        notes: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update the status of a finding."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            updated_at = now.timestamp()
+
+            # Update description with notes if provided
+            if notes:
+                # Append notes to existing description
+                cursor = self.db.execute(
+                    "SELECT description FROM findings WHERE finding_id = ?",
+                    (finding_id,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    existing_desc = row['description'] or ''
+                    new_desc = f"{existing_desc}\n\nUpdate: {notes}".strip()
+                    self.db.execute("""
+                        UPDATE findings
+                        SET status = ?, updated_at = ?, description = ?
+                        WHERE finding_id = ?
+                    """, (status, updated_at, new_desc, finding_id))
+                else:
+                    return None
+            else:
+                self.db.execute("""
+                    UPDATE findings
+                    SET status = ?, updated_at = ?
+                    WHERE finding_id = ?
+                """, (status, updated_at, finding_id))
+
+            self.db.commit()
+
+            # Return the updated finding
+            return self.get_finding(finding_id)
+
+    def get_agent_findings_summary(self, agent_id: str) -> Dict[str, Any]:
+        """Get a summary of findings for an agent."""
+        with self._lock:
+            # Count by severity
+            cursor = self.db.execute("""
+                SELECT severity, COUNT(*) as count
+                FROM findings
+                WHERE agent_id = ? AND status = 'OPEN'
+                GROUP BY severity
+            """, (agent_id,))
+
+            severity_counts = {row['severity']: row['count'] for row in cursor.fetchall()}
+
+            # Count by status
+            cursor = self.db.execute("""
+                SELECT status, COUNT(*) as count
+                FROM findings
+                WHERE agent_id = ?
+                GROUP BY status
+            """, (agent_id,))
+
+            status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+
+            # Get total count
+            cursor = self.db.execute("""
+                SELECT COUNT(*) as total
+                FROM findings
+                WHERE agent_id = ?
+            """, (agent_id,))
+
+            total = cursor.fetchone()['total']
+
+            return {
+                'agent_id': agent_id,
+                'total_findings': total,
+                'by_severity': severity_counts,
+                'by_status': status_counts,
+            }

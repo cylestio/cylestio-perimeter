@@ -27,12 +27,15 @@ import {
   BehavioralValue,
   ConfidenceBadge,
   WarningsText,
+  LifecycleIndicator,
 } from './AgentCard.styles';
 
 // Types
 export type RiskStatus = 'evaluating' | 'ok';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+export type LifecycleStage = 'dev' | 'static' | 'dynamic' | 'prod';
 
 export interface AgentCardProps {
   id: string;
@@ -55,6 +58,23 @@ export interface AgentCardProps {
   warnings?: number;
   onClick?: () => void;
 }
+
+// Helper functions for lifecycle stage
+const getAgentStage = (totalSessions: number): LifecycleStage => {
+  if (totalSessions > 10) return 'dynamic';
+  if (totalSessions > 0) return 'static';
+  return 'dev';
+};
+
+const getStageEmoji = (stage: LifecycleStage): string => {
+  const emojis = {
+    dev: '🔧',
+    static: '🔍',
+    dynamic: '🧪',
+    prod: '🚀',
+  };
+  return emojis[stage];
+};
 
 // Component
 export const AgentCard: FC<AgentCardProps> = ({
@@ -81,6 +101,10 @@ export const AgentCard: FC<AgentCardProps> = ({
     100
   );
 
+  // Calculate lifecycle stage
+  const lifecycleStage = getAgentStage(totalSessions);
+  const stageEmoji = getStageEmoji(lifecycleStage);
+
   // Show behavioral section when evaluation is complete and we have metrics
   const showBehavioral =
     riskStatus === 'ok' &&
@@ -97,7 +121,12 @@ export const AgentCard: FC<AgentCardProps> = ({
       <CardHeader>
         <Avatar name={id} size="lg" />
         <AgentInfo>
-          <AgentName>{name}</AgentName>
+          <AgentName>
+            <LifecycleIndicator title={`Lifecycle: ${lifecycleStage}`}>
+              {stageEmoji}
+            </LifecycleIndicator>
+            {name}
+          </AgentName>
           <AgentId>{id}</AgentId>
         </AgentInfo>
         <RiskStatusBadge $riskStatus={riskStatus}>

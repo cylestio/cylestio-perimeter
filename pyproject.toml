@@ -66,6 +66,8 @@ include = ["src*"]
 
 [tool.setuptools.package-data]
 "src.interceptors.live_trace" = ["static/**/*"]
+"src.templates" = ["**/*"]
+"src.kb" = ["*.yaml"]
 
 [project.urls]
 Homepage = "https://github.com/cylestio/cylestio-perimeter"

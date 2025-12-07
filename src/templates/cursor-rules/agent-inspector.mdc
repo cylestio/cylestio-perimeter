@@ -1,0 +1,10 @@
+---
+description: Agent Inspector security analysis integration
+globs: ["**/*.py", "**/*.ts", "**/*.js"]
+---
+
+# Security Analysis with Agent Inspector
+
+Connect to Agent Inspector MCP server at localhost:3000.
+Use MCP tools for all security patterns and fix templates.
+Never hardcode security patterns - fetch from get_security_patterns tool.

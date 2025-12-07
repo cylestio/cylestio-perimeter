@@ -2,12 +2,14 @@
 import os
 import time
 from pathlib import Path
+from typing import Optional
 
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.mcp.server import initialize_mcp, list_tools, call_tool
 from src.utils.logger import get_logger
 
 from .analysis.insights import InsightsEngine
@@ -33,6 +35,9 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         description="Real-time tracing and debugging dashboard",
         version="1.0.0"
     )
+
+    # Initialize MCP tools with the store
+    initialize_mcp(insights.store)
 
     # Mount static files (for React build)
     if STATIC_DIR.exists():
@@ -372,6 +377,153 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             )
         except Exception as e:
             logger.error(f"Error in replay request: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # ==================== MCP Endpoints ====================
+
+    @app.get("/mcp/tools")
+    async def mcp_list_tools():
+        """List all available MCP tools for IDE discovery."""
+        try:
+            tools = list_tools()
+            return JSONResponse({
+                "tools": tools,
+                "total_count": len(tools),
+                "version": "1.0.0",
+            })
+        except Exception as e:
+            logger.error(f"Error listing MCP tools: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/mcp/call/{tool_name}")
+    async def mcp_call_tool(tool_name: str, request: Request):
+        """Execute an MCP tool.
+
+        Body: {"arguments": {...}}
+        """
+        try:
+            body = await request.json()
+            arguments = body.get("arguments", {})
+
+            result = call_tool(tool_name, arguments)
+            return JSONResponse(result)
+        except Exception as e:
+            logger.error(f"Error calling MCP tool {tool_name}: {e}")
+            return JSONResponse({
+                "success": False,
+                "error": {
+                    "code": "TOOL_CALL_ERROR",
+                    "message": str(e),
+                },
+            }, status_code=500)
+
+    # ==================== Findings API Endpoints ====================
+
+    @app.get("/api/agent/{agent_id}/findings")
+    async def api_get_agent_findings(
+        agent_id: str,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get security findings for an agent."""
+        try:
+            findings = insights.store.get_findings(
+                agent_id=agent_id,
+                severity=severity.upper() if severity else None,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
+            summary = insights.store.get_agent_findings_summary(agent_id)
+            return JSONResponse({
+                "findings": findings,
+                "summary": summary,
+            })
+        except Exception as e:
+            logger.error(f"Error getting agent findings: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/sessions/analysis")
+    async def api_get_analysis_sessions(
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """List analysis sessions."""
+        try:
+            sessions = insights.store.get_analysis_sessions(
+                agent_id=agent_id,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
+            return JSONResponse({
+                "sessions": sessions,
+                "total_count": len(sessions),
+            })
+        except Exception as e:
+            logger.error(f"Error getting analysis sessions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/session/{session_id}/analysis")
+    async def api_get_analysis_session(session_id: str):
+        """Get a specific analysis session."""
+        try:
+            session = insights.store.get_analysis_session(session_id)
+            if not session:
+                return JSONResponse({"error": "Session not found"}, status_code=404)
+            return JSONResponse(session)
+        except Exception as e:
+            logger.error(f"Error getting analysis session: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/session/{session_id}/findings")
+    async def api_get_session_findings(
+        session_id: str,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get findings for a specific analysis session."""
+        try:
+            findings = insights.store.get_findings(
+                session_id=session_id,
+                severity=severity.upper() if severity else None,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
+            session = insights.store.get_analysis_session(session_id)
+            return JSONResponse({
+                "session": session,
+                "findings": findings,
+                "total_count": len(findings),
+            })
+        except Exception as e:
+            logger.error(f"Error getting session findings: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.patch("/api/finding/{finding_id}")
+    async def api_update_finding(finding_id: str, request: Request):
+        """Update a finding's status."""
+        try:
+            body = await request.json()
+            status = body.get("status")
+            notes = body.get("notes")
+
+            if not status:
+                return JSONResponse({"error": "status is required"}, status_code=400)
+
+            finding = insights.store.update_finding_status(
+                finding_id=finding_id,
+                status=status.upper(),
+                notes=notes,
+            )
+
+            if not finding:
+                return JSONResponse({"error": "Finding not found"}, status_code=404)
+
+            return JSONResponse(finding)
+        except Exception as e:
+            logger.error(f"Error updating finding: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/health")

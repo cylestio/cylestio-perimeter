@@ -1,0 +1,26 @@
+# Agent Inspector - Cursor Integration
+
+## MCP Server Connection
+Agent Inspector server at localhost:3000 provides security analysis tools.
+
+## Security Analysis Workflow
+1. Get patterns: Call `get_security_patterns` MCP tool
+2. Create session: Call `create_analysis_session` MCP tool
+3. Store findings: Call `store_finding` MCP tool
+4. Complete: Call `complete_analysis_session` MCP tool
+
+## Fix Workflow
+1. Get template: Call `get_fix_template` MCP tool
+2. Apply fix per MCP response guidance
+3. Update status: Call `update_finding_status` MCP tool
+
+## Available MCP Tools
+- get_security_patterns - Retrieve OWASP patterns
+- get_fix_template - Get remediation guidance
+- create_analysis_session - Start analysis
+- store_finding - Record findings
+- complete_analysis_session - Finalize with risk score
+- update_finding_status - Mark fixed/ignored
+
+## Important
+DO NOT use hardcoded patterns. Always fetch from MCP tools.
