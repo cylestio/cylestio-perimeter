@@ -1,5 +1,5 @@
 export { AgentDetail } from './AgentDetail';
 export { AgentReport } from './AgentReport';
 export { Connect } from './Connect';
-export { Portfolio } from './Portfolio';
+export { Dashboard } from './Dashboard';
 export { SessionDetail } from './SessionDetail';

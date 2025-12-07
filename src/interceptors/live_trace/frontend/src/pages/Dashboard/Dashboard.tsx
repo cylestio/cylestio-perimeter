@@ -18,7 +18,7 @@ import { AgentCard } from '@domain/agents';
 import { StatCard } from '@domain/metrics/StatCard';
 
 import { usePageMeta } from '../../context';
-import { AgentsGrid, SessionsList } from './Portfolio.styles';
+import { AgentsGrid, SessionsList } from './Dashboard.styles';
 
 // Transform API agent to AgentCard props
 const transformAgent = (agent: APIAgent) => ({
@@ -47,11 +47,11 @@ const getSessionStatus = (session: APISession): 'ACTIVE' | 'COMPLETE' | 'ERROR' 
   return 'COMPLETE';
 };
 
-export const Portfolio: FC = () => {
+export const Dashboard: FC = () => {
   const navigate = useNavigate();
 
   usePageMeta({
-    breadcrumbs: [{ label: 'Portfolio' }],
+    breadcrumbs: [{ label: 'Dashboard' }],
   });
 
   // Use polling for live updates every 2 seconds
@@ -152,7 +152,7 @@ export const Portfolio: FC = () => {
                   <AgentCard
                     key={agent.id}
                     {...transformAgent(agent)}
-                    onClick={() => navigate(`/portfolio/agent/${agent.id}`)}
+                    onClick={() => navigate(`/dashboard/agent/${agent.id}`)}
                   />
                 ))
               )}
@@ -192,7 +192,7 @@ export const Portfolio: FC = () => {
                         duration={formatDuration(session.duration_minutes)}
                         lastActivity={session.last_activity_relative}
                         hasErrors={session.errors > 0}
-                        onClick={() => navigate(`/portfolio/session/${session.id}`)}
+                        onClick={() => navigate(`/dashboard/session/${session.id}`)}
                       />
                     ))}
                   </SessionsList>

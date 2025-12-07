@@ -55,9 +55,9 @@ export const SessionDetail: FC = () => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Portfolio', href: '/portfolio' },
+      { label: 'Dashboard', href: '/' },
       ...(data?.session.agent_id
-        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: `/portfolio/agent/${data.session.agent_id}` }]
+        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: `/dashboard/agent/${data.session.agent_id}` }]
         : []),
       { label: 'Session' },
       { label: sessionId?.substring(0, 12) + '...' || '' },
@@ -106,7 +106,7 @@ export const SessionDetail: FC = () => {
                 label: 'AGENT ID',
                 badge: (
                   <Link
-                    to={`/portfolio/agent/${session.agent_id}`}
+                    to={`/dashboard/agent/${session.agent_id}`}
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '12px',

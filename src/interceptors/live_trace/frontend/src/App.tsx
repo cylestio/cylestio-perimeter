@@ -16,7 +16,7 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Dashboard, SessionDetail } from '@pages/index';
 
 const agents: Agent[] = [
   { id: '1', name: 'CustomerAgent', initials: 'CA', status: 'online' },
@@ -53,8 +53,8 @@ function AppLayout() {
             <NavItem
               label="Agents"
               icon={<File size={18} />}
-              active={location.pathname === '/portfolio'}
-              onClick={() => navigate('/portfolio')}
+              active={location.pathname === '/'}
+              onClick={() => navigate('/')}
             />
           </NavGroup>
         </Sidebar.Section>
@@ -88,12 +88,11 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
-              <Route path="/" element={<Portfolio />} />
+              <Route path="/" element={<Dashboard />} />
               <Route path="/connect" element={<Connect />} />
-              <Route path="/portfolio" element={<Portfolio />} />
-              <Route path="/portfolio/session/:sessionId" element={<SessionDetail />} />
-              <Route path="/portfolio/agent/:agentId" element={<AgentDetail />} />
-              <Route path="/portfolio/agent/:agentId/report" element={<AgentReport />} />
+              <Route path="/dashboard/session/:sessionId" element={<SessionDetail />} />
+              <Route path="/dashboard/agent/:agentId" element={<AgentDetail />} />
+              <Route path="/dashboard/agent/:agentId/report" element={<AgentReport />} />
             </Route>
           </Routes>
         </BrowserRouter>

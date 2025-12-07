@@ -144,9 +144,9 @@ export const AgentReport: FC = () => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Portfolio', href: '/portfolio' },
-      { label: 'Agent', href: `/portfolio/agent/${agentId}` },
-      { label: agentId?.substring(0, 12) + '...' || '', href: `/portfolio/agent/${agentId}` },
+      { label: 'Dashboard', href: '/' },
+      { label: 'Agent', href: `/dashboard/agent/${agentId}` },
+      { label: agentId?.substring(0, 12) + '...' || '', href: `/dashboard/agent/${agentId}` },
       { label: 'Full Report' },
     ],
   });
@@ -636,7 +636,7 @@ export const AgentReport: FC = () => {
                       <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
                         <OutlierHeader>
                           <Link
-                            to={`/portfolio/session/${outlier.session_id}`}
+                            to={`/dashboard/session/${outlier.session_id}`}
                             style={{
                               fontSize: '13px',
                               fontFamily: 'var(--font-mono)',

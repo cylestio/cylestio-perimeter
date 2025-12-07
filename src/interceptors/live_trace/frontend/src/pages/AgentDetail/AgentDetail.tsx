@@ -95,7 +95,7 @@ const sessionColumns: Column<AgentSession>[] = [
     header: 'Session ID',
     render: (session) => (
       <Link
-        to={`/portfolio/session/${session.id}`}
+        to={`/dashboard/session/${session.id}`}
         style={{
           color: 'var(--color-cyan)',
           textDecoration: 'none',
@@ -189,7 +189,7 @@ export const AgentDetail: FC = () => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Portfolio', href: '/portfolio' },
+      { label: 'Dashboard', href: '/' },
       { label: 'Agent' },
       { label: agentId?.substring(0, 12) + '...' || '' },
     ],
@@ -246,7 +246,7 @@ export const AgentDetail: FC = () => {
           <RiskHeroCard>
             <RiskHeroHeader>
               <RiskLabel>Overall Status</RiskLabel>
-              <FullReportLink as={Link} to={`/portfolio/agent/${agent.id}/report`}>
+              <FullReportLink as={Link} to={`/dashboard/agent/${agent.id}/report`}>
                 Full Report →
               </FullReportLink>
             </RiskHeroHeader>
@@ -347,7 +347,7 @@ export const AgentDetail: FC = () => {
           <SummaryCard>
             <SummaryHeader>
               <SummaryTitle>Security & Behavioral Assessment Summary</SummaryTitle>
-              <ViewReportButton as={Link} to={`/portfolio/agent/${agent.id}/report`}>
+              <ViewReportButton as={Link} to={`/dashboard/agent/${agent.id}/report`}>
                 View Full Report →
               </ViewReportButton>
             </SummaryHeader>
