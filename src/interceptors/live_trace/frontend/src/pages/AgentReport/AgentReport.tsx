@@ -1,0 +1,730 @@
+import { useState, useCallback, type FC } from 'react';
+import { useParams, Link } from 'react-router-dom';
+
+import { fetchAgent } from '@api/endpoints/agent';
+import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
+import { usePolling } from '@hooks/usePolling';
+import {
+  formatCompactNumber,
+  timeAgo,
+  getAgentStatus,
+  BEHAVIORAL_TOOLTIPS,
+} from '../../utils/formatting';
+
+import { Badge } from '@ui/core/Badge';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
+import { ProgressBar } from '@ui/feedback/ProgressBar';
+import { EmptyState } from '@ui/feedback/EmptyState';
+import { Tooltip } from '@ui/overlays/Tooltip';
+
+import { InfoCard } from '@domain/metrics/InfoCard';
+
+import { usePageMeta } from '../../context';
+import {
+  ReportLayout,
+  ReportSidebar,
+  ReportMain,
+  CategoryCard,
+  CategoryHeader,
+  CategoryTitleRow,
+  CategoryTitle,
+  CategoryBadges,
+  CategoryDescription,
+  CategoryContent,
+  MetricsPills,
+  MetricPill,
+  MetricPillLabel,
+  MetricPillValue,
+  ToolsSection,
+  SectionLabel,
+  ToolsList,
+  ToolTag,
+  ToolName,
+  ToolCount,
+  ToolUnused,
+  ChecksSection,
+  CheckItem,
+  CheckHeader,
+  CheckStatusIcon,
+  CheckName,
+  CheckNameText,
+  CheckValue,
+  CheckExpandIcon,
+  CheckDetails,
+  CheckDescription,
+  RecommendationsTitle,
+  RecommendationsList,
+  RecommendationItem,
+  BehavioralCard,
+  BehavioralHeader,
+  BehavioralContent,
+  ScoresRow,
+  ScoreItem,
+  ScoreLabel,
+  ScoreLabelText,
+  ScoreValue,
+  ScoreBar,
+  ScoreBarFill,
+  ScoreSeparator,
+  InterpretationBox,
+  OutliersSection,
+  OutlierCard,
+  OutlierHeader,
+  OutlierCauses,
+  OutlierCausesList,
+  ClustersSection,
+  ClusterCard,
+  ClusterHeader,
+  ClusterName,
+  ClusterSize,
+  ClusterInsights,
+  ClusterTools,
+  WaitingBanner,
+  WaitingContent,
+  WaitingTitle,
+  WaitingDescription,
+} from './AgentReport.styles';
+import {
+  RiskHeroCard,
+  RiskHeroHeader,
+  RiskLabel,
+  RiskScore,
+  RiskSummary,
+  MetricGrid,
+  MetricCard,
+  MetricLabel,
+  MetricValue,
+  EvaluationCard,
+  EvaluationHeader,
+  EvaluationTitle,
+  EvaluationCounter,
+  EvaluationDescription,
+  ActiveSessionsNote,
+} from '../AgentDetail/AgentDetail.styles';
+
+// Helper to get category icon
+const getCategoryIcon = (categoryId: string): string => {
+  switch (categoryId) {
+    case 'ENVIRONMENT':
+      return '⚙️';
+    case 'RESOURCE_MANAGEMENT':
+      return '📊';
+    case 'OPERATIONAL_RELIABILITY':
+      return '🔧';
+    case 'PRIVACY_COMPLIANCE':
+      return '🔒';
+    default:
+      return '📋';
+  }
+};
+
+// Helper to get severity from category
+const getCategorySeverity = (
+  category: SecurityCategory
+): 'critical' | 'warning' | 'ok' => {
+  if (category.critical_checks > 0) return 'critical';
+  if (category.warning_checks > 0) return 'warning';
+  return 'ok';
+};
+
+export const AgentReport: FC = () => {
+  const { agentId } = useParams<{ agentId: string }>();
+  const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
+
+  const fetchFn = useCallback(() => {
+    if (!agentId) return Promise.reject(new Error('No agent ID'));
+    return fetchAgent(agentId);
+  }, [agentId]);
+
+  const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
+    interval: 2000,
+    enabled: !!agentId,
+  });
+
+  // Set breadcrumbs
+  usePageMeta({
+    breadcrumbs: [
+      { label: 'Portfolio', href: '/' },
+      { label: 'Agent', href: `/dashboard/agent/${agentId}` },
+      { label: agentId?.substring(0, 12) + '...' || '', href: `/dashboard/agent/${agentId}` },
+      { label: 'Full Report' },
+    ],
+  });
+
+  const toggleCheck = (checkId: string) => {
+    setExpandedChecks((prev) => ({
+      ...prev,
+      [checkId]: !prev[checkId],
+    }));
+  };
+
+  if (loading && !data) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+        <OrbLoader size="lg" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return <EmptyState title="Failed to load report" description={error || 'Agent not found'} />;
+  }
+
+  const agent = data.agent;
+  const riskAnalysis = data.risk_analysis;
+  const status = getAgentStatus(riskAnalysis);
+
+  const hasCheckDetails = (check: SecurityCheck): boolean => {
+    return (
+      check.status !== 'passed' &&
+      ((check.recommendations && check.recommendations.length > 0) || !!check.description)
+    );
+  };
+
+  return (
+    <ReportLayout>
+      <ReportSidebar>
+        {/* Agent Identity Card */}
+        <InfoCard
+          title="Agent Identity"
+          primaryLabel="AGENT ID"
+          primaryValue={agent.id}
+          stats={[
+            { label: 'FIRST SEEN', value: timeAgo(agent.first_seen) },
+            { label: 'LAST SEEN', value: timeAgo(agent.last_seen) },
+          ]}
+        />
+
+        {/* Risk Score Hero */}
+        {status.hasRiskData && (
+          <RiskHeroCard>
+            <RiskHeroHeader>
+              <RiskLabel>Overall Status</RiskLabel>
+            </RiskHeroHeader>
+            <RiskScore $color={status.statusColor}>{status.statusText}</RiskScore>
+            <RiskSummary>
+              {status.hasCriticalIssues || status.hasWarnings ? (
+                <>
+                  {status.criticalCount > 0 && (
+                    <span style={{ color: 'var(--color-red)' }}>
+                      {status.criticalCount} Critical
+                    </span>
+                  )}
+                  {status.criticalCount > 0 && status.warningCount > 0 && (
+                    <span style={{ color: 'var(--color-white-50)' }}> | </span>
+                  )}
+                  {status.warningCount > 0 && (
+                    <span style={{ color: 'var(--color-orange)' }}>
+                      {status.warningCount} Warning{status.warningCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span style={{ color: 'var(--color-green)' }}>All Systems OK</span>
+              )}
+            </RiskSummary>
+          </RiskHeroCard>
+        )}
+
+        {/* Quick Metrics */}
+        <MetricGrid>
+          <MetricCard>
+            <MetricLabel>Sessions</MetricLabel>
+            <MetricValue>{agent.total_sessions}</MetricValue>
+          </MetricCard>
+          <MetricCard>
+            <MetricLabel>Messages</MetricLabel>
+            <MetricValue>{formatCompactNumber(agent.total_messages)}</MetricValue>
+          </MetricCard>
+          <MetricCard>
+            <MetricLabel>Tokens</MetricLabel>
+            <MetricValue>{formatCompactNumber(agent.total_tokens)}</MetricValue>
+          </MetricCard>
+          <MetricCard>
+            <MetricLabel>Tools</MetricLabel>
+            <MetricValue>{agent.total_tools}</MetricValue>
+          </MetricCard>
+        </MetricGrid>
+      </ReportSidebar>
+
+      <ReportMain>
+        {/* Evaluation Progress Banner */}
+        {status.evaluationStatus === 'INSUFFICIENT_DATA' && (
+          <EvaluationCard>
+            <EvaluationHeader>
+              <EvaluationTitle>Gathering Data for Risk Analysis</EvaluationTitle>
+              <EvaluationCounter>
+                {status.currentSessions} / {status.minSessionsRequired}
+              </EvaluationCounter>
+            </EvaluationHeader>
+            <ProgressBar
+              value={(status.currentSessions || 0) / (status.minSessionsRequired || 5)}
+              variant="default"
+            />
+            <EvaluationDescription style={{ marginTop: '12px' }}>
+              We need at least {status.minSessionsRequired} sessions to provide meaningful risk
+              analysis. Keep using your agent to build up session history.
+            </EvaluationDescription>
+          </EvaluationCard>
+        )}
+
+        {/* Behavioral Analysis Waiting Banner */}
+        {status.hasRiskData && status.behavioralStatus === 'WAITING_FOR_COMPLETION' && (
+          <WaitingBanner>
+            <OrbLoader size="sm" />
+            <WaitingContent>
+              <WaitingTitle>Behavioral Analysis In Progress</WaitingTitle>
+              <WaitingDescription>
+                Waiting for {status.activeSessions} active session
+                {status.activeSessions !== 1 ? 's' : ''} to complete (
+                {status.completedSessions} of {status.totalSessions} completed). Sessions are
+                marked complete after 30 seconds of inactivity.
+              </WaitingDescription>
+            </WaitingContent>
+          </WaitingBanner>
+        )}
+
+        {/* Security Assessment Categories */}
+        {status.hasRiskData &&
+          riskAnalysis?.security_report?.categories &&
+          Object.entries(riskAnalysis.security_report.categories).map(
+            ([categoryId, category]) => (
+              <CategoryCard key={categoryId}>
+                <CategoryHeader $severity={getCategorySeverity(category)}>
+                  <CategoryTitleRow>
+                    <CategoryTitle>
+                      {getCategoryIcon(categoryId)} {category.category_name}
+                    </CategoryTitle>
+                    <CategoryBadges>
+                      {categoryId === 'PRIVACY_COMPLIANCE' && (
+                        <a
+                          href="https://github.com/microsoft/presidio/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            fontSize: '11px',
+                            fontFamily: 'var(--font-mono)',
+                            color: 'var(--color-cyan)',
+                            textDecoration: 'none',
+                          }}
+                        >
+                          Powered by Microsoft Presidio ↗
+                        </a>
+                      )}
+                      {category.critical_checks > 0 && (
+                        <Badge variant="critical">{category.critical_checks} critical</Badge>
+                      )}
+                      {category.warning_checks > 0 && (
+                        <Badge variant="medium">{category.warning_checks} warnings</Badge>
+                      )}
+                    </CategoryBadges>
+                  </CategoryTitleRow>
+                  <CategoryDescription>{category.description}</CategoryDescription>
+                </CategoryHeader>
+
+                <CategoryContent>
+                  {/* Metrics */}
+                  {category.metrics && Object.keys(category.metrics).length > 0 && (
+                    <MetricsPills>
+                      {categoryId === 'ENVIRONMENT' && (
+                        <>
+                          <MetricPill>
+                            <MetricPillLabel>Model</MetricPillLabel>
+                            <MetricPillValue>
+                              {(category.metrics as Record<string, unknown>).model as string ||
+                                'N/A'}
+                            </MetricPillValue>
+                          </MetricPill>
+                          <MetricPill>
+                            <MetricPillLabel>Avg. Tool Coverage</MetricPillLabel>
+                            <MetricPillValue>
+                              {(category.metrics as Record<string, number>).avg_tools_coverage
+                                ? `${Math.round((category.metrics as Record<string, number>).avg_tools_coverage * 100)}%`
+                                : '0%'}
+                            </MetricPillValue>
+                          </MetricPill>
+                          <MetricPill>
+                            <MetricPillLabel>Avg. Tool Calls</MetricPillLabel>
+                            <MetricPillValue>
+                              {(category.metrics as Record<string, number>).avg_tool_calls?.toFixed(
+                                1
+                              ) ?? '0'}
+                            </MetricPillValue>
+                          </MetricPill>
+                        </>
+                      )}
+                      {categoryId === 'RESOURCE_MANAGEMENT' && (
+                        <>
+                          <MetricPill>
+                            <MetricPillLabel>Avg. Tokens</MetricPillLabel>
+                            <MetricPillValue>
+                              {formatCompactNumber(
+                                (category.metrics as Record<string, number>).avg_tokens || 0
+                              )}
+                            </MetricPillValue>
+                          </MetricPill>
+                          <MetricPill>
+                            <MetricPillLabel>Avg. Session Duration</MetricPillLabel>
+                            <MetricPillValue>
+                              {(
+                                category.metrics as Record<string, number>
+                              ).avg_duration_minutes?.toFixed(1) ?? '0'}{' '}
+                              min
+                            </MetricPillValue>
+                          </MetricPill>
+                        </>
+                      )}
+                    </MetricsPills>
+                  )}
+
+                  {/* Tools Section for Environment */}
+                  {categoryId === 'ENVIRONMENT' &&
+                    agent.available_tools &&
+                    agent.available_tools.length > 0 && (
+                      <ToolsSection>
+                        <SectionLabel>TOOLS ({agent.available_tools.length})</SectionLabel>
+                        <ToolsList>
+                          {(() => {
+                            const usedTools = agent.available_tools
+                              .filter(
+                                (tool) => (agent.tool_usage_details?.[tool] || 0) > 0
+                              )
+                              .sort((a, b) => {
+                                const countA = agent.tool_usage_details?.[a] || 0;
+                                const countB = agent.tool_usage_details?.[b] || 0;
+                                return countB - countA;
+                              });
+
+                            const unusedTools = agent.available_tools
+                              .filter(
+                                (tool) => (agent.tool_usage_details?.[tool] || 0) === 0
+                              )
+                              .sort();
+
+                            return [...usedTools, ...unusedTools];
+                          })().map((tool) => {
+                            const usageCount = agent.tool_usage_details?.[tool] || 0;
+                            const isUsed = usageCount > 0;
+
+                            return (
+                              <ToolTag key={tool} $isUsed={isUsed}>
+                                <ToolName $isUsed={isUsed}>{tool}</ToolName>
+                                {isUsed ? (
+                                  <ToolCount>{usageCount}×</ToolCount>
+                                ) : (
+                                  <ToolUnused>unused</ToolUnused>
+                                )}
+                              </ToolTag>
+                            );
+                          })}
+                        </ToolsList>
+                      </ToolsSection>
+                    )}
+
+                  {/* Report Checks */}
+                  {category.checks && category.checks.length > 0 && (
+                    <ChecksSection>
+                      <SectionLabel>REPORT CHECKS</SectionLabel>
+                      {category.checks.map((check, idx) => {
+                        const hasDetails = hasCheckDetails(check);
+                        const isExpanded = expandedChecks[check.check_id];
+
+                        return (
+                          <CheckItem key={check.check_id} $isLast={idx === category.checks!.length - 1}>
+                            <CheckHeader
+                              $hasDetails={hasDetails}
+                              onClick={() => hasDetails && toggleCheck(check.check_id)}
+                            >
+                              <CheckStatusIcon $status={check.status}>
+                                {check.status === 'passed'
+                                  ? 'OK'
+                                  : check.status === 'warning'
+                                    ? 'WARN'
+                                    : 'FAIL'}
+                              </CheckStatusIcon>
+                              <CheckName>
+                                <CheckNameText $status={check.status}>{check.name}</CheckNameText>
+                                {check.value !== undefined && (
+                                  <CheckValue>({String(check.value)})</CheckValue>
+                                )}
+                              </CheckName>
+                              {check.status !== 'passed' && (
+                                <Badge
+                                  variant={check.status === 'critical' ? 'critical' : 'medium'}
+                                >
+                                  {check.status}
+                                </Badge>
+                              )}
+                              {hasDetails && (
+                                <CheckExpandIcon>{isExpanded ? '▼' : '▶'}</CheckExpandIcon>
+                              )}
+                            </CheckHeader>
+
+                            {hasDetails && isExpanded && (
+                              <CheckDetails>
+                                {check.description && (
+                                  <CheckDescription>{check.description}</CheckDescription>
+                                )}
+                                {check.recommendations && check.recommendations.length > 0 && (
+                                  <>
+                                    <RecommendationsTitle>Recommendations:</RecommendationsTitle>
+                                    <RecommendationsList>
+                                      {check.recommendations.map((rec, i) => (
+                                        <RecommendationItem key={i}>{rec}</RecommendationItem>
+                                      ))}
+                                    </RecommendationsList>
+                                  </>
+                                )}
+                              </CheckDetails>
+                            )}
+                          </CheckItem>
+                        );
+                      })}
+                    </ChecksSection>
+                  )}
+                </CategoryContent>
+              </CategoryCard>
+            )
+          )}
+
+        {/* Behavioral Insights Section */}
+        {status.hasRiskData && riskAnalysis?.behavioral_analysis && (
+          <BehavioralCard>
+            <BehavioralHeader>
+              <CategoryTitleRow>
+                <CategoryTitle>Behavioral Insights</CategoryTitle>
+                <CategoryBadges>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--color-white-50)',
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {riskAnalysis.behavioral_analysis.num_clusters} clusters •{' '}
+                    {riskAnalysis.behavioral_analysis.num_outliers} outliers
+                  </span>
+                </CategoryBadges>
+              </CategoryTitleRow>
+              <CategoryDescription>
+                Analyze behavior, flag outliers, and forecast the probability your agent stays on
+                track, predictable, and stable.
+              </CategoryDescription>
+            </BehavioralHeader>
+
+            <BehavioralContent>
+              {/* Behavioral Scores */}
+              {(riskAnalysis.behavioral_analysis.num_clusters ?? 0) >= 1 ? (
+                <>
+                  {/* Active Sessions Note */}
+                  {(status.activeSessions || 0) > 0 && (
+                    <ActiveSessionsNote>
+                      <OrbLoader size="sm" />
+                      <span>
+                        Based on{' '}
+                        <strong>
+                          {status.completedSessions} analyzed session
+                          {status.completedSessions !== 1 ? 's' : ''}
+                        </strong>{' '}
+                        —{' '}
+                        <span style={{ color: 'var(--color-purple)' }}>
+                          {status.activeSessions} session
+                          {status.activeSessions !== 1 ? 's' : ''} still running
+                        </span>
+                      </span>
+                    </ActiveSessionsNote>
+                  )}
+
+                  <ScoresRow>
+                    {/* Stability */}
+                    <ScoreItem>
+                      <Tooltip content={BEHAVIORAL_TOOLTIPS.stability}>
+                        <ScoreLabel>
+                          <ScoreLabelText>Stability</ScoreLabelText>
+                          <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                        </ScoreLabel>
+                      </Tooltip>
+                      <ScoreValue>
+                        {Math.round(
+                          (riskAnalysis.behavioral_analysis.stability_score ?? 0) * 100
+                        )}
+                        %
+                      </ScoreValue>
+                      <ScoreBar>
+                        <ScoreBarFill
+                          $width={(riskAnalysis.behavioral_analysis.stability_score ?? 0) * 100}
+                        />
+                      </ScoreBar>
+                    </ScoreItem>
+
+                    <ScoreSeparator />
+
+                    {/* Predictability */}
+                    <ScoreItem>
+                      <Tooltip content={BEHAVIORAL_TOOLTIPS.predictability}>
+                        <ScoreLabel>
+                          <ScoreLabelText>Predictability</ScoreLabelText>
+                          <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                        </ScoreLabel>
+                      </Tooltip>
+                      <ScoreValue>
+                        {Math.round(
+                          (riskAnalysis.behavioral_analysis.predictability_score ?? 0) * 100
+                        )}
+                        %
+                      </ScoreValue>
+                      <ScoreBar>
+                        <ScoreBarFill
+                          $width={
+                            (riskAnalysis.behavioral_analysis.predictability_score ?? 0) * 100
+                          }
+                        />
+                      </ScoreBar>
+                    </ScoreItem>
+
+                    <ScoreSeparator />
+
+                    {/* Confidence */}
+                    <ScoreItem>
+                      <Tooltip content={BEHAVIORAL_TOOLTIPS.confidence}>
+                        <ScoreLabel>
+                          <ScoreLabelText>Confidence</ScoreLabelText>
+                          <span style={{ opacity: 0.5, fontSize: '11px' }}>ⓘ</span>
+                        </ScoreLabel>
+                      </Tooltip>
+                      <Badge
+                        variant={
+                          riskAnalysis.behavioral_analysis.confidence === 'high'
+                            ? 'success'
+                            : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                              ? 'info'
+                              : 'medium'
+                        }
+                      >
+                        {riskAnalysis.behavioral_analysis.confidence === 'high'
+                          ? 'High'
+                          : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                            ? 'Medium'
+                            : 'Low'}
+                      </Badge>
+                    </ScoreItem>
+                  </ScoresRow>
+                </>
+              ) : (
+                <InterpretationBox>
+                  Behavioral scores require cluster formation. Once the agent has more sessions
+                  with similar patterns, clustering will occur and detailed stability metrics will
+                  be available.
+                </InterpretationBox>
+              )}
+
+              {/* Interpretation */}
+              {riskAnalysis.behavioral_analysis.interpretation && (
+                <InterpretationBox>
+                  {riskAnalysis.behavioral_analysis.interpretation}
+                </InterpretationBox>
+              )}
+
+              {/* Outlier Sessions */}
+              {riskAnalysis.behavioral_analysis.outliers &&
+                riskAnalysis.behavioral_analysis.outliers.length > 0 && (
+                  <OutliersSection>
+                    <SectionLabel>
+                      OUTLIER SESSIONS ({riskAnalysis.behavioral_analysis.num_outliers})
+                    </SectionLabel>
+                    {riskAnalysis.behavioral_analysis.outliers.map((outlier) => (
+                      <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
+                        <OutlierHeader>
+                          <Link
+                            to={`/dashboard/session/${outlier.session_id}`}
+                            style={{
+                              fontSize: '13px',
+                              fontFamily: 'var(--font-mono)',
+                              color: 'var(--color-cyan)',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            {outlier.session_id.substring(0, 32)}...
+                          </Link>
+                          <Badge
+                            variant={
+                              outlier.severity === 'high'
+                                ? 'critical'
+                                : outlier.severity === 'medium'
+                                  ? 'medium'
+                                  : 'low'
+                            }
+                          >
+                            {outlier.severity}
+                          </Badge>
+                        </OutlierHeader>
+                        {outlier.primary_causes && outlier.primary_causes.length > 0 && (
+                          <OutlierCauses>
+                            <strong>Causes:</strong>
+                            <OutlierCausesList>
+                              {outlier.primary_causes.slice(0, 2).map((cause, i) => (
+                                <li key={i}>{cause}</li>
+                              ))}
+                            </OutlierCausesList>
+                          </OutlierCauses>
+                        )}
+                      </OutlierCard>
+                    ))}
+                  </OutliersSection>
+                )}
+
+              {/* Behavioral Clusters */}
+              {riskAnalysis.behavioral_analysis.clusters &&
+                riskAnalysis.behavioral_analysis.clusters.length > 0 && (
+                  <ClustersSection>
+                    <SectionLabel>
+                      BEHAVIORAL CLUSTERS ({riskAnalysis.behavioral_analysis.num_clusters})
+                    </SectionLabel>
+                    {riskAnalysis.behavioral_analysis.clusters.map((cluster) => (
+                      <ClusterCard
+                        key={cluster.cluster_id}
+                        $isLowConfidence={cluster.confidence === 'low'}
+                      >
+                        <ClusterHeader>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <ClusterName>{cluster.cluster_id}</ClusterName>
+                            {cluster.confidence === 'low' && (
+                              <Badge variant="medium">LOW CONFIDENCE</Badge>
+                            )}
+                          </div>
+                          <ClusterSize>
+                            {cluster.size} sessions ({cluster.percentage}%)
+                          </ClusterSize>
+                        </ClusterHeader>
+                        <ClusterInsights>{cluster.insights}</ClusterInsights>
+                        {cluster.characteristics.common_tools &&
+                          cluster.characteristics.common_tools.length > 0 && (
+                            <ClusterTools>
+                              {cluster.characteristics.common_tools.slice(0, 3).map((tool) => (
+                                <Badge key={tool} variant="info">
+                                  {tool}
+                                </Badge>
+                              ))}
+                              {cluster.characteristics.common_tools.length > 3 && (
+                                <span
+                                  style={{
+                                    fontSize: '11px',
+                                    color: 'var(--color-white-50)',
+                                  }}
+                                >
+                                  +{cluster.characteristics.common_tools.length - 3}
+                                </span>
+                              )}
+                            </ClusterTools>
+                          )}
+                      </ClusterCard>
+                    ))}
+                  </ClustersSection>
+                )}
+            </BehavioralContent>
+          </BehavioralCard>
+        )}
+      </ReportMain>
+    </ReportLayout>
+  );
+};

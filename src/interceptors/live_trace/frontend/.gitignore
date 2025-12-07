@@ -1,20 +1,36 @@
 # Dependencies
-node_modules
-package-lock.json
+node_modules/
 
-# Build output
-dist
+# Build outputs
+dist/
+storybook-static/
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Editor
-.vscode
-.idea
+# IDE
+.idea/
+.vscode/
 *.swp
 *.swo
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Misc
+*.tsbuildinfo
+
+*storybook.log
+
+
+.playwright-mcp/
