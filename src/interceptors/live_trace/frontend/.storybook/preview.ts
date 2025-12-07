@@ -1,15 +1,18 @@
 import type { Preview } from '@storybook/react-vite';
 import React from 'react';
 import { ThemeProvider } from 'styled-components';
+import { MemoryRouter } from 'react-router-dom';
 import { themes } from 'storybook/theming';
 import { theme, GlobalStyles } from '../src/theme';
 
 const preview: Preview = {
   decorators: [
     (Story) => (
-      React.createElement(ThemeProvider, { theme },
-        React.createElement(GlobalStyles),
-        React.createElement(Story)
+      React.createElement(MemoryRouter, {},
+        React.createElement(ThemeProvider, { theme },
+          React.createElement(GlobalStyles),
+          React.createElement(Story)
+        )
       )
     ),
   ],
