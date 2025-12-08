@@ -74,14 +74,24 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # API endpoints for programmatic access
     @app.get("/api/dashboard")
-    async def api_dashboard():
-        """Get complete dashboard data as JSON."""
+    async def api_dashboard(workflow_id: Optional[str] = None):
+        """Get complete dashboard data as JSON, optionally filtered by workflow."""
         try:
-            data = await insights.get_dashboard_data()
+            data = await insights.get_dashboard_data(workflow_id=workflow_id)
             data["refresh_interval"] = refresh_interval
             return JSONResponse(data)
         except Exception as e:
             logger.error(f"Error getting dashboard data: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflows")
+    async def api_workflows():
+        """Get all workflows with agent counts."""
+        try:
+            workflows = insights.store.get_workflows()
+            return JSONResponse({"workflows": workflows})
+        except Exception as e:
+            logger.error(f"Error getting workflows: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/stats")
@@ -453,28 +463,28 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # ==================== Findings API Endpoints ====================
 
-    @app.get("/api/agent/{agent_id}/findings")
-    async def api_get_agent_findings(
-        agent_id: str,
+    @app.get("/api/workflow/{workflow_id}/findings")
+    async def api_get_workflow_findings(
+        workflow_id: str,
         severity: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security findings for an agent."""
+        """Get security findings for a workflow."""
         try:
             findings = insights.store.get_findings(
-                agent_id=agent_id,
+                workflow_id=workflow_id,
                 severity=severity.upper() if severity else None,
                 status=status.upper() if status else None,
                 limit=limit,
             )
-            summary = insights.store.get_agent_findings_summary(agent_id)
+            summary = insights.store.get_workflow_findings_summary(workflow_id)
             return JSONResponse({
                 "findings": findings,
                 "summary": summary,
             })
         except Exception as e:
-            logger.error(f"Error getting agent findings: {e}")
+            logger.error(f"Error getting workflow findings: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.post("/api/findings")
@@ -505,12 +515,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "valid_severities": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
                 }, status_code=400)
 
-            # Get session to extract agent_id
+            # Get session to extract workflow_id
             session = insights.store.get_analysis_session(session_id)
             if not session:
                 return JSONResponse({"error": "Session not found"}, status_code=404)
 
-            agent_id = session["agent_id"]
+            workflow_id = session["workflow_id"]
 
             # Optional fields
             description = body.get("description")
@@ -531,7 +541,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             finding = insights.store.store_finding(
                 finding_id=finding_id,
                 session_id=session_id,
-                agent_id=agent_id,
+                workflow_id=workflow_id,
                 file_path=file_path,
                 finding_type=finding_type,
                 severity=severity_enum.value,
@@ -550,14 +560,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/sessions/analysis")
     async def api_get_analysis_sessions(
-        agent_id: Optional[str] = None,
+        workflow_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
         """List analysis sessions."""
         try:
             sessions = insights.store.get_analysis_sessions(
-                agent_id=agent_id,
+                workflow_id=workflow_id,
                 status=status.upper() if status else None,
                 limit=limit,
             )
@@ -571,15 +581,15 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.post("/api/sessions/analysis")
     async def api_create_analysis_session(request: Request):
-        """Create a new analysis session."""
+        """Create a new analysis session for a workflow."""
         try:
             body = await request.json()
-            agent_id = body.get("agent_id")
+            workflow_id = body.get("workflow_id")
             session_type = body.get("session_type", "STATIC")
-            agent_name = body.get("agent_name")
+            workflow_name = body.get("workflow_name")
 
-            if not agent_id:
-                return JSONResponse({"error": "agent_id is required"}, status_code=400)
+            if not workflow_id:
+                return JSONResponse({"error": "workflow_id is required"}, status_code=400)
 
             # Validate session_type
             try:
@@ -593,9 +603,9 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             session_id = generate_session_id()
             session = insights.store.create_analysis_session(
                 session_id=session_id,
-                agent_id=agent_id,
+                workflow_id=workflow_id,
                 session_type=session_type_enum.value,
-                agent_name=agent_name,
+                workflow_name=workflow_name,
             )
 
             return JSONResponse({"session": session})

@@ -7,3 +7,4 @@ export * from './metrics';
 export * from './activity';
 export * from './findings';
 export * from './visualization';
+export * from './workflows';

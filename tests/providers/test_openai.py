@@ -661,3 +661,93 @@ class TestOpenAIProvider:
         assert 'messages' in request_data
         assert 'temperature' in request_data
         assert request_data['temperature'] == 0.7
+
+
+class TestWorkflowIdInEvents:
+    """Tests for workflow_id in event attributes."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.provider = OpenAIProvider()
+
+    def test_workflow_id_added_to_finish_event(self):
+        """Test workflow.id is added to llm.call.finish event."""
+        response_body = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "gpt-4",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Hello there!"
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15
+            }
+        }
+
+        session_id = "test-session"
+        duration_ms = 100.0
+        tool_uses = []
+        request_metadata = {
+            "cylestio_trace_id": "test-trace-id",
+            "agent_id": "test-agent",
+            "model": "gpt-4",
+            "workflow_id": "my-workflow"  # Include workflow_id
+        }
+
+        events = self.provider.extract_response_events(
+            response_body, session_id, duration_ms, tool_uses, request_metadata
+        )
+
+        assert len(events) == 1
+        llm_event = events[0]
+        assert "workflow.id" in llm_event.attributes
+        assert llm_event.attributes["workflow.id"] == "my-workflow"
+
+    def test_workflow_id_none_when_not_provided(self):
+        """Test workflow.id is not added when not in request_metadata."""
+        response_body = {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "created": 1234567890,
+            "model": "gpt-4",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": "Hello there!"
+                },
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15
+            }
+        }
+
+        session_id = "test-session"
+        duration_ms = 100.0
+        tool_uses = []
+        request_metadata = {
+            "cylestio_trace_id": "test-trace-id",
+            "agent_id": "test-agent",
+            "model": "gpt-4"
+            # No workflow_id
+        }
+
+        events = self.provider.extract_response_events(
+            response_body, session_id, duration_ms, tool_uses, request_metadata
+        )
+
+        assert len(events) == 1
+        llm_event = events[0]
+        # workflow.id should not be in attributes
+        assert "workflow.id" not in llm_event.attributes

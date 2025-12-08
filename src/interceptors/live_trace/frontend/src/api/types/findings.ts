@@ -13,7 +13,7 @@ export interface FindingEvidence {
 export interface Finding {
   finding_id: string;
   session_id: string;
-  agent_id: string;
+  workflow_id: string;
   file_path: string;
   line_start?: number;
   line_end?: number;
@@ -30,18 +30,18 @@ export interface Finding {
 
 export interface AnalysisSession {
   session_id: string;
-  agent_id: string;
-  agent_name?: string;
+  workflow_id: string;
+  workflow_name?: string;
   session_type: SessionType;
   status: SessionStatus;
-  created_at: string;
-  completed_at?: string;
+  created_at: number;
+  completed_at?: number;
   findings_count: number;
   risk_score?: number;
 }
 
 export interface FindingsSummary {
-  agent_id: string;
+  workflow_id: string;
   total_findings: number;
   by_severity: Record<string, number>;
   by_status: Record<string, number>;
@@ -52,7 +52,7 @@ export interface FindingsSummary {
 }
 
 // API Response Types
-export interface AgentFindingsResponse {
+export interface WorkflowFindingsResponse {
   findings: Finding[];
   summary: FindingsSummary;
 }

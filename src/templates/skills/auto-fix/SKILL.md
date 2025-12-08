@@ -50,4 +50,4 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
 - `update_finding_status` - Mark finding as fixed (finding_id, status, notes)
 
 **Additional Tools:**
-- `get_findings` - Retrieve findings to fix (session_id, agent_id, severity, status)
+- `get_findings` - Retrieve findings to fix (workflow_id, session_id, severity, status)

@@ -85,10 +85,13 @@ def handle_get_fix_template(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 
 @register_handler("create_analysis_session")
 def handle_create_analysis_session(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Create a new analysis session."""
-    agent_id = args.get("agent_id")
+    """Create a new analysis session for a workflow/codebase."""
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
     session_type = args.get("session_type", "STATIC")
-    agent_name = args.get("agent_name")
+    workflow_name = args.get("workflow_name")
 
     try:
         session_type_enum = SessionType(session_type.upper())
@@ -98,9 +101,9 @@ def handle_create_analysis_session(args: Dict[str, Any], store: Any) -> Dict[str
     session_id = generate_session_id()
     session = store.create_analysis_session(
         session_id=session_id,
-        agent_id=agent_id,
+        workflow_id=workflow_id,
         session_type=session_type_enum.value,
-        agent_name=agent_name,
+        workflow_name=workflow_name,
     )
     return {"session": session}
 
@@ -149,7 +152,7 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     finding = store.store_finding(
         finding_id=finding_id,
         session_id=session_id,
-        agent_id=session["agent_id"],
+        workflow_id=session["workflow_id"],
         file_path=args.get("file_path"),
         finding_type=args.get("finding_type"),
         severity=severity_enum.value,
@@ -167,8 +170,8 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 def handle_get_findings(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get stored findings with optional filtering."""
     findings = store.get_findings(
+        workflow_id=args.get("workflow_id"),
         session_id=args.get("session_id"),
-        agent_id=args.get("agent_id"),
         severity=args.get("severity", "").upper() if args.get("severity") else None,
         status=args.get("status", "").upper() if args.get("status") else None,
         limit=args.get("limit", 100),

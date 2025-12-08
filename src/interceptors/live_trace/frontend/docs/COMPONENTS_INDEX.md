@@ -26,6 +26,7 @@
 |----------|------------|
 | `domain/layout/` | Shell, Sidebar, TopBar, UserMenu, Logo |
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
+| `domain/workflows/` | WorkflowSelector |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
@@ -607,6 +608,42 @@ interface FindingsSummary {
     fixed_count: 3,
     ignored_count: 1,
   }}
+/>
+```
+
+---
+
+## Workflows Components
+
+### WorkflowSelector
+
+Dropdown selector for filtering by workflow/project. Shows "All Workflows" option plus individual workflows with agent counts.
+
+```typescript
+interface Workflow {
+  id: string | null;  // null = "Unassigned"
+  name: string;
+  agentCount: number;
+}
+
+interface WorkflowSelectorProps {
+  workflows: Workflow[];
+  selectedWorkflow: Workflow | null;  // null = show all
+  onSelect: (workflow: Workflow | null) => void;
+  label?: string;      // Default: "Workflow"
+  collapsed?: boolean; // Show icon only
+}
+```
+
+**Usage:**
+```tsx
+<WorkflowSelector
+  workflows={[
+    { id: 'ecommerce', name: 'E-Commerce Agents', agentCount: 5 },
+    { id: null, name: 'Unassigned', agentCount: 2 },
+  ]}
+  selectedWorkflow={selectedWorkflow}
+  onSelect={setSelectedWorkflow}
 />
 ```
 

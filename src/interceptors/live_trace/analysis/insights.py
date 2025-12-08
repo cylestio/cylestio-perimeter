@@ -67,20 +67,27 @@ class InsightsEngine:
         self._pii_semaphore: Optional[asyncio.Semaphore] = None
         self._pii_max_concurrent = proxy_config.get("pii_max_concurrent", 2)
 
-    async def get_dashboard_data(self) -> Dict[str, Any]:
-        """Get all data needed for the main dashboard."""
+    async def get_dashboard_data(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get all data needed for the main dashboard.
+
+        Args:
+            workflow_id: Optional workflow ID to filter by.
+                        Use "unassigned" to get agents/sessions with no workflow.
+                        None returns all data.
+        """
         # Agent summary runs analysis outside the lock
-        agents = await self._get_agent_summary()
+        agents = await self._get_agent_summary(workflow_id=workflow_id)
 
         # Get sessions and latest session (need lock for data access)
         with self.store.lock:
-            sessions = self._get_recent_sessions()
-            latest_session = self._get_latest_active_session()
+            sessions = self._get_recent_sessions(workflow_id=workflow_id)
+            latest_session = self._get_latest_active_session(workflow_id=workflow_id)
 
         return {
             "agents": agents,
             "sessions": sessions,
             "latest_session": latest_session,
+            "workflow_id": workflow_id,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
@@ -238,13 +245,17 @@ class InsightsEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
-    async def _get_agent_summary(self) -> List[Dict[str, Any]]:
-        """Get summary data for all agents (metrics are maintained incrementally)."""
+    async def _get_agent_summary(self, workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get summary data for all agents (metrics are maintained incrementally).
+
+        Args:
+            workflow_id: Optional workflow ID to filter by.
+        """
         agents = []
 
         # Get all agents while holding the lock
         with self.store.lock:
-            all_agents = list(self.store.get_all_agents())
+            all_agents = list(self.store.get_all_agents(workflow_id=workflow_id))
 
         # Process each agent (analysis runs outside the lock)
         for agent in all_agents:
@@ -447,10 +458,24 @@ class InsightsEngine:
         return "low"
 
     @_with_store_lock
-    def _get_recent_sessions(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Get recent sessions with summary data."""
+    def _get_recent_sessions(self, limit: int = 20, workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get recent sessions with summary data.
+
+        Args:
+            limit: Maximum number of sessions to return.
+            workflow_id: Optional workflow ID to filter by.
+        """
         sessions = []
-        for session in self.store.get_all_sessions():
+        all_sessions = self.store.get_all_sessions()
+
+        # Filter by workflow_id if specified
+        if workflow_id is not None:
+            if workflow_id == "unassigned":
+                all_sessions = [s for s in all_sessions if s.workflow_id is None]
+            else:
+                all_sessions = [s for s in all_sessions if s.workflow_id == workflow_id]
+
+        for session in all_sessions:
             # Determine user-friendly status
             if session.is_completed:
                 status = "COMPLETE"
@@ -483,9 +508,21 @@ class InsightsEngine:
         return sessions[:limit]
 
     @_with_store_lock
-    def _get_latest_active_session(self) -> Dict[str, Any] | None:
-        """Get the most recent active session."""
+    def _get_latest_active_session(self, workflow_id: Optional[str] = None) -> Dict[str, Any] | None:
+        """Get the most recent active session.
+
+        Args:
+            workflow_id: Optional workflow ID to filter by.
+        """
         all_sessions = self.store.get_all_sessions()
+
+        # Filter by workflow_id if specified
+        if workflow_id is not None:
+            if workflow_id == "unassigned":
+                all_sessions = [s for s in all_sessions if s.workflow_id is None]
+            else:
+                all_sessions = [s for s in all_sessions if s.workflow_id == workflow_id]
+
         active_sessions = [s for s in all_sessions if s.is_active]
 
         if not active_sessions:

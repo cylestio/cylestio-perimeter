@@ -1,6 +1,11 @@
 import type { FC } from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { Copy, Check, ExternalLink } from 'lucide-react';
+
+import { Copy, Check, ExternalLink, Info } from 'lucide-react';
+
+import { fetchConfig } from '@api/endpoints/config';
+import { fetchDashboard } from '@api/endpoints/dashboard';
+import type { ConfigResponse } from '@api/types/config';
 
 import { Card } from '@ui/core/Card';
 import { Text } from '@ui/core/Text';
@@ -11,10 +16,6 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Skeleton } from '@ui/feedback/Skeleton';
 
 import { usePageMeta } from '../../context';
-import { fetchConfig } from '@api/endpoints/config';
-import { fetchDashboard } from '@api/endpoints/dashboard';
-import type { ConfigResponse } from '@api/types/config';
-
 import {
   ConnectContainer,
   HeroSection,
@@ -31,9 +32,15 @@ import {
   StatusSpinner,
   StyledCard,
   FooterButton,
+  WorkflowToggle,
+  ToggleOption,
+  WorkflowNote,
+  WorkflowInputGroup,
+  WorkflowInput,
 } from './Connect.styles';
 
 type ConnectionStatus = 'loading' | 'waiting' | 'connected';
+type UrlMode = 'standard' | 'workflow';
 
 export const Connect: FC = () => {
   usePageMeta({
@@ -44,6 +51,8 @@ export const Connect: FC = () => {
   const [status, setStatus] = useState<ConnectionStatus>('loading');
   const [agentCount, setAgentCount] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [urlMode, setUrlMode] = useState<UrlMode>('standard');
+  const [workflowId, setWorkflowId] = useState('my-project');
 
   const checkAgentStatus = useCallback(async () => {
     try {
@@ -75,9 +84,13 @@ export const Connect: FC = () => {
     return () => clearInterval(interval);
   }, [status, checkAgentStatus]);
 
-  const proxyUrl = config
+  const baseUrl = config
     ? `http://localhost:${config.proxy_port}`
     : 'http://localhost:3000';
+
+  const proxyUrl = urlMode === 'workflow'
+    ? `${baseUrl}/workflow/${workflowId}`
+    : baseUrl;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(proxyUrl);
@@ -109,10 +122,38 @@ export const Connect: FC = () => {
             <Skeleton variant="rect" height={56} />
           ) : (
             <>
+              {/* URL Mode Toggle */}
+              <WorkflowToggle>
+                <ToggleOption
+                  $active={urlMode === 'standard'}
+                  onClick={() => setUrlMode('standard')}
+                >
+                  Standard
+                </ToggleOption>
+                <ToggleOption
+                  $active={urlMode === 'workflow'}
+                  onClick={() => setUrlMode('workflow')}
+                >
+                  With Workflow
+                </ToggleOption>
+              </WorkflowToggle>
+
               <UrlSection>
                 <Text size="sm" color="muted">
                   Set your <Code>base_url</Code> to:
                 </Text>
+
+                {urlMode === 'workflow' && (
+                  <WorkflowInputGroup>
+                    <WorkflowInput
+                      type="text"
+                      value={workflowId}
+                      onChange={(e) => setWorkflowId(e.target.value)}
+                      placeholder="my-project"
+                    />
+                  </WorkflowInputGroup>
+                )}
+
                 <UrlBox>
                   <Text size="md" mono color="cyan">
                     {proxyUrl}
@@ -126,6 +167,16 @@ export const Connect: FC = () => {
                     {copied ? 'Copied!' : 'Copy'}
                   </Button>
                 </UrlBox>
+
+                {urlMode === 'workflow' && (
+                  <WorkflowNote>
+                    <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <span>
+                      Use a workflow ID to group agents and link static analysis findings to your project.
+                      The same workflow_id should be used in MCP tools when running security scans.
+                    </span>
+                  </WorkflowNote>
+                )}
               </UrlSection>
 
               <ConfigDetails>

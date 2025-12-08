@@ -52,25 +52,25 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "create_analysis_session",
-        "description": "Create a new analysis session to group security findings. Call this before storing findings.",
+        "description": "Create a new analysis session to group security findings for a workflow/codebase. Call this before storing findings.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "workflow_id": {
                     "type": "string",
-                    "description": "Agent identifier being analyzed"
+                    "description": "Workflow/project identifier for the codebase being analyzed"
                 },
                 "session_type": {
                     "type": "string",
                     "default": "STATIC",
                     "description": "STATIC, DYNAMIC, or AUTOFIX"
                 },
-                "agent_name": {
+                "workflow_name": {
                     "type": "string",
-                    "description": "Human-readable agent name"
+                    "description": "Human-readable workflow/project name"
                 }
             },
-            "required": ["agent_id"]
+            "required": ["workflow_id"]
         }
     },
     {
@@ -126,8 +126,11 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Filter by workflow/project identifier"
+                },
                 "session_id": {"type": "string"},
-                "agent_id": {"type": "string"},
                 "severity": {"type": "string"},
                 "status": {
                     "type": "string",

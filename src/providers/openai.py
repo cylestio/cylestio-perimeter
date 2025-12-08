@@ -619,9 +619,10 @@ class OpenAIProvider(BaseProvider):
         if not trace_id:
             return events
         
-        # Get agent_id and model from metadata
+        # Get agent_id, model, and workflow_id from metadata
         agent_id = request_metadata.get("agent_id", "unknown")
         model = request_metadata.get("model", "unknown")
+        workflow_id = request_metadata.get("workflow_id")
         
         # Extract token usage and response content
         input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(response_body)
@@ -679,7 +680,11 @@ class OpenAIProvider(BaseProvider):
             # Add new fields to event attributes
             if additional_response_data:
                 llm_finish_event.attributes.update(additional_response_data)
-            
+
+            # Add workflow_id if present
+            if workflow_id:
+                llm_finish_event.attributes["workflow.id"] = workflow_id
+
             events.append(llm_finish_event)
         
         # Handle tool execution events if present (when LLM response contains tool use requests)
@@ -697,6 +702,9 @@ class OpenAIProvider(BaseProvider):
                     tool_params=tool_request.get("input", {}),
                     session_id=session_id
                 )
+                # Add workflow_id if present
+                if workflow_id:
+                    tool_execution_event.attributes["workflow.id"] = workflow_id
                 events.append(tool_execution_event)
         
         return events

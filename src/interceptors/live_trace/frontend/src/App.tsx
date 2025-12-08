@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { LayoutDashboard, Plug } from 'lucide-react';
+import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
 
 import type { DashboardResponse } from '@api/types/dashboard';
-import { fetchDashboard } from '@api/endpoints/dashboard';
+import type { APIWorkflow } from '@api/types/workflows';
+import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
 import { theme, GlobalStyles } from '@theme/index';
 import { usePolling } from '@hooks/usePolling';
 
@@ -19,9 +20,17 @@ import { TopBar } from '@domain/layout/TopBar';
 import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 import { AgentListItem } from '@domain/agents/AgentListItem';
+import { WorkflowSelector, type Workflow } from '@domain/workflows';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, WorkflowDetail } from '@pages/index';
+
+// Convert API workflow to component workflow
+const toWorkflow = (api: APIWorkflow): Workflow => ({
+  id: api.id,
+  name: api.name,
+  agentCount: api.agent_count,
+});
 
 function AppLayout() {
   const location = useLocation();
@@ -29,11 +38,44 @@ function AppLayout() {
   const params = useParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Workflow state
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+
   // Get breadcrumbs from page context
   const { breadcrumbs, hide: hideTopBar } = usePageMetaValue();
 
-  // Poll dashboard data at app level
-  const fetchFn = useCallback(() => fetchDashboard(), []);
+  // Fetch workflows on mount
+  useEffect(() => {
+    fetchWorkflows()
+      .then((response) => {
+        setWorkflows(response.workflows.map(toWorkflow));
+      })
+      .catch((error) => {
+        console.error('Failed to fetch workflows:', error);
+      });
+  }, []);
+
+  // Refresh workflows periodically (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchWorkflows()
+        .then((response) => {
+          setWorkflows(response.workflows.map(toWorkflow));
+        })
+        .catch(() => {
+          // Silently ignore refresh errors
+        });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Poll dashboard data at app level, filtered by selected workflow
+  const workflowIdForFetch = selectedWorkflow?.id === null ? 'unassigned' : selectedWorkflow?.id;
+  const fetchFn = useCallback(
+    () => fetchDashboard(workflowIdForFetch),
+    [workflowIdForFetch]
+  );
   const { data, loading } = usePolling<DashboardResponse>(fetchFn, {
     interval: 2000,
     enabled: true,
@@ -53,10 +95,27 @@ function AppLayout() {
         <Sidebar.Header>
           <Logo />
         </Sidebar.Header>
+        {/* Workflow Selector - only show if there are workflows */}
+        {workflows.length > 0 && (
+          <WorkflowSelector
+            workflows={workflows}
+            selectedWorkflow={selectedWorkflow}
+            onSelect={setSelectedWorkflow}
+            collapsed={sidebarCollapsed}
+          />
+        )}
         <Sidebar.Section>
           <NavGroup>
+            {selectedWorkflow && (
+              <NavItem
+                icon={<FileSearch size={18} />}
+                label="Overview"
+                active={location.pathname === `/workflow/${selectedWorkflow.id}`}
+                onClick={() => navigate(`/workflow/${selectedWorkflow.id}`)}
+              />
+            )}
             <NavItem
-              label="Portfolio"
+              label="Agents"
               icon={<LayoutDashboard size={18} />}
               active={location.pathname === '/'}
               onClick={() => navigate('/')}
@@ -121,6 +180,7 @@ function App() {
               <Route path="/dashboard/session/:sessionId" element={<SessionDetail />} />
               <Route path="/dashboard/agent/:agentId" element={<AgentDetail />} />
               <Route path="/dashboard/agent/:agentId/report" element={<AgentReport />} />
+              <Route path="/workflow/:workflowId" element={<WorkflowDetail />} />
             </Route>
           </Routes>
         </BrowserRouter>

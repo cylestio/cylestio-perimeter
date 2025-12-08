@@ -23,8 +23,9 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 
 2. **Create Session**
    Call `create_analysis_session` with:
-   - agent_id: identifier for the codebase being analyzed
+   - workflow_id: identifier for the project/codebase being analyzed
    - session_type: "STATIC"
+   - workflow_name: (optional) human-readable project name
 
 3. **Analyze Code**
    Using patterns from step 1, review the codebase.
@@ -40,16 +41,16 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
    Call `complete_analysis_session` to finalize and calculate risk score.
 
 6. **Report**
-   Summarize findings and provide dashboard link: `http://localhost:3000/agent/{agent_id}`
+   Summarize findings and provide dashboard link: `http://localhost:3000/workflow/{workflow_id}`
 
 ## MCP Tools Reference
 
 **Core Workflow Tools:**
 - `get_security_patterns` - Get patterns to check (context, min_severity)
-- `create_analysis_session` - Start session (agent_id, session_type)
+- `create_analysis_session` - Start session (workflow_id, session_type, workflow_name)
 - `store_finding` - Record finding (session_id, file_path, finding_type, severity, title, description)
 - `complete_analysis_session` - Finalize (session_id)
 
 **Additional Tools:**
 - `get_owasp_control` - Get detailed info for specific OWASP control (control_id)
-- `get_findings` - Retrieve existing findings (session_id, agent_id, severity, status)
+- `get_findings` - Retrieve existing findings (workflow_id, session_id, severity, status)

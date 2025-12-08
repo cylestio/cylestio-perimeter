@@ -1,10 +1,10 @@
-import { useCallback, useState, useEffect, type FC } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useCallback, type FC } from 'react';
+
 import { Wrench, Code, Activity, Rocket } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, AgentSession } from '@api/types/agent';
-import type { Finding, FindingsSummary, AgentFindingsResponse } from '@api/types/findings';
 import { usePolling } from '@hooks/usePolling';
 import {
   formatCompactNumber,
@@ -21,7 +21,6 @@ import { Table, type Column } from '@ui/data-display/Table';
 import { Tooltip } from '@ui/overlays/Tooltip';
 
 import { LifecycleProgress, type LifecycleStage } from '@domain/activity';
-import { FindingsTab } from '@domain/findings';
 import { InfoCard } from '@domain/metrics/InfoCard';
 
 import { usePageMeta } from '../../context';
@@ -190,35 +189,6 @@ export const AgentDetail: FC = () => {
     enabled: !!agentId,
   });
 
-  // Findings state
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
-  const [findingsLoading, setFindingsLoading] = useState(false);
-
-  // Fetch findings
-  const fetchFindings = useCallback(async () => {
-    if (!agentId) return;
-    setFindingsLoading(true);
-    try {
-      const response = await fetch(`/api/agent/${agentId}/findings`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch findings: ${response.statusText}`);
-      }
-      const data: AgentFindingsResponse = await response.json();
-      setFindings(data.findings);
-      setFindingsSummary(data.summary);
-    } catch (error) {
-      console.error('Failed to fetch findings:', error);
-    } finally {
-      setFindingsLoading(false);
-    }
-  }, [agentId]);
-
-  // Fetch findings on mount and when agentId changes
-  useEffect(() => {
-    fetchFindings();
-  }, [fetchFindings]);
-
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
@@ -244,32 +214,27 @@ export const AgentDetail: FC = () => {
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
 
-  // Build lifecycle stages based on findings data
+  // Build lifecycle stages
   const getLifecycleStages = (): LifecycleStage[] => {
-    const hasFindings = findings.length > 0;
-    const openCount = findingsSummary?.open_count || 0;
-    const fixedCount = findingsSummary?.fixed_count || 0;
-
     return [
       {
         id: 'dev',
         label: 'DEV',
         icon: <Wrench size={16} />,
         status: 'completed' as const,
-        stat: fixedCount > 0 ? `${fixedCount} fixed` : undefined,
       },
       {
         id: 'static',
         label: 'STATIC',
         icon: <Code size={16} />,
-        status: hasFindings ? ('completed' as const) : ('active' as const),
-        stat: hasFindings ? `${findings.length} findings` : 'Run scan',
+        status: 'active' as const,
+        stat: 'View in Workflow',
       },
       {
         id: 'dynamic',
         label: 'DYNAMIC',
         icon: <Activity size={16} />,
-        status: hasFindings && openCount === 0 ? ('active' as const) : ('pending' as const),
+        status: agent?.total_sessions ? ('active' as const) : ('pending' as const),
         stat: agent?.total_sessions ? `${agent.total_sessions} sessions` : undefined,
       },
       {
@@ -630,27 +595,6 @@ export const AgentDetail: FC = () => {
             </SummaryContent>
           </SummaryCard>
         )}
-
-        {/* Security Findings */}
-        <SessionsCard>
-          <SessionsHeader>
-            <SessionsTitle>
-              Security{' '}
-              {findingsSummary?.open_count ? (
-                <span style={{ marginLeft: '8px' }}>
-                  <Badge variant="critical">{findingsSummary.open_count}</Badge>
-                </span>
-              ) : null}
-            </SessionsTitle>
-          </SessionsHeader>
-          <SessionsContent>
-            <FindingsTab
-              findings={findings}
-              summary={findingsSummary || undefined}
-              isLoading={findingsLoading}
-            />
-          </SessionsContent>
-        </SessionsCard>
 
         {/* Sessions Table */}
         <SessionsCard>

@@ -135,8 +135,8 @@ Ask Claude/Cursor:
 
 The AI will:
 1. Call `get_security_patterns` to get OWASP patterns
-2. Call `create_analysis_session` to start tracking
-3. Analyze code and call `store_finding` for issues
+2. Call `create_analysis_session` with your `workflow_id` (project identifier)
+3. Analyze code and call `store_finding` for each issue found
 4. Call `complete_analysis_session` to get risk score
 
 ### Fix a Finding
@@ -153,7 +153,7 @@ The AI will:
 
 After analysis, view results at:
 ```
-http://localhost:3000/agent/{agent_id}
+http://localhost:3000/workflow/{workflow_id}
 ```
 
 ---
