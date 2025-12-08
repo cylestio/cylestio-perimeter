@@ -16,6 +16,8 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
 - MCP connection configured
 - Existing finding ID or known vulnerability type
 
+**Works with:** Findings from both static analysis (code review) and dynamic analysis (runtime tracing) when they share the same workflow_id.
+
 ## Workflow
 
 1. **Get Fix Template**

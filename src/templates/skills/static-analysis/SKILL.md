@@ -15,6 +15,8 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 - Agent Inspector server running at localhost:3000
 - MCP connection configured
 
+**Relationship to Dynamic Analysis:** Static analysis examines code without execution. For complete security coverage, also run dynamic analysis using the **same workflow_id** to observe actual runtime behavior.
+
 ## Workflow
 
 1. **Get Patterns**
@@ -54,3 +56,16 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 **Additional Tools:**
 - `get_owasp_control` - Get detailed info for specific OWASP control (control_id)
 - `get_findings` - Retrieve existing findings (workflow_id, session_id, severity, status)
+
+## Combining with Dynamic Analysis
+
+For complete security coverage, suggest running dynamic analysis after static analysis:
+
+1. **Use the same workflow_id** - Critical for unified results
+2. **Configure agent's base_url** with workflow_id:
+   ```python
+   base_url = f"http://localhost:3000/workflow/{workflow_id}"
+   ```
+3. **View unified results** at `http://localhost:3000/workflow/{workflow_id}`
+
+This validates static findings with actual runtime behavior.

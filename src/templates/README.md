@@ -11,6 +11,8 @@ templates/
 ├── skills/
 │   ├── static-analysis/
 │   │   └── SKILL.md        # Security scanning skill for Claude Code
+│   ├── dynamic-analysis/
+│   │   └── SKILL.md        # Runtime tracing skill for Claude Code
 │   └── auto-fix/
 │       └── SKILL.md        # Auto-fix skill for Claude Code
 └── cursor-rules/
@@ -56,6 +58,17 @@ cp templates/cursor-rules/.cursorrules .cursorrules
 | `complete_analysis_session` | Finalize with risk score |
 | `get_findings` | Retrieve findings |
 | `update_finding_status` | Mark fixed/ignored |
+
+## Unified Workflow ID
+
+**Important:** Use the same `workflow_id` for both static and dynamic analysis to get unified results.
+
+| Analysis Type | How to Set workflow_id |
+|--------------|------------------------|
+| Static Analysis | `create_analysis_session(workflow_id="my-agent")` |
+| Dynamic Analysis | `base_url="http://localhost:3000/workflow/my-agent"` |
+
+Both types appear unified in the dashboard at `http://localhost:3000/workflow/{workflow_id}`
 
 ## Documentation
 
