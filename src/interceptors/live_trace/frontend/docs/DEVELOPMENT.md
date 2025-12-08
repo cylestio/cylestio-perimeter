@@ -24,7 +24,7 @@ This is the source of truth for developing in the Cylestio UIKit frontend.
 6. **Deliver Incrementally** - Show progress regularly. Break large deliverables into checkpoints.
 7. **Ask for Clarification** - If ambiguous, ask before proceeding. State assumptions explicitly.
 8. **Use Up-to-Date Versions** - Use the latest stable versions of packages.
-
+9. **Never use emojis in the code** - Use icons from `lucide-react`
 ---
 
 ## Quick Reference Checklists

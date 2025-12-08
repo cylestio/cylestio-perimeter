@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, type FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Wrench, Code, Activity, Rocket } from 'lucide-react';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, AgentSession } from '@api/types/agent';
@@ -253,28 +254,28 @@ export const AgentDetail: FC = () => {
       {
         id: 'dev',
         label: 'DEV',
-        icon: '🔧',
+        icon: <Wrench size={16} />,
         status: 'completed' as const,
         stat: fixedCount > 0 ? `${fixedCount} fixed` : undefined,
       },
       {
         id: 'static',
         label: 'STATIC',
-        icon: '🔍',
+        icon: <Code size={16} />,
         status: hasFindings ? ('completed' as const) : ('active' as const),
         stat: hasFindings ? `${findings.length} findings` : 'Run scan',
       },
       {
         id: 'dynamic',
         label: 'DYNAMIC',
-        icon: '🧪',
+        icon: <Activity size={16} />,
         status: hasFindings && openCount === 0 ? ('active' as const) : ('pending' as const),
         stat: agent?.total_sessions ? `${agent.total_sessions} sessions` : undefined,
       },
       {
         id: 'prod',
         label: 'PROD',
-        icon: '🚀',
+        icon: <Rocket size={16} />,
         status: 'pending' as const,
         stat: 'Enterprise',
       },
