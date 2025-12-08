@@ -1,7 +1,8 @@
 # Agent Inspector - Cursor Integration
 
 ## MCP Server Connection
-Agent Inspector server at localhost:3000 provides security analysis tools.
+Agent Inspector MCP endpoint at localhost:8080/mcp provides security analysis tools.
+(Note: Port 3000 is the proxy server, port 8080 is the dashboard with MCP endpoint)
 
 ## Static Analysis Workflow (Code Review)
 1. Get patterns: Call `get_security_patterns` MCP tool

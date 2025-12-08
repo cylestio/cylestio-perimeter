@@ -12,8 +12,8 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 - User wants to "check for security issues"
 
 ## Prerequisites
-- Agent Inspector server running at localhost:3000
-- MCP connection configured
+- Agent Inspector server running (proxy on port 3000, MCP on port 8080)
+- MCP connection configured to `http://localhost:8080/mcp`
 
 **Relationship to Dynamic Analysis:** Static analysis examines code without execution. For complete security coverage, also run dynamic analysis using the **same workflow_id** to observe actual runtime behavior.
 

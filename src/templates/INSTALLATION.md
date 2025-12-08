@@ -26,8 +26,8 @@ Agent Inspector provides MCP (Model Context Protocol) tools that enable AI assis
 ### Option 1: CLI Configuration (Recommended)
 
 ```bash
-# Add the MCP server
-claude mcp add --transport http agent-inspector http://localhost:3000/mcp
+# Add the MCP server (port 8080 is the dashboard with MCP endpoint)
+claude mcp add --transport http agent-inspector http://localhost:8080/mcp
 ```
 
 ### Option 2: Project Configuration (.mcp.json)
@@ -39,7 +39,7 @@ Create `.mcp.json` in your project root:
   "mcpServers": {
     "agent-inspector": {
       "type": "http",
-      "url": "http://localhost:3000/mcp"
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
@@ -77,37 +77,42 @@ You should see `agent-inspector` listed with 8 available tools.
 
 ### Step 1: Configure MCP Server
 
-Cursor's MCP support varies by version. Check Cursor documentation for the latest MCP configuration method.
-
-### Step 2: Install Rules Files
-
-Copy the rules files to your project root:
-
-```bash
-# Copy .cursorrules
-cp /path/to/cylestio-perimeter/src/templates/cursor-rules/.cursorrules \
-   .cursorrules
-
-# Or copy the MDC format (alternative)
-cp /path/to/cylestio-perimeter/src/templates/cursor-rules/agent-inspector.mdc \
-   .cursor/rules/agent-inspector.mdc
-```
-
-### Step 3: Configure MCP (if supported)
-
-If Cursor supports MCP configuration, add to your settings:
+Create `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-specific):
 
 ```json
 {
-  "mcp": {
-    "servers": {
-      "agent-inspector": {
-        "url": "http://localhost:3000/mcp"
-      }
+  "mcpServers": {
+    "agent-inspector": {
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
 ```
+
+**Note:** The MCP endpoint is on port **8080** (the live trace dashboard), not 3000 (the proxy).
+
+### Step 2: Restart Cursor and Approve
+
+1. Restart Cursor to detect the new MCP server
+2. Cursor will prompt you to approve the new server - click **Approve**
+
+### Step 3: Install Rules Files (Optional)
+
+Copy the rules files for additional AI context:
+
+```bash
+# Create rules directory
+mkdir -p .cursor/rules
+
+# Copy the MDC format rules
+cp /path/to/cylestio-perimeter/src/templates/cursor-rules/agent-inspector.mdc \
+   .cursor/rules/agent-inspector.mdc
+```
+
+### Verify Setup
+
+The AI assistant should now have access to 8 MCP tools. Test by asking:
+> "What OWASP security patterns should I check for?"
 
 ---
 
@@ -153,6 +158,10 @@ The AI will:
 
 After analysis, view results at:
 ```
+http://localhost:8080
+```
+Or directly at a workflow:
+```
 http://localhost:3000/workflow/{workflow_id}
 ```
 
@@ -161,15 +170,16 @@ http://localhost:3000/workflow/{workflow_id}
 ## Troubleshooting
 
 ### "MCP server not found"
-- Ensure Agent Inspector is running on port 3000
-- Check the URL in your configuration
+- Ensure Agent Inspector is running (the live trace dashboard starts on port 8080)
+- Verify MCP endpoint: `curl -X POST http://localhost:8080/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'`
 
 ### "Tools not available"
 - Verify MCP connection with `/mcp` command (Claude Code)
-- Restart Claude Code after configuration changes
+- For Cursor: Restart Cursor after adding mcp.json and approve the server when prompted
 
 ### "Connection refused"
 - Make sure the server is running: `curl http://localhost:3000/health`
+- MCP endpoint is on port **8080** (dashboard), not 3000 (proxy)
 - Check firewall settings
 
 ---
@@ -181,7 +191,10 @@ After installation, your project structure should look like:
 ```
 your-agent-project/
 ├── .mcp.json                    # Claude Code MCP config
-├── .cursorrules                 # Cursor rules (optional)
+├── .cursor/
+│   ├── mcp.json                 # Cursor MCP config
+│   └── rules/
+│       └── agent-inspector.mdc  # Cursor rules
 ├── .claude/
 │   └── skills/
 │       ├── static-analysis.md   # Static analysis skill
@@ -189,9 +202,23 @@ your-agent-project/
 └── ... your code
 ```
 
+Global config (applies to all projects):
+- Cursor: `~/.cursor/mcp.json`
+
+---
+
+## Ports Reference
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| Proxy Server | 3000 | Routes LLM API requests, workflow URLs |
+| Dashboard + MCP | 8080 | Live trace UI, MCP endpoint at `/mcp` |
+
 ---
 
 ## Support
 
-- Dashboard: http://localhost:3000
-- API Docs: http://localhost:3000/docs (when server is running)
+- Dashboard: http://localhost:8080 (or http://localhost:3000/workflow/{id})
+- MCP Endpoint: http://localhost:8080/mcp
+- Health Check: http://localhost:3000/health
+- API Docs: http://localhost:3000/docs

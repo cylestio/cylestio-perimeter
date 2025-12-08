@@ -5,7 +5,8 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 
 # Security Analysis with Agent Inspector
 
-Connect to Agent Inspector MCP server at localhost:3000/mcp.
+Connect to Agent Inspector MCP server at localhost:8080/mcp.
+(Note: Port 3000 is the proxy server, port 8080 is the dashboard with MCP endpoint)
 
 ## Available MCP Tools (8 total)
 

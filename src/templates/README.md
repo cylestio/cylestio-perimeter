@@ -25,11 +25,11 @@ templates/
 ### Claude Code
 
 ```bash
-# 1. Start Agent Inspector server
+# 1. Start Agent Inspector server (includes live trace on port 8080)
 uvicorn src.main:app --reload --port 3000
 
-# 2. Add MCP server to Claude Code
-claude mcp add --transport http agent-inspector http://localhost:3000/mcp
+# 2. Add MCP server to Claude Code (MCP endpoint is on port 8080)
+claude mcp add --transport http agent-inspector http://localhost:8080/mcp
 
 # 3. (Optional) Copy skills to your project
 mkdir -p .claude/skills
@@ -39,12 +39,26 @@ cp templates/skills/static-analysis/SKILL.md .claude/skills/
 ### Cursor
 
 ```bash
-# 1. Start Agent Inspector server
+# 1. Start Agent Inspector server (includes live trace on port 8080)
 uvicorn src.main:app --reload --port 3000
 
-# 2. Copy rules to your project
-cp templates/cursor-rules/.cursorrules .cursorrules
+# 2. Create MCP config (MCP endpoint is on port 8080)
+mkdir -p ~/.cursor
+echo '{"mcpServers":{"agent-inspector":{"url":"http://localhost:8080/mcp"}}}' > ~/.cursor/mcp.json
+
+# 3. Restart Cursor and approve the MCP server when prompted
+
+# 4. (Optional) Copy rules to your project
+mkdir -p .cursor/rules
+cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
 ```
+
+## Ports Reference
+
+| Port | Service | Purpose |
+|------|---------|---------|
+| 3000 | Proxy Server | LLM API proxy, workflow URLs |
+| 8080 | Dashboard | Live trace UI, MCP endpoint at `/mcp` |
 
 ## MCP Tools Available
 
