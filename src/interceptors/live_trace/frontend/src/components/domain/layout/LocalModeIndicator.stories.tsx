@@ -40,7 +40,7 @@ const meta: Meta<typeof LocalModeIndicator> = {
   argTypes: {
     storageMode: {
       control: 'radio',
-      options: ['in-memory', 'disk'],
+      options: ['memory', 'sqlite'],
     },
   },
 };
@@ -50,7 +50,7 @@ type Story = StoryObj<typeof LocalModeIndicator>;
 
 export const Default: Story = {
   args: {
-    storageMode: 'in-memory',
+    storageMode: 'memory',
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText('Local Mode')).toBeInTheDocument();
@@ -60,7 +60,7 @@ export const Default: Story = {
 
 export const InMemory: Story = {
   args: {
-    storageMode: 'in-memory',
+    storageMode: 'memory',
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText('Local Mode')).toBeInTheDocument();
@@ -70,7 +70,7 @@ export const InMemory: Story = {
 
 export const SavedToDisk: Story = {
   args: {
-    storageMode: 'disk',
+    storageMode: 'sqlite',
     storagePath: '/var/data/inspector',
   },
   play: async ({ canvas }) => {
@@ -82,7 +82,7 @@ export const SavedToDisk: Story = {
 export const Collapsed: Story = {
   args: {
     collapsed: true,
-    storageMode: 'in-memory',
+    storageMode: 'memory',
   },
   decorators: [
     (Story) => (
@@ -100,7 +100,7 @@ export const Collapsed: Story = {
 
 export const TooltipInMemory: Story = {
   args: {
-    storageMode: 'in-memory',
+    storageMode: 'memory',
   },
   play: async ({ canvas }) => {
     const localModeText = canvas.getByText('Local Mode');
@@ -119,7 +119,7 @@ export const TooltipInMemory: Story = {
 
 export const TooltipDisk: Story = {
   args: {
-    storageMode: 'disk',
+    storageMode: 'sqlite',
     storagePath: '/var/data/inspector',
   },
   play: async ({ canvas }) => {
@@ -131,6 +131,29 @@ export const TooltipDisk: Story = {
         const tooltip = document.querySelector('[role="tooltip"]');
         expect(tooltip).toBeInTheDocument();
         expect(tooltip?.textContent).toContain('/var/data/inspector');
+      },
+      { timeout: 1000 }
+    );
+  },
+};
+
+export const TooltipLongPath: Story = {
+  args: {
+    storageMode: 'sqlite',
+    storagePath: '/Users/developer/Projects/cylestio/cylestio-perimeter/trace_data/live_trace.db',
+  },
+  play: async ({ canvas }) => {
+    const localModeText = canvas.getByText('Local Mode');
+    await userEvent.hover(localModeText);
+
+    await waitFor(
+      () => {
+        const tooltip = document.querySelector('[role="tooltip"]');
+        expect(tooltip).toBeInTheDocument();
+        expect(tooltip?.textContent).toContain('Data is saved to');
+        // The path should be displayed with Code component (monospace)
+        const codeElement = tooltip?.querySelector('code');
+        expect(codeElement).toBeInTheDocument();
       },
       { timeout: 1000 }
     );

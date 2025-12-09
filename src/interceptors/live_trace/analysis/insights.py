@@ -1350,5 +1350,7 @@ class InsightsEngine:
             "provider_type": self.proxy_config.get("provider_type", "unknown"),
             "provider_base_url": self.proxy_config.get("provider_base_url", "unknown"),
             "proxy_host": self.proxy_config.get("proxy_host", "127.0.0.1"),
-            "proxy_port": self.proxy_config.get("proxy_port", 4000)
+            "proxy_port": self.proxy_config.get("proxy_port", 4000),
+            "storage_mode": self.proxy_config.get("storage_mode", "memory"),
+            "db_path": self.proxy_config.get("db_path"),
         }

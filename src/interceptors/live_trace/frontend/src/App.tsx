@@ -4,8 +4,10 @@ import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 
+import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
+import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
 import { usePolling } from '@hooks/usePolling';
 import { theme, GlobalStyles } from '@theme/index';
@@ -58,6 +60,9 @@ function AppLayout() {
   // Workflow list state (for dropdown)
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
 
+  // Config state (for storage mode indicator)
+  const [config, setConfig] = useState<ConfigResponse | null>(null);
+
   // Derive selected workflow from URL
   const selectedWorkflow = (() => {
     if (!urlWorkflowId) return null;
@@ -78,6 +83,15 @@ function AppLayout() {
       })
       .catch((error) => {
         console.error('Failed to fetch workflows:', error);
+      });
+  }, []);
+
+  // Fetch config on mount (for storage mode indicator)
+  useEffect(() => {
+    fetchConfig()
+      .then(setConfig)
+      .catch((error) => {
+        console.error('Failed to fetch config:', error);
       });
   }, []);
 
@@ -182,7 +196,11 @@ function AppLayout() {
           ))}
         </Sidebar.Section>
         <Sidebar.Footer>
-          <LocalModeIndicator storageMode="in-memory" />
+          <LocalModeIndicator
+            collapsed={sidebarCollapsed}
+            storageMode={config?.storage_mode}
+            storagePath={config?.db_path ?? undefined}
+          />
         </Sidebar.Footer>
       </Sidebar>
       <Main>
