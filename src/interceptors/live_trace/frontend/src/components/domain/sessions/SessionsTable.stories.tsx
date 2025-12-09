@@ -122,7 +122,9 @@ export const WithAgentColumn: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Agent')).toBeInTheDocument();
-    await expect(canvas.getByText('agent_xyz78')).toBeInTheDocument();
+    // Multiple sessions can have the same agent, so use getAllByText
+    const agentCells = canvas.getAllByText('agent_xyz78');
+    await expect(agentCells.length).toBeGreaterThan(0);
   },
 };
 
