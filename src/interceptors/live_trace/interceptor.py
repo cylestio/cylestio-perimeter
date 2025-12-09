@@ -126,10 +126,9 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Process all events from the request
         for event in request_data.events:
             try:
-                # Extract agent_id and workflow_id from request metadata
+                # Extract agent_id from request metadata or use default
                 agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
-                workflow_id = getattr(request_data.request.state, 'workflow_id', None)
-                self.store.add_event(event, request_data.session_id, agent_id, workflow_id)
+                self.store.add_event(event, request_data.session_id, agent_id)
             except Exception as e:
                 logger.error(f"Error processing request event: {e}")
 
@@ -155,11 +154,10 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Process all events from the response
         for event in response_data.events:
             try:
-                # Extract agent_id and workflow_id from request metadata
+                # Extract agent_id from request metadata or use default
                 agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
-                workflow_id = getattr(request_data.request.state, 'workflow_id', None)
                 effective_session_id = response_data.session_id or request_data.session_id
-                self.store.add_event(event, effective_session_id, agent_id, workflow_id)
+                self.store.add_event(event, effective_session_id, agent_id)
             except Exception as e:
                 logger.error(f"Error processing response event: {e}")
 
@@ -180,8 +178,7 @@ class LiveTraceInterceptor(BaseInterceptor):
             if event.name.value.endswith(".error"):
                 try:
                     agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
-                    workflow_id = getattr(request_data.request.state, 'workflow_id', None)
-                    self.store.add_event(event, request_data.session_id, agent_id, workflow_id)
+                    self.store.add_event(event, request_data.session_id, agent_id)
                 except Exception as e:
                     logger.error(f"Error processing error event: {e}")
 
