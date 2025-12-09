@@ -28,7 +28,7 @@ import { WorkflowSelector, type Workflow } from '@domain/workflows';
 import { AnalysisStatusItem } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, WorkflowDetail, WorkflowsHome } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, StaticAnalysis, WorkflowDetail, WorkflowsHome } from '@pages/index';
 
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
@@ -187,6 +187,8 @@ function AppLayout() {
                 status="inactive"
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
+                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/static-analysis`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/static-analysis`}
               />
               <AnalysisStatusItem
                 label="Dynamic Analysis"
@@ -304,6 +306,7 @@ function App() {
               <Route path="/workflow/:workflowId" element={<WorkflowDetail />} />
               <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
               <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
+              <Route path="/workflow/:workflowId/static-analysis" element={<StaticAnalysis />} />
               <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
               <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
               <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />

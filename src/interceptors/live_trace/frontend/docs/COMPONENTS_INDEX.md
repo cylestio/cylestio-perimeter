@@ -655,7 +655,7 @@ interface WorkflowSelectorProps {
 
 ### AnalysisStatusItem
 
-Sidebar navigation item for analysis status (Static Scan, Dynamic Scan, Recommendations). Shows a ring indicator with an icon inside, with spinning animation for running state.
+Sidebar navigation item for analysis status (Static Scan, Dynamic Scan, Recommendations). Shows a ring indicator with an icon inside, with spinning animation for running state. Supports React Router navigation via `to` prop.
 
 ```typescript
 type AnalysisStatus = 'ok' | 'warning' | 'critical' | 'inactive' | 'running';
@@ -667,7 +667,10 @@ interface AnalysisStatusItemProps {
   stat?: string;              // Optional stat text (e.g., "2 issues")
   collapsed?: boolean;        // Show only ring when sidebar collapsed
   isRecommendation?: boolean; // Use purple styling for recommendations
-  onClick?: () => void;       // Click handler
+  active?: boolean;           // Whether this item is currently active/selected
+  disabled?: boolean;         // Disable interaction (grays out)
+  to?: string;                // React Router navigation path
+  onClick?: () => void;       // Click handler (fallback when no `to`)
 }
 ```
 
@@ -680,11 +683,13 @@ interface AnalysisStatusItemProps {
 
 **Usage:**
 ```tsx
-// Static scan completed OK
+// Static analysis with navigation
 <AnalysisStatusItem
-  label="Static Scan"
+  label="Static Analysis"
   status="ok"
   collapsed={sidebarCollapsed}
+  to={`/workflow/${workflowId}/static-analysis`}
+  active={location.pathname === `/workflow/${workflowId}/static-analysis`}
 />
 
 // Dynamic scan with warnings
@@ -709,6 +714,14 @@ interface AnalysisStatusItemProps {
 <AnalysisStatusItem
   label="Static Scan"
   status="running"
+  collapsed={sidebarCollapsed}
+/>
+
+// Disabled (e.g., for unassigned workflows)
+<AnalysisStatusItem
+  label="Static Analysis"
+  status="inactive"
+  disabled
   collapsed={sidebarCollapsed}
 />
 ```

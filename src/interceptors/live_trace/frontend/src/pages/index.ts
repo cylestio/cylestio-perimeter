@@ -4,5 +4,6 @@ export { Connect } from './Connect';
 export { Portfolio } from './Portfolio';
 export { SessionDetail } from './SessionDetail';
 export { Sessions } from './Sessions';
+export { StaticAnalysis } from './StaticAnalysis';
 export { WorkflowDetail } from './WorkflowDetail';
 export { WorkflowsHome } from './WorkflowsHome';
