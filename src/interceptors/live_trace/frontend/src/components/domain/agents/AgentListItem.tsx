@@ -1,4 +1,5 @@
 import type { FC } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
 import type { APIAgent } from '@api/types/dashboard';
@@ -23,6 +24,8 @@ export interface AgentListItemProps {
   agent: APIAgent;
   active?: boolean;
   collapsed?: boolean;
+  /** Use 'to' for React Router navigation (preferred) */
+  to?: string;
   onClick?: () => void;
 }
 
@@ -45,6 +48,7 @@ export const AgentListItem: FC<AgentListItemProps> = ({
   agent,
   active = false,
   collapsed = false,
+  to,
   onClick,
 }) => {
   const name = formatAgentName(agent.id);
@@ -68,29 +72,32 @@ export const AgentListItem: FC<AgentListItemProps> = ({
     );
   };
 
+  // Common props for the container
+  const containerProps = {
+    $active: active,
+    $collapsed: collapsed,
+    title: collapsed ? name : undefined,
+  };
+
+  // Content for collapsed view
   if (collapsed) {
+    if (to) {
+      return (
+        <AgentListItemContainer as={Link} to={to} {...containerProps}>
+          <Avatar name={agent.id} size="md" />
+        </AgentListItemContainer>
+      );
+    }
     return (
-      <AgentListItemContainer
-        $active={active}
-        $collapsed={collapsed}
-        onClick={onClick}
-        role="button"
-        tabIndex={0}
-        title={name}
-      >
+      <AgentListItemContainer onClick={onClick} role="button" tabIndex={0} {...containerProps}>
         <Avatar name={agent.id} size="md" />
       </AgentListItemContainer>
     );
   }
 
-  return (
-    <AgentListItemContainer
-      $active={active}
-      $collapsed={collapsed}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-    >
+  // Full content
+  const content = (
+    <>
       <Avatar name={agent.id} size="md" />
       <AgentInfo>
         <AgentName>
@@ -100,6 +107,22 @@ export const AgentListItem: FC<AgentListItemProps> = ({
         <AgentMeta>{agent.last_seen_relative}</AgentMeta>
       </AgentInfo>
       <SessionCount>{agent.total_sessions}</SessionCount>
+    </>
+  );
+
+  // Use React Router Link for navigation
+  if (to) {
+    return (
+      <AgentListItemContainer as={Link} to={to} {...containerProps}>
+        {content}
+      </AgentListItemContainer>
+    );
+  }
+
+  // Fallback to onClick handler
+  return (
+    <AgentListItemContainer onClick={onClick} role="button" tabIndex={0} {...containerProps}>
+      {content}
     </AgentListItemContainer>
   );
 };

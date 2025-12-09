@@ -1,4 +1,7 @@
 import type { FC, ReactNode } from 'react';
+
+import { Link } from 'react-router-dom';
+
 import {
   BreadcrumbContainer,
   BreadcrumbLink,
@@ -36,7 +39,7 @@ export const Breadcrumb: FC<BreadcrumbProps> = ({
             ) : (
               <>
                 {item.href ? (
-                  <BreadcrumbLink href={item.href}>{item.label}</BreadcrumbLink>
+                  <BreadcrumbLink as={Link} to={item.href}>{item.label}</BreadcrumbLink>
                 ) : (
                   <BreadcrumbCurrent>{item.label}</BreadcrumbCurrent>
                 )}

@@ -13,6 +13,8 @@ export const AgentListItemContainer = styled.div<AgentListItemContainerProps>`
   border-radius: ${({ theme }) => theme.radii.md};
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
+  text-decoration: none;
+  color: inherit;
 
   ${({ $active, theme }) =>
     $active &&

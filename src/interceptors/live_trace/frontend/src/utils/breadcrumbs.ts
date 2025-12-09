@@ -1,14 +1,13 @@
-export interface BreadcrumbItem {
-  label: string;
-  href?: string;
-}
+import type { BreadcrumbItem } from '@ui/navigation/Breadcrumb';
+
+export type { BreadcrumbItem };
 
 /**
  * Builds breadcrumbs with workflow context.
  * Always starts with Portfolio, then adds workflow (or Unassigned), then page-specific items.
  */
 export function buildWorkflowBreadcrumbs(
-  workflowId: string | undefined,
+  workflowId: string | null | undefined,
   ...pageItems: BreadcrumbItem[]
 ): BreadcrumbItem[] {
   const wfId = workflowId || 'unassigned';
@@ -24,8 +23,8 @@ export function buildWorkflowBreadcrumbs(
 
 /**
  * Builds a workflow-prefixed link path.
- * Ensures workflowId is never undefined in the URL.
+ * Ensures workflowId is never undefined/null in the URL.
  */
-export function workflowLink(workflowId: string | undefined, path: string): string {
+export function workflowLink(workflowId: string | null | undefined, path: string): string {
   return `/workflow/${workflowId || 'unassigned'}${path}`;
 }
