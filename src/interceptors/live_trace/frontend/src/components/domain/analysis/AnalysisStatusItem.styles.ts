@@ -31,6 +31,7 @@ interface StyledItemProps {
   $isRecommendation?: boolean;
   $clickable?: boolean;
   $active?: boolean;
+  $disabled?: boolean;
 }
 
 export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
@@ -50,6 +51,14 @@ export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
       padding: 10px;
     `}
 
+  ${({ $disabled }) =>
+    $disabled &&
+    css`
+      opacity: 0.4;
+      pointer-events: none;
+      cursor: not-allowed;
+    `}
+
   ${({ $active, $isRecommendation, theme }) => {
     if ($active) {
       return css`
@@ -65,9 +74,10 @@ export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
     return '';
   }}
 
-  ${({ $clickable, $active, theme }) =>
+  ${({ $clickable, $active, $disabled, theme }) =>
     $clickable &&
     !$active &&
+    !$disabled &&
     css`
       cursor: pointer;
       &:hover {
@@ -75,9 +85,10 @@ export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
       }
     `}
 
-  ${({ $clickable, $active }) =>
+  ${({ $clickable, $active, $disabled }) =>
     $clickable &&
     $active &&
+    !$disabled &&
     css`
       cursor: pointer;
     `}

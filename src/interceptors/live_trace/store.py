@@ -836,13 +836,13 @@ class TraceStore:
 
         Returns:
             List of workflow dicts with id, name, agent_count, and session_count.
-            Includes workflows from both agents and analysis_sessions tables.
+            Includes workflows from agents and sessions tables.
             Includes "Unassigned" for agents without a workflow.
         """
         with self._lock:
             workflows = []
 
-            # Get workflows from both agents and analysis_sessions
+            # Get workflows with agent counts and session counts
             cursor = self.db.execute("""
                 SELECT
                     workflow_id,
@@ -858,8 +858,16 @@ class TraceStore:
 
                     UNION ALL
 
-                    -- Workflows from analysis_sessions
-                    SELECT workflow_id, workflow_name, 0 as agent_count, COUNT(*) as session_count
+                    -- Workflows from sessions (actual agent sessions)
+                    SELECT workflow_id, NULL as workflow_name, 0 as agent_count, COUNT(*) as session_count
+                    FROM sessions
+                    WHERE workflow_id IS NOT NULL
+                    GROUP BY workflow_id
+
+                    UNION ALL
+
+                    -- Workflows from analysis_sessions (for workflow names)
+                    SELECT workflow_id, workflow_name, 0 as agent_count, 0 as session_count
                     FROM analysis_sessions
                     WHERE workflow_id IS NOT NULL
                     GROUP BY workflow_id

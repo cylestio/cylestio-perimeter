@@ -47,8 +47,8 @@ export const Default: Story = {
   render: () => <InteractiveWorkflowSelector />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Verify "All Workflows" is shown by default
-    await expect(canvas.getByText('All Workflows')).toBeInTheDocument();
+    // With no selection, first workflow is displayed
+    await expect(canvas.getByText('E-Commerce Agents')).toBeInTheDocument();
     // Verify dropdown button exists
     await expect(canvas.getByRole('button')).toBeInTheDocument();
   },
@@ -70,7 +70,7 @@ export const WithSelection: Story = {
 export const ClickToOpen: Story = {
   args: {
     workflows: mockWorkflows,
-    selectedWorkflow: null,
+    selectedWorkflow: mockWorkflows[0],
     onSelect: fn(),
   },
   play: async ({ canvasElement }) => {
@@ -82,15 +82,15 @@ export const ClickToOpen: Story = {
 
     // Verify dropdown is open with options
     await expect(canvas.getByRole('listbox')).toBeInTheDocument();
-    await expect(canvas.getByText('E-Commerce Agents')).toBeInTheDocument();
     await expect(canvas.getByText('Support Bots')).toBeInTheDocument();
+    await expect(canvas.getByText('Analytics Pipeline')).toBeInTheDocument();
   },
 };
 
 export const SelectWorkflow: Story = {
   args: {
     workflows: mockWorkflows,
-    selectedWorkflow: null,
+    selectedWorkflow: mockWorkflows[0],
     onSelect: fn(),
   },
   play: async ({ args, canvasElement }) => {
@@ -128,18 +128,26 @@ export const SingleWorkflow: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('All Workflows')).toBeInTheDocument();
+    // First workflow is shown as default
+    await expect(canvas.getByText('My Project')).toBeInTheDocument();
   },
 };
 
-export const OnlyUnassigned: Story = {
+export const WithUnassigned: Story = {
   args: {
-    workflows: [{ id: null, name: 'Unassigned', agentCount: 5 }],
+    workflows: [
+      { id: 'my-project', name: 'My Project', agentCount: 10 },
+      { id: null, name: 'Unassigned', agentCount: 5 },
+    ],
     selectedWorkflow: null,
     onSelect: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('All Workflows')).toBeInTheDocument();
+    // First workflow shown by default
+    await expect(canvas.getByText('My Project')).toBeInTheDocument();
+    // Open to see Unassigned option
+    await userEvent.click(canvas.getByRole('button'));
+    await expect(canvas.getByText('Unassigned')).toBeInTheDocument();
   },
 };

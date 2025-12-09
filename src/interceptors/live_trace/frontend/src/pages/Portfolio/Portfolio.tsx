@@ -90,7 +90,7 @@ export const Portfolio: FC = () => {
   usePageMeta({
     breadcrumbs: workflowId
       ? buildWorkflowBreadcrumbs(workflowId, { label: 'Agents' })
-      : [{ label: 'Portfolio', href: '/' }],
+      : [{ label: 'Workflows', href: '/' }],
   });
 
   // Calculate summary stats from agents

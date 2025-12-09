@@ -31,6 +31,8 @@ export interface AnalysisStatusItemProps {
   isRecommendation?: boolean;
   /** Whether this item is currently active/selected */
   active?: boolean;
+  /** Whether this item is disabled (e.g., not applicable for unassigned workflows) */
+  disabled?: boolean;
   /** Optional click handler */
   onClick?: () => void;
   className?: string;
@@ -111,6 +113,7 @@ export const AnalysisStatusItem: FC<AnalysisStatusItemProps> = ({
   collapsed = false,
   isRecommendation = false,
   active = false,
+  disabled = false,
   onClick,
   className,
 }) => {
@@ -119,8 +122,9 @@ export const AnalysisStatusItem: FC<AnalysisStatusItemProps> = ({
       $collapsed={collapsed}
       $isRecommendation={isRecommendation}
       $active={active}
-      $clickable={!!onClick}
-      onClick={onClick}
+      $clickable={!!onClick && !disabled}
+      $disabled={disabled}
+      onClick={disabled ? undefined : onClick}
       className={className}
     >
       <StatusRing status={status} isRecommendation={isRecommendation} />

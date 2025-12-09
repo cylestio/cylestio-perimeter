@@ -369,3 +369,49 @@ export const ActiveRecommendation: Story = {
     await expect(canvas.getByText('Recommendations')).toBeInTheDocument();
   },
 };
+
+// ==================== Disabled State ====================
+
+export const Disabled: Story = {
+  args: {
+    label: 'Static Scan',
+    status: 'inactive',
+    disabled: true,
+    stat: 'Not available',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Static Scan')).toBeInTheDocument();
+  },
+};
+
+export const DisabledComparison: Story = {
+  render: function DisabledComparisonStory() {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <AnalysisStatusItem
+          label="Static Analysis"
+          status="inactive"
+          disabled
+        />
+        <AnalysisStatusItem
+          label="Dynamic Analysis"
+          status="inactive"
+          disabled
+        />
+        <AnalysisStatusItem
+          label="Recommendations"
+          status="inactive"
+          isRecommendation
+          disabled
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Static Analysis')).toBeInTheDocument();
+    await expect(canvas.getByText('Dynamic Analysis')).toBeInTheDocument();
+    await expect(canvas.getByText('Recommendations')).toBeInTheDocument();
+  },
+};

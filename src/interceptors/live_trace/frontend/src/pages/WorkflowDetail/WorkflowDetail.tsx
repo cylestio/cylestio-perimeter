@@ -139,8 +139,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      { label: 'Workflow' },
+      { label: 'Workflows', href: '/' },
       { label: workflowId || '' },
     ],
   });
