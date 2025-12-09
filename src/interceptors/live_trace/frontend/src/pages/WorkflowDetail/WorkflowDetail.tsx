@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Bot, Calendar, Clock, FileSearch, Shield } from 'lucide-react';
+import { Bot, Calendar, Clock, FileSearch, Shield, ArrowRight } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/workflow';
 import { fetchDashboard } from '@api/endpoints/dashboard';
+import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
 import type { APIAgent } from '@api/types/dashboard';
+import type { SessionListItem } from '@api/types/session';
 import { workflowLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
+import { Section } from '@ui/layout/Section';
 
 import { FindingsTab } from '@domain/findings';
+import { SessionsTable } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
 import {
@@ -25,10 +29,6 @@ import {
   WorkflowStats,
   StatBadge,
   StatValue,
-  SectionCard,
-  SectionHeader,
-  SectionTitle,
-  SectionContent,
   AgentList,
   AgentListItem,
   AgentIcon,
@@ -56,10 +56,12 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [agents, setAgents] = useState<APIAgent[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
-  const [sessions, setSessions] = useState<AnalysisSession[]>([]);
+  const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [liveSessions, setLiveSessions] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [findingsLoading, setFindingsLoading] = useState(false);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [analysisSessionsLoading, setAnalysisSessionsLoading] = useState(false);
+  const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch workflow data (agents in this workflow)
@@ -94,17 +96,32 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   }, [workflowId]);
 
   // Fetch analysis sessions for this workflow
-  const fetchSessions = useCallback(async () => {
+  const fetchAnalysisSessionsData = useCallback(async () => {
     if (!workflowId) return;
 
-    setSessionsLoading(true);
+    setAnalysisSessionsLoading(true);
     try {
       const data = await fetchAnalysisSessions(workflowId);
-      setSessions(data.sessions || []);
+      setAnalysisSessions(data.sessions || []);
     } catch (err) {
       console.error('Failed to fetch analysis sessions:', err);
     } finally {
-      setSessionsLoading(false);
+      setAnalysisSessionsLoading(false);
+    }
+  }, [workflowId]);
+
+  // Fetch live sessions for this workflow
+  const fetchLiveSessions = useCallback(async () => {
+    if (!workflowId) return;
+
+    setLiveSessionsLoading(true);
+    try {
+      const data = await fetchSessions({ workflow_id: workflowId, limit: 10 });
+      setLiveSessions(data.sessions || []);
+    } catch (err) {
+      console.error('Failed to fetch live sessions:', err);
+    } finally {
+      setLiveSessionsLoading(false);
     }
   }, [workflowId]);
 
@@ -112,14 +129,14 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   useEffect(() => {
     fetchWorkflowData();
     fetchFindings();
-    fetchSessions();
-  }, [fetchWorkflowData, fetchFindings, fetchSessions]);
+    fetchAnalysisSessionsData();
+    fetchLiveSessions();
+  }, [fetchWorkflowData, fetchFindings, fetchAnalysisSessionsData, fetchLiveSessions]);
 
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      { label: 'Workflow' },
+      { label: 'Workflows', href: '/' },
       { label: workflowId || '' },
     ],
   });
@@ -157,7 +174,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   };
 
   // Count sessions by status
-  const inProgressCount = sessions.filter(s => s.status === 'IN_PROGRESS').length;
+  const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
 
   return (
     <WorkflowLayout className={className} data-testid="workflow-detail">
@@ -172,10 +189,10 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
             <Bot size={14} />
             <StatValue>{agents.length}</StatValue> agents
           </StatBadge>
-          {sessions.length > 0 && (
+          {analysisSessions.length > 0 && (
             <StatBadge>
               <FileSearch size={14} />
-              <StatValue>{sessions.length}</StatValue> scans
+              <StatValue>{analysisSessions.length}</StatValue> scans
             </StatBadge>
           )}
           {findingsSummary && (
@@ -187,24 +204,52 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
         </WorkflowStats>
       </WorkflowHeader>
 
-      {/* Analysis Sessions */}
-      <SectionCard>
-        <SectionHeader>
-          <SectionTitle>
-            Analysis Sessions ({sessions.length})
-            {inProgressCount > 0 && (
-              <Badge variant="medium">{inProgressCount} in progress</Badge>
+      {/* Recent Sessions */}
+      <SessionsTable
+        sessions={liveSessions}
+        workflowId={workflowId || 'unassigned'}
+        loading={liveSessionsLoading}
+        emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
+        header={
+          <>
+            <Section.Title>Recent Sessions</Section.Title>
+            {liveSessions.length > 0 && (
+              <Link
+                to={`/workflow/${workflowId}/sessions`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                  color: 'var(--color-white50)',
+                  textDecoration: 'none',
+                }}
+              >
+                View All <ArrowRight size={12} />
+              </Link>
             )}
-          </SectionTitle>
-        </SectionHeader>
-        <SectionContent>
-          {sessionsLoading ? (
+          </>
+        }
+      />
+
+      {/* Analysis Sessions */}
+      <Section>
+        <Section.Header>
+          <Section.Title>
+            Analysis Sessions ({analysisSessions.length})
+          </Section.Title>
+          {inProgressCount > 0 && (
+            <Badge variant="medium">{inProgressCount} in progress</Badge>
+          )}
+        </Section.Header>
+        <Section.Content>
+          {analysisSessionsLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
               <OrbLoader size="md" />
             </div>
-          ) : sessions.length > 0 ? (
+          ) : analysisSessions.length > 0 ? (
             <SessionList>
-              {sessions.map((session) => (
+              {analysisSessions.map((session) => (
                 <SessionCard key={session.session_id}>
                   <SessionHeader>
                     <SessionInfo>
@@ -252,36 +297,30 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
               </p>
             </EmptyContent>
           )}
-        </SectionContent>
-      </SectionCard>
+        </Section.Content>
+      </Section>
 
       {/* Security Findings */}
-      <SectionCard>
-        <SectionHeader>
-          <SectionTitle>
-            Security Findings
-            {openCount > 0 && (
-              <Badge variant="critical">{openCount} open</Badge>
-            )}
-          </SectionTitle>
-        </SectionHeader>
-        <SectionContent>
+      <Section>
+        <Section.Header>
+          <Section.Title icon={<Shield size={16} />}>Security Findings</Section.Title>
+          {openCount > 0 && <Badge variant="critical">{openCount} open</Badge>}
+        </Section.Header>
+        <Section.Content>
           <FindingsTab
             findings={findings}
             summary={findingsSummary || undefined}
             isLoading={findingsLoading}
           />
-        </SectionContent>
-      </SectionCard>
+        </Section.Content>
+      </Section>
 
       {/* Agents List */}
-      <SectionCard>
-        <SectionHeader>
-          <SectionTitle>
-            Agents ({agents.length})
-          </SectionTitle>
-        </SectionHeader>
-        <SectionContent>
+      <Section>
+        <Section.Header>
+          <Section.Title icon={<Bot size={16} />}>Agents ({agents.length})</Section.Title>
+        </Section.Header>
+        <Section.Content>
           {agents.length > 0 ? (
             <AgentList>
               {agents.map((agent) => (
@@ -313,8 +352,8 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
               </p>
             </EmptyContent>
           )}
-        </SectionContent>
-      </SectionCard>
+        </Section.Content>
+      </Section>
     </WorkflowLayout>
   );
 };

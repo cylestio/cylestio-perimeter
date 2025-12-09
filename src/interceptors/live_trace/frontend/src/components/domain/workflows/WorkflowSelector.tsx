@@ -26,18 +26,11 @@ export interface Workflow {
 
 export interface WorkflowSelectorProps {
   workflows: Workflow[];
-  selectedWorkflow: Workflow | null; // null = show all
-  onSelect: (workflow: Workflow | null) => void;
+  selectedWorkflow: Workflow | null;
+  onSelect: (workflow: Workflow) => void;
   label?: string;
   collapsed?: boolean;
 }
-
-// "All Workflows" option
-const ALL_WORKFLOWS: Workflow = {
-  id: '__all__',
-  name: 'All Workflows',
-  agentCount: 0,
-};
 
 // Component
 export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
@@ -50,15 +43,8 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Calculate total agents for "All Workflows"
-  const totalAgents = workflows.reduce((sum, w) => sum + w.agentCount, 0);
-  const allWorkflowsOption = { ...ALL_WORKFLOWS, agentCount: totalAgents };
-
-  // Build options list with "All Workflows" first
-  const options = [allWorkflowsOption, ...workflows];
-
-  // Determine display workflow (null selection shows "All Workflows")
-  const displayWorkflow = selectedWorkflow ?? allWorkflowsOption;
+  // Display workflow defaults to first workflow if none selected
+  const displayWorkflow = selectedWorkflow ?? workflows[0];
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -72,8 +58,7 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
   }, []);
 
   const handleSelect = (workflow: Workflow) => {
-    // If "All Workflows" selected, pass null
-    onSelect(workflow.id === '__all__' ? null : workflow);
+    onSelect(workflow);
     setIsOpen(false);
   };
 
@@ -87,16 +72,18 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
   };
 
   const isSelected = (workflow: Workflow) => {
-    if (workflow.id === '__all__') {
-      return selectedWorkflow === null;
-    }
     return selectedWorkflow?.id === workflow.id;
   };
+
+  // Don't render if no workflows
+  if (workflows.length === 0) {
+    return null;
+  }
 
   if (collapsed) {
     return (
       <WorkflowSelectorContainer ref={containerRef} $collapsed>
-        <WorkflowIcon title={displayWorkflow.name}>
+        <WorkflowIcon title={displayWorkflow?.name ?? 'Workflow'}>
           <Folder size={20} />
         </WorkflowIcon>
       </WorkflowSelectorContainer>
@@ -121,11 +108,11 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
         </WorkflowIcon>
         <WorkflowInfo>
           <Text size="sm" truncate>
-            {displayWorkflow.name}
+            {displayWorkflow?.name ?? 'Select workflow'}
           </Text>
         </WorkflowInfo>
         <Badge variant="info" size="sm">
-          {displayWorkflow.agentCount}
+          {displayWorkflow?.agentCount ?? 0}
         </Badge>
         <DropdownIcon $open={isOpen}>
           <ChevronDown size={16} />
@@ -134,14 +121,14 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
 
       {isOpen && (
         <WorkflowDropdown role="listbox">
-          {options.map((workflow) => (
+          {workflows.map((workflow) => (
             <WorkflowOption
               key={workflow.id ?? 'unassigned'}
               onClick={() => handleSelect(workflow)}
               role="option"
               aria-selected={isSelected(workflow)}
               $selected={isSelected(workflow)}
-              $isAll={workflow.id === '__all__'}
+              $isAll={false}
             >
               <WorkflowIcon $small>
                 <Folder size={14} />

@@ -19,6 +19,14 @@ const SidebarContainer = styled.div`
   border-radius: 8px;
 `;
 
+const CollapsedSidebarContainer = styled.div`
+  width: 64px;
+  padding: 8px;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: 8px;
+`;
+
 const meta: Meta<typeof NavItem> = {
   title: 'UI/Navigation/NavItem',
   component: NavItem,
@@ -152,5 +160,23 @@ export const InteractiveSidebar: Story = {
         </NavGroup>
       </SidebarContainer>
     );
+  },
+};
+
+export const Collapsed: Story = {
+  render: () => (
+    <CollapsedSidebarContainer>
+      <Stack $gap={4}>
+        <NavItem icon={<LayoutGrid />} label="Dashboard" active collapsed />
+        <NavItem icon={<Flag />} label="Findings" badge={5} badgeColor="orange" collapsed />
+        <NavItem icon={<Activity />} label="Sessions" collapsed />
+        <NavItem icon={<Settings />} label="Settings" collapsed />
+      </Stack>
+    </CollapsedSidebarContainer>
+  ),
+  play: async ({ canvas }) => {
+    // In collapsed mode, labels should not be visible
+    expect(canvas.queryByText('Dashboard')).not.toBeInTheDocument();
+    expect(canvas.queryByText('Findings')).not.toBeInTheDocument();
   },
 };

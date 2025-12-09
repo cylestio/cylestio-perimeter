@@ -54,28 +54,6 @@ export const MetricValue = styled.div`
   color: ${({ theme }) => theme.colors.cyan};
 `;
 
-export const TimelineCard = styled.div`
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.xl};
-  overflow: hidden;
-`;
-
-export const TimelineHeader = styled.div`
-  padding: ${({ theme }) => theme.layout.cardHeaderPadding};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-export const TimelineTitle = styled.h2`
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-  margin: 0;
-`;
-
 export const TimelineContent = styled.div`
   padding: ${({ theme }) => theme.spacing[5]};
   max-height: 600px;
@@ -147,25 +125,6 @@ export const ReplayPanelContent = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const ReplaySection = styled.div`
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  overflow: hidden;
-`;
-
-export const ReplaySectionHeader = styled.div`
-  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  font-size: ${({ theme }) => theme.typography.textSm};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-`;
-
-export const ReplaySectionContent = styled.div`
-  padding: ${({ theme }) => theme.spacing[4]};
 `;
 
 export const FormGroup = styled.div`

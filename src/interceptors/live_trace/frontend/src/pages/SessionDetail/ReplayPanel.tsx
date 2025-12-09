@@ -10,6 +10,7 @@ import { TextArea } from '@ui/form/TextArea';
 import { Checkbox } from '@ui/form/Checkbox';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { JsonEditor } from '@ui/form/JsonEditor';
+import { Section } from '@ui/layout/Section';
 
 import {
   ReplayPanelOverlay,
@@ -17,9 +18,6 @@ import {
   ReplayPanelTitle,
   ReplayPanelClose,
   ReplayPanelContent,
-  ReplaySection,
-  ReplaySectionHeader,
-  ReplaySectionContent,
   FormGroup,
   FormRow,
   FormLabel,
@@ -205,11 +203,13 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
 
       <ReplayPanelContent>
         {/* API Key Section */}
-        <ReplaySection>
-          <ReplaySectionHeader>
-            {provider === 'openai' ? 'OpenAI' : 'Anthropic'} API Key
-          </ReplaySectionHeader>
-          <ReplaySectionContent>
+        <Section>
+          <Section.Header>
+            <Section.Title>
+              {provider === 'openai' ? 'OpenAI' : 'Anthropic'} API Key
+            </Section.Title>
+          </Section.Header>
+          <Section.Content>
             {replayConfig?.api_key_available ? (
               <FormGroup>
                 <Checkbox
@@ -239,13 +239,15 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                 </div>
               </FormGroup>
             )}
-          </ReplaySectionContent>
-        </ReplaySection>
+          </Section.Content>
+        </Section>
 
         {/* Request Editor */}
-        <ReplaySection>
-          <ReplaySectionHeader>Request Editor</ReplaySectionHeader>
-          <ReplaySectionContent>
+        <Section>
+          <Section.Header>
+            <Section.Title>Request Editor</Section.Title>
+          </Section.Header>
+          <Section.Content>
             <FormGroup>
               <FormRow>
                 <FormGroup>
@@ -338,22 +340,20 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                 )}
               </ReplayButton>
             </FormGroup>
-          </ReplaySectionContent>
-        </ReplaySection>
+          </Section.Content>
+        </Section>
 
         {/* Response */}
-        <ReplaySection>
-          <ReplaySectionHeader>
-            Response
+        <Section>
+          <Section.Header>
+            <Section.Title>Response</Section.Title>
             {response?.parsed?.usage && (
-              <span style={{ marginLeft: '8px' }}>
-                <Badge variant="info">
-                  {response.parsed.usage.total_tokens} tokens
-                </Badge>
-              </span>
+              <Badge variant="info">
+                {response.parsed.usage.total_tokens} tokens
+              </Badge>
             )}
-          </ReplaySectionHeader>
-          <ReplaySectionContent>
+          </Section.Header>
+          <Section.Content>
             {!response && !responseError && !sending && (
               <ResponseEmpty>
                 <ResponseEmptyIcon>&#8635;</ResponseEmptyIcon>
@@ -452,8 +452,8 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                 </details>
               </>
             )}
-          </ReplaySectionContent>
-        </ReplaySection>
+          </Section.Content>
+        </Section>
       </ReplayPanelContent>
     </ReplayPanelOverlay>
   );

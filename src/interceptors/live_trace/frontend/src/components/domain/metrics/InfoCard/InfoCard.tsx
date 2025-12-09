@@ -1,10 +1,8 @@
 import type { FC, ReactNode } from 'react';
 
+import { Section } from '@ui/layout/Section';
+
 import {
-  InfoCardContainer,
-  InfoCardHeader,
-  InfoCardTitle,
-  InfoCardContent,
   PrimarySection,
   PrimaryLabel,
   PrimaryValue,
@@ -41,11 +39,11 @@ export const InfoCard: FC<InfoCardProps> = ({
   className,
 }) => {
   return (
-    <InfoCardContainer className={className}>
-      <InfoCardHeader>
-        <InfoCardTitle>{title}</InfoCardTitle>
-      </InfoCardHeader>
-      <InfoCardContent>
+    <Section className={className}>
+      <Section.Header>
+        <Section.Title>{title}</Section.Title>
+      </Section.Header>
+      <Section.Content>
         <PrimarySection>
           <PrimaryLabel>{primaryLabel}</PrimaryLabel>
           <PrimaryValue>{primaryValue}</PrimaryValue>
@@ -63,7 +61,7 @@ export const InfoCard: FC<InfoCardProps> = ({
         )}
 
         {badge && <BadgeSection>{badge}</BadgeSection>}
-      </InfoCardContent>
-    </InfoCardContainer>
+      </Section.Content>
+    </Section>
   );
 };

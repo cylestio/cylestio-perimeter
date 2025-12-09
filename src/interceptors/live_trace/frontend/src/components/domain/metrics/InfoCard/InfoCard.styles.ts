@@ -1,28 +1,5 @@
 import styled from 'styled-components';
 
-export const InfoCardContainer = styled.div`
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.xl};
-  overflow: hidden;
-`;
-
-export const InfoCardHeader = styled.div`
-  padding: ${({ theme }) => theme.layout.cardHeaderPadding};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-`;
-
-export const InfoCardTitle = styled.h3`
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-  margin: 0;
-`;
-
-export const InfoCardContent = styled.div`
-  padding: ${({ theme }) => theme.spacing[5]};
-`;
-
 export const PrimarySection = styled.div`
   margin-bottom: ${({ theme }) => theme.spacing[5]};
 `;

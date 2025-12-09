@@ -9,3 +9,11 @@ export type { MainProps } from './Main';
 
 export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';
+
+export { Section, SectionHeader, SectionTitle, SectionContent } from './Section';
+export type {
+  SectionProps,
+  SectionHeaderProps,
+  SectionTitleProps,
+  SectionContentProps,
+} from './Section';

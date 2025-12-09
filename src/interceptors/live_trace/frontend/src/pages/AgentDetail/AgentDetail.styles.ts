@@ -142,33 +142,6 @@ export const AlertDescription = styled.div`
   color: ${({ theme }) => theme.colors.white50};
 `;
 
-// Summary Card
-export const SummaryCard = styled.div`
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.xl};
-  overflow: hidden;
-`;
-
-export const SummaryHeader = styled.div`
-  padding: ${({ theme }) => theme.layout.cardHeaderPadding};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-export const SummaryTitle = styled.h2`
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-  margin: 0;
-`;
-
-export const SummaryContent = styled.div`
-  padding: ${({ theme }) => theme.spacing[5]};
-`;
-
 // Status Banner
 export const StatusBanner = styled.div<{ $isError: boolean }>`
   display: flex;
@@ -335,29 +308,6 @@ export const ConfidenceRow = styled.div`
 `;
 
 // Sessions Table
-export const SessionsCard = styled.div`
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.xl};
-  overflow: hidden;
-`;
-
-export const SessionsHeader = styled.div`
-  padding: ${({ theme }) => theme.layout.cardHeaderPadding};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-`;
-
-export const SessionsTitle = styled.h2`
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-  margin: 0;
-`;
-
-export const SessionsContent = styled.div`
-  overflow-x: auto;
-`;
-
 export const EmptySessions = styled.div`
   padding: ${({ theme }) => theme.spacing[8]};
   text-align: center;
@@ -424,27 +374,6 @@ export const ActiveSessionsNote = styled.div`
 `;
 
 // Evaluation Progress
-export const EvaluationCard = styled.div`
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  padding: ${({ theme }) => theme.spacing[5]};
-`;
-
-export const EvaluationHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const EvaluationTitle = styled.h3`
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-  margin: 0;
-`;
-
 export const EvaluationCounter = styled.div`
   font-family: ${({ theme }) => theme.typography.fontMono};
   font-size: ${({ theme }) => theme.typography.textLg};

@@ -20,6 +20,7 @@ import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Table, type Column } from '@ui/data-display/Table';
 import { Tooltip } from '@ui/overlays/Tooltip';
+import { Section } from '@ui/layout/Section';
 
 import { LifecycleProgress, type LifecycleStage } from '@domain/activity';
 import { InfoCard } from '@domain/metrics/InfoCard';
@@ -42,10 +43,6 @@ import {
   AlertContent,
   AlertTitle,
   AlertDescription,
-  SummaryCard,
-  SummaryHeader,
-  SummaryTitle,
-  SummaryContent,
   StatusBanner,
   StatusLeft,
   StatusRight,
@@ -68,19 +65,12 @@ import {
   ProgressBarContainer,
   ProgressBarFill,
   ConfidenceRow,
-  SessionsCard,
-  SessionsHeader,
-  SessionsTitle,
-  SessionsContent,
   EmptySessions,
   ViewReportButton,
   FullReportLink,
   PIIWarning,
   PIIWarningText,
   ActiveSessionsNote,
-  EvaluationCard,
-  EvaluationHeader,
-  EvaluationTitle,
   EvaluationCounter,
   EvaluationDescription,
 } from './AgentDetail.styles';
@@ -346,22 +336,24 @@ export const AgentDetail: FC = () => {
 
         {/* Evaluation Progress Banner */}
         {status.evaluationStatus === 'INSUFFICIENT_DATA' && (
-          <EvaluationCard>
-            <EvaluationHeader>
-              <EvaluationTitle>Gathering Data for Risk Analysis</EvaluationTitle>
+          <Section>
+            <Section.Header>
+              <Section.Title>Gathering Data for Risk Analysis</Section.Title>
               <EvaluationCounter>
                 {status.currentSessions} / {status.minSessionsRequired}
               </EvaluationCounter>
-            </EvaluationHeader>
-            <ProgressBar
-              value={(status.currentSessions || 0) / (status.minSessionsRequired || 5)}
-              variant="default"
-            />
-            <EvaluationDescription style={{ marginTop: '12px' }}>
-              We need at least {status.minSessionsRequired} sessions to provide meaningful risk
-              analysis. Keep using your agent to build up session history.
-            </EvaluationDescription>
-          </EvaluationCard>
+            </Section.Header>
+            <Section.Content>
+              <ProgressBar
+                value={(status.currentSessions || 0) / (status.minSessionsRequired || 5)}
+                variant="default"
+              />
+              <EvaluationDescription style={{ marginTop: '12px' }}>
+                We need at least {status.minSessionsRequired} sessions to provide meaningful risk
+                analysis. Keep using your agent to build up session history.
+              </EvaluationDescription>
+            </Section.Content>
+          </Section>
         )}
 
         {/* Behavioral Analysis Waiting Banner */}
@@ -384,14 +376,14 @@ export const AgentDetail: FC = () => {
 
         {/* Security & Behavioral Assessment Summary */}
         {status.hasRiskData && (
-          <SummaryCard>
-            <SummaryHeader>
-              <SummaryTitle>Security & Behavioral Assessment Summary</SummaryTitle>
+          <Section>
+            <Section.Header>
+              <Section.Title>Security & Behavioral Assessment Summary</Section.Title>
               <ViewReportButton as={Link} to={workflowLink(workflowId, `/agent/${agent.id}/report`)}>
                 View Full Report →
               </ViewReportButton>
-            </SummaryHeader>
-            <SummaryContent>
+            </Section.Header>
+            <Section.Content>
               {/* Status Banner */}
               <StatusBanner $isError={status.hasCriticalIssues}>
                 <StatusLeft>
@@ -593,16 +585,16 @@ export const AgentDetail: FC = () => {
                     )}
                   </BehavioralSection>
                 )}
-            </SummaryContent>
-          </SummaryCard>
+            </Section.Content>
+          </Section>
         )}
 
         {/* Sessions Table */}
-        <SessionsCard>
-          <SessionsHeader>
-            <SessionsTitle>Sessions ({data.sessions?.length || 0})</SessionsTitle>
-          </SessionsHeader>
-          <SessionsContent>
+        <Section>
+          <Section.Header>
+            <Section.Title>Sessions ({data.sessions?.length || 0})</Section.Title>
+          </Section.Header>
+          <Section.Content noPadding>
             {data.sessions && data.sessions.length > 0 ? (
               <Table<AgentSession>
                 columns={getSessionColumns(workflowId || 'unassigned')}
@@ -615,8 +607,8 @@ export const AgentDetail: FC = () => {
                 <p>No sessions found for this agent.</p>
               </EmptySessions>
             )}
-          </SessionsContent>
-        </SessionsCard>
+          </Section.Content>
+        </Section>
       </AgentMain>
     </AgentLayout>
   );

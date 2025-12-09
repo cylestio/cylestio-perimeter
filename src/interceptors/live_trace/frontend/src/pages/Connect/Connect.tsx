@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 
+import { useNavigate } from 'react-router-dom';
 import { Copy, Check, ExternalLink, Info } from 'lucide-react';
 
 import { fetchConfig } from '@api/endpoints/config';
@@ -15,6 +16,8 @@ import { Label } from '@ui/core/Label';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Skeleton } from '@ui/feedback/Skeleton';
 
+import { ConnectionSuccess } from '@features/index';
+
 import { usePageMeta } from '../../context';
 import {
   ConnectContainer,
@@ -28,7 +31,6 @@ import {
   ConfigDetails,
   ConfigItem,
   StatusBanner,
-  StatusDot,
   StatusSpinner,
   StyledCard,
   FooterButton,
@@ -43,6 +45,8 @@ type ConnectionStatus = 'loading' | 'waiting' | 'connected';
 type UrlMode = 'standard' | 'workflow';
 
 export const Connect: FC = () => {
+  const navigate = useNavigate();
+
   usePageMeta({
     hide: true,
   });
@@ -100,7 +104,6 @@ export const Connect: FC = () => {
 
   const isLoading = status === 'loading';
   const isConnected = status === 'connected';
-  const displayStatus = isConnected ? 'connected' : 'waiting';
 
   return (
     <ConnectContainer>
@@ -210,22 +213,24 @@ export const Connect: FC = () => {
         </Card.Content>
       </StyledCard>
 
-      {/* Status Banner */}
-      {!isLoading && (
-        <StatusBanner $status={displayStatus}>
-          {isConnected ? (
-            <StatusDot $status={displayStatus} />
-          ) : (
-            <StatusSpinner>
-              <OrbLoader size="sm" />
-            </StatusSpinner>
-          )}
-          <Text size="sm" weight="medium" color={isConnected ? 'green' : 'muted'}>
-            {isConnected
-              ? `Connected — ${agentCount} agent${agentCount !== 1 ? 's' : ''} detected`
-              : 'Listening for agent activity'}
+      {/* Status Banner - waiting state */}
+      {!isLoading && !isConnected && (
+        <StatusBanner $status="waiting">
+          <StatusSpinner>
+            <OrbLoader size="sm" />
+          </StatusSpinner>
+          <Text size="sm" weight="medium" color="muted">
+            Listening for agent activity
           </Text>
         </StatusBanner>
+      )}
+
+      {/* Success Section - connected state */}
+      {isConnected && (
+        <ConnectionSuccess
+          agentCount={agentCount}
+          onViewWorkflows={() => navigate('/')}
+        />
       )}
 
       <FooterButton
