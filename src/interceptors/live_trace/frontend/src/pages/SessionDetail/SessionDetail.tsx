@@ -38,7 +38,7 @@ function formatNumber(value: number): string {
 }
 
 export const SessionDetail: FC = () => {
-  const { sessionId } = useParams<{ sessionId: string }>();
+  const { sessionId, workflowId } = useParams<{ sessionId: string; workflowId: string }>();
   const [replayEventId, setReplayEventId] = useState<string | null>(null);
 
   // Fetch session data with polling
@@ -52,12 +52,15 @@ export const SessionDetail: FC = () => {
     enabled: !!sessionId,
   });
 
-  // Set breadcrumbs
+  // Set breadcrumbs with workflow context
   usePageMeta({
     breadcrumbs: [
       { label: 'Portfolio', href: '/' },
+      ...(workflowId && workflowId !== 'unassigned'
+        ? [{ label: 'Workflow', href: `/workflow/${workflowId}` }]
+        : []),
       ...(data?.session.agent_id
-        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: `/dashboard/agent/${data.session.agent_id}` }]
+        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: `/workflow/${workflowId}/agent/${data.session.agent_id}` }]
         : []),
       { label: 'Session' },
       { label: sessionId?.substring(0, 12) + '...' || '' },
@@ -106,7 +109,7 @@ export const SessionDetail: FC = () => {
                 label: 'AGENT ID',
                 badge: (
                   <Link
-                    to={`/dashboard/agent/${session.agent_id}`}
+                    to={`/workflow/${workflowId}/agent/${session.agent_id}`}
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '12px',

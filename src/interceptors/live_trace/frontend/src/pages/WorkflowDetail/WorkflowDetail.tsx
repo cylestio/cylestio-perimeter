@@ -287,7 +287,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
                 <AgentListItem
                   key={agent.id}
                   as={Link}
-                  to={`/dashboard/agent/${agent.id}`}
+                  to={`/workflow/${workflowId}/agent/${agent.id}`}
                 >
                   <AgentIcon>
                     <Bot size={16} />

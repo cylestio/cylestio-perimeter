@@ -277,6 +277,7 @@ class InsightsEngine:
             agent_data = {
                 "id": agent.agent_id,
                 "id_short": agent.agent_id[:8] + "..." if len(agent.agent_id) > 8 else agent.agent_id,
+                "workflow_id": agent.workflow_id,
                 "total_sessions": agent.total_sessions,
                 "active_sessions": active_sessions,
                 "completed_sessions": completed_sessions,
