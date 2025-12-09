@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from '
 import { ThemeProvider } from 'styled-components';
 
 import type { ConfigResponse } from '@api/types/config';
-import type { DashboardResponse, DashboardFindingsSummary } from '@api/types/dashboard';
+import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
@@ -30,29 +30,33 @@ import { AnalysisStatusItem, type AnalysisStatus } from '@domain/analysis';
 import { PageMetaProvider, usePageMetaValue } from './context';
 import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, StaticAnalysis, WorkflowDetail, WorkflowsHome } from '@pages/index';
 
-// Derive analysis status from findings summary
-function getStaticAnalysisStatus(summary: DashboardFindingsSummary | undefined): AnalysisStatus {
-  if (!summary || summary.total_findings === 0) {
-    return 'inactive';
-  }
+// Convert backend stage status to sidebar AnalysisStatus
+function stageToSidebarStatus(stage: AnalysisStage | undefined): AnalysisStatus {
+  if (!stage) return 'inactive';
 
-  const openCritical = summary.by_severity?.CRITICAL ?? 0;
-  const openHigh = summary.by_severity?.HIGH ?? 0;
-
-  if (openCritical > 0) {
-    return 'critical';
+  switch (stage.status) {
+    case 'active':
+      return 'running';
+    case 'completed':
+      // For completed analysis, derive severity from embedded findings
+      if (stage.findings) {
+        const openCritical = stage.findings.by_severity?.CRITICAL ?? 0;
+        const openHigh = stage.findings.by_severity?.HIGH ?? 0;
+        if (openCritical > 0) return 'critical';
+        if (openHigh > 0) return 'warning';
+        return 'ok';
+      }
+      return 'ok';
+    case 'pending':
+    default:
+      return 'inactive';
   }
-  if (openHigh > 0) {
-    return 'warning';
-  }
-
-  return 'ok';
 }
 
-// Get open findings count from summary
-function getOpenFindingsCount(summary: DashboardFindingsSummary | undefined): number | undefined {
-  if (!summary) return undefined;
-  const openCount = summary.by_status?.OPEN ?? 0;
+// Get open findings count from stage
+function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefined {
+  if (!stage?.findings) return undefined;
+  const openCount = stage.findings.by_status?.OPEN ?? 0;
   return openCount > 0 ? openCount : undefined;
 }
 
@@ -210,8 +214,8 @@ function AppLayout() {
             <NavGroup label={!sidebarCollapsed ? 'Analysis' : undefined}>
               <AnalysisStatusItem
                 label="Static Analysis"
-                status={getStaticAnalysisStatus(data?.findings_summary)}
-                count={getOpenFindingsCount(data?.findings_summary)}
+                status={stageToSidebarStatus(data?.security_analysis?.static)}
+                count={getOpenFindingsCount(data?.security_analysis?.static)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/static-analysis`}
@@ -219,13 +223,13 @@ function AppLayout() {
               />
               <AnalysisStatusItem
                 label="Dynamic Analysis"
-                status="inactive"
+                status={stageToSidebarStatus(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
               />
               <AnalysisStatusItem
                 label="Recommendations"
-                status="inactive"
+                status={stageToSidebarStatus(data?.security_analysis?.recommendations)}
                 isRecommendation
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
