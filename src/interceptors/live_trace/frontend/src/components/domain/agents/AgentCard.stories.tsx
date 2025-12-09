@@ -244,3 +244,62 @@ export const OKWithoutBehavioral: Story = {
     await expect(stabilityLabel).not.toBeInTheDocument();
   },
 };
+
+// Lifecycle Stage Stories
+export const LifecycleDev: Story = {
+  args: {
+    id: 'dev-agent-001',
+    name: 'DevAgent',
+    totalSessions: 0,
+    totalErrors: 0,
+    totalTools: 5,
+    lastSeen: '1h ago',
+    riskStatus: 'evaluating',
+    currentSessions: 0,
+    minSessionsRequired: 5,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    // Verify dev lifecycle emoji appears
+    await expect(canvas.getByText('🔧')).toBeInTheDocument();
+  },
+};
+
+export const LifecycleStatic: Story = {
+  args: {
+    id: 'static-agent-001',
+    name: 'StaticAgent',
+    totalSessions: 5,
+    totalErrors: 0,
+    totalTools: 20,
+    lastSeen: '30m ago',
+    riskStatus: 'evaluating',
+    currentSessions: 5,
+    minSessionsRequired: 5,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    // Verify static lifecycle emoji appears
+    await expect(canvas.getByText('🔍')).toBeInTheDocument();
+  },
+};
+
+export const LifecycleDynamic: Story = {
+  args: {
+    id: 'dynamic-agent-001',
+    name: 'DynamicAgent',
+    totalSessions: 15,
+    totalErrors: 0,
+    totalTools: 45,
+    lastSeen: '2h ago',
+    riskStatus: 'ok',
+    stability: 88,
+    predictability: 90,
+    confidence: 'high',
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    // Verify dynamic lifecycle emoji appears
+    await expect(canvas.getByText('🧪')).toBeInTheDocument();
+  },
+};

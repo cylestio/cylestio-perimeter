@@ -18,6 +18,7 @@ SQL_SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
+    workflow_id TEXT,
     created_at REAL NOT NULL,
     last_activity REAL NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -38,12 +39,14 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_workflow_id ON sessions(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_is_completed ON sessions(is_completed);
 CREATE INDEX IF NOT EXISTS idx_sessions_is_active ON sessions(is_active);
 CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
 
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
+    workflow_id TEXT,
     first_seen REAL NOT NULL,
     last_seen REAL NOT NULL,
     total_sessions INTEGER DEFAULT 0,
@@ -62,15 +65,56 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
+CREATE INDEX IF NOT EXISTS idx_agents_workflow_id ON agents(workflow_id);
+
+CREATE TABLE IF NOT EXISTS analysis_sessions (
+    session_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    workflow_name TEXT,
+    session_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    completed_at REAL,
+    findings_count INTEGER DEFAULT 0,
+    risk_score INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_sessions_workflow_id ON analysis_sessions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_sessions_status ON analysis_sessions(status);
+
+CREATE TABLE IF NOT EXISTS findings (
+    finding_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    workflow_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    line_start INTEGER,
+    line_end INTEGER,
+    finding_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    evidence TEXT,
+    owasp_mapping TEXT,
+    status TEXT DEFAULT 'OPEN',
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES analysis_sessions(session_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_findings_session_id ON findings(session_id);
+CREATE INDEX IF NOT EXISTS idx_findings_workflow_id ON findings(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
+CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
 """
 
 
 class SessionData:
     """Container for session-specific data."""
 
-    def __init__(self, session_id: str, agent_id: str):
+    def __init__(self, session_id: str, agent_id: str, workflow_id: Optional[str] = None):
         self.session_id = session_id
         self.agent_id = agent_id
+        self.workflow_id = workflow_id
         self.events = deque(maxlen=1000)  # Last 1000 events per session
         self.created_at = datetime.now(timezone.utc)
         self.last_activity = self.created_at
@@ -181,8 +225,9 @@ class SessionData:
 class AgentData:
     """Container for agent-specific data."""
 
-    def __init__(self, agent_id: str):
+    def __init__(self, agent_id: str, workflow_id: Optional[str] = None):
         self.agent_id = agent_id
+        self.workflow_id = workflow_id
         self.sessions = set()
         self.first_seen = datetime.now(timezone.utc)
         self.last_seen = self.first_seen
@@ -265,6 +310,7 @@ class TraceStore:
 
         # Configure SQLite for performance
         self.db.row_factory = sqlite3.Row  # Access columns by name
+        self.db.execute("PRAGMA foreign_keys=ON")  # Enable foreign key constraints
         self.db.execute("PRAGMA journal_mode=WAL")  # Better concurrency
         self.db.execute("PRAGMA synchronous=NORMAL")  # Balance safety/speed
         self.db.execute("PRAGMA cache_size=-64000")  # 64MB cache
@@ -298,6 +344,7 @@ class TraceStore:
         return {
             'session_id': session.session_id,
             'agent_id': session.agent_id,
+            'workflow_id': session.workflow_id,
             'created_at': session.created_at.timestamp(),
             'last_activity': session.last_activity.timestamp(),
             'is_active': 1 if session.is_active else 0,
@@ -319,7 +366,7 @@ class TraceStore:
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
         """Convert SQLite row back to SessionData object."""
-        session = SessionData(row['session_id'], row['agent_id'])
+        session = SessionData(row['session_id'], row['agent_id'], row['workflow_id'])
         session.created_at = datetime.fromtimestamp(row['created_at'], tz=timezone.utc)
         session.last_activity = datetime.fromtimestamp(row['last_activity'], tz=timezone.utc)
         session.is_active = bool(row['is_active'])
@@ -347,6 +394,7 @@ class TraceStore:
         """Convert AgentData to dict for SQLite storage."""
         return {
             'agent_id': agent.agent_id,
+            'workflow_id': agent.workflow_id,
             'first_seen': agent.first_seen.timestamp(),
             'last_seen': agent.last_seen.timestamp(),
             'total_sessions': agent.total_sessions,
@@ -366,7 +414,7 @@ class TraceStore:
 
     def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
         """Convert SQLite row back to AgentData object."""
-        agent = AgentData(row['agent_id'])
+        agent = AgentData(row['agent_id'], row['workflow_id'])
         agent.first_seen = datetime.fromtimestamp(row['first_seen'], tz=timezone.utc)
         agent.last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
         agent.total_sessions = row['total_sessions']
@@ -390,7 +438,7 @@ class TraceStore:
         data = self._serialize_session(session)
         self.db.execute("""
             INSERT OR REPLACE INTO sessions VALUES (
-                :session_id, :agent_id, :created_at, :last_activity,
+                :session_id, :agent_id, :workflow_id, :created_at, :last_activity,
                 :is_active, :is_completed, :completed_at,
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
@@ -405,7 +453,7 @@ class TraceStore:
         data = self._serialize_agent(agent)
         self.db.execute("""
             INSERT OR REPLACE INTO agents VALUES (
-                :agent_id, :first_seen, :last_seen,
+                :agent_id, :workflow_id, :first_seen, :last_seen,
                 :total_sessions, :total_messages, :total_tokens,
                 :total_tools, :total_errors, :total_response_time_ms, :response_count,
                 :sessions_set, :available_tools, :used_tools, :tool_usage_details,
@@ -427,6 +475,11 @@ class TraceStore:
             if not agent_id:
                 agent_id = 'unknown'
 
+            # Extract workflow_id from event attributes
+            workflow_id = None
+            if hasattr(event, 'attributes'):
+                workflow_id = event.attributes.get('workflow.id')
+
             # Add to global event stream (kept in memory as circular buffer)
             self.events.append(event)
             self.total_events += 1
@@ -436,12 +489,18 @@ class TraceStore:
                 # Load existing session or create new one
                 session = self.get_session(effective_session_id)
                 if not session:
-                    session = SessionData(effective_session_id, agent_id)
+                    session = SessionData(effective_session_id, agent_id, workflow_id)
+                elif workflow_id and not session.workflow_id:
+                    # Update workflow_id if not set (allows late binding)
+                    session.workflow_id = workflow_id
 
                 # Load existing agent or create new one
                 agent = self.get_agent(agent_id)
                 if not agent:
-                    agent = AgentData(agent_id)
+                    agent = AgentData(agent_id, workflow_id)
+                elif workflow_id and not agent.workflow_id:
+                    # Update workflow_id if not set (allows late binding)
+                    agent.workflow_id = workflow_id
 
                 # Add session to agent if not already tracked
                 if effective_session_id not in agent.sessions:
@@ -593,11 +652,86 @@ class TraceStore:
             cursor = self.db.execute("SELECT * FROM sessions ORDER BY created_at DESC")
             return [self._deserialize_session(row) for row in cursor.fetchall()]
 
-    def get_all_agents(self) -> List[AgentData]:
-        """Get all agents from SQLite."""
+    def get_all_agents(self, workflow_id: Optional[str] = None) -> List[AgentData]:
+        """Get all agents from SQLite, optionally filtered by workflow.
+
+        Args:
+            workflow_id: Optional workflow ID to filter by.
+                        Use "unassigned" to get agents with no workflow.
+        """
         with self._lock:
-            cursor = self.db.execute("SELECT * FROM agents ORDER BY first_seen DESC")
+            if workflow_id is None:
+                cursor = self.db.execute("SELECT * FROM agents ORDER BY first_seen DESC")
+            elif workflow_id == "unassigned":
+                cursor = self.db.execute(
+                    "SELECT * FROM agents WHERE workflow_id IS NULL ORDER BY first_seen DESC"
+                )
+            else:
+                cursor = self.db.execute(
+                    "SELECT * FROM agents WHERE workflow_id = ? ORDER BY first_seen DESC",
+                    (workflow_id,)
+                )
             return [self._deserialize_agent(row) for row in cursor.fetchall()]
+
+    def get_workflows(self) -> List[Dict[str, Any]]:
+        """Get all unique workflows with their agent counts.
+
+        Returns:
+            List of workflow dicts with id, name, agent_count, and session_count.
+            Includes workflows from both agents and analysis_sessions tables.
+            Includes "Unassigned" for agents without a workflow.
+        """
+        with self._lock:
+            workflows = []
+
+            # Get workflows from both agents and analysis_sessions
+            cursor = self.db.execute("""
+                SELECT
+                    workflow_id,
+                    COALESCE(MAX(workflow_name), workflow_id) as name,
+                    SUM(agent_count) as agent_count,
+                    SUM(session_count) as session_count
+                FROM (
+                    -- Workflows from agents
+                    SELECT workflow_id, NULL as workflow_name, COUNT(*) as agent_count, 0 as session_count
+                    FROM agents
+                    WHERE workflow_id IS NOT NULL
+                    GROUP BY workflow_id
+
+                    UNION ALL
+
+                    -- Workflows from analysis_sessions
+                    SELECT workflow_id, workflow_name, 0 as agent_count, COUNT(*) as session_count
+                    FROM analysis_sessions
+                    WHERE workflow_id IS NOT NULL
+                    GROUP BY workflow_id
+                )
+                GROUP BY workflow_id
+                ORDER BY workflow_id
+            """)
+
+            for row in cursor.fetchall():
+                workflows.append({
+                    "id": row["workflow_id"],
+                    "name": row["name"],
+                    "agent_count": row["agent_count"],
+                    "session_count": row["session_count"]
+                })
+
+            # Get count of unassigned agents
+            cursor = self.db.execute(
+                "SELECT COUNT(*) as count FROM agents WHERE workflow_id IS NULL"
+            )
+            unassigned_count = cursor.fetchone()["count"]
+
+            if unassigned_count > 0:
+                workflows.append({
+                    "id": None,
+                    "name": "Unassigned",
+                    "agent_count": unassigned_count
+                })
+
+            return workflows
 
     def get_global_stats(self) -> Dict[str, Any]:
         """Get global statistics from SQLite."""
@@ -678,3 +812,319 @@ class TraceStore:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
 
             return newly_completed
+
+    # Analysis Session and Finding Methods
+
+    def _deserialize_analysis_session(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to analysis session dict."""
+        return {
+            'session_id': row['session_id'],
+            'workflow_id': row['workflow_id'],
+            'workflow_name': row['workflow_name'],
+            'session_type': row['session_type'],
+            'status': row['status'],
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+            'completed_at': datetime.fromtimestamp(row['completed_at'], tz=timezone.utc).isoformat() if row['completed_at'] else None,
+            'findings_count': row['findings_count'],
+            'risk_score': row['risk_score'],
+        }
+
+    def _deserialize_finding(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to finding dict."""
+        return {
+            'finding_id': row['finding_id'],
+            'session_id': row['session_id'],
+            'workflow_id': row['workflow_id'],
+            'file_path': row['file_path'],
+            'line_start': row['line_start'],
+            'line_end': row['line_end'],
+            'finding_type': row['finding_type'],
+            'severity': row['severity'],
+            'title': row['title'],
+            'description': row['description'],
+            'evidence': json.loads(row['evidence']) if row['evidence'] else None,
+            'owasp_mapping': json.loads(row['owasp_mapping']) if row['owasp_mapping'] else [],
+            'status': row['status'],
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+            'updated_at': datetime.fromtimestamp(row['updated_at'], tz=timezone.utc).isoformat(),
+        }
+
+    def create_analysis_session(
+        self,
+        session_id: str,
+        workflow_id: str,
+        session_type: str,
+        workflow_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a new analysis session for a workflow/codebase."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+
+            self.db.execute("""
+                INSERT INTO analysis_sessions (
+                    session_id, workflow_id, workflow_name, session_type, status,
+                    created_at, findings_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, workflow_id, workflow_name, session_type, 'IN_PROGRESS', created_at, 0))
+            self.db.commit()
+
+            return {
+                'session_id': session_id,
+                'workflow_id': workflow_id,
+                'workflow_name': workflow_name,
+                'session_type': session_type,
+                'status': 'IN_PROGRESS',
+                'created_at': now.isoformat(),
+                'completed_at': None,
+                'findings_count': 0,
+                'risk_score': None,
+            }
+
+    def complete_analysis_session(
+        self,
+        session_id: str,
+        risk_score: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Mark an analysis session as completed."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            completed_at = now.timestamp()
+
+            self.db.execute("""
+                UPDATE analysis_sessions
+                SET status = ?, completed_at = ?, risk_score = ?
+                WHERE session_id = ?
+            """, ('COMPLETED', completed_at, risk_score, session_id))
+            self.db.commit()
+
+            # Return the updated session
+            return self.get_analysis_session(session_id)
+
+    def get_analysis_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get an analysis session by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM analysis_sessions WHERE session_id = ?",
+                (session_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_analysis_session(row)
+            return None
+
+    def get_analysis_sessions(
+        self,
+        workflow_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get analysis sessions with optional filtering."""
+        with self._lock:
+            query = "SELECT * FROM analysis_sessions WHERE 1=1"
+            params = []
+
+            if workflow_id:
+                query += " AND workflow_id = ?"
+                params.append(workflow_id)
+
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_analysis_session(row) for row in cursor.fetchall()]
+
+    def store_finding(
+        self,
+        finding_id: str,
+        session_id: str,
+        workflow_id: str,
+        file_path: str,
+        finding_type: str,
+        severity: str,
+        title: str,
+        description: Optional[str] = None,
+        line_start: Optional[int] = None,
+        line_end: Optional[int] = None,
+        evidence: Optional[Dict[str, Any]] = None,
+        owasp_mapping: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Store a security finding for a workflow."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+            updated_at = created_at
+
+            # Serialize JSON fields
+            evidence_json = json.dumps(evidence) if evidence else None
+            owasp_mapping_json = json.dumps(owasp_mapping) if owasp_mapping else None
+
+            self.db.execute("""
+                INSERT INTO findings (
+                    finding_id, session_id, workflow_id, file_path, line_start, line_end,
+                    finding_type, severity, title, description, evidence, owasp_mapping,
+                    status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                finding_id, session_id, workflow_id, file_path, line_start, line_end,
+                finding_type, severity, title, description, evidence_json, owasp_mapping_json,
+                'OPEN', created_at, updated_at
+            ))
+
+            # Increment session's findings_count
+            self.db.execute("""
+                UPDATE analysis_sessions
+                SET findings_count = findings_count + 1
+                WHERE session_id = ?
+            """, (session_id,))
+
+            self.db.commit()
+
+            return {
+                'finding_id': finding_id,
+                'session_id': session_id,
+                'workflow_id': workflow_id,
+                'file_path': file_path,
+                'line_start': line_start,
+                'line_end': line_end,
+                'finding_type': finding_type,
+                'severity': severity,
+                'title': title,
+                'description': description,
+                'evidence': evidence,
+                'owasp_mapping': owasp_mapping or [],
+                'status': 'OPEN',
+                'created_at': now.isoformat(),
+                'updated_at': now.isoformat(),
+            }
+
+    def get_finding(self, finding_id: str) -> Optional[Dict[str, Any]]:
+        """Get a finding by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM findings WHERE finding_id = ?",
+                (finding_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_finding(row)
+            return None
+
+    def get_findings(
+        self,
+        workflow_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get findings with optional filtering."""
+        with self._lock:
+            query = "SELECT * FROM findings WHERE 1=1"
+            params = []
+
+            if workflow_id:
+                query += " AND workflow_id = ?"
+                params.append(workflow_id)
+
+            if session_id:
+                query += " AND session_id = ?"
+                params.append(session_id)
+
+            if severity:
+                query += " AND severity = ?"
+                params.append(severity)
+
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_finding(row) for row in cursor.fetchall()]
+
+    def update_finding_status(
+        self,
+        finding_id: str,
+        status: str,
+        notes: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update the status of a finding."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            updated_at = now.timestamp()
+
+            # Update description with notes if provided
+            if notes:
+                # Append notes to existing description
+                cursor = self.db.execute(
+                    "SELECT description FROM findings WHERE finding_id = ?",
+                    (finding_id,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    existing_desc = row['description'] or ''
+                    new_desc = f"{existing_desc}\n\nUpdate: {notes}".strip()
+                    self.db.execute("""
+                        UPDATE findings
+                        SET status = ?, updated_at = ?, description = ?
+                        WHERE finding_id = ?
+                    """, (status, updated_at, new_desc, finding_id))
+                else:
+                    return None
+            else:
+                self.db.execute("""
+                    UPDATE findings
+                    SET status = ?, updated_at = ?
+                    WHERE finding_id = ?
+                """, (status, updated_at, finding_id))
+
+            self.db.commit()
+
+            # Return the updated finding
+            return self.get_finding(finding_id)
+
+    def get_workflow_findings_summary(self, workflow_id: str) -> Dict[str, Any]:
+        """Get a summary of findings for a workflow."""
+        with self._lock:
+            # Count by severity
+            cursor = self.db.execute("""
+                SELECT severity, COUNT(*) as count
+                FROM findings
+                WHERE workflow_id = ? AND status = 'OPEN'
+                GROUP BY severity
+            """, (workflow_id,))
+
+            severity_counts = {row['severity']: row['count'] for row in cursor.fetchall()}
+
+            # Count by status
+            cursor = self.db.execute("""
+                SELECT status, COUNT(*) as count
+                FROM findings
+                WHERE workflow_id = ?
+                GROUP BY status
+            """, (workflow_id,))
+
+            status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+
+            # Get total count
+            cursor = self.db.execute("""
+                SELECT COUNT(*) as total
+                FROM findings
+                WHERE workflow_id = ?
+            """, (workflow_id,))
+
+            total = cursor.fetchone()['total']
+
+            return {
+                'workflow_id': workflow_id,
+                'total_findings': total,
+                'by_severity': severity_counts,
+                'by_status': status_counts,
+            }

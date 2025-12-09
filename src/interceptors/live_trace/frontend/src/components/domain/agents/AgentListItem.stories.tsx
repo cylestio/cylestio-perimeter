@@ -9,6 +9,7 @@ import { AgentListItem } from './AgentListItem';
 const mockAgentOk: APIAgent = {
   id: 'prompt-a8b9ef35309f',
   id_short: 'a8b9ef35',
+  workflow_id: 'test-workflow-123',
   total_sessions: 5,
   active_sessions: 1,
   completed_sessions: 4,

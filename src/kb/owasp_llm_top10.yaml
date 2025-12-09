@@ -1,0 +1,114 @@
+version: "1.0"
+last_updated: "2025-01-07"
+
+controls:
+  LLM01:
+    name: "Prompt Injection"
+    severity: CRITICAL
+    description: |
+      Prompt Injection occurs when user input is incorporated into prompts
+      without proper sanitization, allowing attackers to manipulate model behavior.
+
+    what_to_look_for:
+      - "User input directly concatenated into prompts using f-strings"
+      - "User input inserted via .format() or % formatting without sanitization"
+      - "No separation between system instructions and user content"
+      - "Template strings with user data embedded in prompt construction"
+      - "Unbounded input length without truncation"
+      - "Raw user input passed directly to LLM"
+
+    code_indicators:
+      dangerous:
+        - 'prompt = f"...{user_input}..."'
+        - 'prompt = system_prompt + user_input'
+        - 'prompt.format(user_data=raw_input)'
+        - 'messages.append({"role": "user", "content": raw_input})'
+      secure:
+        - 'sanitize_input(user_input, max_length=1000)'
+        - 'validated_input = validator.clean(user_input)'
+        - '{"role": "system", ...}, {"role": "user", ...}'
+
+    remediation:
+      summary: "Sanitize all user input, enforce length limits, use structured message roles"
+      fix_template_ref: "PROMPT_INJECTION"
+      steps:
+        - "Add input sanitization function"
+        - "Enforce maximum input length (1000-4000 chars)"
+        - "Use structured messages with explicit system/user role separation"
+        - "Never interpolate raw user input into system prompts"
+
+    references:
+      - "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      - "https://genai.owasp.org/llmrisk/llm01-prompt-injection/"
+
+  LLM06:
+    name: "Sensitive Information Disclosure"
+    severity: HIGH
+    description: |
+      LLM applications may expose sensitive data including PII, credentials,
+      or proprietary information through outputs or logs.
+
+    what_to_look_for:
+      - "API keys, tokens, or credentials in prompts or outputs"
+      - "Personal information (names, emails, addresses) without redaction"
+      - "Logging of full user inputs without sanitization"
+      - "Database queries exposing sensitive columns"
+      - "Error messages revealing system details"
+
+    code_indicators:
+      dangerous:
+        - 'logger.info(f"User input: {user_data}")'
+        - 'prompt = f"Process this: {email}, {ssn}, {credit_card}"'
+        - 'return {"error": str(exception)}'
+      secure:
+        - 'redacted_data = pii_redactor.redact(user_data)'
+        - 'logger.info(f"Processing request for user {hash(user_id)}")'
+        - 'return {"error": "Processing failed", "code": "ERR_001"}'
+
+    remediation:
+      summary: "Implement PII detection and redaction, sanitize logs, limit data exposure"
+      fix_template_ref: "DATA_EXPOSURE"
+      steps:
+        - "Add PII detection using Presidio or similar library"
+        - "Redact sensitive data before logging or LLM processing"
+        - "Implement structured error responses without details"
+        - "Review and minimize data collection"
+
+    references:
+      - "https://genai.owasp.org/llmrisk/llm06-sensitive-info-disclosure/"
+
+  LLM08:
+    name: "Excessive Agency"
+    severity: CRITICAL
+    description: |
+      LLM systems granted excessive permissions or autonomy can perform
+      unauthorized actions or access sensitive resources.
+
+    what_to_look_for:
+      - "LLM can call tools without human confirmation"
+      - "No allowlist/blocklist for function calls"
+      - "Unbounded tool execution loops"
+      - "Tools with destructive capabilities (delete, modify) callable by LLM"
+      - "No rate limiting on tool invocations"
+
+    code_indicators:
+      dangerous:
+        - 'result = tool_function(**llm_suggested_params)'
+        - 'for action in llm_actions: execute(action)'
+        - 'if llm.wants_to_call(func): func()'
+      secure:
+        - 'if tool_name in ALLOWED_TOOLS and user_confirmed: execute()'
+        - 'require_approval_for = ["delete", "modify", "send"]'
+        - 'max_tool_calls = 5  # Limit iterations'
+
+    remediation:
+      summary: "Require human approval for sensitive actions, implement tool allowlists, add rate limiting"
+      fix_template_ref: "EXCESSIVE_AGENCY"
+      steps:
+        - "Define allowlist of permitted tools for LLM"
+        - "Implement confirmation flow for destructive operations"
+        - "Add rate limiting to prevent runaway tool execution"
+        - "Log all tool invocations for audit"
+
+    references:
+      - "https://genai.owasp.org/llmrisk/llm08-excessive-agency/"

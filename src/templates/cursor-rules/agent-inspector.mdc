@@ -1,0 +1,43 @@
+---
+description: Agent Inspector security analysis integration
+globs: ["**/*.py", "**/*.ts", "**/*.js"]
+---
+
+# Security Analysis with Agent Inspector
+
+Connect to Agent Inspector MCP server at localhost:8080/mcp.
+(Note: Port 3000 is the proxy server, port 8080 is the dashboard with MCP endpoint)
+
+## Available MCP Tools (8 total)
+
+| Tool | Description |
+|------|-------------|
+| `get_security_patterns` | Get OWASP LLM Top 10 patterns for analysis |
+| `get_owasp_control` | Get specific OWASP control details (LLM01-LLM10) |
+| `get_fix_template` | Get remediation template for a finding type |
+| `create_analysis_session` | Start session for a workflow/codebase (workflow_id required) |
+| `store_finding` | Record a security finding (linked to workflow via session) |
+| `complete_analysis_session` | Finalize session and calculate risk score |
+| `get_findings` | Retrieve stored findings (filter by workflow_id, session_id, severity, status) |
+| `update_finding_status` | Mark finding as FIXED or IGNORED |
+
+## Static Analysis (Code Review)
+
+**Workflow:** get_security_patterns → create_analysis_session(workflow_id) → store_finding (repeat) → complete_analysis_session
+
+## Dynamic Analysis (Runtime Tracing)
+
+Configure agent's base_url with workflow_id: `http://localhost:3000/workflow/{workflow_id}`
+
+```python
+client = OpenAI(base_url=f"http://localhost:3000/workflow/{WORKFLOW_ID}")
+```
+
+## Fix Issue
+
+**Workflow:** get_findings(workflow_id) → get_fix_template → apply fix → update_finding_status
+
+## Important
+- Never hardcode security patterns - always fetch from MCP tools.
+- Use the SAME workflow_id for static and dynamic analysis for unified results.
+- View unified results at `http://localhost:3000/workflow/{workflow_id}`

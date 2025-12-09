@@ -1,9 +1,9 @@
 import type { FC } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
-import type { APIAgent, APISession, DashboardResponse } from '@api/types/dashboard';
+import type { APIAgent, APISession } from '@api/types/dashboard';
 import { formatAgentName, formatDuration } from '@utils/formatting';
 
 import { Card } from '@ui/core/Card';
@@ -20,8 +20,9 @@ import { AgentsGrid, SessionsList } from './Portfolio.styles';
 
 // Context type from App.tsx outlet
 interface PortfolioContext {
-  dashboardData: DashboardResponse | null;
-  dashboardLoading: boolean;
+  agents: APIAgent[];
+  sessions: APISession[];
+  loading: boolean;
 }
 
 // Transform API agent to AgentCard props
@@ -53,15 +54,20 @@ const getSessionStatus = (session: APISession): 'ACTIVE' | 'COMPLETE' | 'ERROR' 
 
 export const Portfolio: FC = () => {
   const navigate = useNavigate();
-  const { dashboardData, dashboardLoading } = useOutletContext<PortfolioContext>();
+  const { workflowId } = useParams<{ workflowId?: string }>();
+  const { agents, sessions, loading } = useOutletContext<PortfolioContext>();
 
   usePageMeta({
-    breadcrumbs: [{ label: 'Portfolio' }],
+    breadcrumbs: [
+      { label: 'Portfolio', href: '/' },
+      ...(workflowId && workflowId !== 'unassigned'
+        ? [{ label: 'Workflow', href: `/workflow/${workflowId}` }]
+        : workflowId === 'unassigned'
+          ? [{ label: 'Unassigned' }]
+          : []),
+      ...(workflowId ? [{ label: 'Agents' }] : []),
+    ],
   });
-
-  const agents = dashboardData?.agents ?? [];
-  const sessions = dashboardData?.sessions ?? [];
-  const loading = dashboardLoading;
 
   // Calculate summary stats from agents
   const totalAgents = agents.length;
@@ -69,7 +75,7 @@ export const Portfolio: FC = () => {
   const totalSessions = agents.reduce((sum, a) => sum + a.total_sessions, 0);
   const activeAgents = agents.filter((a) => a.active_sessions > 0).length;
 
-  const isLoading = loading && !dashboardData;
+  const isLoading = loading && agents.length === 0;
 
   return (
     <>
@@ -145,7 +151,10 @@ export const Portfolio: FC = () => {
                   <AgentCard
                     key={agent.id}
                     {...transformAgent(agent)}
-                    onClick={() => navigate(`/dashboard/agent/${agent.id}`)}
+                    onClick={() => {
+                      const agentWorkflowId = workflowId || agent.workflow_id || 'unassigned';
+                      navigate(`/workflow/${agentWorkflowId}/agent/${agent.id}`);
+                    }}
                   />
                 ))
               )}
@@ -174,20 +183,25 @@ export const Portfolio: FC = () => {
                   </div>
                 ) : (
                   <SessionsList>
-                    {sessions.slice(0, 10).map((session) => (
-                      <SessionItem
-                        key={session.id}
-                        agentId={session.agent_id}
-                        agentName={formatAgentName(session.agent_id)}
-                        sessionId={session.id.slice(0, 8)}
-                        status={getSessionStatus(session)}
-                        isActive={session.is_active}
-                        duration={formatDuration(session.duration_minutes)}
-                        lastActivity={session.last_activity_relative}
-                        hasErrors={session.errors > 0}
-                        onClick={() => navigate(`/dashboard/session/${session.id}`)}
-                      />
-                    ))}
+                    {sessions.slice(0, 10).map((session) => {
+                      // Use URL workflowId if available, otherwise get from agent
+                      const agent = agents.find(a => a.id === session.agent_id);
+                      const sessionWorkflowId = workflowId || agent?.workflow_id || 'unassigned';
+                      return (
+                        <SessionItem
+                          key={session.id}
+                          agentId={session.agent_id}
+                          agentName={formatAgentName(session.agent_id)}
+                          sessionId={session.id.slice(0, 8)}
+                          status={getSessionStatus(session)}
+                          isActive={session.is_active}
+                          duration={formatDuration(session.duration_minutes)}
+                          lastActivity={session.last_activity_relative}
+                          hasErrors={session.errors > 0}
+                          onClick={() => navigate(`/workflow/${sessionWorkflowId}/session/${session.id}`)}
+                        />
+                      );
+                    })}
                   </SessionsList>
                 )}
               </Card.Content>

@@ -3,3 +3,4 @@ export * from './config';
 export * from './dashboard';
 export * from './replay';
 export * from './session';
+export * from './workflow';

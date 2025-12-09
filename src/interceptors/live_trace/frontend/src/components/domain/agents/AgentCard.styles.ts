@@ -58,6 +58,15 @@ export const AgentName = styled.div`
   font-weight: 600;
   margin-bottom: 2px;
   color: ${({ theme }) => theme.colors.white};
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+export const LifecycleIndicator = styled.span`
+  font-size: 14px;
+  line-height: 1;
+  cursor: help;
 `;
 
 export const AgentId = styled.div`

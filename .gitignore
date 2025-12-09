@@ -23,6 +23,8 @@ build/
 # IDE
 .vscode/
 .idea/
+.cursor/
+.mcp.json
 *.swp
 *.swo
 *~
@@ -47,3 +49,6 @@ Thumbs.db
 trace_data/
 
 .planning/
+
+specs/
+plans/

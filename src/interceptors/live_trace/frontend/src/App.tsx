@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
-import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { LayoutDashboard, Plug } from 'lucide-react';
+import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
 
 import type { DashboardResponse } from '@api/types/dashboard';
-import { fetchDashboard } from '@api/endpoints/dashboard';
+import type { APIWorkflow } from '@api/types/workflows';
+import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
 import { theme, GlobalStyles } from '@theme/index';
 import { usePolling } from '@hooks/usePolling';
 
@@ -19,30 +20,105 @@ import { TopBar } from '@domain/layout/TopBar';
 import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 import { AgentListItem } from '@domain/agents/AgentListItem';
+import { WorkflowSelector, type Workflow } from '@domain/workflows';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, WorkflowDetail } from '@pages/index';
+
+// Convert API workflow to component workflow
+const toWorkflow = (api: APIWorkflow): Workflow => ({
+  id: api.id,
+  name: api.name,
+  agentCount: api.agent_count,
+});
+
+// Extract workflowId from URL pathname (e.g., /workflow/abc123/agent/xyz -> abc123)
+function getWorkflowIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/workflow\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
+// Extract agentId from URL pathname
+function getAgentIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/\/agent\/([^/]+)/);
+  return match ? match[1] : null;
+}
 
 function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const params = useParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // URL is source of truth for workflow
+  const urlWorkflowId = getWorkflowIdFromPath(location.pathname);
+  const currentAgentId = getAgentIdFromPath(location.pathname);
+
+  // Workflow list state (for dropdown)
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+
+  // Derive selected workflow from URL
+  const selectedWorkflow = (() => {
+    if (!urlWorkflowId) return null;
+    if (urlWorkflowId === 'unassigned') {
+      return { id: 'unassigned', name: 'Unassigned', agentCount: 0 };
+    }
+    return workflows.find(w => w.id === urlWorkflowId) ?? null;
+  })();
 
   // Get breadcrumbs from page context
   const { breadcrumbs, hide: hideTopBar } = usePageMetaValue();
 
-  // Poll dashboard data at app level
-  const fetchFn = useCallback(() => fetchDashboard(), []);
+  // Fetch workflows on mount
+  useEffect(() => {
+    fetchWorkflows()
+      .then((response) => {
+        setWorkflows(response.workflows.map(toWorkflow));
+      })
+      .catch((error) => {
+        console.error('Failed to fetch workflows:', error);
+      });
+  }, []);
+
+  // Refresh workflows periodically (every 30 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchWorkflows()
+        .then((response) => {
+          setWorkflows(response.workflows.map(toWorkflow));
+        })
+        .catch(() => {
+          // Silently ignore refresh errors
+        });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handle workflow selection - navigate to new URL
+  const handleWorkflowSelect = useCallback((workflow: Workflow | null) => {
+    if (workflow === null) {
+      // All Workflows - go to root
+      navigate('/');
+    } else if (workflow.id === null) {
+      // Unassigned workflow - use 'unassigned' in URL
+      navigate('/workflow/unassigned');
+    } else {
+      // Specific workflow - go to workflow overview
+      navigate(`/workflow/${workflow.id}`);
+    }
+  }, [navigate]);
+
+  // Poll dashboard data filtered by URL workflow
+  const workflowIdForFetch = urlWorkflowId === 'unassigned' ? 'unassigned' : urlWorkflowId ?? undefined;
+  const fetchFn = useCallback(
+    () => fetchDashboard(workflowIdForFetch),
+    [workflowIdForFetch]
+  );
   const { data, loading } = usePolling<DashboardResponse>(fetchFn, {
     interval: 2000,
     enabled: true,
   });
 
   const agents = data?.agents ?? [];
-
-  // Check if we're on an agent detail page to highlight it
-  const currentAgentId = params.agentId;
 
   return (
     <Shell>
@@ -53,13 +129,31 @@ function AppLayout() {
         <Sidebar.Header>
           <Logo />
         </Sidebar.Header>
+        {/* Workflow Selector - only show if there are workflows */}
+        {workflows.length > 0 && (
+          <WorkflowSelector
+            workflows={workflows}
+            selectedWorkflow={selectedWorkflow}
+            onSelect={handleWorkflowSelect}
+            collapsed={sidebarCollapsed}
+          />
+        )}
         <Sidebar.Section>
           <NavGroup>
+            {urlWorkflowId && (
+              <NavItem
+                icon={<FileSearch size={18} />}
+                label="Overview"
+                active={location.pathname === `/workflow/${urlWorkflowId}`}
+                onClick={() => navigate(`/workflow/${urlWorkflowId}`)}
+              />
+            )}
             <NavItem
-              label="Portfolio"
+              label="Agents"
               icon={<LayoutDashboard size={18} />}
-              active={location.pathname === '/'}
-              onClick={() => navigate('/')}
+              badge={agents.length > 0 ? agents.length : undefined}
+              active={urlWorkflowId ? location.pathname === `/workflow/${urlWorkflowId}/agents` : location.pathname === '/'}
+              onClick={() => navigate(urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/')}
             />
             <NavItem
               label="How to Connect"
@@ -81,7 +175,10 @@ function AppLayout() {
               agent={agent}
               active={currentAgentId === agent.id}
               collapsed={sidebarCollapsed}
-              onClick={() => navigate(`/dashboard/agent/${agent.id}`)}
+              onClick={() => {
+                const workflowId = agent.workflow_id || 'unassigned';
+                navigate(`/workflow/${workflowId}/agent/${agent.id}`);
+              }}
             />
           ))}
         </Sidebar.Section>
@@ -101,7 +198,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ dashboardData: data, dashboardLoading: loading }} />
+          <Outlet context={{ agents, sessions: data?.sessions ?? [], loading }} />
         </Content>
       </Main>
     </Shell>
@@ -116,11 +213,15 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
+              {/* Root routes - All Workflows view */}
               <Route path="/" element={<Portfolio />} />
               <Route path="/connect" element={<Connect />} />
-              <Route path="/dashboard/session/:sessionId" element={<SessionDetail />} />
-              <Route path="/dashboard/agent/:agentId" element={<AgentDetail />} />
-              <Route path="/dashboard/agent/:agentId/report" element={<AgentReport />} />
+              {/* Workflow-prefixed routes */}
+              <Route path="/workflow/:workflowId" element={<WorkflowDetail />} />
+              <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
+              <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
+              <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
+              <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />
             </Route>
           </Routes>
         </BrowserRouter>

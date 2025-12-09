@@ -1,4 +1,6 @@
 import { useCallback, type FC } from 'react';
+
+import { Wrench, Code, Activity, Rocket } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
@@ -18,6 +20,7 @@ import { EmptyState } from '@ui/feedback/EmptyState';
 import { Table, type Column } from '@ui/data-display/Table';
 import { Tooltip } from '@ui/overlays/Tooltip';
 
+import { LifecycleProgress, type LifecycleStage } from '@domain/activity';
 import { InfoCard } from '@domain/metrics/InfoCard';
 
 import { usePageMeta } from '../../context';
@@ -88,14 +91,14 @@ interface Check {
   categoryName?: string;
 }
 
-// Table columns for sessions
-const sessionColumns: Column<AgentSession>[] = [
+// Table columns for sessions - workflowId is passed in to generate workflow-aware links
+const getSessionColumns = (workflowId: string): Column<AgentSession>[] => [
   {
     key: 'id',
     header: 'Session ID',
     render: (session) => (
       <Link
-        to={`/dashboard/session/${session.id}`}
+        to={`/workflow/${workflowId}/session/${session.id}`}
         style={{
           color: 'var(--color-cyan)',
           textDecoration: 'none',
@@ -174,7 +177,7 @@ const sessionColumns: Column<AgentSession>[] = [
 ];
 
 export const AgentDetail: FC = () => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { agentId, workflowId } = useParams<{ agentId: string; workflowId: string }>();
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
@@ -186,10 +189,13 @@ export const AgentDetail: FC = () => {
     enabled: !!agentId,
   });
 
-  // Set breadcrumbs
+  // Set breadcrumbs with workflow context
   usePageMeta({
     breadcrumbs: [
       { label: 'Portfolio', href: '/' },
+      ...(workflowId && workflowId !== 'unassigned'
+        ? [{ label: `Workflow`, href: `/workflow/${workflowId}` }]
+        : []),
       { label: 'Agent' },
       { label: agentId?.substring(0, 12) + '...' || '' },
     ],
@@ -210,6 +216,39 @@ export const AgentDetail: FC = () => {
   const agent = data.agent;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
+
+  // Build lifecycle stages
+  const getLifecycleStages = (): LifecycleStage[] => {
+    return [
+      {
+        id: 'dev',
+        label: 'DEV',
+        icon: <Wrench size={16} />,
+        status: 'completed' as const,
+      },
+      {
+        id: 'static',
+        label: 'STATIC',
+        icon: <Code size={16} />,
+        status: 'active' as const,
+        stat: 'View in Workflow',
+      },
+      {
+        id: 'dynamic',
+        label: 'DYNAMIC',
+        icon: <Activity size={16} />,
+        status: agent?.total_sessions ? ('active' as const) : ('pending' as const),
+        stat: agent?.total_sessions ? `${agent.total_sessions} sessions` : undefined,
+      },
+      {
+        id: 'prod',
+        label: 'PROD',
+        icon: <Rocket size={16} />,
+        status: 'pending' as const,
+        stat: 'Enterprise',
+      },
+    ];
+  };
 
   // Build failed and warning check lists
   const failedChecks: Check[] = [];
@@ -246,7 +285,7 @@ export const AgentDetail: FC = () => {
           <RiskHeroCard>
             <RiskHeroHeader>
               <RiskLabel>Overall Status</RiskLabel>
-              <FullReportLink as={Link} to={`/dashboard/agent/${agent.id}/report`}>
+              <FullReportLink as={Link} to={`/workflow/${workflowId}/agent/${agent.id}/report`}>
                 Full Report →
               </FullReportLink>
             </RiskHeroHeader>
@@ -304,6 +343,9 @@ export const AgentDetail: FC = () => {
       </AgentSidebar>
 
       <AgentMain>
+        {/* Lifecycle Progress */}
+        <LifecycleProgress stages={getLifecycleStages()} />
+
         {/* Evaluation Progress Banner */}
         {status.evaluationStatus === 'INSUFFICIENT_DATA' && (
           <EvaluationCard>
@@ -347,7 +389,7 @@ export const AgentDetail: FC = () => {
           <SummaryCard>
             <SummaryHeader>
               <SummaryTitle>Security & Behavioral Assessment Summary</SummaryTitle>
-              <ViewReportButton as={Link} to={`/dashboard/agent/${agent.id}/report`}>
+              <ViewReportButton as={Link} to={`/workflow/${workflowId}/agent/${agent.id}/report`}>
                 View Full Report →
               </ViewReportButton>
             </SummaryHeader>
@@ -565,7 +607,7 @@ export const AgentDetail: FC = () => {
           <SessionsContent>
             {data.sessions && data.sessions.length > 0 ? (
               <Table<AgentSession>
-                columns={sessionColumns}
+                columns={getSessionColumns(workflowId || 'unassigned')}
                 data={data.sessions}
                 keyExtractor={(session) => session.id}
                 emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}

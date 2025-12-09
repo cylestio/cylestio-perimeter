@@ -149,3 +149,89 @@ export const FooterButton = styled(Button)`
     color: ${({ theme }) => theme.colors.cyan};
   }
 `;
+
+// ============ Workflow Section ============
+export const WorkflowSection = styled.div`
+  width: 100%;
+  margin-bottom: ${({ theme }) => theme.spacing[6]};
+`;
+
+export const WorkflowCard = styled(Card)`
+  width: 100%;
+  border-radius: ${({ theme }) => theme.radii.xl};
+  text-align: left;
+`;
+
+export const WorkflowToggle = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[2]};
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[1]};
+  background: ${({ theme }) => theme.colors.void};
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+export const ToggleOption = styled.button<{ $active: boolean }>`
+  flex: 1;
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.base};
+
+  ${({ $active, theme }) =>
+    $active
+      ? `
+    background: ${theme.colors.surface2};
+    color: ${theme.colors.cyan};
+  `
+      : `
+    background: transparent;
+    color: ${theme.colors.white50};
+    &:hover {
+      color: ${theme.colors.white70};
+    }
+  `}
+`;
+
+export const WorkflowNote = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.cyanSoft};
+  border: 1px solid ${({ theme }) => theme.colors.cyan}30;
+  border-radius: ${({ theme }) => theme.radii.md};
+  margin-top: ${({ theme }) => theme.spacing[4]};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white70};
+  line-height: 1.5;
+`;
+
+export const WorkflowInputGroup = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[2]};
+  margin-top: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const WorkflowInput = styled.input`
+  flex: 1;
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.void};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white};
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.white30};
+  }
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.cyan};
+  }
+`;

@@ -1,0 +1,258 @@
+version: "1.0"
+last_updated: "2025-01-07"
+
+templates:
+  PROMPT_INJECTION:
+    owasp_control: LLM01
+    description: "Fix prompt injection by sanitizing user input and using structured messages"
+
+    before_pattern: |
+      def handle_message(user_input):
+          prompt = f"You are a helpful assistant. User says: {user_input}"
+          response = client.chat.completions.create(
+              model="gpt-4",
+              messages=[{"role": "user", "content": prompt}]
+          )
+          return response.choices[0].message.content
+
+    after_pattern: |
+      import re
+
+      MAX_INPUT_LENGTH = 2000
+      UNSAFE_PATTERNS = re.compile(r'[\x00-\x1f\x7f-\x9f]|<script|javascript:|data:', re.IGNORECASE)
+
+      def sanitize_input(text: str, max_length: int = MAX_INPUT_LENGTH) -> str:
+          """Sanitize user input for safe use in prompts."""
+          if not text:
+              return ""
+          text = text[:max_length]
+          text = UNSAFE_PATTERNS.sub('', text)
+          return text.strip()
+
+      def handle_message(user_input: str) -> str:
+          safe_input = sanitize_input(user_input)
+          messages = [
+              {"role": "system", "content": "You are a helpful assistant."},
+              {"role": "user", "content": safe_input}
+          ]
+          response = client.chat.completions.create(
+              model="gpt-4",
+              messages=messages
+          )
+          return response.choices[0].message.content
+
+    application_guidance:
+      - "Add the sanitize_input function at the top of the file or in a utils module"
+      - "Import the required modules (re, typing)"
+      - "Replace direct user input interpolation with sanitize_input() call"
+      - "Use structured messages with explicit 'system' and 'user' roles"
+      - "Never put user content in the system role"
+
+    verification:
+      - "Confirm sanitize_input function is defined and imported"
+      - "Check that all user inputs are passed through sanitize_input()"
+      - "Verify messages use separate system and user roles"
+      - "Ensure no f-strings or format() with raw user input in prompts"
+
+  DATA_EXPOSURE:
+    owasp_control: LLM06
+    description: "Fix data exposure by implementing PII redaction and secure logging"
+
+    before_pattern: |
+      def process_request(user_data):
+          logger.info(f"Processing: {user_data}")
+          prompt = f"Analyze this customer data: {user_data}"
+          response = llm.complete(prompt)
+          return response
+
+    after_pattern: |
+      from presidio_analyzer import AnalyzerEngine
+      from presidio_anonymizer import AnonymizerEngine
+      import hashlib
+
+      analyzer = AnalyzerEngine()
+      anonymizer = AnonymizerEngine()
+
+      def redact_pii(text: str) -> str:
+          """Redact PII from text."""
+          results = analyzer.analyze(text=text, language='en')
+          anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
+          return anonymized.text
+
+      def hash_id(data: str) -> str:
+          """Create hash of sensitive data for logging."""
+          return hashlib.sha256(data.encode()).hexdigest()[:8]
+
+      def process_request(user_data: str) -> str:
+          user_hash = hash_id(user_data)
+          logger.info(f"Processing request {user_hash}")
+
+          safe_data = redact_pii(user_data)
+          prompt = f"Analyze this customer data: {safe_data}"
+          response = llm.complete(prompt)
+          return response
+
+    application_guidance:
+      - "Install presidio-analyzer and presidio-anonymizer packages"
+      - "Add PII redaction before logging or processing with LLM"
+      - "Use hashing for logging user identifiers instead of raw data"
+      - "Review all logging statements to ensure no PII leakage"
+
+    verification:
+      - "Confirm presidio libraries are installed and imported"
+      - "Check all logging uses hashed identifiers, not raw data"
+      - "Verify PII redaction is applied before LLM processing"
+      - "Test with sample PII data to ensure redaction works"
+
+  EXCESSIVE_AGENCY:
+    owasp_control: LLM08
+    description: "Fix excessive agency by adding tool allowlists and confirmation requirements"
+
+    before_pattern: |
+      def execute_llm_action(action_name, params):
+          tool = get_tool(action_name)
+          return tool(**params)
+
+      def handle_request(user_input):
+          actions = llm.determine_actions(user_input)
+          results = [execute_llm_action(a['name'], a['params']) for a in actions]
+          return results
+
+    after_pattern: |
+      from typing import List, Dict, Any, Optional
+
+      # Define allowed tools and those requiring confirmation
+      ALLOWED_TOOLS = ["search", "calculate", "get_weather", "read_file"]
+      REQUIRES_CONFIRMATION = ["delete_file", "send_email", "modify_data", "execute_code"]
+      MAX_TOOL_CALLS = 5
+
+      def execute_llm_action(
+          action_name: str,
+          params: Dict[str, Any],
+          require_confirmation: bool = False
+      ) -> Optional[Any]:
+          """Execute a tool action with safety checks."""
+          # Check if tool is allowed
+          if action_name not in ALLOWED_TOOLS + REQUIRES_CONFIRMATION:
+              logger.warning(f"Blocked unauthorized tool call: {action_name}")
+              return None
+
+          # Require confirmation for sensitive operations
+          if action_name in REQUIRES_CONFIRMATION:
+              if not require_confirmation:
+                  logger.warning(f"Tool {action_name} requires user confirmation")
+                  return None
+
+          tool = get_tool(action_name)
+          logger.info(f"Executing tool: {action_name}")
+          return tool(**params)
+
+      def handle_request(user_input: str, user_confirmed: bool = False) -> List[Any]:
+          actions = llm.determine_actions(user_input)
+
+          # Limit number of actions to prevent runaway execution
+          if len(actions) > MAX_TOOL_CALLS:
+              logger.warning(f"Limiting actions from {len(actions)} to {MAX_TOOL_CALLS}")
+              actions = actions[:MAX_TOOL_CALLS]
+
+          results = []
+          for action in actions:
+              result = execute_llm_action(
+                  action['name'],
+                  action['params'],
+                  require_confirmation=user_confirmed
+              )
+              if result is not None:
+                  results.append(result)
+
+          return results
+
+    application_guidance:
+      - "Define ALLOWED_TOOLS list with safe, read-only operations"
+      - "Create REQUIRES_CONFIRMATION list for destructive/sensitive operations"
+      - "Add confirmation parameter to tool execution flow"
+      - "Implement MAX_TOOL_CALLS limit to prevent runaway execution"
+      - "Log all tool invocations for audit trail"
+
+    verification:
+      - "Confirm ALLOWED_TOOLS and REQUIRES_CONFIRMATION lists are defined"
+      - "Check that unauthorized tools are blocked"
+      - "Verify confirmation is required for sensitive operations"
+      - "Test that MAX_TOOL_CALLS limit is enforced"
+      - "Review logs to ensure all tool calls are recorded"
+
+  RATE_LIMIT:
+    owasp_control: LLM04
+    description: "Fix DoS vulnerability by implementing rate limiting"
+
+    before_pattern: |
+      def handle_request(user_input):
+          response = llm.complete(user_input)
+          return response
+
+    after_pattern: |
+      from datetime import datetime, timedelta
+      from collections import defaultdict
+      from typing import Dict, Tuple
+
+      class RateLimiter:
+          """Simple in-memory rate limiter."""
+
+          def __init__(self, max_requests: int = 10, window_seconds: int = 60):
+              self.max_requests = max_requests
+              self.window_seconds = window_seconds
+              self.requests: Dict[str, list] = defaultdict(list)
+
+          def is_allowed(self, user_id: str) -> Tuple[bool, int]:
+              """Check if request is allowed for user."""
+              now = datetime.now()
+              window_start = now - timedelta(seconds=self.window_seconds)
+
+              # Clean old requests
+              self.requests[user_id] = [
+                  req_time for req_time in self.requests[user_id]
+                  if req_time > window_start
+              ]
+
+              # Check limit
+              if len(self.requests[user_id]) >= self.max_requests:
+                  return False, len(self.requests[user_id])
+
+              # Record this request
+              self.requests[user_id].append(now)
+              return True, len(self.requests[user_id])
+
+      rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
+
+      def handle_request(user_input: str, user_id: str) -> Dict:
+          allowed, count = rate_limiter.is_allowed(user_id)
+
+          if not allowed:
+              logger.warning(f"Rate limit exceeded for user {user_id}")
+              return {
+                  "error": "Rate limit exceeded",
+                  "retry_after": 60
+              }
+
+          response = llm.complete(user_input)
+          return {
+              "response": response,
+              "rate_limit": {
+                  "remaining": rate_limiter.max_requests - count,
+                  "reset": 60
+              }
+          }
+
+    application_guidance:
+      - "Implement RateLimiter class or use existing library (e.g., python-limits)"
+      - "Configure appropriate max_requests and window_seconds for your use case"
+      - "Track requests per user_id or IP address"
+      - "Return clear error messages when limit is exceeded"
+      - "Include rate limit information in response headers"
+
+    verification:
+      - "Confirm RateLimiter is instantiated with appropriate limits"
+      - "Check that rate limiting is applied to all LLM endpoints"
+      - "Verify rate limit errors are returned with retry_after information"
+      - "Test with rapid requests to ensure limits are enforced"
+      - "Monitor rate limit metrics to tune thresholds"

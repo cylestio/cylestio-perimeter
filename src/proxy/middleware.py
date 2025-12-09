@@ -79,7 +79,8 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 request_metadata = {
                     'cylestio_trace_id': getattr(request_data.request.state, 'cylestio_trace_id', None),
                     'agent_id': getattr(request_data.request.state, 'agent_id', 'unknown'),
-                    'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown')
+                    'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown'),
+                    'workflow_id': getattr(request_data.request.state, 'workflow_id', None)
                 }
                 
                 response_events = self.provider.extract_response_events(

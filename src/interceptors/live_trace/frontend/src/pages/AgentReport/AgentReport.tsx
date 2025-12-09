@@ -128,7 +128,7 @@ const getCategorySeverity = (
 };
 
 export const AgentReport: FC = () => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { agentId, workflowId } = useParams<{ agentId: string; workflowId: string }>();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
@@ -141,12 +141,15 @@ export const AgentReport: FC = () => {
     enabled: !!agentId,
   });
 
-  // Set breadcrumbs
+  // Set breadcrumbs with workflow context
   usePageMeta({
     breadcrumbs: [
       { label: 'Portfolio', href: '/' },
-      { label: 'Agent', href: `/dashboard/agent/${agentId}` },
-      { label: agentId?.substring(0, 12) + '...' || '', href: `/dashboard/agent/${agentId}` },
+      ...(workflowId && workflowId !== 'unassigned'
+        ? [{ label: 'Workflow', href: `/workflow/${workflowId}` }]
+        : []),
+      { label: 'Agent', href: `/workflow/${workflowId}/agent/${agentId}` },
+      { label: agentId?.substring(0, 12) + '...' || '', href: `/workflow/${workflowId}/agent/${agentId}` },
       { label: 'Full Report' },
     ],
   });
@@ -636,7 +639,7 @@ export const AgentReport: FC = () => {
                       <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
                         <OutlierHeader>
                           <Link
-                            to={`/dashboard/session/${outlier.session_id}`}
+                            to={`/workflow/${workflowId}/session/${outlier.session_id}`}
                             style={{
                               fontSize: '13px',
                               fontFamily: 'var(--font-mono)',

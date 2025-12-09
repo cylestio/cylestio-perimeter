@@ -26,8 +26,10 @@
 |----------|------------|
 | `domain/layout/` | Shell, Sidebar, TopBar, UserMenu, Logo |
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
+| `domain/workflows/` | WorkflowSelector |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
+| `domain/findings/` | FindingCard, FindingsTab |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
 
 ---
@@ -518,6 +520,131 @@ interface CodeBlockProps {
   highlightLines?: number[];
   showLineNumbers?: boolean;
 }
+```
+
+---
+
+## Findings Components
+
+### FindingCard
+
+Expandable card displaying a security finding with severity, status, and details.
+
+```typescript
+interface FindingCardProps {
+  finding: Finding;           // Finding object with all details
+  defaultExpanded?: boolean;  // Start expanded (default: false)
+  className?: string;
+}
+
+// Finding type (from @api/types/findings)
+interface Finding {
+  finding_id: string;
+  session_id: string;
+  agent_id: string;
+  file_path: string;
+  line_start?: number;
+  line_end?: number;
+  finding_type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  title: string;
+  description?: string;
+  evidence: { code_snippet?: string; context?: string };
+  owasp_mapping: string[];
+  status: 'OPEN' | 'FIXED' | 'IGNORED';
+  created_at: string;
+  updated_at: string;
+}
+```
+
+**Usage:**
+```tsx
+<FindingCard
+  finding={{
+    finding_id: 'find_001',
+    title: 'Potential prompt injection vulnerability',
+    severity: 'HIGH',
+    status: 'OPEN',
+    file_path: 'src/handlers/auth.py',
+    line_start: 42,
+    // ...other fields
+  }}
+  defaultExpanded={false}
+/>
+```
+
+### FindingsTab
+
+Complete findings view with summary, filters, and list of FindingCards.
+
+```typescript
+interface FindingsTabProps {
+  findings: Finding[];          // Array of findings to display
+  summary?: FindingsSummary;    // Summary with counts by severity/status
+  isLoading?: boolean;          // Show loading state
+  error?: string;               // Show error message
+  className?: string;
+}
+
+interface FindingsSummary {
+  agent_id: string;
+  total_findings: number;
+  by_severity: Record<string, number>;
+  by_status: Record<string, number>;
+  open_count: number;
+  fixed_count: number;
+  ignored_count: number;
+}
+```
+
+**Usage:**
+```tsx
+<FindingsTab
+  findings={findings}
+  summary={{
+    total_findings: 10,
+    by_severity: { CRITICAL: 2, HIGH: 3, MEDIUM: 4, LOW: 1 },
+    open_count: 6,
+    fixed_count: 3,
+    ignored_count: 1,
+  }}
+/>
+```
+
+---
+
+## Workflows Components
+
+### WorkflowSelector
+
+Dropdown selector for filtering by workflow/project. Shows "All Workflows" option plus individual workflows with agent counts.
+
+```typescript
+interface Workflow {
+  id: string | null;  // null = "Unassigned"
+  name: string;
+  agentCount: number;
+}
+
+interface WorkflowSelectorProps {
+  workflows: Workflow[];
+  selectedWorkflow: Workflow | null;  // null = show all
+  onSelect: (workflow: Workflow | null) => void;
+  label?: string;      // Default: "Workflow"
+  collapsed?: boolean; // Show icon only
+}
+```
+
+**Usage:**
+```tsx
+<WorkflowSelector
+  workflows={[
+    { id: 'ecommerce', name: 'E-Commerce Agents', agentCount: 5 },
+    { id: null, name: 'Unassigned', agentCount: 2 },
+  ]}
+  selectedWorkflow={selectedWorkflow}
+  onSelect={setSelectedWorkflow}
+/>
 ```
 
 ---

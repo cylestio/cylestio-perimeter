@@ -321,3 +321,69 @@ class TestAnthropicProvider:
         # Should still extract stop_reason despite malformed content
         assert "stop_reason" in llm_event.attributes
         assert llm_event.attributes["stop_reason"] == 123
+
+
+class TestWorkflowIdInEvents:
+    """Tests for workflow_id in event attributes."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.provider = AnthropicProvider()
+
+    def test_workflow_id_added_to_finish_event(self):
+        """Test workflow.id is added to llm.call.finish event."""
+        response_body = {
+            "stop_reason": "end_turn",
+            "content": [
+                {"type": "text", "text": "Hello there!"}
+            ],
+            "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+
+        session_id = "test-session"
+        duration_ms = 100.0
+        tool_uses = []
+        request_metadata = {
+            "cylestio_trace_id": "test-trace-id",
+            "agent_id": "test-agent",
+            "model": "claude-3-sonnet-20240229",
+            "workflow_id": "my-workflow"  # Include workflow_id
+        }
+
+        events = self.provider.extract_response_events(
+            response_body, session_id, duration_ms, tool_uses, request_metadata
+        )
+
+        assert len(events) == 1
+        llm_event = events[0]
+        assert "workflow.id" in llm_event.attributes
+        assert llm_event.attributes["workflow.id"] == "my-workflow"
+
+    def test_workflow_id_none_when_not_provided(self):
+        """Test workflow.id is not added when not in request_metadata."""
+        response_body = {
+            "stop_reason": "end_turn",
+            "content": [
+                {"type": "text", "text": "Hello there!"}
+            ],
+            "usage": {"input_tokens": 10, "output_tokens": 5}
+        }
+
+        session_id = "test-session"
+        duration_ms = 100.0
+        tool_uses = []
+        request_metadata = {
+            "cylestio_trace_id": "test-trace-id",
+            "agent_id": "test-agent",
+            "model": "claude-3-sonnet-20240229"
+            # No workflow_id
+        }
+
+        events = self.provider.extract_response_events(
+            response_body, session_id, duration_ms, tool_uses, request_metadata
+        )
+
+        assert len(events) == 1
+        llm_event = events[0]
+        # workflow.id should not be in attributes
+        assert "workflow.id" not in llm_event.attributes

@@ -1,0 +1,42 @@
+# Agent Inspector - Cursor Integration
+
+## MCP Server Connection
+Agent Inspector MCP endpoint at localhost:8080/mcp provides security analysis tools.
+(Note: Port 3000 is the proxy server, port 8080 is the dashboard with MCP endpoint)
+
+## Static Analysis Workflow (Code Review)
+1. Get patterns: Call `get_security_patterns` MCP tool
+2. Create session: Call `create_analysis_session` with `workflow_id` (project identifier)
+3. Analyze and store findings: Call `store_finding` MCP tool for each issue
+4. Complete: Call `complete_analysis_session` MCP tool
+5. View results: `http://localhost:3000/workflow/{workflow_id}`
+
+## Dynamic Analysis Workflow (Runtime Tracing)
+1. Install: `pipx install agent-inspector`
+2. Start: `agent-inspector openai` or `agent-inspector anthropic`
+3. Configure agent code with workflow_id URL pattern:
+   ```python
+   client = OpenAI(base_url=f"http://localhost:3000/workflow/{WORKFLOW_ID}")
+   ```
+4. Run agent and view traces at `http://localhost:3000/workflow/{workflow_id}`
+
+## Fix Workflow
+1. Get findings: Call `get_findings` MCP tool with `workflow_id` to see what needs fixing
+2. Get template: Call `get_fix_template` MCP tool
+3. Apply fix per MCP response guidance
+4. Update status: Call `update_finding_status` MCP tool
+
+## Available MCP Tools (8 total)
+- get_security_patterns - Retrieve OWASP LLM Top 10 patterns
+- get_owasp_control - Get specific OWASP control details (e.g., LLM01)
+- get_fix_template - Get remediation guidance for a finding type
+- create_analysis_session - Start session for a workflow/codebase (workflow_id required)
+- store_finding - Record a security finding (linked to workflow via session)
+- complete_analysis_session - Finalize session and calculate risk score
+- get_findings - Retrieve stored findings (filter by workflow_id, session_id, severity, status)
+- update_finding_status - Mark finding as FIXED or IGNORED
+
+## Important
+- DO NOT use hardcoded patterns. Always fetch from MCP tools.
+- Use the SAME workflow_id for static and dynamic analysis for unified results.
+- All findings are linked to workflows (projects), not individual agents.
