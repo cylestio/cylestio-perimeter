@@ -325,3 +325,47 @@ export const ZeroCount: Story = {
     await expect(canvas.queryByText('0')).not.toBeInTheDocument();
   },
 };
+
+// ==================== Active State ====================
+
+export const Active: Story = {
+  args: {
+    label: 'Static Scan',
+    status: 'ok',
+    active: true,
+    stat: 'All passed',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Static Scan')).toBeInTheDocument();
+  },
+};
+
+export const ActiveWithWarning: Story = {
+  args: {
+    label: 'Dynamic Scan',
+    status: 'warning',
+    count: 3,
+    active: true,
+    stat: '3 warnings',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Dynamic Scan')).toBeInTheDocument();
+  },
+};
+
+export const ActiveRecommendation: Story = {
+  args: {
+    label: 'Recommendations',
+    status: 'ok',
+    count: 5,
+    active: true,
+    isRecommendation: true,
+    stat: '5 available',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Recommendations')).toBeInTheDocument();
+  },
+};

@@ -29,6 +29,8 @@ export interface AnalysisStatusItemProps {
   collapsed?: boolean;
   /** Whether this is a recommendations/fixes item (special styling) */
   isRecommendation?: boolean;
+  /** Whether this item is currently active/selected */
+  active?: boolean;
   /** Optional click handler */
   onClick?: () => void;
   className?: string;
@@ -37,20 +39,20 @@ export interface AnalysisStatusItemProps {
 // Helper to get icon for status
 const getStatusIcon = (status: AnalysisStatus, isRecommendation?: boolean): ReactNode => {
   if (isRecommendation) {
-    return <Lightbulb size={12} />;
+    return <Lightbulb size={9} />;
   }
   switch (status) {
     case 'ok':
-      return <Check size={12} strokeWidth={2.5} />;
+      return <Check size={9} strokeWidth={2.5} />;
     case 'warning':
-      return <AlertTriangle size={11} />;
+      return <AlertTriangle size={8} />;
     case 'critical':
-      return <X size={12} strokeWidth={2.5} />;
+      return <X size={9} strokeWidth={2.5} />;
     case 'running':
       return null; // No icon when spinning
     case 'inactive':
     default:
-      return <Minus size={10} />;
+      return <Minus size={8} />;
   }
 };
 
@@ -59,8 +61,8 @@ const StatusRing: FC<{
   status: AnalysisStatus;
   isRecommendation?: boolean;
 }> = ({ status, isRecommendation }) => {
-  const size = 24;
-  const strokeWidth = 2.5;
+  const size = 18;
+  const strokeWidth = 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const isRunning = status === 'running';
@@ -108,6 +110,7 @@ export const AnalysisStatusItem: FC<AnalysisStatusItemProps> = ({
   stat,
   collapsed = false,
   isRecommendation = false,
+  active = false,
   onClick,
   className,
 }) => {
@@ -115,6 +118,7 @@ export const AnalysisStatusItem: FC<AnalysisStatusItemProps> = ({
     <StyledAnalysisStatusItem
       $collapsed={collapsed}
       $isRecommendation={isRecommendation}
+      $active={active}
       $clickable={!!onClick}
       onClick={onClick}
       className={className}

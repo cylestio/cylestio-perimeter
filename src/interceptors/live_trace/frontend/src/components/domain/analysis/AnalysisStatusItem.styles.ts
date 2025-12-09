@@ -30,13 +30,14 @@ interface StyledItemProps {
   $collapsed?: boolean;
   $isRecommendation?: boolean;
   $clickable?: boolean;
+  $active?: boolean;
 }
 
 export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: ${({ theme }) => theme.radii.md};
   font-size: 13px;
   font-weight: 500;
@@ -46,22 +47,39 @@ export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
     $collapsed &&
     css`
       justify-content: center;
-      padding: 8px;
+      padding: 10px;
     `}
 
-  ${({ $isRecommendation, theme }) =>
-    $isRecommendation &&
-    css`
-      background: ${theme.colors.purple}10;
-    `}
+  ${({ $active, $isRecommendation, theme }) => {
+    if ($active) {
+      return css`
+        background: ${$isRecommendation ? `${theme.colors.purple}20` : theme.colors.white15};
+        color: ${theme.colors.white};
+      `;
+    }
+    if ($isRecommendation) {
+      return css`
+        background: ${theme.colors.purple}10;
+      `;
+    }
+    return '';
+  }}
 
-  ${({ $clickable, theme }) =>
+  ${({ $clickable, $active, theme }) =>
     $clickable &&
+    !$active &&
     css`
       cursor: pointer;
       &:hover {
         background: ${theme.colors.white08};
       }
+    `}
+
+  ${({ $clickable, $active }) =>
+    $clickable &&
+    $active &&
+    css`
+      cursor: pointer;
     `}
 `;
 
@@ -76,8 +94,8 @@ export const StatusRingContainer = styled.span<StatusRingContainerProps>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 
   color: ${({ $status, $isRecommendation, theme }) =>

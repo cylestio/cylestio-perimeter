@@ -142,10 +142,10 @@ function AppLayout() {
 
   // Redirect to /connect on first load if no agents and on root path
   useEffect(() => {
-    if (isInitialLoad && location.pathname === '/' && data?.agents.length === 0) {
+    if (isInitialLoad && location.pathname === '/' && agents.length === 0) {
       navigate('/connect', { replace: true });
     }
-  }, [isInitialLoad, location.pathname, data?.agents.length, navigate]);
+  }, [isInitialLoad, location.pathname, agents.length, navigate]);
 
   return (
     <Shell>
@@ -171,12 +171,12 @@ function AppLayout() {
           {urlWorkflowId && (
             <NavGroup label={!sidebarCollapsed ? 'Analysis' : undefined}>
               <AnalysisStatusItem
-                label="Static Scan"
+                label="Static Analysis"
                 status="inactive"
                 collapsed={sidebarCollapsed}
               />
               <AnalysisStatusItem
-                label="Dynamic Scan"
+                label="Dynamic Analysis"
                 status="inactive"
                 collapsed={sidebarCollapsed}
               />

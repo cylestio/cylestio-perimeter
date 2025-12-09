@@ -8,6 +8,7 @@ import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
+import { PageHeader } from '@ui/layout/PageHeader';
 
 import { SessionsTable } from '@domain/sessions';
 
@@ -83,11 +84,11 @@ export const Sessions: FC = () => {
 
   return (
     <PageContainer>
+      <PageHeader
+        title="Sessions"
+        description={`${sessions.length} session${sessions.length !== 1 ? 's' : ''} from all agents in this workflow`}
+      />
       <Card>
-        <Card.Header
-          title="Sessions"
-          subtitle={`${sessions.length} session${sessions.length !== 1 ? 's' : ''}`}
-        />
         <Card.Content noPadding>
           <SessionsTable
             sessions={sessions}
