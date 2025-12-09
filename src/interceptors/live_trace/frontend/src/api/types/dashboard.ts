@@ -65,7 +65,7 @@ export interface LatestSession {
 
 export interface DashboardResponse {
   agents: APIAgent[];
-  sessions: APISession[];
+  sessions_count: number;
   latest_session: LatestSession;
   last_updated: string;
   refresh_interval: number;

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 
-import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
+import { FileSearch, LayoutDashboard, Plug, History } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 
@@ -25,9 +25,10 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 import { AgentListItem } from '@domain/agents/AgentListItem';
 import { WorkflowSelector, type Workflow } from '@domain/workflows';
+import { AnalysisStatusItem } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, WorkflowDetail } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, WorkflowDetail } from '@pages/index';
 
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
@@ -166,7 +167,30 @@ function AppLayout() {
           />
         )}
         <Sidebar.Section>
-          <NavGroup>
+          {/* Analysis Section - only show when in a workflow */}
+          {urlWorkflowId && (
+            <NavGroup label={!sidebarCollapsed ? 'Analysis' : undefined}>
+              <AnalysisStatusItem
+                label="Static Scan"
+                status="inactive"
+                collapsed={sidebarCollapsed}
+              />
+              <AnalysisStatusItem
+                label="Dynamic Scan"
+                status="inactive"
+                collapsed={sidebarCollapsed}
+              />
+              <AnalysisStatusItem
+                label="Recommendations"
+                status="inactive"
+                isRecommendation
+                collapsed={sidebarCollapsed}
+              />
+            </NavGroup>
+          )}
+
+          {/* Navigate Section */}
+          <NavGroup label={urlWorkflowId && !sidebarCollapsed ? 'Navigate' : undefined}>
             {urlWorkflowId && (
               <NavItem
                 icon={<FileSearch size={18} />}
@@ -184,7 +208,19 @@ function AppLayout() {
               to={urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/'}
               collapsed={sidebarCollapsed}
             />
+            {urlWorkflowId && (
+              <NavItem
+                icon={<History size={18} />}
+                label="Sessions"
+                badge={data?.sessions_count ? data.sessions_count : undefined}
+                active={location.pathname === `/workflow/${urlWorkflowId}/sessions`}
+                to={`/workflow/${urlWorkflowId}/sessions`}
+                collapsed={sidebarCollapsed}
+              />
+            )}
           </NavGroup>
+
+          {/* Agent List */}
           {!sidebarCollapsed && agents.length > 0 && (
             <div style={{ marginTop: 16, marginBottom: 8, paddingLeft: 12 }}>
               <Label size="xs" uppercase>
@@ -229,7 +265,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ agents, sessions: data?.sessions ?? [], loading }} />
+          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading }} />
         </Content>
       </Main>
     </Shell>
@@ -250,6 +286,7 @@ function App() {
               {/* Workflow-prefixed routes */}
               <Route path="/workflow/:workflowId" element={<WorkflowDetail />} />
               <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
+              <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
               <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
               <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
               <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />

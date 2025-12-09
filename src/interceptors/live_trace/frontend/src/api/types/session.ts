@@ -40,3 +40,40 @@ export interface SessionResponse {
   events: SessionEvent[];
   error?: string;
 }
+
+// Types for /api/sessions/list endpoint
+
+export type LiveSessionStatus = 'ACTIVE' | 'INACTIVE' | 'COMPLETED';
+
+export interface SessionListItem {
+  id: string;
+  id_short: string;
+  agent_id: string;
+  agent_id_short: string | null;
+  workflow_id: string | null;
+  created_at: string;
+  last_activity: string;
+  last_activity_relative: string;
+  duration_minutes: number;
+  is_active: boolean;
+  is_completed: boolean;
+  status: LiveSessionStatus;
+  message_count: number;
+  tool_uses: number;
+  errors: number;
+  total_tokens: number;
+  error_rate: number;
+}
+
+export interface SessionsListFilters {
+  workflow_id?: string;
+  agent_id?: string;
+  status?: LiveSessionStatus;
+  limit: number;
+}
+
+export interface SessionsListResponse {
+  sessions: SessionListItem[];
+  total_count: number;
+  filters: SessionsListFilters;
+}

@@ -5,7 +5,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from src.events import BaseEvent
 from src.utils.logger import get_logger
@@ -651,6 +651,164 @@ class TraceStore:
         with self._lock:
             cursor = self.db.execute("SELECT * FROM sessions ORDER BY created_at DESC")
             return [self._deserialize_session(row) for row in cursor.fetchall()]
+
+    def _build_sessions_filter_query(
+        self,
+        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Tuple[str, List[Any]]:
+        """Build WHERE clause for session filtering.
+
+        Args:
+            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
+            agent_id: Filter by agent ID.
+            status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+
+        Returns:
+            Tuple of (where_clause, params) - where_clause starts with " WHERE 1=1"
+        """
+        where_clause = " WHERE 1=1"
+        params: List[Any] = []
+
+        if workflow_id is not None:
+            if workflow_id == "unassigned":
+                where_clause += " AND workflow_id IS NULL"
+            else:
+                where_clause += " AND workflow_id = ?"
+                params.append(workflow_id)
+
+        if agent_id is not None:
+            where_clause += " AND agent_id = ?"
+            params.append(agent_id)
+
+        if status is not None:
+            status_upper = status.upper()
+            if status_upper == "ACTIVE":
+                where_clause += " AND is_active = 1 AND is_completed = 0"
+            elif status_upper == "INACTIVE":
+                where_clause += " AND is_active = 0 AND is_completed = 0"
+            elif status_upper == "COMPLETED":
+                where_clause += " AND is_completed = 1"
+
+        return where_clause, params
+
+    def count_sessions_filtered(
+        self,
+        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> int:
+        """Count sessions with optional filtering.
+
+        More efficient than get_sessions_filtered when only count is needed.
+
+        Args:
+            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
+            agent_id: Filter by agent ID.
+            status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+
+        Returns:
+            Count of matching sessions.
+        """
+        with self._lock:
+            where_clause, params = self._build_sessions_filter_query(
+                workflow_id=workflow_id,
+                agent_id=agent_id,
+                status=status,
+            )
+            query = f"SELECT COUNT(*) FROM sessions{where_clause}"
+            cursor = self.db.execute(query, params)
+            return cursor.fetchone()[0]
+
+    def get_sessions_filtered(
+        self,
+        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get sessions with optional filtering by workflow_id, agent_id, and status.
+
+        Args:
+            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
+            agent_id: Filter by agent ID.
+            status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+            limit: Maximum number of sessions to return.
+
+        Returns:
+            List of session dicts with formatted fields for API response.
+        """
+        with self._lock:
+            where_clause, params = self._build_sessions_filter_query(
+                workflow_id=workflow_id,
+                agent_id=agent_id,
+                status=status,
+            )
+            query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            sessions = []
+
+            for row in cursor.fetchall():
+                # Convert row to API-friendly dict format
+                created_at = datetime.fromtimestamp(row['created_at'], tz=timezone.utc)
+                last_activity = datetime.fromtimestamp(row['last_activity'], tz=timezone.utc)
+                now = datetime.now(timezone.utc)
+
+                # Calculate relative time
+                delta = now - last_activity
+                if delta.total_seconds() < 60:
+                    last_activity_relative = "just now"
+                elif delta.total_seconds() < 3600:
+                    mins = int(delta.total_seconds() / 60)
+                    last_activity_relative = f"{mins}m ago"
+                elif delta.total_seconds() < 86400:
+                    hours = int(delta.total_seconds() / 3600)
+                    last_activity_relative = f"{hours}h ago"
+                else:
+                    days = int(delta.total_seconds() / 86400)
+                    last_activity_relative = f"{days}d ago"
+
+                # Determine status string
+                if row['is_completed']:
+                    status_str = "COMPLETED"
+                elif row['is_active']:
+                    status_str = "ACTIVE"
+                else:
+                    status_str = "INACTIVE"
+
+                # Calculate duration
+                duration_seconds = last_activity.timestamp() - created_at.timestamp()
+                duration_minutes = duration_seconds / 60
+
+                # Calculate error rate
+                message_count = row['message_count'] or 0
+                errors = row['errors'] or 0
+                error_rate = (errors / message_count * 100) if message_count > 0 else 0.0
+
+                sessions.append({
+                    "id": row['session_id'],
+                    "id_short": row['session_id'][:12],
+                    "agent_id": row['agent_id'],
+                    "agent_id_short": row['agent_id'][:12] if row['agent_id'] else None,
+                    "workflow_id": row['workflow_id'],
+                    "created_at": created_at.isoformat(),
+                    "last_activity": last_activity.isoformat(),
+                    "last_activity_relative": last_activity_relative,
+                    "duration_minutes": round(duration_minutes, 1),
+                    "is_active": bool(row['is_active']),
+                    "is_completed": bool(row['is_completed']),
+                    "status": status_str,
+                    "message_count": message_count,
+                    "tool_uses": row['tool_uses'] or 0,
+                    "errors": errors,
+                    "total_tokens": row['total_tokens'] or 0,
+                    "error_rate": round(error_rate, 1),
+                })
+
+            return sessions
 
     def get_all_agents(self, workflow_id: Optional[str] = None) -> List[AgentData]:
         """Get all agents from SQLite, optionally filtered by workflow.

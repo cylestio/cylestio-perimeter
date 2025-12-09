@@ -1,9 +1,12 @@
-import type { FC } from 'react';
+import { useState, useEffect, useCallback, type FC } from 'react';
+
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
-import type { APIAgent, APISession } from '@api/types/dashboard';
+import type { APIAgent } from '@api/types/dashboard';
+import type { SessionListItem } from '@api/types/session';
+import { fetchSessions } from '@api/endpoints/session';
 import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatAgentName, formatDuration } from '@utils/formatting';
 
@@ -22,7 +25,7 @@ import { AgentsGrid, SessionsList } from './Portfolio.styles';
 // Context type from App.tsx outlet
 interface PortfolioContext {
   agents: APIAgent[];
-  sessions: APISession[];
+  sessionsCount: number;
   loading: boolean;
 }
 
@@ -47,7 +50,7 @@ const transformAgent = (agent: APIAgent) => ({
 });
 
 // Helper to map API session status to SessionItem status
-const getSessionStatus = (session: APISession): 'ACTIVE' | 'COMPLETE' | 'ERROR' => {
+const getSessionStatus = (session: SessionListItem): 'ACTIVE' | 'COMPLETE' | 'ERROR' => {
   if (session.is_active) return 'ACTIVE';
   if (session.errors > 0) return 'ERROR';
   return 'COMPLETE';
@@ -56,7 +59,33 @@ const getSessionStatus = (session: APISession): 'ACTIVE' | 'COMPLETE' | 'ERROR' 
 export const Portfolio: FC = () => {
   const navigate = useNavigate();
   const { workflowId } = useParams<{ workflowId?: string }>();
-  const { agents, sessions, loading } = useOutletContext<PortfolioContext>();
+  const { agents, loading } = useOutletContext<PortfolioContext>();
+
+  // Fetch sessions from the new API
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
+  const loadSessions = useCallback(async () => {
+    try {
+      const data = await fetchSessions({
+        workflow_id: workflowId || undefined,
+        limit: 10,
+      });
+      setSessions(data.sessions);
+    } catch (error) {
+      console.error('Failed to fetch sessions:', error);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [workflowId]);
+
+  // Fetch sessions on mount and when workflowId changes
+  useEffect(() => {
+    loadSessions();
+    // Refresh sessions periodically
+    const interval = setInterval(loadSessions, 5000);
+    return () => clearInterval(interval);
+  }, [loadSessions]);
 
   usePageMeta({
     breadcrumbs: workflowId
@@ -159,7 +188,7 @@ export const Portfolio: FC = () => {
             <Card>
               <Card.Header title="Recent Sessions" />
               <Card.Content>
-                {isLoading ? (
+                {sessionsLoading ? (
                   <SessionsList>
                     <Skeleton variant="rect" height={60} />
                     <Skeleton variant="rect" height={60} />
@@ -178,10 +207,10 @@ export const Portfolio: FC = () => {
                   </div>
                 ) : (
                   <SessionsList>
-                    {sessions.slice(0, 10).map((session) => {
-                      // Use URL workflowId if available, otherwise get from agent
+                    {sessions.map((session) => {
+                      // Use session's workflow_id if available, or get from URL, or from agent
                       const agent = agents.find(a => a.id === session.agent_id);
-                      const sessionWorkflowId = workflowId || agent?.workflow_id || 'unassigned';
+                      const sessionWorkflowId = session.workflow_id || workflowId || agent?.workflow_id || 'unassigned';
                       return (
                         <SessionItem
                           key={session.id}

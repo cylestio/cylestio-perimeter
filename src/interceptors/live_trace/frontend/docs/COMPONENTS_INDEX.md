@@ -27,6 +27,8 @@
 | `domain/layout/` | Shell, Sidebar, TopBar, UserMenu, Logo |
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
 | `domain/workflows/` | WorkflowSelector |
+| `domain/analysis/` | AnalysisStatusItem |
+| `domain/sessions/` | SessionsTable |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
@@ -644,6 +646,138 @@ interface WorkflowSelectorProps {
   ]}
   selectedWorkflow={selectedWorkflow}
   onSelect={setSelectedWorkflow}
+/>
+```
+
+---
+
+## Analysis Components
+
+### AnalysisStatusItem
+
+Sidebar navigation item for analysis status (Static Scan, Dynamic Scan, Recommendations). Shows a ring indicator with an icon inside, with spinning animation for running state.
+
+```typescript
+type AnalysisStatus = 'ok' | 'warning' | 'critical' | 'inactive' | 'running';
+
+interface AnalysisStatusItemProps {
+  label: string;              // Display label (e.g., "Static Scan")
+  status: AnalysisStatus;     // Status determines color and icon
+  count?: number;             // Optional issue count shown as badge
+  stat?: string;              // Optional stat text (e.g., "2 issues")
+  collapsed?: boolean;        // Show only ring when sidebar collapsed
+  isRecommendation?: boolean; // Use purple styling for recommendations
+  onClick?: () => void;       // Click handler
+}
+```
+
+**Status Colors:**
+- `ok` - Green ring with check icon
+- `warning` - Orange ring with alert icon
+- `critical` - Red ring with X icon
+- `inactive` - Gray ring with minus icon
+- `running` - Gray spinning ring with loader icon
+
+**Usage:**
+```tsx
+// Static scan completed OK
+<AnalysisStatusItem
+  label="Static Scan"
+  status="ok"
+  collapsed={sidebarCollapsed}
+/>
+
+// Dynamic scan with warnings
+<AnalysisStatusItem
+  label="Dynamic Scan"
+  status="warning"
+  count={3}
+  stat="3 issues"
+  collapsed={sidebarCollapsed}
+/>
+
+// Recommendations (purple styling)
+<AnalysisStatusItem
+  label="Recommendations"
+  status="ok"
+  count={5}
+  isRecommendation
+  collapsed={sidebarCollapsed}
+/>
+
+// Running analysis
+<AnalysisStatusItem
+  label="Static Scan"
+  status="running"
+  collapsed={sidebarCollapsed}
+/>
+```
+
+---
+
+## Sessions Components
+
+### SessionsTable
+
+Reusable data table for displaying session lists with status, metrics, and navigation.
+
+```typescript
+interface SessionsTableProps {
+  sessions: SessionListItem[];  // Session data from API
+  workflowId: string;           // For generating session links
+  loading?: boolean;            // Show loading state
+  emptyMessage?: string;        // Custom empty state message
+  showAgentColumn?: boolean;    // Show agent ID column (default: false)
+}
+
+// SessionListItem (from @api/types/session)
+interface SessionListItem {
+  id: string;
+  id_short: string;
+  agent_id: string;
+  agent_id_short: string | null;
+  workflow_id: string | null;
+  created_at: string;
+  last_activity: string;
+  last_activity_relative: string;
+  duration_minutes: number;
+  is_active: boolean;
+  is_completed: boolean;
+  status: 'ACTIVE' | 'INACTIVE' | 'COMPLETED';
+  message_count: number;
+  tool_uses: number;
+  errors: number;
+  total_tokens: number;
+  error_rate: number;
+}
+```
+
+**Columns:**
+- ID - Session ID (short) with link to session detail
+- Agent (optional) - Agent ID with link to agent detail
+- Status - Badge showing ACTIVE/INACTIVE/COMPLETED
+- Duration - Session duration in minutes
+- Messages - Message count
+- Tokens - Total token usage
+- Tools - Tool call count
+- Error Rate - Percentage of errors
+- Last Activity - Relative timestamp
+
+**Usage:**
+```tsx
+// Basic usage
+<SessionsTable
+  sessions={sessions}
+  workflowId={workflowId}
+  emptyMessage="No sessions found."
+/>
+
+// With agent column (for workflow-level views)
+<SessionsTable
+  sessions={sessions}
+  workflowId={workflowId}
+  showAgentColumn
+  loading={isLoading}
 />
 ```
 
