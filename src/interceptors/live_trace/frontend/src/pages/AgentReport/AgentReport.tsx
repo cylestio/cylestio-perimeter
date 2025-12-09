@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
+import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   timeAgo,
@@ -143,15 +144,12 @@ export const AgentReport: FC = () => {
 
   // Set breadcrumbs with workflow context
   usePageMeta({
-    breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      ...(workflowId && workflowId !== 'unassigned'
-        ? [{ label: 'Workflow', href: `/workflow/${workflowId}` }]
-        : []),
-      { label: 'Agent', href: `/workflow/${workflowId}/agent/${agentId}` },
-      { label: agentId?.substring(0, 12) + '...' || '', href: `/workflow/${workflowId}/agent/${agentId}` },
-      { label: 'Full Report' },
-    ],
+    breadcrumbs: buildWorkflowBreadcrumbs(
+      workflowId,
+      { label: 'Agent', href: workflowLink(workflowId, `/agent/${agentId}`) },
+      { label: agentId?.substring(0, 12) + '...' || '', href: workflowLink(workflowId, `/agent/${agentId}`) },
+      { label: 'Full Report' }
+    ),
   });
 
   const toggleCheck = (checkId: string) => {
@@ -639,7 +637,7 @@ export const AgentReport: FC = () => {
                       <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
                         <OutlierHeader>
                           <Link
-                            to={`/workflow/${workflowId}/session/${outlier.session_id}`}
+                            to={workflowLink(workflowId, `/session/${outlier.session_id}`)}
                             style={{
                               fontSize: '13px',
                               fontFamily: 'var(--font-mono)',

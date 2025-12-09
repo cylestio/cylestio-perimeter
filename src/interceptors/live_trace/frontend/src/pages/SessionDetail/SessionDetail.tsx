@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchSession } from '@api/endpoints/session';
 import type { SessionResponse, TimelineEvent } from '@api/types/session';
 import { usePolling } from '@hooks/usePolling';
+import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -54,17 +55,14 @@ export const SessionDetail: FC = () => {
 
   // Set breadcrumbs with workflow context
   usePageMeta({
-    breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      ...(workflowId && workflowId !== 'unassigned'
-        ? [{ label: 'Workflow', href: `/workflow/${workflowId}` }]
-        : []),
+    breadcrumbs: buildWorkflowBreadcrumbs(
+      workflowId,
       ...(data?.session.agent_id
-        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: `/workflow/${workflowId}/agent/${data.session.agent_id}` }]
+        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: workflowLink(workflowId, `/agent/${data.session.agent_id}`) }]
         : []),
       { label: 'Session' },
-      { label: sessionId?.substring(0, 12) + '...' || '' },
-    ],
+      { label: sessionId?.substring(0, 12) + '...' || '' }
+    ),
   });
 
   const handleReplay = (eventId: string) => {
@@ -109,7 +107,7 @@ export const SessionDetail: FC = () => {
                 label: 'AGENT ID',
                 badge: (
                   <Link
-                    to={`/workflow/${workflowId}/agent/${session.agent_id}`}
+                    to={workflowLink(workflowId, `/agent/${session.agent_id}`)}
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '12px',

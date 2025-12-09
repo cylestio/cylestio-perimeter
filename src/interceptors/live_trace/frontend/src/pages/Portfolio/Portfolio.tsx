@@ -4,6 +4,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
 import type { APIAgent, APISession } from '@api/types/dashboard';
+import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatAgentName, formatDuration } from '@utils/formatting';
 
 import { Card } from '@ui/core/Card';
@@ -58,15 +59,9 @@ export const Portfolio: FC = () => {
   const { agents, sessions, loading } = useOutletContext<PortfolioContext>();
 
   usePageMeta({
-    breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      ...(workflowId && workflowId !== 'unassigned'
-        ? [{ label: 'Workflow', href: `/workflow/${workflowId}` }]
-        : workflowId === 'unassigned'
-          ? [{ label: 'Unassigned' }]
-          : []),
-      ...(workflowId ? [{ label: 'Agents' }] : []),
-    ],
+    breadcrumbs: workflowId
+      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Agents' })
+      : [{ label: 'Portfolio', href: '/' }],
   });
 
   // Calculate summary stats from agents

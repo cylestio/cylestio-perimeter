@@ -6,6 +6,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, AgentSession } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
+import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   timeAgo,
@@ -191,14 +192,11 @@ export const AgentDetail: FC = () => {
 
   // Set breadcrumbs with workflow context
   usePageMeta({
-    breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      ...(workflowId && workflowId !== 'unassigned'
-        ? [{ label: `Workflow`, href: `/workflow/${workflowId}` }]
-        : []),
+    breadcrumbs: buildWorkflowBreadcrumbs(
+      workflowId,
       { label: 'Agent' },
-      { label: agentId?.substring(0, 12) + '...' || '' },
-    ],
+      { label: agentId?.substring(0, 12) + '...' || '' }
+    ),
   });
 
   if (loading && !data) {
@@ -285,7 +283,7 @@ export const AgentDetail: FC = () => {
           <RiskHeroCard>
             <RiskHeroHeader>
               <RiskLabel>Overall Status</RiskLabel>
-              <FullReportLink as={Link} to={`/workflow/${workflowId}/agent/${agent.id}/report`}>
+              <FullReportLink as={Link} to={workflowLink(workflowId, `/agent/${agent.id}/report`)}>
                 Full Report →
               </FullReportLink>
             </RiskHeroHeader>
@@ -389,7 +387,7 @@ export const AgentDetail: FC = () => {
           <SummaryCard>
             <SummaryHeader>
               <SummaryTitle>Security & Behavioral Assessment Summary</SummaryTitle>
-              <ViewReportButton as={Link} to={`/workflow/${workflowId}/agent/${agent.id}/report`}>
+              <ViewReportButton as={Link} to={workflowLink(workflowId, `/agent/${agent.id}/report`)}>
                 View Full Report →
               </ViewReportButton>
             </SummaryHeader>
