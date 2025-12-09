@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Bot, Calendar, Clock, FileSearch, Shield, ArrowRight } from 'lucide-react';
+import { Bot, Calendar, Clock, FileSearch, Shield, ArrowRight, Code, Activity, Lightbulb } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/workflow';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgent, SecurityAnalysis, AnalysisStage } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { workflowLink } from '../../utils/breadcrumbs';
 
@@ -16,6 +16,7 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Section } from '@ui/layout/Section';
 
+import { LifecycleProgress, type LifecycleStage } from '@domain/activity';
 import { FindingsTab } from '@domain/findings';
 import { SessionsTable } from '@domain/sessions';
 
@@ -56,6 +57,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [agents, setAgents] = useState<APIAgent[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
+  const [securityAnalysis, setSecurityAnalysis] = useState<SecurityAnalysis | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
   const [liveSessions, setLiveSessions] = useState<SessionListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,13 +66,14 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch workflow data (agents in this workflow)
+  // Fetch workflow data (agents + security analysis in this workflow)
   const fetchWorkflowData = useCallback(async () => {
     if (!workflowId) return;
 
     try {
       const data = await fetchDashboard(workflowId);
       setAgents(data.agents || []);
+      setSecurityAnalysis(data.security_analysis ?? null);
     } catch (err) {
       console.error('Failed to fetch workflow data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load workflow');
@@ -176,6 +179,48 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   // Count sessions by status
   const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
 
+  // Derive stat string from analysis stage (frontend logic)
+  const getStageStat = (stage: AnalysisStage | undefined): string | undefined => {
+    if (!stage) return undefined;
+    if (stage.status === 'active') return 'Running...';
+    if (stage.status !== 'completed' || !stage.findings) return undefined;
+
+    const { by_severity, by_status } = stage.findings;
+    const critical = by_severity?.CRITICAL ?? 0;
+    const high = by_severity?.HIGH ?? 0;
+    const open = by_status?.OPEN ?? 0;
+
+    if (critical > 0) return `${critical} critical`;
+    if (high > 0) return `${high} high`;
+    if (open > 0) return `${open} open`;
+    return 'All clear';
+  };
+
+  // Convert backend security analysis to lifecycle stages
+  const lifecycleStages: LifecycleStage[] = [
+    {
+      id: 'static',
+      label: 'Static',
+      icon: <Code size={16} />,
+      status: securityAnalysis?.static.status ?? 'pending',
+      stat: getStageStat(securityAnalysis?.static),
+    },
+    {
+      id: 'dynamic',
+      label: 'Dynamic',
+      icon: <Activity size={16} />,
+      status: securityAnalysis?.dynamic.status ?? 'pending',
+      stat: getStageStat(securityAnalysis?.dynamic),
+    },
+    {
+      id: 'recommendations',
+      label: 'Recommendations',
+      icon: <Lightbulb size={16} />,
+      status: securityAnalysis?.recommendations.status ?? 'pending',
+      stat: getStageStat(securityAnalysis?.recommendations),
+    },
+  ];
+
   return (
     <WorkflowLayout className={className} data-testid="workflow-detail">
       {/* Header */}
@@ -203,6 +248,16 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
           )}
         </WorkflowStats>
       </WorkflowHeader>
+
+      {/* Analysis Lifecycle Progress */}
+      <Section>
+        <Section.Header>
+          <Section.Title>Analysis Progress</Section.Title>
+        </Section.Header>
+        <Section.Content>
+          <LifecycleProgress stages={lifecycleStages} />
+        </Section.Content>
+      </Section>
 
       {/* Recent Sessions */}
       <SessionsTable

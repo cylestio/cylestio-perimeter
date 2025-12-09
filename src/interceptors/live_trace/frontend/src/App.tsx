@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from '
 import { ThemeProvider } from 'styled-components';
 
 import type { ConfigResponse } from '@api/types/config';
-import type { DashboardResponse } from '@api/types/dashboard';
+import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
@@ -25,10 +25,40 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 import { AgentListItem } from '@domain/agents/AgentListItem';
 import { WorkflowSelector, type Workflow } from '@domain/workflows';
-import { AnalysisStatusItem } from '@domain/analysis';
+import { AnalysisStatusItem, type AnalysisStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, WorkflowDetail, WorkflowsHome } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, StaticAnalysis, WorkflowDetail, WorkflowsHome } from '@pages/index';
+
+// Convert backend stage status to sidebar AnalysisStatus
+function stageToSidebarStatus(stage: AnalysisStage | undefined): AnalysisStatus {
+  if (!stage) return 'inactive';
+
+  switch (stage.status) {
+    case 'active':
+      return 'running';
+    case 'completed':
+      // For completed analysis, derive severity from embedded findings
+      if (stage.findings) {
+        const openCritical = stage.findings.by_severity?.CRITICAL ?? 0;
+        const openHigh = stage.findings.by_severity?.HIGH ?? 0;
+        if (openCritical > 0) return 'critical';
+        if (openHigh > 0) return 'warning';
+        return 'ok';
+      }
+      return 'ok';
+    case 'pending':
+    default:
+      return 'inactive';
+  }
+}
+
+// Get open findings count from stage
+function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefined {
+  if (!stage?.findings) return undefined;
+  const openCount = stage.findings.by_status?.OPEN ?? 0;
+  return openCount > 0 ? openCount : undefined;
+}
 
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
@@ -184,19 +214,22 @@ function AppLayout() {
             <NavGroup label={!sidebarCollapsed ? 'Analysis' : undefined}>
               <AnalysisStatusItem
                 label="Static Analysis"
-                status="inactive"
+                status={stageToSidebarStatus(data?.security_analysis?.static)}
+                count={getOpenFindingsCount(data?.security_analysis?.static)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
+                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/static-analysis`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/static-analysis`}
               />
               <AnalysisStatusItem
                 label="Dynamic Analysis"
-                status="inactive"
+                status={stageToSidebarStatus(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
               />
               <AnalysisStatusItem
                 label="Recommendations"
-                status="inactive"
+                status={stageToSidebarStatus(data?.security_analysis?.recommendations)}
                 isRecommendation
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
@@ -304,6 +337,7 @@ function App() {
               <Route path="/workflow/:workflowId" element={<WorkflowDetail />} />
               <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
               <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
+              <Route path="/workflow/:workflowId/static-analysis" element={<StaticAnalysis />} />
               <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
               <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
               <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />

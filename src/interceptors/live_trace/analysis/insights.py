@@ -86,12 +86,91 @@ class InsightsEngine:
             )
             latest_session = self._get_latest_active_session(workflow_id=workflow_id)
 
+        # Get unified security analysis if workflow_id is provided (not for root/all view)
+        security_analysis = None
+        if workflow_id and workflow_id != "unassigned":
+            try:
+                security_analysis = self._get_security_analysis(workflow_id)
+            except Exception as e:
+                logger.warning(f"Failed to get security analysis for workflow {workflow_id}: {e}")
+
         return {
             "agents": agents,
             "sessions_count": sessions_count,
             "latest_session": latest_session,
             "workflow_id": workflow_id,
+            "security_analysis": security_analysis,
             "last_updated": datetime.now(timezone.utc).isoformat()
+        }
+
+    def _get_security_analysis(self, workflow_id: str) -> Dict[str, Any]:
+        """Get unified security analysis for the workflow.
+
+        Returns status for each analysis type with embedded findings:
+        - static: status, findings
+        - dynamic: status, findings
+        - recommendations: status, findings
+        """
+        # Get analysis sessions for this workflow
+        analysis_sessions = self.store.get_analysis_sessions(workflow_id=workflow_id)
+
+        # Get findings summary
+        findings_summary = None
+        try:
+            findings_summary = self.store.get_workflow_findings_summary(workflow_id)
+        except Exception as e:
+            logger.warning(f"Failed to get findings summary for workflow {workflow_id}: {e}")
+
+        # Normalize findings summary to standard format
+        findings_data = None
+        if findings_summary:
+            findings_data = {
+                "total": findings_summary.get("total_findings", 0),
+                "by_severity": findings_summary.get("by_severity", {}),
+                "by_status": findings_summary.get("by_status", {}),
+            }
+
+        # Static Analysis status
+        static_sessions = [s for s in analysis_sessions if s.get("session_type") == "STATIC"]
+        static_in_progress = any(s.get("status") == "IN_PROGRESS" for s in static_sessions)
+        static_completed = any(s.get("status") == "COMPLETED" for s in static_sessions)
+
+        static_status = "pending"
+        static_findings = None
+
+        if static_in_progress:
+            static_status = "active"
+        elif static_completed:
+            static_status = "completed"
+            static_findings = findings_data
+
+        # Dynamic Analysis status (not yet implemented, always pending)
+        dynamic_status = "pending"
+
+        # Recommendations status (based on AUTOFIX sessions)
+        autofix_sessions = [s for s in analysis_sessions if s.get("session_type") == "AUTOFIX"]
+        autofix_in_progress = any(s.get("status") == "IN_PROGRESS" for s in autofix_sessions)
+        autofix_completed = any(s.get("status") == "COMPLETED" for s in autofix_sessions)
+
+        recommendations_status = "pending"
+        if autofix_in_progress:
+            recommendations_status = "active"
+        elif autofix_completed:
+            recommendations_status = "completed"
+
+        return {
+            "static": {
+                "status": static_status,
+                "findings": static_findings,
+            },
+            "dynamic": {
+                "status": dynamic_status,
+                "findings": None,
+            },
+            "recommendations": {
+                "status": recommendations_status,
+                "findings": None,
+            },
         }
 
     async def get_agent_data(self, agent_id: str) -> Dict[str, Any]:
