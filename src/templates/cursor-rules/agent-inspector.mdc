@@ -1,5 +1,5 @@
 ---
-description: Agent Inspector - AI Agent Security Analysis (auto-setup, scan, correlate)
+description: Agent Inspector - AI Agent Security Analysis (scan, correlate static ↔ dynamic)
 globs: ["**/*.py", "**/*.ts", "**/*.js"]
 ---
 
@@ -9,131 +9,153 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 **Dashboard:** `http://localhost:7100`
 **Proxy:** `http://localhost:4000`
 
-## Installation (One-Time)
+## Available MCP Tools (13 total)
 
-When user asks to "install agent inspector" or "set up security scanning":
+### Analysis Tools
+| Tool | Description |
+|------|-------------|
+| `get_security_patterns` | Get OWASP LLM Top 10 patterns for analysis |
+| `create_analysis_session` | Start session for workflow (requires workflow_id) |
+| `store_finding` | Record a security finding |
+| `complete_analysis_session` | Finalize session and calculate risk score |
+| `get_findings` | Retrieve stored findings |
+| `update_finding_status` | Mark finding as FIXED or IGNORED |
 
-```bash
-pip install cylestio-gateway
-```
+### Knowledge Tools
+| Tool | Description |
+|------|-------------|
+| `get_owasp_control` | Get specific OWASP control details (LLM01-LLM10) |
+| `get_fix_template` | Get remediation template for a finding type |
 
-Then start the server:
-```bash
-agent-inspector anthropic --use-local-storage  # or: agent-inspector openai
-```
+### Workflow Lifecycle Tools
+| Tool | Description |
+|------|-------------|
+| `get_workflow_state` | Check what analysis exists (static/dynamic/both) |
+| `get_tool_usage_summary` | Get tool usage patterns from dynamic sessions |
+| `get_workflow_correlation` | Correlate static findings with dynamic runtime |
 
-## MCP Tools (14 total)
-
-| Category | Tool | Purpose |
-|----------|------|---------|
-| **Setup** | `get_workflow_config` | Read/check cylestio.yaml |
-| **Discovery** | `get_agents` | List all agents (filter: workflow_id, "unlinked") |
-| **Lifecycle** | `get_workflow_state` | Check what analysis exists |
-| | `get_workflow_correlation` | Correlate static ↔ dynamic |
-| | `get_tool_usage_summary` | Runtime tool patterns |
-| | `update_agent_info` | Link/name agents |
-| **Analysis** | `get_security_patterns` | OWASP patterns to check |
-| | `create_analysis_session` | Start scan session |
-| | `store_finding` | Record a finding |
-| | `complete_analysis_session` | Finalize session |
-| | `get_findings` | Retrieve findings |
-| **Knowledge** | `get_owasp_control` | OWASP control details |
-| | `get_fix_template` | Remediation templates |
-| **Fix** | `update_finding_status` | Mark FIXED/IGNORED |
+### Agent Discovery Tools
+| Tool | Description |
+|------|-------------|
+| `get_agents` | List agents (filter by workflow_id or "unlinked") |
+| `update_agent_info` | Link agents to workflows, set display names |
 
 ## AUTOMATIC WORKFLOW
 
-**When user asks for security scan, ALWAYS follow this flow:**
+**When user asks for security analysis, follow this flow automatically:**
 
-### Step 1: Setup Workflow Config
-```
-get_workflow_config()
-```
-- **If exists:** Use the `workflow_id`
-- **If not exists:** AUTO-CREATE `cylestio.yaml`:
-  - Derive ID from: git remote → package name → folder name
-  - Example: folder `/projects/my-bot` → `workflow_id: my-bot`
+### Step 1: Derive workflow_id
+Auto-derive from (priority order):
+1. Git remote: `github.com/acme/my-agent.git` → `my-agent`
+2. Package name: `pyproject.toml` or `package.json`
+3. Folder name: `/projects/my-bot` → `my-bot`
 
-### Step 2: Check State & Discover Agents
+### Step 2: Check Current State
 ```
 get_workflow_state(workflow_id)
-get_agents("unlinked")  # Find unlinked agents
 ```
 
-### Step 3: Link Unlinked Agents
-If `get_agents("unlinked")` returns agents, link them:
+This returns one of:
+- `NO_DATA` → Run static analysis
+- `STATIC_ONLY` → Inform user to run dynamic tests for validation
+- `DYNAMIC_ONLY` → Run static analysis, then correlate
+- `COMPLETE` → Run correlation, report unified results
+
+### Step 3: Discover & Link Agents (if dynamic data exists)
 ```
-update_agent_info(agent_id, workflow_id="my-project")
+get_agents("unlinked")
+```
+If unlinked agents found, link them:
+```
+update_agent_info(agent_id, workflow_id="the-workflow-id")
 ```
 
 ### Step 4: Based on State
 
-| State | Action |
-|-------|--------|
-| `NO_DATA` | Run static analysis |
-| `STATIC_ONLY` | Inform: "Run agent through proxy to validate" |
-| `DYNAMIC_ONLY` | Run static analysis → then correlate |
-| `COMPLETE` | Run correlation, report results |
+#### Scenario A: Static Analysis First (IDE Code Review)
+This is the typical flow when user asks "run a security scan":
 
-### Step 5: Static Analysis (if needed)
-```
-get_security_patterns()
-create_analysis_session(workflow_id, "STATIC")
-# Analyze code...
-store_finding(session_id, file, type, severity, title)
-complete_analysis_session(session_id)
-```
+1. **Get Patterns**
+   ```
+   get_security_patterns()
+   ```
+   NEVER hardcode patterns - always fetch from MCP.
 
-### Step 6: Correlate (if both static + dynamic exist)
+2. **Create Session**
+   ```
+   create_analysis_session(workflow_id, "STATIC")
+   ```
+
+3. **Analyze Code & Store Findings**
+   ```
+   store_finding(session_id, file_path, finding_type, severity, title, ...)
+   ```
+
+4. **Complete Session**
+   ```
+   complete_analysis_session(session_id)
+   ```
+
+5. **Check for Dynamic Data**
+   ```
+   get_workflow_state(workflow_id)
+   ```
+   - If state is `COMPLETE`: Run correlation
+   - If state is `STATIC_ONLY`: Inform user how to run dynamic tests
+
+6. **Report Results**
+   Include dashboard URL: `http://localhost:7100/workflow/{workflow_id}`
+
+#### Scenario B: Dynamic Analysis First (Runtime Captured)
+When user ran their agent first, then asks for security review:
+
+1. Check state shows `DYNAMIC_ONLY`
+2. Run static analysis (steps above)
+3. Correlate with `get_workflow_correlation(workflow_id)`
+4. Report which findings are VALIDATED vs UNEXERCISED
+
+### Step 5: Correlation (when both static + dynamic exist)
 ```
 get_workflow_correlation(workflow_id)
 get_tool_usage_summary(workflow_id)
 ```
 
 Report:
-- Which findings are **VALIDATED** (tool was called at runtime)
-- Which are **UNEXERCISED** (tool never called in tests)
+- **VALIDATED**: Finding's tool was called at runtime
+- **UNEXERCISED**: Tool never called in tests - needs test coverage
 
-### Step 7: Name Agents
+### Step 6: Name Agents (optional)
 After analyzing code, give agents meaningful names:
 ```
 update_agent_info(agent_id, display_name="Customer Support Bot", description="Handles booking inquiries")
 ```
 
-### Step 8: Report
-```markdown
-## Security Analysis Complete
+## Dynamic Analysis Setup
 
-**Workflow:** {workflow_id}
-**State:** COMPLETE (static + dynamic)
-
-### Findings: X total (Y open)
-...
-
-### Correlation:
-- 4 findings VALIDATED by runtime
-- 2 findings UNEXERCISED
-
-**Dashboard:** http://localhost:7100/workflow/{workflow_id}
-```
-
-## Agent Code Setup (Minimal)
-
-Tell user to add workflow_id to their agent's base_url:
+Tell user to configure their agent's base_url with workflow_id:
 
 ```python
-# Only change needed - add workflow_id to URL
-client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
-# or
-client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
+# OpenAI
+client = OpenAI(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
+
+# Anthropic
+client = Anthropic(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
 ```
 
-**No YAML reading required in agent code.** The `cylestio.yaml` is only for the coding agent.
+## Fixing Issues
 
-## Key Automation Rules
+```
+get_findings(workflow_id, status="OPEN")
+get_fix_template(finding_type)
+# Apply fix
+update_finding_status(finding_id, "FIXED", notes="Applied input validation")
+```
 
-1. **Auto-create** `cylestio.yaml` if missing - don't ask user
-2. **Auto-link** unlinked agents to workflow via `update_agent_info`
+## Key Rules
+
+1. **Auto-derive** workflow_id - don't ask user
+2. **Auto-link** unlinked agents via `update_agent_info`
 3. **Auto-correlate** when both static + dynamic data exist
-4. **Auto-name** agents based on code analysis
-5. **Never hardcode** security patterns - always fetch from MCP
+4. **Never hardcode** security patterns - always fetch from MCP
+5. **Same workflow_id** for static and dynamic = unified results
+6. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`

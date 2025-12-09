@@ -12,52 +12,53 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 - After completing a new AI agent feature
 
 ## Prerequisites
-- Agent Inspector running: `agent-inspector anthropic --use-local-storage`
+- Agent Inspector running: `uvx cylestio-perimeter run --config path/to/config.yaml`
 - MCP connection to `http://localhost:7100/mcp`
 
-## AUTOMATIC WORKFLOW
+## Workflow
 
-### 1. Setup Workflow
-```
-get_workflow_config()
-```
-- **If exists:** Use `workflow_id` from config
-- **If not:** AUTO-CREATE `cylestio.yaml`:
-  ```yaml
-  workflow_id: {derived-from-folder-or-git}
-  workflow_name: {Human Name}
-  ```
+### 1. Derive workflow_id
+Auto-derive from (priority order):
+1. Git remote: `github.com/org/my-agent.git` → `my-agent`
+2. Package name: pyproject.toml or package.json
+3. Folder name: `/projects/my-bot` → `my-bot`
 
-### 2. Discover & Link Agents
+**Do NOT ask user for workflow_id - derive it automatically.**
+
+### 2. Check Current State
 ```
 get_workflow_state(workflow_id)
-get_agents("unlinked")
 ```
 
-If unlinked agents found:
+This tells you:
+- `NO_DATA` → First analysis, proceed normally
+- `STATIC_ONLY` → Previous static exists, inform about dynamic testing
+- `DYNAMIC_ONLY` → Dynamic data exists! Run static, then correlate
+- `COMPLETE` → Both exist, run correlation after analysis
+
+### 3. Discover & Link Agents (if dynamic data exists)
+If state is `DYNAMIC_ONLY` or `COMPLETE`:
+```
+get_agents("unlinked")
+```
+Link any unlinked agents:
 ```
 update_agent_info(agent_id, workflow_id="the-workflow-id")
 ```
 
-### 3. Get Security Patterns
+### 4. Get Security Patterns
 ```
 get_security_patterns()
 ```
 **NEVER hardcode patterns** - always fetch from MCP.
 
-### 4. Run Analysis
+### 5. Create Analysis Session
 ```
-create_analysis_session(workflow_id, "STATIC")
+create_analysis_session(workflow_id, "STATIC", workflow_name="My Project")
 ```
 
-Analyze code for:
-- Dangerous tool combinations
-- Missing confirmations on destructive ops
-- PII exposure in external calls
-- Injection vulnerabilities
-- Excessive permissions
-
-### 5. Store Findings
+### 6. Analyze Code & Store Findings
+For each issue found:
 ```
 store_finding(
   session_id=session_id,
@@ -67,17 +68,18 @@ store_finding(
   title="Unconfirmed delete operation",
   description="delete_user called without confirmation",
   line_start=45,
-  line_end=52
+  line_end=52,
+  code_snippet="..."
 )
 ```
 
-### 6. Complete Session
+### 7. Complete Session
 ```
 complete_analysis_session(session_id)
 ```
 
-### 7. Correlate (if dynamic data exists)
-Check state - if `COMPLETE` or `DYNAMIC_ONLY`:
+### 8. Correlate (if dynamic data exists)
+If state was `DYNAMIC_ONLY` or `COMPLETE`:
 ```
 get_workflow_correlation(workflow_id)
 get_tool_usage_summary(workflow_id)
@@ -85,10 +87,10 @@ get_tool_usage_summary(workflow_id)
 
 Report which findings are:
 - **VALIDATED**: Tool was called during dynamic testing
-- **UNEXERCISED**: Tool never called in tests
+- **UNEXERCISED**: Tool never called - needs test coverage
 
-### 8. Name Agents
-If agents exist, give them meaningful names based on code:
+### 9. Name Agents (optional)
+If agents exist, give them meaningful names based on code analysis:
 ```
 update_agent_info(
   agent_id="agent-xyz",
@@ -97,44 +99,59 @@ update_agent_info(
 )
 ```
 
-### 9. Report Results
+### 10. Report Results
 
 ```markdown
 ## Static Analysis Complete
 
 **Workflow:** my-project
-**Findings:** 8 (3 CRITICAL, 2 HIGH, 3 MEDIUM)
+**State:** {state}
+**Findings:** X total (Y open)
 
 ### Key Issues:
-1. 🔴 CRITICAL: delete_user without confirmation (LLM08)
-2. 🔴 CRITICAL: PII sent to external API (LLM06)
-3. 🟡 HIGH: No rate limiting on tool calls (LLM08)
+1. 🔴 CRITICAL: {title} (LLM08)
+2. 🟡 HIGH: {title} (LLM06)
+...
 
-### Correlation with Dynamic Data:
+### Correlation (if dynamic data exists):
 | Finding | Runtime Status |
 |---------|---------------|
-| delete_user | ⚠️ VALIDATED (called 12 times) |
-| send_external | ⚠️ VALIDATED (called 8 times) |
+| delete_user | ⚠️ VALIDATED (called 12x) |
 | bulk_update | ✅ UNEXERCISED |
 
 **Dashboard:** http://localhost:7100/workflow/my-project
 
 ### Next Steps:
 - Fix CRITICAL findings immediately
-- Add test scenarios for UNEXERCISED tools
+- (If STATIC_ONLY): Run agent through proxy to validate findings
+- (If correlation shows UNEXERCISED): Add test scenarios for unused tools
 ```
 
 ## MCP Tools Reference
 
 | Tool | When to Use |
 |------|-------------|
-| `get_workflow_config` | First - check/create cylestio.yaml |
+| `get_workflow_state` | First - check what data exists |
 | `get_agents("unlinked")` | Find agents needing linking |
 | `update_agent_info` | Link agents + give names |
-| `get_workflow_state` | Check what analysis exists |
 | `get_security_patterns` | Get patterns to check |
 | `create_analysis_session` | Start scan |
 | `store_finding` | Record each issue |
 | `complete_analysis_session` | Finalize |
 | `get_workflow_correlation` | Match static ↔ dynamic |
 | `get_tool_usage_summary` | See runtime behavior |
+
+## Setting Up Dynamic Analysis
+
+After static analysis, if no dynamic data exists, tell user:
+
+> To validate these findings with runtime behavior, configure your agent:
+>
+> ```python
+> client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
+> # or
+> client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
+> ```
+>
+> Then run your agent through test scenarios. View unified results at:
+> http://localhost:7100/workflow/my-project
