@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   type FC,
   type ReactNode,
 } from 'react';
@@ -31,8 +32,13 @@ export const PageMetaProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setPageMetaState((prev) => ({ ...prev, ...meta }));
   }, []);
 
+  const contextValue = useMemo(
+    () => ({ pageMeta, setPageMeta }),
+    [pageMeta, setPageMeta]
+  );
+
   return (
-    <PageMetaContext.Provider value={{ pageMeta, setPageMeta }}>
+    <PageMetaContext.Provider value={contextValue}>
       {children}
     </PageMetaContext.Provider>
   );

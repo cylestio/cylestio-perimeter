@@ -1,4 +1,7 @@
 import type { FC, ReactNode } from 'react';
+
+import { Link } from 'react-router-dom';
+
 import {
   StyledNavItem,
   NavItemIcon,
@@ -13,6 +16,9 @@ export type NavItemBadgeColor = 'orange' | 'red' | 'cyan';
 export interface NavItemProps {
   icon?: ReactNode;
   label: string;
+  /** Use 'to' for React Router navigation (preferred for internal links) */
+  to?: string;
+  /** Use 'href' for external links only */
   href?: string;
   active?: boolean;
   badge?: string | number;
@@ -32,6 +38,7 @@ export interface NavGroupProps {
 export const NavItem: FC<NavItemProps> = ({
   icon,
   label,
+  to,
   href,
   active = false,
   badge,
@@ -40,6 +47,30 @@ export const NavItem: FC<NavItemProps> = ({
   disabled = false,
   className,
 }) => {
+  const content = (
+    <>
+      {icon && <NavItemIcon>{icon}</NavItemIcon>}
+      {label}
+      {badge !== undefined && <NavItemBadge $color={badgeColor}>{badge}</NavItemBadge>}
+    </>
+  );
+
+  // Use React Router Link for internal navigation
+  if (to && !disabled) {
+    return (
+      <StyledNavItem
+        as={Link}
+        to={to}
+        $active={active}
+        $disabled={disabled}
+        className={className}
+      >
+        {content}
+      </StyledNavItem>
+    );
+  }
+
+  // Fallback to anchor for external links or onClick handlers
   const handleClick = (e: React.MouseEvent) => {
     if (disabled) {
       e.preventDefault();
@@ -59,9 +90,7 @@ export const NavItem: FC<NavItemProps> = ({
       onClick={handleClick}
       className={className}
     >
-      {icon && <NavItemIcon>{icon}</NavItemIcon>}
-      {label}
-      {badge !== undefined && <NavItemBadge $color={badgeColor}>{badge}</NavItemBadge>}
+      {content}
     </StyledNavItem>
   );
 };

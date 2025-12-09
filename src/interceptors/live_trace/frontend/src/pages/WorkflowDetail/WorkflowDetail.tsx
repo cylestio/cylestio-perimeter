@@ -7,6 +7,7 @@ import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } fr
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import type { Finding, FindingsSummary } from '@api/types/findings';
 import type { APIAgent } from '@api/types/dashboard';
+import { workflowLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -287,7 +288,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
                 <AgentListItem
                   key={agent.id}
                   as={Link}
-                  to={`/workflow/${workflowId}/agent/${agent.id}`}
+                  to={workflowLink(workflowId, `/agent/${agent.id}`)}
                 >
                   <AgentIcon>
                     <Bot size={16} />

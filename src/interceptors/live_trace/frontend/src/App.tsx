@@ -1,13 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
+
+import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
 
 import type { DashboardResponse } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
-import { theme, GlobalStyles } from '@theme/index';
 import { usePolling } from '@hooks/usePolling';
+import { theme, GlobalStyles } from '@theme/index';
+import { workflowLink } from '@utils/breadcrumbs';
 
 import { Main } from '@ui/layout/Main';
 import { Content } from '@ui/layout/Content';
@@ -145,7 +147,7 @@ function AppLayout() {
                 icon={<FileSearch size={18} />}
                 label="Overview"
                 active={location.pathname === `/workflow/${urlWorkflowId}`}
-                onClick={() => navigate(`/workflow/${urlWorkflowId}`)}
+                to={`/workflow/${urlWorkflowId}`}
               />
             )}
             <NavItem
@@ -153,13 +155,13 @@ function AppLayout() {
               icon={<LayoutDashboard size={18} />}
               badge={agents.length > 0 ? agents.length : undefined}
               active={urlWorkflowId ? location.pathname === `/workflow/${urlWorkflowId}/agents` : location.pathname === '/'}
-              onClick={() => navigate(urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/')}
+              to={urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/'}
             />
             <NavItem
               label="How to Connect"
               icon={<Plug size={18} />}
               active={location.pathname === '/connect'}
-              onClick={() => navigate('/connect')}
+              to="/connect"
             />
           </NavGroup>
           {!sidebarCollapsed && agents.length > 0 && (
@@ -175,10 +177,7 @@ function AppLayout() {
               agent={agent}
               active={currentAgentId === agent.id}
               collapsed={sidebarCollapsed}
-              onClick={() => {
-                const workflowId = agent.workflow_id || 'unassigned';
-                navigate(`/workflow/${workflowId}/agent/${agent.id}`);
-              }}
+              to={workflowLink(agent.workflow_id, `/agent/${agent.id}`)}
             />
           ))}
         </Sidebar.Section>

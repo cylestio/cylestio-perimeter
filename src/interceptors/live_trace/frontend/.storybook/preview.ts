@@ -7,14 +7,20 @@ import { theme, GlobalStyles } from '../src/theme';
 
 const preview: Preview = {
   decorators: [
-    (Story) => (
-      React.createElement(MemoryRouter, {},
-        React.createElement(ThemeProvider, { theme },
-          React.createElement(GlobalStyles),
-          React.createElement(Story)
-        )
-      )
-    ),
+    (Story, context) => {
+      const content = React.createElement(ThemeProvider, { theme },
+        React.createElement(GlobalStyles),
+        React.createElement(Story)
+      );
+
+      // Allow stories to disable the default router wrapper
+      if (context.parameters.router?.disable) {
+        return content;
+      }
+
+      const initialEntries = context.parameters.router?.initialEntries || ['/'];
+      return React.createElement(MemoryRouter, { initialEntries }, content);
+    },
   ],
   parameters: {
     backgrounds: {
