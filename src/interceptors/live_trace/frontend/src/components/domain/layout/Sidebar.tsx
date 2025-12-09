@@ -13,6 +13,8 @@ import {
 export interface SidebarProps {
   collapsed?: boolean;
   onToggle?: () => void;
+  /** Hide the collapse toggle button */
+  hideCollapse?: boolean;
   children: ReactNode;
 }
 
@@ -48,11 +50,11 @@ interface SidebarComponent extends FC<SidebarProps> {
   Footer: FC<SidebarFooterProps>;
 }
 
-export const Sidebar: SidebarComponent = ({ collapsed = false, onToggle, children }) => {
+export const Sidebar: SidebarComponent = ({ collapsed = false, onToggle, hideCollapse = false, children }) => {
   return (
     <StyledSidebar $collapsed={collapsed}>
       <SidebarNav>{children}</SidebarNav>
-      {onToggle && (
+      {onToggle && !hideCollapse && (
         <ToggleButton
           onClick={onToggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}

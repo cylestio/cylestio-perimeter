@@ -1,27 +1,29 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Bot, Calendar, Clock, FileSearch, Shield, CheckCircle, AlertCircle, ArrowRight, Link2, Activity, Zap } from 'lucide-react';
+import { Bot, Calendar, Clock, FileSearch, Shield, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import { 
   fetchWorkflowFindings, 
   fetchAnalysisSessions, 
   fetchWorkflowState,
-  fetchWorkflowCorrelation,
   type AnalysisSession,
   type WorkflowState,
-  type WorkflowCorrelation,
 } from '@api/endpoints/workflow';
 import { fetchDashboard } from '@api/endpoints/dashboard';
+import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
 import type { APIAgent } from '@api/types/dashboard';
+import type { SessionListItem } from '@api/types/session';
 import { workflowLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
+import { Section } from '@ui/layout/Section';
 
 import { FindingsTab } from '@domain/findings';
+import { SessionsTable } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
 import {
@@ -33,10 +35,6 @@ import {
   WorkflowStats,
   StatBadge,
   StatValue,
-  SectionCard,
-  SectionHeader,
-  SectionTitle,
-  SectionContent,
   AgentList,
   AgentListItem,
   AgentIcon,
@@ -72,12 +70,13 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [agents, setAgents] = useState<APIAgent[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
-  const [sessions, setSessions] = useState<AnalysisSession[]>([]);
+  const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [liveSessions, setLiveSessions] = useState<SessionListItem[]>([]);
   const [workflowState, setWorkflowState] = useState<WorkflowState | null>(null);
-  const [correlation, setCorrelation] = useState<WorkflowCorrelation | null>(null);
   const [loading, setLoading] = useState(true);
   const [findingsLoading, setFindingsLoading] = useState(false);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [analysisSessionsLoading, setAnalysisSessionsLoading] = useState(false);
+  const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch workflow data (agents in this workflow)
@@ -107,20 +106,8 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
     }
   }, [workflowId]);
 
-  // Fetch correlation data (only when both static and dynamic exist)
-  const fetchCorrelation = useCallback(async () => {
-    if (!workflowId) return;
-
-    try {
-      const data = await fetchWorkflowCorrelation(workflowId);
-      setCorrelation(data);
-    } catch (err) {
-      console.error('Failed to fetch correlation:', err);
-    }
-  }, [workflowId]);
-
   // Fetch findings for this workflow
-  const fetchFindings = useCallback(async () => {
+  const fetchFindingsData = useCallback(async () => {
     if (!workflowId) return;
 
     setFindingsLoading(true);
@@ -136,34 +123,48 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   }, [workflowId]);
 
   // Fetch analysis sessions for this workflow
-  const fetchSessions = useCallback(async () => {
+  const fetchAnalysisSessionsData = useCallback(async () => {
     if (!workflowId) return;
 
-    setSessionsLoading(true);
+    setAnalysisSessionsLoading(true);
     try {
       const data = await fetchAnalysisSessions(workflowId);
-      setSessions(data.sessions || []);
+      setAnalysisSessions(data.sessions || []);
     } catch (err) {
       console.error('Failed to fetch analysis sessions:', err);
     } finally {
-      setSessionsLoading(false);
+      setAnalysisSessionsLoading(false);
+    }
+  }, [workflowId]);
+
+  // Fetch live sessions for this workflow
+  const fetchLiveSessions = useCallback(async () => {
+    if (!workflowId) return;
+
+    setLiveSessionsLoading(true);
+    try {
+      const data = await fetchSessions({ workflow_id: workflowId, limit: 10 });
+      setLiveSessions(data.sessions || []);
+    } catch (err) {
+      console.error('Failed to fetch live sessions:', err);
+    } finally {
+      setLiveSessionsLoading(false);
     }
   }, [workflowId]);
 
   // Fetch data on mount
   useEffect(() => {
     fetchWorkflowData();
-    fetchFindings();
-    fetchSessions();
+    fetchFindingsData();
+    fetchAnalysisSessionsData();
+    fetchLiveSessions();
     fetchState();
-    fetchCorrelation();
-  }, [fetchWorkflowData, fetchFindings, fetchSessions, fetchState, fetchCorrelation]);
+  }, [fetchWorkflowData, fetchFindingsData, fetchAnalysisSessionsData, fetchLiveSessions, fetchState]);
 
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Portfolio', href: '/' },
-      { label: 'Workflow' },
+      { label: 'Workflows', href: '/' },
       { label: workflowId || '' },
     ],
   });
@@ -218,7 +219,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   };
 
   // Count sessions by status
-  const inProgressCount = sessions.filter(s => s.status === 'IN_PROGRESS').length;
+  const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
 
   // Get lifecycle state info
   const getLifecycleInfo = () => {
@@ -304,10 +305,10 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
             <Bot size={14} />
             <StatValue>{agents.length}</StatValue> agents
           </StatBadge>
-          {sessions.length > 0 && (
+          {analysisSessions.length > 0 && (
             <StatBadge>
               <FileSearch size={14} />
-              <StatValue>{sessions.length}</StatValue> scans
+              <StatValue>{analysisSessions.length}</StatValue> scans
             </StatBadge>
           )}
           {findingsSummary && (
@@ -319,130 +320,52 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
         </WorkflowStats>
       </WorkflowHeader>
 
-      {/* Correlation Section - Show when both static and dynamic exist */}
-      {correlation && workflowState?.state === 'COMPLETE' && (
-        <SectionCard style={{ borderColor: '#10b981', borderWidth: '2px' }}>
-          <SectionHeader>
-            <SectionTitle>
-              <Link2 size={16} style={{ marginRight: '8px' }} />
-              Static ↔ Dynamic Correlation
-              <Badge variant="success">COMPLETE</Badge>
-            </SectionTitle>
-          </SectionHeader>
-          <SectionContent>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
-              <div style={{ 
-                background: 'rgba(99, 102, 241, 0.1)', 
-                padding: '16px', 
-                borderRadius: '8px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6366f1' }}>
-                  {correlation.static_findings_count}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Static Findings</div>
-              </div>
-              <div style={{ 
-                background: 'rgba(16, 185, 129, 0.1)', 
-                padding: '16px', 
-                borderRadius: '8px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
-                  {correlation.dynamic_sessions_count}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Dynamic Sessions</div>
-              </div>
-              <div style={{ 
-                background: 'rgba(245, 158, 11, 0.1)', 
-                padding: '16px', 
-                borderRadius: '8px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
-                  {correlation.dynamic_tools_used.length}
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tools Exercised</div>
-              </div>
-            </div>
-
-            {correlation.dynamic_tools_used.length > 0 && (
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  <Activity size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                  Runtime Tool Usage:
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {correlation.dynamic_tools_used.map((tool) => (
-                    <Badge key={tool} variant="medium">
-                      <Zap size={10} style={{ marginRight: '4px' }} />
-                      {tool}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+      {/* Recent Sessions */}
+      <SessionsTable
+        sessions={liveSessions}
+        workflowId={workflowId || 'unassigned'}
+        loading={liveSessionsLoading}
+        emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
+        header={
+          <>
+            <Section.Title>Recent Sessions</Section.Title>
+            {liveSessions.length > 0 && (
+              <Link
+                to={`/workflow/${workflowId}/sessions`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '12px',
+                  color: 'var(--color-white50)',
+                  textDecoration: 'none',
+                }}
+              >
+                View All <ArrowRight size={12} />
+              </Link>
             )}
-
-            {correlation.recommendations.length > 0 && (
-              <div style={{ 
-                background: 'rgba(99, 102, 241, 0.05)', 
-                padding: '12px', 
-                borderRadius: '8px',
-                fontSize: '13px'
-              }}>
-                <strong>Recommendation:</strong> {correlation.recommendations[0]}
-              </div>
-            )}
-          </SectionContent>
-        </SectionCard>
-      )}
-
-      {/* Correlation Prompt - Show when only one type exists */}
-      {workflowState && (workflowState.state === 'STATIC_ONLY' || workflowState.state === 'DYNAMIC_ONLY') && (
-        <SectionCard style={{ borderColor: '#f59e0b', borderWidth: '1px', borderStyle: 'dashed' }}>
-          <SectionContent>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '12px',
-              padding: '8px'
-            }}>
-              <Link2 size={24} color="#f59e0b" />
-              <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                  {workflowState.state === 'STATIC_ONLY' 
-                    ? '🧪 Ready for Dynamic Validation' 
-                    : '🔍 Static Analysis Recommended'}
-                </div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  {workflowState.state === 'STATIC_ONLY'
-                    ? `Run your agent through the proxy to validate ${workflowState.findings_count} static findings with actual runtime behavior.`
-                    : `Run static analysis from your IDE using Agent Inspector to correlate with ${workflowState.dynamic_agents_count} dynamic sessions.`}
-                </div>
-              </div>
-            </div>
-          </SectionContent>
-        </SectionCard>
-      )}
+          </>
+        }
+      />
 
       {/* Analysis Sessions */}
-      <SectionCard>
-        <SectionHeader>
-          <SectionTitle>
-            Analysis Sessions ({sessions.length})
-            {inProgressCount > 0 && (
-              <Badge variant="medium">{inProgressCount} in progress</Badge>
-            )}
-          </SectionTitle>
-        </SectionHeader>
-        <SectionContent>
-          {sessionsLoading ? (
+      <Section>
+        <Section.Header>
+          <Section.Title>
+            Analysis Sessions ({analysisSessions.length})
+          </Section.Title>
+          {inProgressCount > 0 && (
+            <Badge variant="medium">{inProgressCount} in progress</Badge>
+          )}
+        </Section.Header>
+        <Section.Content>
+          {analysisSessionsLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
               <OrbLoader size="md" />
             </div>
-          ) : sessions.length > 0 ? (
+          ) : analysisSessions.length > 0 ? (
             <SessionList>
-              {sessions.map((session) => (
+              {analysisSessions.map((session) => (
                 <SessionCard key={session.session_id}>
                   <SessionHeader>
                     <SessionInfo>
@@ -490,36 +413,30 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
               </p>
             </EmptyContent>
           )}
-        </SectionContent>
-      </SectionCard>
+        </Section.Content>
+      </Section>
 
       {/* Security Findings */}
-      <SectionCard>
-        <SectionHeader>
-          <SectionTitle>
-            Security Findings
-            {openCount > 0 && (
-              <Badge variant="critical">{openCount} open</Badge>
-            )}
-          </SectionTitle>
-        </SectionHeader>
-        <SectionContent>
+      <Section>
+        <Section.Header>
+          <Section.Title icon={<Shield size={16} />}>Security Findings</Section.Title>
+          {openCount > 0 && <Badge variant="critical">{openCount} open</Badge>}
+        </Section.Header>
+        <Section.Content>
           <FindingsTab
             findings={findings}
             summary={findingsSummary || undefined}
             isLoading={findingsLoading}
           />
-        </SectionContent>
-      </SectionCard>
+        </Section.Content>
+      </Section>
 
       {/* Agents List */}
-      <SectionCard>
-        <SectionHeader>
-          <SectionTitle>
-            Agents ({agents.length})
-          </SectionTitle>
-        </SectionHeader>
-        <SectionContent>
+      <Section>
+        <Section.Header>
+          <Section.Title icon={<Bot size={16} />}>Agents ({agents.length})</Section.Title>
+        </Section.Header>
+        <Section.Content>
           {agents.length > 0 ? (
             <AgentList>
               {agents.map((agent) => (
@@ -551,8 +468,8 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
               </p>
             </EmptyContent>
           )}
-        </SectionContent>
-      </SectionCard>
+        </Section.Content>
+      </Section>
     </WorkflowLayout>
   );
 };

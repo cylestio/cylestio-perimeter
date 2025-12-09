@@ -47,6 +47,7 @@ export const colors = {
   // Text Colors
   white: '#ffffff',
   white90: 'rgba(255, 255, 255, 0.90)',
+  white80: 'rgba(255, 255, 255, 0.80)',
   white70: 'rgba(255, 255, 255, 0.70)',
   white50: 'rgba(255, 255, 255, 0.50)',
   white30: 'rgba(255, 255, 255, 0.30)',

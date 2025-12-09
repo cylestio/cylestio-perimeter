@@ -1,9 +1,46 @@
-import type { SessionResponse } from '../types/session';
+import type { SessionResponse, SessionsListResponse, LiveSessionStatus } from '../types/session';
 
 export const fetchSession = async (sessionId: string): Promise<SessionResponse> => {
   const response = await fetch(`/api/session/${sessionId}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch session: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+export interface FetchSessionsParams {
+  workflow_id?: string;
+  agent_id?: string;
+  status?: LiveSessionStatus;
+  limit?: number;
+}
+
+export const fetchSessions = async (params?: FetchSessionsParams): Promise<SessionsListResponse> => {
+  const searchParams = new URLSearchParams();
+
+  if (params?.workflow_id) {
+    searchParams.set('workflow_id', params.workflow_id);
+  }
+  if (params?.agent_id) {
+    searchParams.set('agent_id', params.agent_id);
+  }
+  if (params?.status) {
+    searchParams.set('status', params.status);
+  }
+  if (params?.limit) {
+    searchParams.set('limit', params.limit.toString());
+  }
+
+  const queryString = searchParams.toString();
+  const url = queryString ? `/api/sessions/list?${queryString}` : '/api/sessions/list';
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch sessions: ${response.statusText}`);
   }
   const data = await response.json();
   if (data.error) {

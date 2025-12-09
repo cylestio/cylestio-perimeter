@@ -1,13 +1,15 @@
 import { useState, useCallback, useEffect } from 'react';
 
-import { FileSearch, LayoutDashboard, Plug } from 'lucide-react';
+import { FileSearch, LayoutDashboard, Plug, History, Home } from 'lucide-react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 
+import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
+import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
-import { usePolling } from '@hooks/usePolling';
+import { useIsInitialLoad, usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
 import { workflowLink } from '@utils/breadcrumbs';
 
@@ -23,9 +25,10 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 import { AgentListItem } from '@domain/agents/AgentListItem';
 import { WorkflowSelector, type Workflow } from '@domain/workflows';
+import { AnalysisStatusItem } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, WorkflowDetail } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, WorkflowDetail, WorkflowsHome } from '@pages/index';
 
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
@@ -55,8 +58,15 @@ function AppLayout() {
   const urlWorkflowId = getWorkflowIdFromPath(location.pathname);
   const currentAgentId = getAgentIdFromPath(location.pathname);
 
+  // Detect if we're on the root page or in unassigned context
+  const isRootPage = location.pathname === '/' || location.pathname === '/connect';
+  const isUnassignedContext = urlWorkflowId === 'unassigned';
+
   // Workflow list state (for dropdown)
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+
+  // Config state (for storage mode indicator)
+  const [config, setConfig] = useState<ConfigResponse | null>(null);
 
   // Derive selected workflow from URL
   const selectedWorkflow = (() => {
@@ -81,6 +91,15 @@ function AppLayout() {
       });
   }, []);
 
+  // Fetch config on mount (for storage mode indicator)
+  useEffect(() => {
+    fetchConfig()
+      .then(setConfig)
+      .catch((error) => {
+        console.error('Failed to fetch config:', error);
+      });
+  }, []);
+
   // Refresh workflows periodically (every 30 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -96,11 +115,8 @@ function AppLayout() {
   }, []);
 
   // Handle workflow selection - navigate to new URL
-  const handleWorkflowSelect = useCallback((workflow: Workflow | null) => {
-    if (workflow === null) {
-      // All Workflows - go to root
-      navigate('/');
-    } else if (workflow.id === null) {
+  const handleWorkflowSelect = useCallback((workflow: Workflow) => {
+    if (workflow.id === null) {
       // Unassigned workflow - use 'unassigned' in URL
       navigate('/workflow/unassigned');
     } else {
@@ -122,17 +138,28 @@ function AppLayout() {
 
   const agents = data?.agents ?? [];
 
+  // Check if this is the initial load (fires once when data first loads)
+  const isInitialLoad = useIsInitialLoad(!loading && data !== null);
+
+  // Redirect to /connect on first load if no workflows exist and no unassigned agents
+  useEffect(() => {
+    if (isInitialLoad && location.pathname === '/' && workflows.length === 0 && agents.length === 0) {
+      navigate('/connect', { replace: true });
+    }
+  }, [isInitialLoad, location.pathname, workflows.length, agents.length, navigate]);
+
   return (
     <Shell>
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        hideCollapse
       >
         <Sidebar.Header>
           <Logo />
         </Sidebar.Header>
-        {/* Workflow Selector - only show if there are workflows */}
-        {workflows.length > 0 && (
+        {/* Workflow Selector - only show if there are workflows and NOT on root page */}
+        {workflows.length > 0 && !isRootPage && (
           <WorkflowSelector
             workflows={workflows}
             selectedWorkflow={selectedWorkflow}
@@ -141,37 +168,84 @@ function AppLayout() {
           />
         )}
         <Sidebar.Section>
-          <NavGroup>
-            {urlWorkflowId && (
-              <NavItem
-                icon={<FileSearch size={18} />}
-                label="Overview"
-                active={location.pathname === `/workflow/${urlWorkflowId}`}
-                to={`/workflow/${urlWorkflowId}`}
+          {/* Start Here - show on root page and connect page */}
+          {isRootPage && (
+            <NavItem
+              icon={<Home size={18} />}
+              label="Start Here"
+              active={location.pathname === '/'}
+              to="/"
+              collapsed={sidebarCollapsed}
+            />
+          )}
+
+          {/* Analysis Section - only show when in a workflow (not on root) */}
+          {urlWorkflowId && !isRootPage && (
+            <NavGroup label={!sidebarCollapsed ? 'Analysis' : undefined}>
+              <AnalysisStatusItem
+                label="Static Analysis"
+                status="inactive"
+                collapsed={sidebarCollapsed}
+                disabled={isUnassignedContext}
               />
-            )}
-            <NavItem
-              label="Agents"
-              icon={<LayoutDashboard size={18} />}
-              badge={agents.length > 0 ? agents.length : undefined}
-              active={urlWorkflowId ? location.pathname === `/workflow/${urlWorkflowId}/agents` : location.pathname === '/'}
-              to={urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/'}
-            />
-            <NavItem
-              label="How to Connect"
-              icon={<Plug size={18} />}
-              active={location.pathname === '/connect'}
-              to="/connect"
-            />
-          </NavGroup>
-          {!sidebarCollapsed && agents.length > 0 && (
+              <AnalysisStatusItem
+                label="Dynamic Analysis"
+                status="inactive"
+                collapsed={sidebarCollapsed}
+                disabled={isUnassignedContext}
+              />
+              <AnalysisStatusItem
+                label="Recommendations"
+                status="inactive"
+                isRecommendation
+                collapsed={sidebarCollapsed}
+                disabled={isUnassignedContext}
+              />
+            </NavGroup>
+          )}
+
+          {/* Navigate Section - only show when in a workflow (not on root) */}
+          {!isRootPage && (
+            <NavGroup label={urlWorkflowId && !sidebarCollapsed ? 'Navigate' : undefined}>
+              {urlWorkflowId && (
+                <NavItem
+                  icon={<FileSearch size={18} />}
+                  label="Overview"
+                  active={location.pathname === `/workflow/${urlWorkflowId}`}
+                  to={`/workflow/${urlWorkflowId}`}
+                  collapsed={sidebarCollapsed}
+                />
+              )}
+              <NavItem
+                label="Agents"
+                icon={<LayoutDashboard size={18} />}
+                badge={agents.length > 0 ? agents.length : undefined}
+                active={urlWorkflowId ? location.pathname === `/workflow/${urlWorkflowId}/agents` : location.pathname === '/'}
+                to={urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/'}
+                collapsed={sidebarCollapsed}
+              />
+              {urlWorkflowId && (
+                <NavItem
+                  icon={<History size={18} />}
+                  label="Sessions"
+                  badge={data?.sessions_count ? data.sessions_count : undefined}
+                  active={location.pathname === `/workflow/${urlWorkflowId}/sessions`}
+                  to={`/workflow/${urlWorkflowId}/sessions`}
+                  collapsed={sidebarCollapsed}
+                />
+              )}
+            </NavGroup>
+          )}
+
+          {/* Agent List - only show when NOT on root page */}
+          {!isRootPage && !sidebarCollapsed && agents.length > 0 && (
             <div style={{ marginTop: 16, marginBottom: 8, paddingLeft: 12 }}>
               <Label size="xs" uppercase>
                 Agents ({agents.length})
               </Label>
             </div>
           )}
-          {agents.map((agent) => (
+          {!isRootPage && agents.map((agent) => (
             <AgentListItem
               key={agent.id}
               agent={agent}
@@ -182,7 +256,18 @@ function AppLayout() {
           ))}
         </Sidebar.Section>
         <Sidebar.Footer>
-          <LocalModeIndicator storageMode="in-memory" />
+          <NavItem
+            label="How to Connect"
+            icon={<Plug size={18} />}
+            active={location.pathname === '/connect'}
+            to="/connect"
+            collapsed={sidebarCollapsed}
+          />
+          <LocalModeIndicator
+            collapsed={sidebarCollapsed}
+            storageMode={config?.storage_mode}
+            storagePath={config?.db_path ?? undefined}
+          />
         </Sidebar.Footer>
       </Sidebar>
       <Main>
@@ -197,7 +282,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ agents, sessions: data?.sessions ?? [], loading }} />
+          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading }} />
         </Content>
       </Main>
     </Shell>
@@ -212,12 +297,13 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
-              {/* Root routes - All Workflows view */}
-              <Route path="/" element={<Portfolio />} />
+              {/* Root routes - Workflows landing page */}
+              <Route path="/" element={<WorkflowsHome />} />
               <Route path="/connect" element={<Connect />} />
               {/* Workflow-prefixed routes */}
               <Route path="/workflow/:workflowId" element={<WorkflowDetail />} />
               <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
+              <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
               <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
               <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
               <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />

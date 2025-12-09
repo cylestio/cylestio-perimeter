@@ -432,6 +432,47 @@ export const ClickInteraction: Story = {
 };
 ```
 
+### Global Router (DO NOT add MemoryRouter in stories)
+
+Storybook has a **global `MemoryRouter`** configured in `.storybook/preview.ts`. Do NOT add another `MemoryRouter` in story decorators - this causes "router inside router" errors.
+
+```typescript
+// ✗ Bad - redundant router
+decorators: [
+  (Story) => (
+    <MemoryRouter>  // DON'T DO THIS
+      <Story />
+    </MemoryRouter>
+  ),
+],
+
+// ✓ Good - router already provided globally
+decorators: [
+  (Story) => (
+    <div style={{ padding: 24 }}>
+      <Story />
+    </div>
+  ),
+],
+```
+
+**To customize router behavior**, use `parameters.router`:
+```typescript
+export const WithCustomRoute: Story = {
+  parameters: {
+    router: {
+      initialEntries: ['/workflow/abc123/agent/xyz'],  // Set initial route
+    },
+  },
+};
+
+export const NoRouter: Story = {
+  parameters: {
+    router: { disable: true },  // Disable global router for this story
+  },
+};
+```
+
 ---
 
 ## API Layer

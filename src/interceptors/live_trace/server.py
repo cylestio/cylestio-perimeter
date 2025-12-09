@@ -116,12 +116,51 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/sessions")
     async def api_sessions():
-        """Get all sessions as JSON."""
+        """Get all sessions as JSON (legacy endpoint)."""
         try:
-            data = await insights.get_dashboard_data()
-            return JSONResponse(data["sessions"])
+            sessions = insights.store.get_sessions_filtered(limit=100)
+            return JSONResponse(sessions)
         except Exception as e:
             logger.error(f"Error getting sessions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/sessions/list")
+    async def api_sessions_list(
+        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get sessions with filtering by workflow_id, agent_id, and/or status.
+
+        Args:
+            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
+            agent_id: Filter by agent ID.
+            status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+            limit: Maximum number of sessions to return (default 100).
+
+        Returns:
+            JSON response with sessions list and metadata.
+        """
+        try:
+            sessions = insights.store.get_sessions_filtered(
+                workflow_id=workflow_id,
+                agent_id=agent_id,
+                status=status,
+                limit=limit,
+            )
+            return JSONResponse({
+                "sessions": sessions,
+                "total_count": len(sessions),
+                "filters": {
+                    "workflow_id": workflow_id,
+                    "agent_id": agent_id,
+                    "status": status,
+                    "limit": limit,
+                },
+            })
+        except Exception as e:
+            logger.error(f"Error getting filtered sessions: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/agent/{agent_id}")

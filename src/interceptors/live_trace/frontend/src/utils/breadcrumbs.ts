@@ -4,7 +4,7 @@ export type { BreadcrumbItem };
 
 /**
  * Builds breadcrumbs with workflow context.
- * Always starts with Portfolio, then adds workflow (or Unassigned), then page-specific items.
+ * Always starts with Workflows, then adds workflow name (or Unassigned), then page-specific items.
  */
 export function buildWorkflowBreadcrumbs(
   workflowId: string | null | undefined,
@@ -13,9 +13,9 @@ export function buildWorkflowBreadcrumbs(
   const wfId = workflowId || 'unassigned';
 
   return [
-    { label: 'Portfolio', href: '/' },
+    { label: 'Workflows', href: '/' },
     ...(wfId !== 'unassigned'
-      ? [{ label: 'Workflow', href: `/workflow/${wfId}` }]
+      ? [{ label: wfId, href: `/workflow/${wfId}` }]
       : [{ label: 'Unassigned', href: '/workflow/unassigned' }]),
     ...pageItems,
   ];

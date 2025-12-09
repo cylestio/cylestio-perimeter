@@ -17,6 +17,7 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Tooltip } from '@ui/overlays/Tooltip';
+import { Section } from '@ui/layout/Section';
 
 import { InfoCard } from '@domain/metrics/InfoCard';
 
@@ -95,9 +96,6 @@ import {
   MetricCard,
   MetricLabel,
   MetricValue,
-  EvaluationCard,
-  EvaluationHeader,
-  EvaluationTitle,
   EvaluationCounter,
   EvaluationDescription,
   ActiveSessionsNote,
@@ -251,22 +249,24 @@ export const AgentReport: FC = () => {
       <ReportMain>
         {/* Evaluation Progress Banner */}
         {status.evaluationStatus === 'INSUFFICIENT_DATA' && (
-          <EvaluationCard>
-            <EvaluationHeader>
-              <EvaluationTitle>Gathering Data for Risk Analysis</EvaluationTitle>
+          <Section>
+            <Section.Header>
+              <Section.Title>Gathering Data for Risk Analysis</Section.Title>
               <EvaluationCounter>
                 {status.currentSessions} / {status.minSessionsRequired}
               </EvaluationCounter>
-            </EvaluationHeader>
-            <ProgressBar
-              value={(status.currentSessions || 0) / (status.minSessionsRequired || 5)}
-              variant="default"
-            />
-            <EvaluationDescription style={{ marginTop: '12px' }}>
-              We need at least {status.minSessionsRequired} sessions to provide meaningful risk
-              analysis. Keep using your agent to build up session history.
-            </EvaluationDescription>
-          </EvaluationCard>
+            </Section.Header>
+            <Section.Content>
+              <ProgressBar
+                value={(status.currentSessions || 0) / (status.minSessionsRequired || 5)}
+                variant="default"
+              />
+              <EvaluationDescription style={{ marginTop: '12px' }}>
+                We need at least {status.minSessionsRequired} sessions to provide meaningful risk
+                analysis. Keep using your agent to build up session history.
+              </EvaluationDescription>
+            </Section.Content>
+          </Section>
         )}
 
         {/* Behavioral Analysis Waiting Banner */}

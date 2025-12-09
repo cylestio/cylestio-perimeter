@@ -4,6 +4,7 @@ import type { NavItemBadgeColor } from './NavItem';
 interface StyledNavItemProps {
   $active?: boolean;
   $disabled?: boolean;
+  $collapsed?: boolean;
 }
 
 export const StyledNavItem = styled.a<StyledNavItemProps>`
@@ -17,6 +18,13 @@ export const StyledNavItem = styled.a<StyledNavItemProps>`
   cursor: pointer;
   text-decoration: none;
   transition: all 150ms ease;
+
+  ${({ $collapsed }) =>
+    $collapsed &&
+    css`
+      justify-content: center;
+      padding: 10px;
+    `}
 
   ${({ $active, $disabled, theme }) => {
     if ($disabled) {
@@ -43,6 +51,12 @@ export const StyledNavItem = styled.a<StyledNavItemProps>`
       }
     `;
   }}
+`;
+
+export const NavItemLabel = styled.span`
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 export const NavItemIcon = styled.span`

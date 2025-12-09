@@ -78,14 +78,17 @@ class InsightsEngine:
         # Agent summary runs analysis outside the lock
         agents = await self._get_agent_summary(workflow_id=workflow_id)
 
-        # Get sessions and latest session (need lock for data access)
+        # Get sessions count and latest session (need lock for data access)
         with self.store.lock:
-            sessions = self._get_recent_sessions(workflow_id=workflow_id)
+            # Use efficient count query instead of fetching all sessions
+            sessions_count = self.store.count_sessions_filtered(
+                workflow_id=workflow_id if workflow_id != "unassigned" else "unassigned",
+            )
             latest_session = self._get_latest_active_session(workflow_id=workflow_id)
 
         return {
             "agents": agents,
-            "sessions": sessions,
+            "sessions_count": sessions_count,
             "latest_session": latest_session,
             "workflow_id": workflow_id,
             "last_updated": datetime.now(timezone.utc).isoformat()
@@ -1350,5 +1353,7 @@ class InsightsEngine:
             "provider_type": self.proxy_config.get("provider_type", "unknown"),
             "provider_base_url": self.proxy_config.get("provider_base_url", "unknown"),
             "proxy_host": self.proxy_config.get("proxy_host", "127.0.0.1"),
-            "proxy_port": self.proxy_config.get("proxy_port", 4000)
+            "proxy_port": self.proxy_config.get("proxy_port", 4000),
+            "storage_mode": self.proxy_config.get("storage_mode", "memory"),
+            "db_path": self.proxy_config.get("db_path"),
         }

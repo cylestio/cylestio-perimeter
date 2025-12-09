@@ -8,16 +8,12 @@ interface LocalModeContainerProps {
 export const LocalModeContainer = styled.div<LocalModeContainerProps>`
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: ${({ theme }) => theme.spacing[3]};
   padding: ${({ theme }) => theme.spacing[2]};
   border-radius: ${({ theme }) => theme.radii.md};
+  min-height: 82px;
   cursor: default;
-
-  ${({ $collapsed }) =>
-    $collapsed &&
-    css`
-      justify-content: center;
-    `}
 `;
 
 export const LocalModeIcon = styled.div`
@@ -57,9 +53,10 @@ export const StorageBadge = styled.div<StorageBadgeProps>`
   border-radius: ${({ theme }) => theme.radii.sm};
   font-size: 10px;
   font-weight: 500;
+  white-space: nowrap;
 
   ${({ $mode, theme }) =>
-    $mode === 'in-memory'
+    $mode === 'memory'
       ? css`
           background: ${theme.colors.orangeSoft};
           color: ${theme.colors.orange};
@@ -68,5 +65,13 @@ export const StorageBadge = styled.div<StorageBadgeProps>`
           background: ${theme.colors.cyanSoft};
           color: ${theme.colors.cyan};
         `}
+`;
+
+export const TooltipPath = styled.div`
+  margin-top: ${({ theme }) => theme.spacing[2]};
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
