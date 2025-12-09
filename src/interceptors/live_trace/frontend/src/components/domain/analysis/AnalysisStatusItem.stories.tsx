@@ -415,3 +415,84 @@ export const DisabledComparison: Story = {
     await expect(canvas.getByText('Recommendations')).toBeInTheDocument();
   },
 };
+
+// ==================== Navigation (to prop) ====================
+
+export const WithNavigation: Story = {
+  args: {
+    label: 'Static Analysis',
+    status: 'ok',
+    stat: 'All passed',
+    to: '/workflow/test-workflow/static-analysis',
+  },
+  parameters: {
+    router: {
+      initialEntries: ['/workflow/test-workflow'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const link = canvas.getByRole('link');
+    await expect(link).toBeInTheDocument();
+    await expect(link).toHaveAttribute('href', '/workflow/test-workflow/static-analysis');
+  },
+};
+
+export const WithNavigationActive: Story = {
+  args: {
+    label: 'Static Analysis',
+    status: 'ok',
+    stat: 'All passed',
+    to: '/workflow/test-workflow/static-analysis',
+    active: true,
+  },
+  parameters: {
+    router: {
+      initialEntries: ['/workflow/test-workflow/static-analysis'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const link = canvas.getByRole('link');
+    await expect(link).toBeInTheDocument();
+    await expect(canvas.getByText('Static Analysis')).toBeInTheDocument();
+  },
+};
+
+export const NavigationDisabled: Story = {
+  args: {
+    label: 'Static Analysis',
+    status: 'inactive',
+    to: '/workflow/test-workflow/static-analysis',
+    disabled: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // When disabled, should not render as a link
+    await expect(canvas.queryByRole('link')).not.toBeInTheDocument();
+    await expect(canvas.getByText('Static Analysis')).toBeInTheDocument();
+  },
+};
+
+export const NavigationCollapsed: Story = {
+  args: {
+    label: 'Static Analysis',
+    status: 'ok',
+    to: '/workflow/test-workflow/static-analysis',
+    collapsed: true,
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 64, background: 'var(--color-surface)', padding: 8, borderRadius: 8 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const link = canvas.getByRole('link');
+    await expect(link).toBeInTheDocument();
+    // Label should not be visible when collapsed
+    await expect(canvas.queryByText('Static Analysis')).not.toBeInTheDocument();
+  },
+};

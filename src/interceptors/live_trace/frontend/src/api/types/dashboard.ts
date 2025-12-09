@@ -63,10 +63,33 @@ export interface LatestSession {
   last_activity: string;
 }
 
+// Findings summary embedded in analysis stage (subset of full FindingsSummary)
+export interface StageFindingsSummary {
+  total: number;
+  by_severity: Record<string, number>;
+  by_status: Record<string, number>;
+}
+
+export type AnalysisStageStatus = 'pending' | 'active' | 'completed';
+
+// Analysis stage with embedded findings
+export interface AnalysisStage {
+  status: AnalysisStageStatus;
+  findings: StageFindingsSummary | null;
+}
+
+// Unified security analysis object
+export interface SecurityAnalysis {
+  static: AnalysisStage;
+  dynamic: AnalysisStage;
+  recommendations: AnalysisStage;
+}
+
 export interface DashboardResponse {
   agents: APIAgent[];
   sessions_count: number;
   latest_session: LatestSession;
   last_updated: string;
   refresh_interval: number;
+  security_analysis?: SecurityAnalysis;
 }

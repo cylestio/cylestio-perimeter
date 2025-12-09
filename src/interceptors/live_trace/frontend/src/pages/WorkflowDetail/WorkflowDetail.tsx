@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Bot, Calendar, Clock, FileSearch, Shield, CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
+import { Bot, Calendar, Clock, FileSearch, Shield, ArrowRight, Code, Activity, Lightbulb } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import { 
@@ -13,7 +13,7 @@ import {
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgent, SecurityAnalysis, AnalysisStage } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { workflowLink } from '../../utils/breadcrumbs';
 
@@ -22,6 +22,7 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Section } from '@ui/layout/Section';
 
+import { LifecycleProgress, type LifecycleStage } from '@domain/activity';
 import { FindingsTab } from '@domain/findings';
 import { SessionsTable } from '@domain/sessions';
 
@@ -49,14 +50,6 @@ import {
   SessionId,
   SessionMeta,
   SessionMetaItem,
-  LifecycleBanner,
-  LifecycleIcon,
-  LifecycleContent,
-  LifecycleTitle,
-  LifecycleMessage,
-  LifecycleStages,
-  LifecycleStage,
-  StageArrow,
 } from './WorkflowDetail.styles';
 
 export interface WorkflowDetailProps {
@@ -70,6 +63,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [agents, setAgents] = useState<APIAgent[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
+  const [securityAnalysis, setSecurityAnalysis] = useState<SecurityAnalysis | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
   const [liveSessions, setLiveSessions] = useState<SessionListItem[]>([]);
   const [workflowState, setWorkflowState] = useState<WorkflowState | null>(null);
@@ -79,13 +73,14 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch workflow data (agents in this workflow)
+  // Fetch workflow data (agents + security analysis in this workflow)
   const fetchWorkflowData = useCallback(async () => {
     if (!workflowId) return;
 
     try {
       const data = await fetchDashboard(workflowId);
       setAgents(data.agents || []);
+      setSecurityAnalysis(data.security_analysis ?? null);
     } catch (err) {
       console.error('Failed to fetch workflow data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load workflow');
@@ -221,79 +216,50 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   // Count sessions by status
   const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
 
-  // Get lifecycle state info
-  const getLifecycleInfo = () => {
-    if (!workflowState) return null;
-    
-    switch (workflowState.state) {
-      case 'COMPLETE':
-        return {
-          icon: <CheckCircle size={20} color="#10b981" />,
-          title: 'Complete Analysis Available',
-          message: 'Both static and dynamic analysis data available for this workflow.',
-        };
-      case 'STATIC_ONLY':
-        return {
-          icon: <AlertCircle size={20} color="#f59e0b" />,
-          title: 'Static Analysis Only',
-          message: workflowState.recommendation || 'Run dynamic testing to validate findings.',
-        };
-      case 'DYNAMIC_ONLY':
-        return {
-          icon: <AlertCircle size={20} color="#f59e0b" />,
-          title: 'Dynamic Data Only',
-          message: workflowState.recommendation || 'Run static analysis from your IDE for correlation.',
-        };
-      default:
-        return {
-          icon: <AlertCircle size={20} color="#6366f1" />,
-          title: 'Get Started',
-          message: workflowState.recommendation || 'Run static or dynamic analysis to begin.',
-        };
-    }
+  // Derive stat string from analysis stage (frontend logic)
+  const getStageStat = (stage: AnalysisStage | undefined): string | undefined => {
+    if (!stage) return undefined;
+    if (stage.status === 'active') return 'Running...';
+    if (stage.status !== 'completed' || !stage.findings) return undefined;
+
+    const { by_severity, by_status } = stage.findings;
+    const critical = by_severity?.CRITICAL ?? 0;
+    const high = by_severity?.HIGH ?? 0;
+    const open = by_status?.OPEN ?? 0;
+
+    if (critical > 0) return `${critical} critical`;
+    if (high > 0) return `${high} high`;
+    if (open > 0) return `${open} open`;
+    return 'All clear';
   };
 
-  const lifecycleInfo = getLifecycleInfo();
+  // Convert backend security analysis to lifecycle stages
+  const lifecycleStages: LifecycleStage[] = [
+    {
+      id: 'static',
+      label: 'Static',
+      icon: <Code size={16} />,
+      status: securityAnalysis?.static.status ?? 'pending',
+      stat: getStageStat(securityAnalysis?.static),
+    },
+    {
+      id: 'dynamic',
+      label: 'Dynamic',
+      icon: <Activity size={16} />,
+      status: securityAnalysis?.dynamic.status ?? 'pending',
+      stat: getStageStat(securityAnalysis?.dynamic),
+    },
+    {
+      id: 'recommendations',
+      label: 'Recommendations',
+      icon: <Lightbulb size={16} />,
+      status: securityAnalysis?.recommendations.status ?? 'pending',
+      stat: getStageStat(securityAnalysis?.recommendations),
+    },
+  ];
 
   return (
     <WorkflowLayout className={className} data-testid="workflow-detail">
-      {/* Lifecycle Banner */}
-      {workflowState && lifecycleInfo && (
-        <LifecycleBanner $state={workflowState.state}>
-          <LifecycleIcon>{lifecycleInfo.icon}</LifecycleIcon>
-          <LifecycleContent>
-            <LifecycleTitle>{lifecycleInfo.title}</LifecycleTitle>
-            <LifecycleMessage>{lifecycleInfo.message}</LifecycleMessage>
-            <LifecycleStages>
-              <LifecycleStage 
-                $active={!workflowState.has_static_analysis && !workflowState.has_dynamic_sessions} 
-                $complete={false}
-              >
-                Development
-              </LifecycleStage>
-              <StageArrow><ArrowRight size={12} /></StageArrow>
-              <LifecycleStage 
-                $active={workflowState.has_static_analysis && !workflowState.has_dynamic_sessions}
-                $complete={workflowState.has_static_analysis}
-              >
-                Static Scan {workflowState.has_static_analysis && `(${workflowState.findings_count})`}
-              </LifecycleStage>
-              <StageArrow><ArrowRight size={12} /></StageArrow>
-              <LifecycleStage 
-                $active={workflowState.has_dynamic_sessions}
-                $complete={workflowState.has_dynamic_sessions}
-              >
-                Dynamic Test {workflowState.has_dynamic_sessions && `(${workflowState.dynamic_agents_count})`}
-              </LifecycleStage>
-              <StageArrow><ArrowRight size={12} /></StageArrow>
-              <LifecycleStage $active={false} $complete={false}>
-                Production 🔒
-              </LifecycleStage>
-            </LifecycleStages>
-          </LifecycleContent>
-        </LifecycleBanner>
-      )}
-
       {/* Header */}
       <WorkflowHeader>
         <WorkflowInfo>
@@ -319,6 +285,16 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
           )}
         </WorkflowStats>
       </WorkflowHeader>
+
+      {/* Analysis Lifecycle Progress */}
+      <Section>
+        <Section.Header>
+          <Section.Title>Analysis Progress</Section.Title>
+        </Section.Header>
+        <Section.Content>
+          <LifecycleProgress stages={lifecycleStages} />
+        </Section.Content>
+      </Section>
 
       {/* Recent Sessions */}
       <SessionsTable

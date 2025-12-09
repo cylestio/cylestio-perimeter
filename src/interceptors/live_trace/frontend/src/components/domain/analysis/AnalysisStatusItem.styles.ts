@@ -43,6 +43,7 @@ export const StyledAnalysisStatusItem = styled.div<StyledItemProps>`
   font-size: 13px;
   font-weight: 500;
   transition: all 150ms ease;
+  text-decoration: none;
 
   ${({ $collapsed }) =>
     $collapsed &&

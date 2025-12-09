@@ -1,6 +1,7 @@
 import type { FC, ReactNode } from 'react';
 
 import { Check, X, AlertTriangle, Minus, Lightbulb } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import { Tooltip } from '@ui/overlays/Tooltip';
 
@@ -33,6 +34,8 @@ export interface AnalysisStatusItemProps {
   active?: boolean;
   /** Whether this item is disabled (e.g., not applicable for unassigned workflows) */
   disabled?: boolean;
+  /** React Router navigation path */
+  to?: string;
   /** Optional click handler */
   onClick?: () => void;
   className?: string;
@@ -114,19 +117,14 @@ export const AnalysisStatusItem: FC<AnalysisStatusItemProps> = ({
   isRecommendation = false,
   active = false,
   disabled = false,
+  to,
   onClick,
   className,
 }) => {
-  const content = (
-    <StyledAnalysisStatusItem
-      $collapsed={collapsed}
-      $isRecommendation={isRecommendation}
-      $active={active}
-      $clickable={!!onClick && !disabled}
-      $disabled={disabled}
-      onClick={disabled ? undefined : onClick}
-      className={className}
-    >
+  const isClickable = (!!onClick || !!to) && !disabled;
+
+  const innerContent = (
+    <>
       <StatusRing status={status} isRecommendation={isRecommendation} />
       {!collapsed && (
         <>
@@ -141,6 +139,45 @@ export const AnalysisStatusItem: FC<AnalysisStatusItemProps> = ({
           )}
         </>
       )}
+    </>
+  );
+
+  // Use Link for navigation when `to` is provided
+  if (to && !disabled) {
+    const content = (
+      <StyledAnalysisStatusItem
+        as={Link}
+        to={to}
+        $collapsed={collapsed}
+        $isRecommendation={isRecommendation}
+        $active={active}
+        $clickable={isClickable}
+        $disabled={disabled}
+        className={className}
+      >
+        {innerContent}
+      </StyledAnalysisStatusItem>
+    );
+
+    return collapsed ? (
+      <Tooltip content={label} position="right">
+        {content}
+      </Tooltip>
+    ) : content;
+  }
+
+  // Fallback to div with onClick handler
+  const content = (
+    <StyledAnalysisStatusItem
+      $collapsed={collapsed}
+      $isRecommendation={isRecommendation}
+      $active={active}
+      $clickable={isClickable}
+      $disabled={disabled}
+      onClick={disabled ? undefined : onClick}
+      className={className}
+    >
+      {innerContent}
     </StyledAnalysisStatusItem>
   );
 
