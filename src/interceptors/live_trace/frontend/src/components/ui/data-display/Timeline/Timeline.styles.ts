@@ -1,8 +1,10 @@
 import styled from 'styled-components';
 
+import type { Theme } from '@theme/theme';
+
 export type EventType = 'llm.call.start' | 'llm.call.finish' | 'tool.execution' | 'tool.result' | 'error' | 'default';
 
-const getEventColor = (eventType: EventType, theme: typeof import('@theme/theme').theme) => {
+const getEventColor = (eventType: EventType, theme: Theme) => {
   switch (eventType) {
     case 'llm.call.start':
     case 'llm.call.finish':
