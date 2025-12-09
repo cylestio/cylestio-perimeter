@@ -2,7 +2,7 @@
 # Usage: python -m src.main --config examples/configs/production.yaml
 
 server:
-  port: 8080
+  port: 4000
   host: "0.0.0.0"
   workers: 4
 

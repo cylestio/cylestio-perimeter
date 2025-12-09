@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "storybook": "storybook dev -p 6006",
+    "storybook": "storybook dev -p 7501",
     "build-storybook": "storybook build",
     "test-storybook": "vitest --project=storybook"
   },

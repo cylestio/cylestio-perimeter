@@ -27,7 +27,6 @@ import {
   BehavioralValue,
   ConfidenceBadge,
   WarningsText,
-  LifecycleIndicator,
 } from './AgentCard.styles';
 
 // Types
@@ -35,7 +34,6 @@ export type RiskStatus = 'evaluating' | 'ok';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
-export type LifecycleStage = 'dev' | 'static' | 'dynamic' | 'prod';
 
 export interface AgentCardProps {
   id: string;
@@ -58,23 +56,6 @@ export interface AgentCardProps {
   warnings?: number;
   onClick?: () => void;
 }
-
-// Helper functions for lifecycle stage
-const getAgentStage = (totalSessions: number): LifecycleStage => {
-  if (totalSessions > 10) return 'dynamic';
-  if (totalSessions > 0) return 'static';
-  return 'dev';
-};
-
-const getStageEmoji = (stage: LifecycleStage): string => {
-  const emojis = {
-    dev: '🔧',
-    static: '🔍',
-    dynamic: '🧪',
-    prod: '🚀',
-  };
-  return emojis[stage];
-};
 
 // Component
 export const AgentCard: FC<AgentCardProps> = ({
@@ -101,10 +82,6 @@ export const AgentCard: FC<AgentCardProps> = ({
     100
   );
 
-  // Calculate lifecycle stage
-  const lifecycleStage = getAgentStage(totalSessions);
-  const stageEmoji = getStageEmoji(lifecycleStage);
-
   // Show behavioral section when evaluation is complete and we have metrics
   const showBehavioral =
     riskStatus === 'ok' &&
@@ -121,12 +98,7 @@ export const AgentCard: FC<AgentCardProps> = ({
       <CardHeader>
         <Avatar name={id} size="lg" />
         <AgentInfo>
-          <AgentName>
-            <LifecycleIndicator title={`Lifecycle: ${lifecycleStage}`}>
-              {stageEmoji}
-            </LifecycleIndicator>
-            {name}
-          </AgentName>
+          <AgentName>{name}</AgentName>
           <AgentId>{id}</AgentId>
         </AgentInfo>
         <RiskStatusBadge $riskStatus={riskStatus}>
@@ -175,11 +147,11 @@ export const AgentCard: FC<AgentCardProps> = ({
             {(failedChecks > 0 || warnings > 0) && (
               <BehavioralRow>
                 {failedChecks > 0 && (
-                  <WarningsText>⚠ {failedChecks} failed checks</WarningsText>
+                  <WarningsText>{failedChecks} failed checks</WarningsText>
                 )}
                 {warnings > 0 && (
                   <WarningsText style={{ marginLeft: failedChecks > 0 ? '8px' : 0 }}>
-                    ⚠ {warnings} warnings
+                    {warnings} warnings
                   </WarningsText>
                 )}
               </BehavioralRow>
@@ -207,7 +179,7 @@ export const AgentCard: FC<AgentCardProps> = ({
 
       <CardFooter>
         <LastSeen $critical={hasCriticalFinding}>
-          {hasCriticalFinding ? '⚠ Action required' : `Last seen: ${lastSeen}`}
+          {hasCriticalFinding ? 'Action required' : `Last seen: ${lastSeen}`}
         </LastSeen>
         <ViewButton>View →</ViewButton>
       </CardFooter>

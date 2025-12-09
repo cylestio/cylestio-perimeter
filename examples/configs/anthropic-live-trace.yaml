@@ -2,7 +2,7 @@
 # Usage: python -m src.main --config examples/configs/anthropic-basic.yaml
 
 server:
-  port: 3000
+  port: 4000
   host: "0.0.0.0"
   workers: 1
 
@@ -15,12 +15,11 @@ interceptors:
   - type: live_trace
     enabled: true
     config:
-      server_port: 8080
+      server_port: 7100
       auto_open_browser: true
       max_events: 10000
       retention_minutes: 30
       refresh_interval: 2
       storage_mode: "sqlite"
-      # db_path: "./trace_data/anthropic-live-trac2e.db"
-      db_path: "./trace_data/test_data.db"
+      db_path: "./trace_data/test_data2.db"
       # enable_presidio: false  # Disable PII detection (enabled by default)

@@ -11,7 +11,7 @@ async def test_external_agent_id():
     """Test the x-cylestio-agent-id header functionality."""
     
     # Test configuration
-    base_url = "http://localhost:3000"
+    base_url = "http://localhost:4000"
     test_headers = {
         "Content-Type": "application/json",
         "x-cylestio-agent-id": "test-custom-agent-123"
@@ -55,7 +55,7 @@ async def test_external_agent_id():
                 print(f"❌ Error Response: {response.text}")
                 
     except httpx.ConnectError:
-        print("❌ Connection Error: Make sure the gateway is running on localhost:3000")
+        print("❌ Connection Error: Make sure the gateway is running on localhost:4000")
         print("💡 Start the gateway with: python -m src.main --config examples/configs/openai-basic.yaml")
     except Exception as e:
         print(f"❌ Unexpected Error: {e}")
@@ -64,7 +64,7 @@ async def test_external_agent_id():
 async def test_fallback_behavior():
     """Test that the system falls back to computed agent ID when header is not provided."""
     
-    base_url = "http://localhost:3000"
+    base_url = "http://localhost:4000"
     test_headers = {"Content-Type": "application/json"}
     
     test_body = {
@@ -107,7 +107,7 @@ async def test_fallback_behavior():
 async def test_both_headers():
     """Test using both x-cylestio-session-id and x-cylestio-agent-id headers."""
     
-    base_url = "http://localhost:3000"
+    base_url = "http://localhost:4000"
     test_headers = {
         "Content-Type": "application/json",
         "x-cylestio-session-id": "test-session-456",

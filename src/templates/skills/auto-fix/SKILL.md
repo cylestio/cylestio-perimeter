@@ -12,8 +12,8 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
 - User says "apply the security fix"
 
 ## Prerequisites
-- Agent Inspector server running (proxy on port 3000, MCP on port 8080)
-- MCP connection configured to `http://localhost:8080/mcp`
+- Agent Inspector server running (proxy on port 4000, MCP on port 7100)
+- MCP connection configured to `http://localhost:7100/mcp`
 - Existing finding ID or known vulnerability type
 
 **Works with:** Findings from both static analysis (code review) and dynamic analysis (runtime tracing) when they share the same workflow_id.

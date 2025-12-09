@@ -10,7 +10,7 @@ import httpx
 
 async def test_openai_proxy():
     """Test OpenAI API through the proxy server."""
-    proxy_url = "http://localhost:3000"
+    proxy_url = "http://localhost:4000"
     
     async with httpx.AsyncClient() as client:
         print("🔄 Testing OpenAI Chat Completion...")
@@ -68,12 +68,12 @@ async def test_openai_proxy():
 
 if __name__ == "__main__":
     print("🚀 Testing LLM Proxy Server with OpenAI")
-    print("Make sure your proxy server is running on http://localhost:3000")
+    print("Make sure your proxy server is running on http://localhost:4000")
     print("And set your OPENAI_API_KEY environment variable\n")
     
     try:
         asyncio.run(test_openai_proxy())
     except httpx.ConnectError:
-        print("❌ Could not connect to proxy server. Is it running on http://localhost:3000?")
+        print("❌ Could not connect to proxy server. Is it running on http://localhost:4000?")
     except Exception as e:
         print(f"❌ Error: {e}")

@@ -142,7 +142,7 @@ ANTHROPIC_API_KEY=your-anthropic-key-here
 
 # Optional
 LOG_LEVEL=INFO
-SERVER_PORT=3000
+SERVER_PORT=4000
 ```
 
 ## 💡 Usage Patterns
@@ -216,7 +216,7 @@ Common variables:
 
 ### Health Checks
 ```bash
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 # Returns: {"status": "healthy", "service": "llm-proxy"}
 ```
 

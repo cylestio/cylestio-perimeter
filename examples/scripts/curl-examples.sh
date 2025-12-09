@@ -1,12 +1,12 @@
 #!/bin/bash
 # Example curl commands to test the LLM proxy server
-# Make sure your proxy server is running on http://localhost:3000
+# Make sure your proxy server is running on http://localhost:4000
 
 echo "🚀 LLM Proxy Server - cURL Examples"
 echo "=================================="
 echo ""
 
-PROXY_URL="http://localhost:3000"
+PROXY_URL="http://localhost:4000"
 
 echo "1. Health Check"
 echo "curl -X GET $PROXY_URL/health"

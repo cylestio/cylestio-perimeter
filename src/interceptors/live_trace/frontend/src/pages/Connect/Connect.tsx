@@ -86,7 +86,7 @@ export const Connect: FC = () => {
 
   const baseUrl = config
     ? `http://localhost:${config.proxy_port}`
-    : 'http://localhost:3000';
+    : 'http://localhost:4000';
 
   const proxyUrl = urlMode === 'workflow'
     ? `${baseUrl}/workflow/${workflowId}`
@@ -201,7 +201,7 @@ export const Connect: FC = () => {
                     Port
                   </Label>
                   <Text size="sm" mono color="secondary">
-                    {config?.proxy_port || 3000}
+                    {config?.proxy_port || 4000}
                   </Text>
                 </ConfigItem>
               </ConfigDetails>

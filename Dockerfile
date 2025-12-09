@@ -19,7 +19,7 @@ COPY src/ ./src/
 RUN mkdir -p /app/traces
 
 # Expose port
-EXPOSE 3000
+EXPOSE 4000
 
 # Run the application
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "4000"]

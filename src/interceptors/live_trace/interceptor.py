@@ -21,7 +21,7 @@ class LiveTraceInterceptor(BaseInterceptor):
 
         Args:
             config: Interceptor configuration with the following options:
-                - server_port: Port for the web dashboard (default: 8080)
+                - server_port: Port for the web dashboard (default: 7100)
                 - server_host: Host interface to bind to (default: 127.0.0.1)
                 - auto_open_browser: Whether to open browser on startup (default: True)
                 - max_events: Maximum events to keep in memory (default: 10000)
@@ -36,7 +36,7 @@ class LiveTraceInterceptor(BaseInterceptor):
         super().__init__(config)
 
         # Configuration
-        self.server_port = config.get("server_port", 8080)
+        self.server_port = config.get("server_port", 7100)
         self.server_host = config.get("server_host", "127.0.0.1")
         self.auto_open_browser = config.get("auto_open_browser", True)
         self.max_events = config.get("max_events", 10000)
@@ -73,7 +73,7 @@ class LiveTraceInterceptor(BaseInterceptor):
             "provider_type": self.provider_name,
             "provider_base_url": self.provider_config.get("base_url", "unknown"),
             "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
-            "proxy_port": self.provider_config.get("proxy_port", 3000),
+            "proxy_port": self.provider_config.get("proxy_port", 4000),
             "enable_presidio": self.enable_presidio,
             "api_key": self.provider_config.get("api_key"),
         }

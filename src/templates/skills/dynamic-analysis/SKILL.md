@@ -54,7 +54,7 @@ agent-inspector openai
 agent-inspector anthropic
 ```
 
-The proxy server starts on **port 3000** and the live trace dashboard opens at **http://localhost:8080**.
+The proxy server starts on **port 4000** and the live trace dashboard opens at **http://localhost:7100**.
 
 ### Step 3: Configure the Agent's base_url with Workflow ID
 
@@ -62,7 +62,7 @@ The proxy server starts on **port 3000** and the live trace dashboard opens at *
 
 The base_url format is:
 ```
-http://localhost:3000/workflow/<workflow-id>
+http://localhost:4000/workflow/<workflow-id>
 ```
 
 Choose a consistent `workflow_id` for your project (e.g., `my-agent-v1`, `customer-service-bot`). Use the **same workflow_id** you used in static analysis to get unified results.
@@ -75,7 +75,7 @@ from openai import OpenAI
 WORKFLOW_ID = "my-agent-v1"  # Same ID used in static analysis
 
 client = OpenAI(
-    base_url=f"http://localhost:3000/workflow/{WORKFLOW_ID}",
+    base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}",
     api_key=os.getenv("OPENAI_API_KEY")
 )
 ```
@@ -88,7 +88,7 @@ from anthropic import Anthropic
 WORKFLOW_ID = "my-agent-v1"  # Same ID used in static analysis
 
 client = Anthropic(
-    base_url=f"http://localhost:3000/workflow/{WORKFLOW_ID}",
+    base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}",
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 ```
@@ -102,8 +102,8 @@ Arguments:
   PROVIDER              openai or anthropic (default: openai)
 
 Options:
-  -p, --port PORT       Override proxy server port (default: 3000)
-  --trace-port PORT     Override dashboard port (default: 8080)
+  -p, --port PORT       Override proxy server port (default: 4000)
+  --trace-port PORT     Override dashboard port (default: 7100)
   --use-local-storage   Enable SQLite persistence for traces
   --local-storage-path  Custom database path (requires --use-local-storage)
   --show-configs        Display bundled configurations and exit
@@ -140,7 +140,7 @@ def create_client(use_inspector: bool = True):
     """Create OpenAI client, optionally routing through Agent Inspector."""
     if use_inspector:
         return OpenAI(
-            base_url=f"http://localhost:3000/workflow/{WORKFLOW_ID}",
+            base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}",
             api_key=os.getenv("OPENAI_API_KEY")
         )
     return OpenAI()
@@ -148,7 +148,7 @@ def create_client(use_inspector: bool = True):
 def main():
     client = create_client(use_inspector=True)
 
-    print(f"Agent running - view traces at http://localhost:3000/workflow/{WORKFLOW_ID}")
+    print(f"Agent running - view traces at http://localhost:4000/workflow/{WORKFLOW_ID}")
 
     messages = [{"role": "user", "content": "Hello!"}]
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
 
 1. **Check if Agent Inspector is running:**
    ```bash
-   curl http://localhost:3000/health
+   curl http://localhost:4000/health
    ```
 
 2. **Start Agent Inspector first, then run your agent:**
@@ -197,20 +197,20 @@ agent-inspector openai --port 3001 --trace-port 8081
 Then update agent's base_url:
 ```python
 WORKFLOW_ID = "my-agent-v1"
-client = OpenAI(base_url=f"http://localhost:3001/workflow/{WORKFLOW_ID}", ...)
+client = OpenAI(base_url=f"http://localhost:4001/workflow/{WORKFLOW_ID}", ...)
 ```
 
 ### Traces not appearing in dashboard
 
 1. Verify the agent is configured with the workflow URL pattern
 2. Check the terminal where Agent Inspector is running for errors
-3. Navigate to `http://localhost:3000/workflow/{workflow_id}` to see your traces
+3. Navigate to `http://localhost:4000/workflow/{workflow_id}` to see your traces
 
 ### Agent works without inspector but fails with it
 
 1. Check API key is set correctly in the agent (inspector forwards it)
 2. Verify the provider type matches (`openai` vs `anthropic`)
-3. Check for firewall/network issues blocking localhost:3000
+3. Check for firewall/network issues blocking localhost:4000
 
 ## Environment Variable Alternative
 
@@ -219,9 +219,9 @@ Instead of hardcoding base_url, use environment variables:
 ```bash
 # Set workflow ID and base URL together
 export WORKFLOW_ID="my-agent-v1"
-export OPENAI_BASE_URL="http://localhost:3000/workflow/${WORKFLOW_ID}"
+export OPENAI_BASE_URL="http://localhost:4000/workflow/${WORKFLOW_ID}"
 # Or for Anthropic
-export ANTHROPIC_BASE_URL="http://localhost:3000/workflow/${WORKFLOW_ID}"
+export ANTHROPIC_BASE_URL="http://localhost:4000/workflow/${WORKFLOW_ID}"
 ```
 
 Then in code:
@@ -237,7 +237,7 @@ client = Anthropic(base_url=base_url) if base_url else Anthropic()
 
 ## What the Dashboard Shows
 
-The workflow dashboard at `http://localhost:3000/workflow/{workflow_id}` provides:
+The workflow dashboard at `http://localhost:4000/workflow/{workflow_id}` provides:
 
 - **Real-time request/response capture** - See exactly what's sent to the LLM
 - **Session timeline** - Track multi-turn conversations
@@ -250,17 +250,17 @@ The workflow dashboard at `http://localhost:3000/workflow/{workflow_id}` provide
 
 1. **Choose a workflow_id** for your project (e.g., `my-agent-v1`)
 2. **Start Agent Inspector** in one terminal: `agent-inspector openai`
-3. **Configure agent** with `base_url=f"http://localhost:3000/workflow/{WORKFLOW_ID}"`
+3. **Configure agent** with `base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}"`
 4. **Run your agent** in another terminal
-5. **View traces** at `http://localhost:3000/workflow/{workflow_id}`
+5. **View traces** at `http://localhost:4000/workflow/{workflow_id}`
 6. **Run static analysis** with the same workflow_id for unified results
 
 ## Default Ports
 
 | Service | Default Port |
 |---------|-------------|
-| Proxy Server | 3000 |
-| Dashboard | 8080 |
+| Proxy Server | 4000 |
+| Dashboard | 7100 |
 
 ## Unified Analysis
 
@@ -270,6 +270,6 @@ For complete security coverage, use the same workflow_id for both:
    - `create_analysis_session(workflow_id="my-agent-v1", session_type="STATIC")`
 
 2. **Dynamic Analysis** (via proxy):
-   - `base_url=f"http://localhost:3000/workflow/my-agent-v1"`
+   - `base_url=f"http://localhost:4000/workflow/my-agent-v1"`
 
-Both appear unified in the dashboard at `http://localhost:3000/workflow/my-agent-v1`
+Both appear unified in the dashboard at `http://localhost:4000/workflow/my-agent-v1`

@@ -12,8 +12,8 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 - User wants to "check for security issues"
 
 ## Prerequisites
-- Agent Inspector server running (proxy on port 3000, MCP on port 8080)
-- MCP connection configured to `http://localhost:8080/mcp`
+- Agent Inspector server running (proxy on port 4000, MCP on port 7100)
+- MCP connection configured to `http://localhost:7100/mcp`
 
 **Relationship to Dynamic Analysis:** Static analysis examines code without execution. For complete security coverage, also run dynamic analysis using the **same workflow_id** to observe actual runtime behavior.
 
@@ -43,7 +43,7 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
    Call `complete_analysis_session` to finalize and calculate risk score.
 
 6. **Report**
-   Summarize findings and provide dashboard link: `http://localhost:3000/workflow/{workflow_id}`
+   Summarize findings and provide dashboard link: `http://localhost:4000/workflow/{workflow_id}`
 
 ## MCP Tools Reference
 
@@ -64,8 +64,8 @@ For complete security coverage, suggest running dynamic analysis after static an
 1. **Use the same workflow_id** - Critical for unified results
 2. **Configure agent's base_url** with workflow_id:
    ```python
-   base_url = f"http://localhost:3000/workflow/{workflow_id}"
+   base_url = f"http://localhost:4000/workflow/{workflow_id}"
    ```
-3. **View unified results** at `http://localhost:3000/workflow/{workflow_id}`
+3. **View unified results** at `http://localhost:4000/workflow/{workflow_id}`
 
 This validates static findings with actual runtime behavior.

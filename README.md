@@ -75,7 +75,7 @@ A configurable Python proxy server for LLM API requests with middleware support,
 2. **Using Docker directly:**
    ```bash
    docker build -t llm-proxy .
-   docker run -p 3000:3000 -e LLM_BASE_URL=https://api.openai.com -e LLM_TYPE=openai -e LLM_API_KEY=sk-your-key llm-proxy
+   docker run -p 4000:4000 -e LLM_BASE_URL=https://api.openai.com -e LLM_TYPE=openai -e LLM_API_KEY=sk-your-key llm-proxy
    ```
 
 ## Usage Examples
@@ -86,14 +86,14 @@ A configurable Python proxy server for LLM API requests with middleware support,
 cylestio-perimeter run --base-url https://api.openai.com --type openai --api-key sk-your-key
 
 # Make requests to the proxy
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl -X POST http://localhost:4000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
 ### Streaming Requests
 ```bash
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl -X POST http://localhost:4000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": "Hello!"}], "stream": true}'
 ```
@@ -102,7 +102,7 @@ curl -X POST http://localhost:3000/v1/chat/completions \
 ```yaml
 # config.yaml
 server:
-  port: 3000
+  port: 4000
   host: "0.0.0.0"
 
 llm:
@@ -124,19 +124,19 @@ The gateway supports custom session and agent identification via headers:
 
 ```bash
 # Custom session ID
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl -X POST http://localhost:4000/v1/chat/completions \
   -H "x-cylestio-session-id: my-session-123" \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}]}'
 
 # Custom agent ID
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl -X POST http://localhost:4000/v1/chat/completions \
   -H "x-cylestio-agent-id: math-tutor-v2" \
   -H "Content-Type: application/json" \
   -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "What is 2+2?"}]}'
 
 # Both custom session and agent ID
-curl -X POST http://localhost:3000/v1/chat/completions \
+curl -X POST http://localhost:4000/v1/chat/completions \
   -H "x-cylestio-session-id: user-session-456" \
   -H "x-cylestio-agent-id: customer-support-bot" \
   -H "Content-Type: application/json" \
@@ -173,7 +173,7 @@ cylestio-perimeter run --help
 
 ### Development Mode
 ```bash
-uvicorn src.main:app --reload --port 3000
+uvicorn src.main:app --reload --port 4000
 ```
 
 ## Configuration
@@ -182,7 +182,7 @@ uvicorn src.main:app --reload --port 3000
 - `--base-url`: Base URL of target LLM API (required)
 - `--type`: LLM provider type (required)
 - `--api-key`: API key to inject into requests
-- `--port`: Proxy server port (default: 3000)
+- `--port`: Proxy server port (default: 4000)
 - `--host`: Server host (default: 0.0.0.0)
 - `--log-level`: Logging level (INFO, DEBUG, etc.)
 - `--config`: Path to YAML configuration file
@@ -261,7 +261,7 @@ session:
 Access session metrics via the `/metrics` endpoint:
 
 ```bash
-curl http://localhost:3000/metrics
+curl http://localhost:4000/metrics
 ```
 
 Response includes:
