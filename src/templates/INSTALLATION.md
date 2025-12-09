@@ -8,8 +8,6 @@ Agent Inspector provides MCP (Model Context Protocol) tools that enable AI assis
 - Scan code for OWASP LLM Top 10 vulnerabilities
 - Store and track security findings
 - Get remediation templates for fixing issues
-- **Correlate static analysis with dynamic runtime behavior**
-- **Track workflow lifecycle (development → testing → production)**
 
 ## Prerequisites
 
@@ -71,7 +69,7 @@ In Claude Code, run:
 /mcp
 ```
 
-You should see `agent-inspector` listed with **14 available tools**.
+You should see `agent-inspector` listed with 8 available tools.
 
 ---
 
@@ -113,102 +111,38 @@ cp /path/to/cylestio-perimeter/src/templates/cursor-rules/agent-inspector.mdc \
 
 ### Verify Setup
 
-The AI assistant should now have access to **14 MCP tools**. Test by asking:
-> "Check the workflow state for my project using Agent Inspector"
-
-Or simply:
-> "Run a security scan on this codebase"
+The AI assistant should now have access to 8 MCP tools. Test by asking:
+> "What OWASP security patterns should I check for?"
 
 ---
 
-## Available MCP Tools (14 total)
+## Available MCP Tools
 
-### Config & Lifecycle Tools
-| Tool | Description |
-|------|-------------|
-| `get_workflow_config` | Read/auto-create `cylestio.yaml` for workflow_id |
-| `get_workflow_state` | Check what analysis exists (static/dynamic/both) |
-| `get_workflow_correlation` | Correlate static findings with dynamic runtime |
-| `get_tool_usage_summary` | Get tool usage patterns from dynamic sessions |
-| `get_agents` | List agents (filter by workflow_id or "unlinked") |
-| `update_agent_info` | Link agents to workflows, set display names |
-
-### Knowledge Tools
-| Tool | Description |
-|------|-------------|
-| `get_security_patterns` | Get OWASP LLM security patterns |
-| `get_owasp_control` | Get details for specific OWASP control |
-| `get_fix_template` | Get remediation template |
-
-### Analysis Tools
-| Tool | Description |
-|------|-------------|
-| `create_analysis_session` | Start analysis session (requires workflow_id) |
-| `store_finding` | Record a security finding |
-| `complete_analysis_session` | Finalize and get risk score |
-| `get_findings` | Retrieve stored findings |
-| `update_finding_status` | Mark finding as fixed/ignored |
-
----
-
-## How It Works: Auto-Setup
-
-When you first ask for a security scan, the AI assistant will:
-
-1. **Auto-detect workflow_id** - Derives from git remote, package name, or folder
-2. **Auto-create `cylestio.yaml`** - Saves the config in your project root
-3. **Auto-discover agents** - Finds any unlinked dynamic agents using `get_agents("unlinked")`
-4. **Auto-link agents** - Links them to your workflow using `update_agent_info(agent_id, workflow_id=...)`
-5. **Auto-correlate** - Connects static analysis with dynamic runtime traces
-
-```yaml
-# cylestio.yaml (auto-created)
-workflow_id: your-project-name
-workflow_name: Your Project Name
-```
-
-This file should be committed to git so the whole team uses the same workflow_id.
+| Tool | Description | Example Use |
+|------|-------------|-------------|
+| `get_security_patterns` | Get OWASP LLM security patterns | Start of analysis |
+| `get_owasp_control` | Get details for specific control | Deep dive on LLM01 |
+| `get_fix_template` | Get remediation template | When fixing issues |
+| `create_analysis_session` | Start analysis session | Before scanning |
+| `store_finding` | Record a security finding | When issue found |
+| `complete_analysis_session` | Finalize and get risk score | End of analysis |
+| `get_findings` | Retrieve stored findings | Review results |
+| `update_finding_status` | Mark finding as fixed/ignored | After remediation |
 
 ---
 
 ## Usage Examples
 
-### Security Scan (Static Analysis)
+### Security Scan
 
 Ask Claude/Cursor:
 > "Run a security scan on this codebase"
 
 The AI will:
-1. Call `get_workflow_config()` - auto-creates `cylestio.yaml` if missing
-2. Call `get_workflow_state()` - check what analysis already exists
-3. Call `get_agents("unlinked")` - find any unlinked dynamic agents
-4. Call `update_agent_info(agent_id, workflow_id=...)` - link them
-5. Call `get_security_patterns()` - get OWASP patterns
-6. Call `create_analysis_session(workflow_id)` - start session
-7. Analyze code and call `store_finding()` for each issue
-8. Call `complete_analysis_session()` - finalize
-9. Call `get_workflow_correlation()` - correlate with any dynamic data
-10. Call `update_agent_info(agent_id, display_name=...)` - name agents based on code
-
-### Dynamic Analysis (Runtime Testing)
-
-Ask Claude/Cursor:
-> "Help me test my agent with Agent Inspector"
-
-The AI will:
-1. Read workflow_id from `cylestio.yaml`
-2. Configure your agent code to use: `base_url=f"http://localhost:3000/workflow/{workflow_id}"`
-3. Run tests and view traces in dashboard
-
-### Check Correlation
-
-Ask Claude/Cursor:
-> "Show me the correlation between static findings and dynamic tests"
-
-The AI will:
-1. Call `get_workflow_correlation(workflow_id)`
-2. Report which findings are validated by runtime behavior
-3. Recommend additional test scenarios
+1. Call `get_security_patterns` to get OWASP patterns
+2. Call `create_analysis_session` with your `workflow_id` (project identifier)
+3. Analyze code and call `store_finding` for each issue found
+4. Call `complete_analysis_session` to get risk score
 
 ### Fix a Finding
 
@@ -216,9 +150,9 @@ Ask Claude/Cursor:
 > "Fix the prompt injection vulnerability in api.py"
 
 The AI will:
-1. Call `get_fix_template()` for remediation guidance
+1. Call `get_fix_template` for remediation guidance
 2. Apply the fix to your code
-3. Call `update_finding_status()` to mark as fixed
+3. Call `update_finding_status` to mark as fixed
 
 ### View Dashboard
 
@@ -230,12 +164,6 @@ Or directly at a workflow:
 ```
 http://localhost:4000/workflow/{workflow_id}
 ```
-
-The dashboard shows:
-- Lifecycle state (Static Only → Dynamic Only → Complete)
-- Security findings with severity
-- Tool usage patterns from dynamic sessions
-- Correlation between static findings and runtime behavior
 
 ---
 
@@ -258,11 +186,10 @@ The dashboard shows:
 
 ## File Locations
 
-After installation and first scan, your project structure should look like:
+After installation, your project structure should look like:
 
 ```
 your-agent-project/
-├── cylestio.yaml                # Workflow config (auto-created, commit to git!)
 ├── .mcp.json                    # Claude Code MCP config
 ├── .cursor/
 │   ├── mcp.json                 # Cursor MCP config
@@ -271,15 +198,12 @@ your-agent-project/
 ├── .claude/
 │   └── skills/
 │       ├── static-analysis.md   # Static analysis skill
-│       ├── dynamic-analysis.md  # Dynamic analysis skill
 │       └── auto-fix.md          # Auto-fix skill
 └── ... your code
 ```
 
 Global config (applies to all projects):
 - Cursor: `~/.cursor/mcp.json`
-
-**Important:** Commit `cylestio.yaml` to git so your team uses the same workflow_id!
 
 ---
 
