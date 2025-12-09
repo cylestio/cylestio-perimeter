@@ -5,7 +5,7 @@ import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from '
 import { ThemeProvider } from 'styled-components';
 
 import type { ConfigResponse } from '@api/types/config';
-import type { DashboardResponse } from '@api/types/dashboard';
+import type { DashboardResponse, DashboardFindingsSummary } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
@@ -25,10 +25,36 @@ import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
 import { AgentListItem } from '@domain/agents/AgentListItem';
 import { WorkflowSelector, type Workflow } from '@domain/workflows';
-import { AnalysisStatusItem } from '@domain/analysis';
+import { AnalysisStatusItem, type AnalysisStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
 import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, StaticAnalysis, WorkflowDetail, WorkflowsHome } from '@pages/index';
+
+// Derive analysis status from findings summary
+function getStaticAnalysisStatus(summary: DashboardFindingsSummary | undefined): AnalysisStatus {
+  if (!summary || summary.total_findings === 0) {
+    return 'inactive';
+  }
+
+  const openCritical = summary.by_severity?.CRITICAL ?? 0;
+  const openHigh = summary.by_severity?.HIGH ?? 0;
+
+  if (openCritical > 0) {
+    return 'critical';
+  }
+  if (openHigh > 0) {
+    return 'warning';
+  }
+
+  return 'ok';
+}
+
+// Get open findings count from summary
+function getOpenFindingsCount(summary: DashboardFindingsSummary | undefined): number | undefined {
+  if (!summary) return undefined;
+  const openCount = summary.by_status?.OPEN ?? 0;
+  return openCount > 0 ? openCount : undefined;
+}
 
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
@@ -184,7 +210,8 @@ function AppLayout() {
             <NavGroup label={!sidebarCollapsed ? 'Analysis' : undefined}>
               <AnalysisStatusItem
                 label="Static Analysis"
-                status="inactive"
+                status={getStaticAnalysisStatus(data?.findings_summary)}
+                count={getOpenFindingsCount(data?.findings_summary)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/static-analysis`}

@@ -86,11 +86,20 @@ class InsightsEngine:
             )
             latest_session = self._get_latest_active_session(workflow_id=workflow_id)
 
+        # Get findings summary if workflow_id is provided (not for root/all view)
+        findings_summary = None
+        if workflow_id and workflow_id != "unassigned":
+            try:
+                findings_summary = self.store.get_workflow_findings_summary(workflow_id)
+            except Exception as e:
+                logger.warning(f"Failed to get findings summary for workflow {workflow_id}: {e}")
+
         return {
             "agents": agents,
             "sessions_count": sessions_count,
             "latest_session": latest_session,
             "workflow_id": workflow_id,
+            "findings_summary": findings_summary,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 

@@ -63,10 +63,18 @@ export interface LatestSession {
   last_activity: string;
 }
 
+export interface DashboardFindingsSummary {
+  workflow_id: string;
+  total_findings: number;
+  by_severity: Record<string, number>;
+  by_status: Record<string, number>;
+}
+
 export interface DashboardResponse {
   agents: APIAgent[];
   sessions_count: number;
   latest_session: LatestSession;
   last_updated: string;
   refresh_interval: number;
+  findings_summary?: DashboardFindingsSummary;
 }
