@@ -177,15 +177,15 @@ export const ActionRequired: Story = {
     // Verify card renders
     await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
 
-    // Verify action required message
-    await expect(canvas.getByText('⚠ Action required')).toBeInTheDocument();
+    // Verify action required message (no emoji prefix in component)
+    await expect(canvas.getByText('Action required')).toBeInTheDocument();
 
     // Verify low confidence badge
     await expect(canvas.getByText('low')).toBeInTheDocument();
 
-    // Verify warnings display
-    await expect(canvas.getByText('⚠ 3 failed checks')).toBeInTheDocument();
-    await expect(canvas.getByText('⚠ 5 warnings')).toBeInTheDocument();
+    // Verify warnings display (no emoji prefix in component)
+    await expect(canvas.getByText('3 failed checks')).toBeInTheDocument();
+    await expect(canvas.getByText('5 warnings')).toBeInTheDocument();
   },
 };
 
@@ -215,8 +215,8 @@ export const MediumConfidence: Story = {
     await expect(canvas.getByText('72%')).toBeInTheDocument();
     await expect(canvas.getByText('68%')).toBeInTheDocument();
 
-    // Verify warnings
-    await expect(canvas.getByText('⚠ 2 warnings')).toBeInTheDocument();
+    // Verify warnings (no emoji prefix in component)
+    await expect(canvas.getByText('2 warnings')).toBeInTheDocument();
   },
 };
 
@@ -245,7 +245,7 @@ export const OKWithoutBehavioral: Story = {
   },
 };
 
-// Lifecycle Stage Stories
+// Lifecycle Stage Stories - demonstrate different agent states
 export const LifecycleDev: Story = {
   args: {
     id: 'dev-agent-001',
@@ -260,8 +260,9 @@ export const LifecycleDev: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
-    // Verify dev lifecycle emoji appears
-    await expect(canvas.getByText('🔧')).toBeInTheDocument();
+    // Verify evaluating state with 0 sessions
+    await expect(canvas.getByText('Evaluating')).toBeInTheDocument();
+    await expect(canvas.getByText('0/5 sessions needed')).toBeInTheDocument();
   },
 };
 
@@ -279,8 +280,9 @@ export const LifecycleStatic: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
-    // Verify static lifecycle emoji appears
-    await expect(canvas.getByText('🔍')).toBeInTheDocument();
+    // Verify evaluating state at threshold
+    await expect(canvas.getByText('Evaluating')).toBeInTheDocument();
+    await expect(canvas.getByText('5/5 sessions needed')).toBeInTheDocument();
   },
 };
 
@@ -299,7 +301,10 @@ export const LifecycleDynamic: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
-    // Verify dynamic lifecycle emoji appears
-    await expect(canvas.getByText('🧪')).toBeInTheDocument();
+    // Verify OK state with behavioral metrics
+    await expect(canvas.getByText('OK')).toBeInTheDocument();
+    await expect(canvas.getByText('88%')).toBeInTheDocument();
+    await expect(canvas.getByText('90%')).toBeInTheDocument();
+    await expect(canvas.getByText('high')).toBeInTheDocument();
   },
 };
