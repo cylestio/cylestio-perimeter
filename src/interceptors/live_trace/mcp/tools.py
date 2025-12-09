@@ -158,6 +158,107 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             },
             "required": ["finding_id", "status"]
         }
+    },
+    # ==================== Workflow Config Tools ====================
+    {
+        "name": "get_workflow_config",
+        "description": "Read workflow configuration from cylestio.yaml in the project. Returns workflow_id, name, and agents if config exists.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_path": {
+                    "type": "string",
+                    "description": "Path to project root. If not provided, searches from current directory."
+                }
+            }
+        }
+    },
+    # ==================== Lifecycle & Correlation Tools ====================
+    {
+        "name": "get_workflow_state",
+        "description": "Get the current lifecycle state of a workflow. Shows what analysis exists (static, dynamic, or both) and recommends next steps.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_tool_usage_summary",
+        "description": "Get tool usage patterns from dynamic sessions. Shows which tools were called, how often, and in what sequences.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_workflow_correlation",
+        "description": "Get correlation between static findings and dynamic observations. Shows which static findings are validated or unexercised.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_agents",
+        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to workflows or naming.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Filter by workflow (optional). Use 'unlinked' to get agents with no workflow_id."
+                },
+                "include_stats": {
+                    "type": "boolean",
+                    "description": "Include session/tool usage stats",
+                    "default": True
+                }
+            }
+        }
+    },
+    {
+        "name": "update_agent_info",
+        "description": "Update an agent's display name, description, or link to a workflow. Use after analyzing code to name agents or to link dynamic agents to workflows for correlation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "description": "The agent ID from dynamic sessions"
+                },
+                "display_name": {
+                    "type": "string",
+                    "description": "Human-friendly name (e.g., 'Customer Support Bot', 'Booking Assistant')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of what the agent does"
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Link this agent to a workflow (for correlation with static analysis)"
+                }
+            },
+            "required": ["agent_id"]
+        }
     }
 ]
 

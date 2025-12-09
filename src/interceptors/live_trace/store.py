@@ -47,6 +47,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity)
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
     workflow_id TEXT,
+    display_name TEXT,
+    description TEXT,
     first_seen REAL NOT NULL,
     last_seen REAL NOT NULL,
     total_sessions INTEGER DEFAULT 0,
@@ -105,6 +107,23 @@ CREATE INDEX IF NOT EXISTS idx_findings_session_id ON findings(session_id);
 CREATE INDEX IF NOT EXISTS idx_findings_workflow_id ON findings(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
+
+CREATE TABLE IF NOT EXISTS correlations (
+    correlation_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    finding_id TEXT,
+    correlation_type TEXT NOT NULL,
+    tool_name TEXT,
+    dynamic_call_count INTEGER DEFAULT 0,
+    validation_status TEXT NOT NULL,
+    evidence TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (finding_id) REFERENCES findings(finding_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_correlations_workflow_id ON correlations(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_finding_id ON correlations(finding_id);
 """
 
 
@@ -228,6 +247,8 @@ class AgentData:
     def __init__(self, agent_id: str, workflow_id: Optional[str] = None):
         self.agent_id = agent_id
         self.workflow_id = workflow_id
+        self.display_name: Optional[str] = None  # Human-friendly name set by coding agent
+        self.description: Optional[str] = None   # Description of what the agent does
         self.sessions = set()
         self.first_seen = datetime.now(timezone.utc)
         self.last_seen = self.first_seen
@@ -395,6 +416,8 @@ class TraceStore:
         return {
             'agent_id': agent.agent_id,
             'workflow_id': agent.workflow_id,
+            'display_name': agent.display_name,
+            'description': agent.description,
             'first_seen': agent.first_seen.timestamp(),
             'last_seen': agent.last_seen.timestamp(),
             'total_sessions': agent.total_sessions,
@@ -415,6 +438,8 @@ class TraceStore:
     def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
         """Convert SQLite row back to AgentData object."""
         agent = AgentData(row['agent_id'], row['workflow_id'])
+        agent.display_name = row['display_name'] if 'display_name' in row.keys() else None
+        agent.description = row['description'] if 'description' in row.keys() else None
         agent.first_seen = datetime.fromtimestamp(row['first_seen'], tz=timezone.utc)
         agent.last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
         agent.total_sessions = row['total_sessions']
@@ -453,7 +478,8 @@ class TraceStore:
         data = self._serialize_agent(agent)
         self.db.execute("""
             INSERT OR REPLACE INTO agents VALUES (
-                :agent_id, :workflow_id, :first_seen, :last_seen,
+                :agent_id, :workflow_id, :display_name, :description,
+                :first_seen, :last_seen,
                 :total_sessions, :total_messages, :total_tokens,
                 :total_tools, :total_errors, :total_response_time_ms, :response_count,
                 :sessions_set, :available_tools, :used_tools, :tool_usage_details,
@@ -462,7 +488,63 @@ class TraceStore:
         """, data)
         self.db.commit()
 
-    def add_event(self, event: BaseEvent, session_id: Optional[str] = None, agent_id: Optional[str] = None):
+    def update_agent_info(
+        self,
+        agent_id: str,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        workflow_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update agent display name, description, and/or workflow_id."""
+        with self._lock:
+            # Check agent exists
+            cursor = self.db.execute(
+                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            # Update fields
+            updates = []
+            params = []
+            if display_name is not None:
+                updates.append("display_name = ?")
+                params.append(display_name)
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+            if workflow_id is not None:
+                updates.append("workflow_id = ?")
+                params.append(workflow_id)
+
+            if updates:
+                params.append(agent_id)
+                self.db.execute(
+                    f"UPDATE agents SET {', '.join(updates)} WHERE agent_id = ?",
+                    params
+                )
+                self.db.commit()
+
+            # Return updated agent
+            cursor = self.db.execute(
+                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+            )
+            row = cursor.fetchone()
+            return {
+                'agent_id': row['agent_id'],
+                'workflow_id': row['workflow_id'],
+                'display_name': row['display_name'],
+                'description': row['description'],
+            }
+
+    def add_event(
+        self,
+        event: BaseEvent,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        workflow_id: Optional[str] = None,
+    ):
         """Add an event to the store."""
         with self._lock:
             # Use event's session_id if not provided
@@ -475,9 +557,8 @@ class TraceStore:
             if not agent_id:
                 agent_id = 'unknown'
 
-            # Extract workflow_id from event attributes
-            workflow_id = None
-            if hasattr(event, 'attributes'):
+            # Extract workflow_id from event attributes if not provided as parameter
+            if not workflow_id and hasattr(event, 'attributes'):
                 workflow_id = event.attributes.get('workflow.id')
 
             # Add to global event stream (kept in memory as circular buffer)
@@ -1128,3 +1209,106 @@ class TraceStore:
                 'by_severity': severity_counts,
                 'by_status': status_counts,
             }
+
+    # ==================== Correlation Methods ====================
+
+    def store_correlation(
+        self,
+        correlation_id: str,
+        workflow_id: str,
+        finding_id: Optional[str],
+        correlation_type: str,
+        validation_status: str,
+        tool_name: Optional[str] = None,
+        dynamic_call_count: int = 0,
+        evidence: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Store a correlation between static finding and dynamic observation."""
+        now = datetime.now(timezone.utc).timestamp()
+
+        with self._lock:
+            self.db.execute("""
+                INSERT OR REPLACE INTO correlations (
+                    correlation_id, workflow_id, finding_id, correlation_type,
+                    tool_name, dynamic_call_count, validation_status,
+                    evidence, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                correlation_id, workflow_id, finding_id, correlation_type,
+                tool_name, dynamic_call_count, validation_status,
+                json.dumps(evidence) if evidence else None,
+                now, now
+            ))
+            self.db.commit()
+
+        return {
+            'correlation_id': correlation_id,
+            'workflow_id': workflow_id,
+            'finding_id': finding_id,
+            'correlation_type': correlation_type,
+            'tool_name': tool_name,
+            'dynamic_call_count': dynamic_call_count,
+            'validation_status': validation_status,
+            'evidence': evidence,
+            'created_at': now,
+        }
+
+    def get_correlations(
+        self,
+        workflow_id: str,
+        finding_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get stored correlations for a workflow."""
+        with self._lock:
+            query = "SELECT * FROM correlations WHERE workflow_id = ?"
+            params = [workflow_id]
+
+            if finding_id:
+                query += " AND finding_id = ?"
+                params.append(finding_id)
+
+            query += " ORDER BY created_at DESC"
+
+            cursor = self.db.execute(query, params)
+            rows = cursor.fetchall()
+
+        return [
+            {
+                'correlation_id': row['correlation_id'],
+                'workflow_id': row['workflow_id'],
+                'finding_id': row['finding_id'],
+                'correlation_type': row['correlation_type'],
+                'tool_name': row['tool_name'],
+                'dynamic_call_count': row['dynamic_call_count'],
+                'validation_status': row['validation_status'],
+                'evidence': json.loads(row['evidence']) if row['evidence'] else None,
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at'],
+            }
+            for row in rows
+        ]
+
+    def get_correlation_summary(self, workflow_id: str) -> Dict[str, Any]:
+        """Get summary of correlations for a workflow."""
+        with self._lock:
+            cursor = self.db.execute("""
+                SELECT validation_status, COUNT(*) as count
+                FROM correlations
+                WHERE workflow_id = ?
+                GROUP BY validation_status
+            """, (workflow_id,))
+
+            by_status = {row['validation_status']: row['count'] for row in cursor.fetchall()}
+
+            cursor = self.db.execute("""
+                SELECT COUNT(*) as total FROM correlations WHERE workflow_id = ?
+            """, (workflow_id,))
+            total = cursor.fetchone()['total']
+
+        return {
+            'workflow_id': workflow_id,
+            'total_correlations': total,
+            'by_status': by_status,
+            'validated': by_status.get('VALIDATED', 0),
+            'unexercised': by_status.get('UNEXERCISED', 0),
+        }
