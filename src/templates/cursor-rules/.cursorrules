@@ -1,5 +1,6 @@
 # Agent Inspector - AI Agent Security Analysis
 
+<<<<<<< HEAD
 ## MCP Server
 Connect to: `http://localhost:8080/mcp`
 
@@ -10,6 +11,27 @@ agent-inspector anthropic --use-local-storage
 ```
 
 ## MCP Tools (14)
+=======
+## MCP Server Connection
+Agent Inspector MCP endpoint at localhost:7100/mcp provides security analysis tools.
+(Note: Port 4000 is the proxy server, port 7100 is the dashboard with MCP endpoint)
+
+## Static Analysis Workflow (Code Review)
+1. Get patterns: Call `get_security_patterns` MCP tool
+2. Create session: Call `create_analysis_session` with `workflow_id` (project identifier)
+3. Analyze and store findings: Call `store_finding` MCP tool for each issue
+4. Complete: Call `complete_analysis_session` MCP tool
+5. View results: `http://localhost:4000/workflow/{workflow_id}`
+
+## Dynamic Analysis Workflow (Runtime Tracing)
+1. Install: `pipx install agent-inspector`
+2. Start: `agent-inspector openai` or `agent-inspector anthropic`
+3. Configure agent code with workflow_id URL pattern:
+   ```python
+   client = OpenAI(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
+   ```
+4. Run agent and view traces at `http://localhost:4000/workflow/{workflow_id}`
+>>>>>>> origin/main
 
 **Setup:** `get_workflow_config`
 **Discovery:** `get_agents` (filter: workflow_id or "unlinked")

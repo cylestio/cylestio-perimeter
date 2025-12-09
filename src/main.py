@@ -345,7 +345,7 @@ def generate_example_config(output_path: str):
     """
     example_config = {
         "server": {
-            "port": 3000,
+            "port": 4000,
             "host": "0.0.0.0",
             "workers": 1
         },

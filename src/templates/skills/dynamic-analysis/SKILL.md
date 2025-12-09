@@ -63,10 +63,22 @@ agent-inspector anthropic
 agent-inspector openai --use-local-storage
 ```
 
+The proxy server starts on **port 4000** and the live trace dashboard opens at **http://localhost:7100**.
+
 ### Step 2: Configure Agent with Workflow ID
 
 **MINIMAL CHANGE REQUIRED** - Just update `base_url` to include workflow_id:
 
+**IMPORTANT:** Use the workflow_id URL pattern to group traces with your static analysis results.
+
+The base_url format is:
+```
+http://localhost:4000/workflow/<workflow-id>
+```
+
+Choose a consistent `workflow_id` for your project (e.g., `my-agent-v1`, `customer-service-bot`). Use the **same workflow_id** you used in static analysis to get unified results.
+
+**OpenAI:**
 ```python
 import os
 from openai import OpenAI
@@ -74,17 +86,18 @@ from openai import OpenAI
 # The workflow_id should match what's in cylestio.yaml
 # This is the ONLY change needed to agent code
 client = OpenAI(
-    base_url="http://localhost:3000/workflow/my-project",  # workflow_id in URL
+    base_url="http://localhost:4000/workflow/my-project",  # workflow_id in URL
     api_key=os.getenv("OPENAI_API_KEY")
 )
 ```
 
-For Anthropic:
+**Anthropic:**
 ```python
 from anthropic import Anthropic
 
 client = Anthropic(
-    base_url="http://localhost:3000/workflow/my-project"  # workflow_id in URL
+    base_url="http://localhost:4000/workflow/my-project",  # workflow_id in URL
+    api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 ```
 
@@ -99,7 +112,7 @@ Execute your agent with various inputs to:
 
 ### Step 4: Review Results
 
-View dashboard at `http://localhost:3000/workflow/{workflow_id}`
+View dashboard at `http://localhost:4000/workflow/{workflow_id}`
 
 ## MCP Tools for Analysis
 
@@ -120,6 +133,17 @@ After dynamic testing, use MCP tools to analyze:
 
 3. get_workflow_correlation("my-agent")
    → Finding "unconfirmed delete" validated: 5 calls without confirmation
+```
+
+## CLI Options
+
+```
+Options:
+  -p, --port PORT       Override proxy server port (default: 4000)
+  --trace-port PORT     Override dashboard port (default: 7100)
+  --use-local-storage   Enable SQLite persistence for traces
+  --local-storage-path  Custom database path (requires --use-local-storage)
+  --show-configs        Display bundled configurations and exit
 ```
 
 ## What Dynamic Analysis Provides
@@ -165,7 +189,7 @@ Based on results, recommend:
 
 ## Dashboard Views
 
-`http://localhost:3000/workflow/{workflow_id}` shows:
+`http://localhost:4000/workflow/{workflow_id}` shows:
 - Real-time request/response capture
 - Tool usage analytics
 - Session timeline
@@ -177,7 +201,7 @@ Based on results, recommend:
 ### Agent can't connect
 ```bash
 # Check inspector is running
-curl http://localhost:3000/health
+curl http://localhost:4000/health
 
 # Start inspector first, then agent
 ```
@@ -189,6 +213,25 @@ curl http://localhost:3000/health
 
 ### Custom ports
 ```bash
-agent-inspector openai --port 3001
-# Update agent: base_url=f"http://localhost:3001/workflow/{WORKFLOW_ID}"
+agent-inspector openai --port 4001
+# Update agent: base_url=f"http://localhost:4001/workflow/{WORKFLOW_ID}"
 ```
+
+## Default Ports
+
+| Service | Default Port |
+|---------|-------------|
+| Proxy Server | 4000 |
+| Dashboard | 7100 |
+
+## Unified Analysis
+
+For complete security coverage, use the same workflow_id for both:
+
+1. **Static Analysis** (via MCP tools):
+   - `create_analysis_session(workflow_id="my-agent-v1", session_type="STATIC")`
+
+2. **Dynamic Analysis** (via proxy):
+   - `base_url=f"http://localhost:4000/workflow/my-agent-v1"`
+
+Both appear unified in the dashboard at `http://localhost:4000/workflow/my-agent-v1`

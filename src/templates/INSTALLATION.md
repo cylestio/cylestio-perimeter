@@ -15,13 +15,8 @@ Agent Inspector provides MCP (Model Context Protocol) tools that enable AI assis
 
 1. **Agent Inspector server running**
    ```bash
-   # Install agent-inspector
-   pipx install agent-inspector
-
-   # Start for your provider
-   agent-inspector openai --use-local-storage
-   # or
-   agent-inspector anthropic --use-local-storage
+   # From the cylestio-perimeter project
+   uvicorn src.main:app --reload --port 4000
    ```
 
 2. **Your agent project directory** where you want to enable security analysis
@@ -33,8 +28,8 @@ Agent Inspector provides MCP (Model Context Protocol) tools that enable AI assis
 ### Option 1: CLI Configuration (Recommended)
 
 ```bash
-# Add the MCP server (port 8080 is the dashboard with MCP endpoint)
-claude mcp add --transport http agent-inspector http://localhost:8080/mcp
+# Add the MCP server (port 7100 is the dashboard with MCP endpoint)
+claude mcp add --transport http agent-inspector http://localhost:7100/mcp
 ```
 
 ### Option 2: Project Configuration (.mcp.json)
@@ -46,7 +41,7 @@ Create `.mcp.json` in your project root:
   "mcpServers": {
     "agent-inspector": {
       "type": "http",
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:7100/mcp"
     }
   }
 }
@@ -90,13 +85,13 @@ Create `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project-specific):
 {
   "mcpServers": {
     "agent-inspector": {
-      "url": "http://localhost:8080/mcp"
+      "url": "http://localhost:7100/mcp"
     }
   }
 }
 ```
 
-**Note:** The MCP endpoint is on port **8080** (the live trace dashboard), not 3000 (the proxy).
+**Note:** The MCP endpoint is on port **7100** (the live trace dashboard), not 4000 (the proxy).
 
 ### Step 2: Restart Cursor and Approve
 
@@ -229,7 +224,11 @@ The AI will:
 
 After analysis, view results at:
 ```
-http://localhost:8080/workflow/{workflow_id}
+http://localhost:7100
+```
+Or directly at a workflow:
+```
+http://localhost:4000/workflow/{workflow_id}
 ```
 
 The dashboard shows:
@@ -243,16 +242,16 @@ The dashboard shows:
 ## Troubleshooting
 
 ### "MCP server not found"
-- Ensure Agent Inspector is running (the live trace dashboard starts on port 8080)
-- Verify MCP endpoint: `curl -X POST http://localhost:8080/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'`
+- Ensure Agent Inspector is running (the live trace dashboard starts on port 7100)
+- Verify MCP endpoint: `curl -X POST http://localhost:7100/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'`
 
 ### "Tools not available"
 - Verify MCP connection with `/mcp` command (Claude Code)
 - For Cursor: Restart Cursor after adding mcp.json and approve the server when prompted
 
 ### "Connection refused"
-- Make sure the server is running: `curl http://localhost:3000/health`
-- MCP endpoint is on port **8080** (dashboard), not 3000 (proxy)
+- Make sure the server is running: `curl http://localhost:4000/health`
+- MCP endpoint is on port **7100** (dashboard), not 4000 (proxy)
 - Check firewall settings
 
 ---
@@ -288,14 +287,14 @@ Global config (applies to all projects):
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| Proxy Server | 3000 | Routes LLM API requests, workflow URLs |
-| Dashboard + MCP | 8080 | Live trace UI, MCP endpoint at `/mcp` |
+| Proxy Server | 4000 | Routes LLM API requests, workflow URLs |
+| Dashboard + MCP | 7100 | Live trace UI, MCP endpoint at `/mcp` |
 
 ---
 
 ## Support
 
-- Dashboard: http://localhost:8080 (or http://localhost:3000/workflow/{id})
-- MCP Endpoint: http://localhost:8080/mcp
-- Health Check: http://localhost:3000/health
-- API Docs: http://localhost:3000/docs
+- Dashboard: http://localhost:7100 (or http://localhost:4000/workflow/{id})
+- MCP Endpoint: http://localhost:7100/mcp
+- Health Check: http://localhost:4000/health
+- API Docs: http://localhost:4000/docs

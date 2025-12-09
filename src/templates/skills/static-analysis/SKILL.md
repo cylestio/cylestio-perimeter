@@ -13,7 +13,7 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 
 ## Prerequisites
 - Agent Inspector running: `agent-inspector anthropic --use-local-storage`
-- MCP connection to `http://localhost:8080/mcp`
+- MCP connection to `http://localhost:7100/mcp`
 
 ## AUTOMATIC WORKFLOW
 
@@ -117,7 +117,7 @@ update_agent_info(
 | send_external | ⚠️ VALIDATED (called 8 times) |
 | bulk_update | ✅ UNEXERCISED |
 
-**Dashboard:** http://localhost:8080/workflow/my-project
+**Dashboard:** http://localhost:7100/workflow/my-project
 
 ### Next Steps:
 - Fix CRITICAL findings immediately

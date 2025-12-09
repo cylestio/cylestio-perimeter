@@ -5,9 +5,9 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 
 # Agent Inspector Integration
 
-**MCP Server:** `http://localhost:8080/mcp`
-**Dashboard:** `http://localhost:8080`
-**Proxy:** `http://localhost:3000`
+**MCP Server:** `http://localhost:7100/mcp`
+**Dashboard:** `http://localhost:7100`
+**Proxy:** `http://localhost:4000`
 
 ## Installation (One-Time)
 
@@ -114,7 +114,7 @@ update_agent_info(agent_id, display_name="Customer Support Bot", description="Ha
 - 4 findings VALIDATED by runtime
 - 2 findings UNEXERCISED
 
-**Dashboard:** http://localhost:8080/workflow/{workflow_id}
+**Dashboard:** http://localhost:7100/workflow/{workflow_id}
 ```
 
 ## Agent Code Setup (Minimal)
@@ -123,9 +123,9 @@ Tell user to add workflow_id to their agent's base_url:
 
 ```python
 # Only change needed - add workflow_id to URL
-client = OpenAI(base_url="http://localhost:3000/workflow/my-project")
+client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
 # or
-client = Anthropic(base_url="http://localhost:3000/workflow/my-project")
+client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
 ```
 
 **No YAML reading required in agent code.** The `cylestio.yaml` is only for the coding agent.

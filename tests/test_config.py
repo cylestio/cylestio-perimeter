@@ -57,7 +57,7 @@ class TestSettings:
         )
         assert settings.llm.base_url == "https://api.openai.com"
         assert settings.llm.type == "openai"
-        assert settings.server.port == 3000
+        assert settings.server.port == 4000
         assert settings.server.host == "0.0.0.0"
         assert len(settings.interceptors) == 0
     
@@ -113,7 +113,7 @@ class TestSettings:
         assert updated.llm.api_key == "sk-new-key"
         assert updated.logging.level == "DEBUG"
         # Original should not change
-        assert settings.server.port == 3000
+        assert settings.server.port == 4000
         assert settings.llm.api_key is None
 
 

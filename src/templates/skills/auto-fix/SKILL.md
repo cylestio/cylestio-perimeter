@@ -13,7 +13,8 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
 - After static analysis reveals findings
 
 ## Prerequisites
-- Agent Inspector server running
+- Agent Inspector server running (proxy on port 4000, MCP on port 7100)
+- MCP connection configured to `http://localhost:7100/mcp`
 - Existing finding ID or known vulnerability type
 
 ## Lifecycle Awareness

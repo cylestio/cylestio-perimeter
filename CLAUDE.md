@@ -21,7 +21,7 @@ pip install -r requirements.txt
 ### Running the Server
 ```bash
 # Development mode with auto-reload
-uvicorn src.main:app --reload --port 3000
+uvicorn src.main:app --reload --port 4000
 
 # Basic CLI usage
 cylestio-perimeter run --base-url https://api.openai.com --type openai
@@ -33,7 +33,7 @@ cylestio-perimeter run --config config.yaml
 python -m src.main run --base-url https://api.openai.com --type openai
 
 # Production mode
-uvicorn src.main:app --host 0.0.0.0 --port 3000 --workers 4
+uvicorn src.main:app --host 0.0.0.0 --port 4000 --workers 4
 ```
 
 ### Replay Recorded Traffic
@@ -171,6 +171,12 @@ The `live_trace` interceptor includes an MCP (Model Context Protocol) server at 
 ## Test Organization
 
 When writing tests for provider methods, create separate test files for methods with more than 3 test cases using the naming convention `test_{provider}_{method_name}.py`, while keeping core provider tests (≤3 cases) in the main `test_{provider}.py` file.
+
+## Frontend Development
+
+When working on the live_trace frontend (`src/interceptors/live_trace/frontend/`), you **MUST** follow:
+- `src/interceptors/live_trace/frontend/CLAUDE.md` - Frontend-specific guidance
+- `src/interceptors/live_trace/frontend/docs/DEVELOPMENT.md` - Detailed development guide with component patterns, import organization, and testing requirements
 
 ## Development Warnings
 
