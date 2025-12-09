@@ -206,3 +206,83 @@ export const SessionMetaItem = styled.span`
   align-items: center;
   gap: ${({ theme }) => theme.spacing[1]};
 `;
+
+// Lifecycle State Banner styles
+export const LifecycleBanner = styled.div<{ $state: string }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme, $state }) => {
+    switch ($state) {
+      case 'COMPLETE': return theme.colors.green + '15';
+      case 'STATIC_ONLY': 
+      case 'DYNAMIC_ONLY': return theme.colors.yellow + '15';
+      default: return theme.colors.cyan + '15';
+    }
+  }};
+  border: 1px solid ${({ theme, $state }) => {
+    switch ($state) {
+      case 'COMPLETE': return theme.colors.green + '40';
+      case 'STATIC_ONLY':
+      case 'DYNAMIC_ONLY': return theme.colors.yellow + '40';
+      default: return theme.colors.cyan + '40';
+    }
+  }};
+  border-radius: ${({ theme }) => theme.radii.lg};
+`;
+
+export const LifecycleIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+export const LifecycleContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const LifecycleTitle = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const LifecycleMessage = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+export const LifecycleStages = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  margin-top: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const LifecycleStage = styled.div<{ $active: boolean; $complete: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[3]}`};
+  background: ${({ theme, $complete }) => $complete ? theme.colors.green + '20' : theme.colors.surface};
+  border: 1px solid ${({ theme, $active, $complete }) => 
+    $complete ? theme.colors.green + '60' : 
+    $active ? theme.colors.cyan : 
+    theme.colors.borderSubtle};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 11px;
+  color: ${({ theme, $complete }) => $complete ? theme.colors.green : theme.colors.white70};
+`;
+
+export const StageArrow = styled.span`
+  color: ${({ theme }) => theme.colors.white30};
+  font-size: 12px;
+`;

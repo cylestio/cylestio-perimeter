@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Bot, Calendar, Clock, FileSearch, Shield } from 'lucide-react';
+import { Bot, Calendar, Clock, FileSearch, Shield, CheckCircle, AlertCircle, ArrowRight, Link2, Activity, Zap } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
-import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/workflow';
+import { 
+  fetchWorkflowFindings, 
+  fetchAnalysisSessions, 
+  fetchWorkflowState,
+  fetchWorkflowCorrelation,
+  type AnalysisSession,
+  type WorkflowState,
+  type WorkflowCorrelation,
+} from '@api/endpoints/workflow';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import type { Finding, FindingsSummary } from '@api/types/findings';
 import type { APIAgent } from '@api/types/dashboard';
@@ -43,6 +51,14 @@ import {
   SessionId,
   SessionMeta,
   SessionMetaItem,
+  LifecycleBanner,
+  LifecycleIcon,
+  LifecycleContent,
+  LifecycleTitle,
+  LifecycleMessage,
+  LifecycleStages,
+  LifecycleStage,
+  StageArrow,
 } from './WorkflowDetail.styles';
 
 export interface WorkflowDetailProps {
@@ -57,6 +73,8 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
   const [sessions, setSessions] = useState<AnalysisSession[]>([]);
+  const [workflowState, setWorkflowState] = useState<WorkflowState | null>(null);
+  const [correlation, setCorrelation] = useState<WorkflowCorrelation | null>(null);
   const [loading, setLoading] = useState(true);
   const [findingsLoading, setFindingsLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -74,6 +92,30 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
       setError(err instanceof Error ? err.message : 'Failed to load workflow');
     } finally {
       setLoading(false);
+    }
+  }, [workflowId]);
+
+  // Fetch workflow state
+  const fetchState = useCallback(async () => {
+    if (!workflowId) return;
+
+    try {
+      const state = await fetchWorkflowState(workflowId);
+      setWorkflowState(state);
+    } catch (err) {
+      console.error('Failed to fetch workflow state:', err);
+    }
+  }, [workflowId]);
+
+  // Fetch correlation data (only when both static and dynamic exist)
+  const fetchCorrelation = useCallback(async () => {
+    if (!workflowId) return;
+
+    try {
+      const data = await fetchWorkflowCorrelation(workflowId);
+      setCorrelation(data);
+    } catch (err) {
+      console.error('Failed to fetch correlation:', err);
     }
   }, [workflowId]);
 
@@ -113,7 +155,9 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
     fetchWorkflowData();
     fetchFindings();
     fetchSessions();
-  }, [fetchWorkflowData, fetchFindings, fetchSessions]);
+    fetchState();
+    fetchCorrelation();
+  }, [fetchWorkflowData, fetchFindings, fetchSessions, fetchState, fetchCorrelation]);
 
   // Set breadcrumbs
   usePageMeta({
@@ -138,29 +182,117 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
 
   const openCount = findingsSummary?.open_count || 0;
 
-  // Helper to format timestamps
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  // Helper to format timestamps (handles both ISO strings and Unix timestamps)
+  const formatDate = (timestamp: string | number | null | undefined) => {
+    if (!timestamp) return 'Invalid Date';
+    try {
+      const date = typeof timestamp === 'string' 
+        ? new Date(timestamp)
+        : new Date(timestamp * 1000);
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return 'Invalid Date';
+    }
   };
 
-  // Helper to get duration in minutes
-  const getDuration = (start: number, end: number) => {
-    const minutes = Math.round((end - start) / 60);
-    if (minutes < 1) return 'Less than a minute';
-    if (minutes === 1) return '1 minute';
-    return `${minutes} minutes`;
+  // Helper to get duration in minutes (handles both ISO strings and Unix timestamps)
+  const getDuration = (start: string | number | null | undefined, end: string | number | null | undefined) => {
+    if (!start || !end) return 'N/A';
+    try {
+      const startDate = typeof start === 'string' ? new Date(start) : new Date(start * 1000);
+      const endDate = typeof end === 'string' ? new Date(end) : new Date(end * 1000);
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return 'N/A';
+      const minutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
+      if (minutes < 1) return 'Less than a minute';
+      if (minutes === 1) return '1 minute';
+      return `${minutes} minutes`;
+    } catch {
+      return 'N/A';
+    }
   };
 
   // Count sessions by status
   const inProgressCount = sessions.filter(s => s.status === 'IN_PROGRESS').length;
 
+  // Get lifecycle state info
+  const getLifecycleInfo = () => {
+    if (!workflowState) return null;
+    
+    switch (workflowState.state) {
+      case 'COMPLETE':
+        return {
+          icon: <CheckCircle size={20} color="#10b981" />,
+          title: 'Complete Analysis Available',
+          message: 'Both static and dynamic analysis data available for this workflow.',
+        };
+      case 'STATIC_ONLY':
+        return {
+          icon: <AlertCircle size={20} color="#f59e0b" />,
+          title: 'Static Analysis Only',
+          message: workflowState.recommendation || 'Run dynamic testing to validate findings.',
+        };
+      case 'DYNAMIC_ONLY':
+        return {
+          icon: <AlertCircle size={20} color="#f59e0b" />,
+          title: 'Dynamic Data Only',
+          message: workflowState.recommendation || 'Run static analysis from your IDE for correlation.',
+        };
+      default:
+        return {
+          icon: <AlertCircle size={20} color="#6366f1" />,
+          title: 'Get Started',
+          message: workflowState.recommendation || 'Run static or dynamic analysis to begin.',
+        };
+    }
+  };
+
+  const lifecycleInfo = getLifecycleInfo();
+
   return (
     <WorkflowLayout className={className} data-testid="workflow-detail">
+      {/* Lifecycle Banner */}
+      {workflowState && lifecycleInfo && (
+        <LifecycleBanner $state={workflowState.state}>
+          <LifecycleIcon>{lifecycleInfo.icon}</LifecycleIcon>
+          <LifecycleContent>
+            <LifecycleTitle>{lifecycleInfo.title}</LifecycleTitle>
+            <LifecycleMessage>{lifecycleInfo.message}</LifecycleMessage>
+            <LifecycleStages>
+              <LifecycleStage 
+                $active={!workflowState.has_static_analysis && !workflowState.has_dynamic_sessions} 
+                $complete={false}
+              >
+                Development
+              </LifecycleStage>
+              <StageArrow><ArrowRight size={12} /></StageArrow>
+              <LifecycleStage 
+                $active={workflowState.has_static_analysis && !workflowState.has_dynamic_sessions}
+                $complete={workflowState.has_static_analysis}
+              >
+                Static Scan {workflowState.has_static_analysis && `(${workflowState.findings_count})`}
+              </LifecycleStage>
+              <StageArrow><ArrowRight size={12} /></StageArrow>
+              <LifecycleStage 
+                $active={workflowState.has_dynamic_sessions}
+                $complete={workflowState.has_dynamic_sessions}
+              >
+                Dynamic Test {workflowState.has_dynamic_sessions && `(${workflowState.dynamic_agents_count})`}
+              </LifecycleStage>
+              <StageArrow><ArrowRight size={12} /></StageArrow>
+              <LifecycleStage $active={false} $complete={false}>
+                Production 🔒
+              </LifecycleStage>
+            </LifecycleStages>
+          </LifecycleContent>
+        </LifecycleBanner>
+      )}
+
       {/* Header */}
       <WorkflowHeader>
         <WorkflowInfo>
@@ -186,6 +318,112 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
           )}
         </WorkflowStats>
       </WorkflowHeader>
+
+      {/* Correlation Section - Show when both static and dynamic exist */}
+      {correlation && workflowState?.state === 'COMPLETE' && (
+        <SectionCard style={{ borderColor: '#10b981', borderWidth: '2px' }}>
+          <SectionHeader>
+            <SectionTitle>
+              <Link2 size={16} style={{ marginRight: '8px' }} />
+              Static ↔ Dynamic Correlation
+              <Badge variant="success">COMPLETE</Badge>
+            </SectionTitle>
+          </SectionHeader>
+          <SectionContent>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
+              <div style={{ 
+                background: 'rgba(99, 102, 241, 0.1)', 
+                padding: '16px', 
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6366f1' }}>
+                  {correlation.static_findings_count}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Static Findings</div>
+              </div>
+              <div style={{ 
+                background: 'rgba(16, 185, 129, 0.1)', 
+                padding: '16px', 
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#10b981' }}>
+                  {correlation.dynamic_sessions_count}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Dynamic Sessions</div>
+              </div>
+              <div style={{ 
+                background: 'rgba(245, 158, 11, 0.1)', 
+                padding: '16px', 
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>
+                  {correlation.dynamic_tools_used.length}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tools Exercised</div>
+              </div>
+            </div>
+
+            {correlation.dynamic_tools_used.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  <Activity size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                  Runtime Tool Usage:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {correlation.dynamic_tools_used.map((tool) => (
+                    <Badge key={tool} variant="medium">
+                      <Zap size={10} style={{ marginRight: '4px' }} />
+                      {tool}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {correlation.recommendations.length > 0 && (
+              <div style={{ 
+                background: 'rgba(99, 102, 241, 0.05)', 
+                padding: '12px', 
+                borderRadius: '8px',
+                fontSize: '13px'
+              }}>
+                <strong>Recommendation:</strong> {correlation.recommendations[0]}
+              </div>
+            )}
+          </SectionContent>
+        </SectionCard>
+      )}
+
+      {/* Correlation Prompt - Show when only one type exists */}
+      {workflowState && (workflowState.state === 'STATIC_ONLY' || workflowState.state === 'DYNAMIC_ONLY') && (
+        <SectionCard style={{ borderColor: '#f59e0b', borderWidth: '1px', borderStyle: 'dashed' }}>
+          <SectionContent>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px',
+              padding: '8px'
+            }}>
+              <Link2 size={24} color="#f59e0b" />
+              <div>
+                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                  {workflowState.state === 'STATIC_ONLY' 
+                    ? '🧪 Ready for Dynamic Validation' 
+                    : '🔍 Static Analysis Recommended'}
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {workflowState.state === 'STATIC_ONLY'
+                    ? `Run your agent through the proxy to validate ${workflowState.findings_count} static findings with actual runtime behavior.`
+                    : `Run static analysis from your IDE using Agent Inspector to correlate with ${workflowState.dynamic_agents_count} dynamic sessions.`}
+                </div>
+              </div>
+            </div>
+          </SectionContent>
+        </SectionCard>
+      )}
 
       {/* Analysis Sessions */}
       <SectionCard>
