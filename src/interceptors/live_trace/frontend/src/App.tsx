@@ -151,6 +151,7 @@ function AppLayout() {
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        hideCollapse
       >
         <Sidebar.Header>
           <Logo />
