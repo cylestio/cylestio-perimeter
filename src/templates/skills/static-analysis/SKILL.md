@@ -8,64 +8,133 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 ## When to Activate
 - User asks for "security scan" or "security review"
 - User mentions "OWASP" or "vulnerability check"
-- User asks about "pre-production readiness"
 - User wants to "check for security issues"
+- After completing a new AI agent feature
 
 ## Prerequisites
-- Agent Inspector server running (proxy on port 4000, MCP on port 7100)
-- MCP connection configured to `http://localhost:7100/mcp`
+- Agent Inspector running: `agent-inspector anthropic --use-local-storage`
+- MCP connection to `http://localhost:7100/mcp`
 
-**Relationship to Dynamic Analysis:** Static analysis examines code without execution. For complete security coverage, also run dynamic analysis using the **same workflow_id** to observe actual runtime behavior.
+## AUTOMATIC WORKFLOW
 
-## Workflow
+### 1. Setup Workflow
+```
+get_workflow_config()
+```
+- **If exists:** Use `workflow_id` from config
+- **If not:** AUTO-CREATE `cylestio.yaml`:
+  ```yaml
+  workflow_id: {derived-from-folder-or-git}
+  workflow_name: {Human Name}
+  ```
 
-1. **Get Patterns**
-   Call `get_security_patterns` MCP tool to retrieve current security patterns.
-   DO NOT use hardcoded patterns - always fetch from MCP.
+### 2. Discover & Link Agents
+```
+get_workflow_state(workflow_id)
+get_agents("unlinked")
+```
 
-2. **Create Session**
-   Call `create_analysis_session` with:
-   - workflow_id: identifier for the project/codebase being analyzed
-   - session_type: "STATIC"
-   - workflow_name: (optional) human-readable project name
+If unlinked agents found:
+```
+update_agent_info(agent_id, workflow_id="the-workflow-id")
+```
 
-3. **Analyze Code**
-   Using patterns from step 1, review the codebase.
-   Focus areas are defined in the MCP response, not here.
+### 3. Get Security Patterns
+```
+get_security_patterns()
+```
+**NEVER hardcode patterns** - always fetch from MCP.
 
-4. **Store Findings**
-   For each issue found, call `store_finding` with:
-   - session_id from step 2
-   - file_path, line numbers
-   - finding_type, severity, title, description
+### 4. Run Analysis
+```
+create_analysis_session(workflow_id, "STATIC")
+```
 
-5. **Complete Session**
-   Call `complete_analysis_session` to finalize and calculate risk score.
+Analyze code for:
+- Dangerous tool combinations
+- Missing confirmations on destructive ops
+- PII exposure in external calls
+- Injection vulnerabilities
+- Excessive permissions
 
-6. **Report**
-   Summarize findings and provide dashboard link: `http://localhost:4000/workflow/{workflow_id}`
+### 5. Store Findings
+```
+store_finding(
+  session_id=session_id,
+  file_path="src/agent.py",
+  finding_type="LLM08",
+  severity="HIGH",
+  title="Unconfirmed delete operation",
+  description="delete_user called without confirmation",
+  line_start=45,
+  line_end=52
+)
+```
+
+### 6. Complete Session
+```
+complete_analysis_session(session_id)
+```
+
+### 7. Correlate (if dynamic data exists)
+Check state - if `COMPLETE` or `DYNAMIC_ONLY`:
+```
+get_workflow_correlation(workflow_id)
+get_tool_usage_summary(workflow_id)
+```
+
+Report which findings are:
+- **VALIDATED**: Tool was called during dynamic testing
+- **UNEXERCISED**: Tool never called in tests
+
+### 8. Name Agents
+If agents exist, give them meaningful names based on code:
+```
+update_agent_info(
+  agent_id="agent-xyz",
+  display_name="Customer Support Bot",
+  description="Handles booking and billing inquiries"
+)
+```
+
+### 9. Report Results
+
+```markdown
+## Static Analysis Complete
+
+**Workflow:** my-project
+**Findings:** 8 (3 CRITICAL, 2 HIGH, 3 MEDIUM)
+
+### Key Issues:
+1. 🔴 CRITICAL: delete_user without confirmation (LLM08)
+2. 🔴 CRITICAL: PII sent to external API (LLM06)
+3. 🟡 HIGH: No rate limiting on tool calls (LLM08)
+
+### Correlation with Dynamic Data:
+| Finding | Runtime Status |
+|---------|---------------|
+| delete_user | ⚠️ VALIDATED (called 12 times) |
+| send_external | ⚠️ VALIDATED (called 8 times) |
+| bulk_update | ✅ UNEXERCISED |
+
+**Dashboard:** http://localhost:7100/workflow/my-project
+
+### Next Steps:
+- Fix CRITICAL findings immediately
+- Add test scenarios for UNEXERCISED tools
+```
 
 ## MCP Tools Reference
 
-**Core Workflow Tools:**
-- `get_security_patterns` - Get patterns to check (context, min_severity)
-- `create_analysis_session` - Start session (workflow_id, session_type, workflow_name)
-- `store_finding` - Record finding (session_id, file_path, finding_type, severity, title, description)
-- `complete_analysis_session` - Finalize (session_id)
-
-**Additional Tools:**
-- `get_owasp_control` - Get detailed info for specific OWASP control (control_id)
-- `get_findings` - Retrieve existing findings (workflow_id, session_id, severity, status)
-
-## Combining with Dynamic Analysis
-
-For complete security coverage, suggest running dynamic analysis after static analysis:
-
-1. **Use the same workflow_id** - Critical for unified results
-2. **Configure agent's base_url** with workflow_id:
-   ```python
-   base_url = f"http://localhost:4000/workflow/{workflow_id}"
-   ```
-3. **View unified results** at `http://localhost:4000/workflow/{workflow_id}`
-
-This validates static findings with actual runtime behavior.
+| Tool | When to Use |
+|------|-------------|
+| `get_workflow_config` | First - check/create cylestio.yaml |
+| `get_agents("unlinked")` | Find agents needing linking |
+| `update_agent_info` | Link agents + give names |
+| `get_workflow_state` | Check what analysis exists |
+| `get_security_patterns` | Get patterns to check |
+| `create_analysis_session` | Start scan |
+| `store_finding` | Record each issue |
+| `complete_analysis_session` | Finalize |
+| `get_workflow_correlation` | Match static ↔ dynamic |
+| `get_tool_usage_summary` | See runtime behavior |
