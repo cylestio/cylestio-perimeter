@@ -2,9 +2,12 @@ import type { FC, ReactNode } from 'react';
 
 import { Link } from 'react-router-dom';
 
+import { Tooltip } from '@ui/overlays/Tooltip';
+
 import {
   StyledNavItem,
   NavItemIcon,
+  NavItemLabel,
   NavItemBadge,
   StyledNavGroup,
   NavGroupLabel,
@@ -25,6 +28,8 @@ export interface NavItemProps {
   badgeColor?: NavItemBadgeColor;
   onClick?: () => void;
   disabled?: boolean;
+  /** When true, only shows the icon with a tooltip */
+  collapsed?: boolean;
   className?: string;
 }
 
@@ -45,29 +50,37 @@ export const NavItem: FC<NavItemProps> = ({
   badgeColor,
   onClick,
   disabled = false,
+  collapsed = false,
   className,
 }) => {
   const content = (
     <>
       {icon && <NavItemIcon>{icon}</NavItemIcon>}
-      {label}
-      {badge !== undefined && <NavItemBadge $color={badgeColor}>{badge}</NavItemBadge>}
+      {!collapsed && <NavItemLabel>{label}</NavItemLabel>}
+      {!collapsed && badge !== undefined && <NavItemBadge $color={badgeColor}>{badge}</NavItemBadge>}
     </>
   );
 
   // Use React Router Link for internal navigation
   if (to && !disabled) {
-    return (
+    const navItem = (
       <StyledNavItem
         as={Link}
         to={to}
         $active={active}
         $disabled={disabled}
+        $collapsed={collapsed}
         className={className}
       >
         {content}
       </StyledNavItem>
     );
+
+    return collapsed ? (
+      <Tooltip content={label} position="right">
+        {navItem}
+      </Tooltip>
+    ) : navItem;
   }
 
   // Fallback to anchor for external links or onClick handlers
@@ -82,17 +95,24 @@ export const NavItem: FC<NavItemProps> = ({
     }
   };
 
-  return (
+  const navItem = (
     <StyledNavItem
       href={href || '#'}
       $active={active}
       $disabled={disabled}
+      $collapsed={collapsed}
       onClick={handleClick}
       className={className}
     >
       {content}
     </StyledNavItem>
   );
+
+  return collapsed ? (
+    <Tooltip content={label} position="right">
+      {navItem}
+    </Tooltip>
+  ) : navItem;
 };
 
 export const NavGroup: FC<NavGroupProps> = ({ label, children, className }) => {

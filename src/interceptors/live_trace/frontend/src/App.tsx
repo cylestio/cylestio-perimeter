@@ -9,7 +9,7 @@ import type { DashboardResponse } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
-import { usePolling } from '@hooks/usePolling';
+import { useIsInitialLoad, usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
 import { workflowLink } from '@utils/breadcrumbs';
 
@@ -136,6 +136,16 @@ function AppLayout() {
 
   const agents = data?.agents ?? [];
 
+  // Check if this is the initial load (fires once when data first loads)
+  const isInitialLoad = useIsInitialLoad(!loading && data !== null);
+
+  // Redirect to /connect on first load if no agents and on root path
+  useEffect(() => {
+    if (isInitialLoad && location.pathname === '/' && data?.agents.length === 0) {
+      navigate('/connect', { replace: true });
+    }
+  }, [isInitialLoad, location.pathname, data?.agents.length, navigate]);
+
   return (
     <Shell>
       <Sidebar
@@ -162,6 +172,7 @@ function AppLayout() {
                 label="Overview"
                 active={location.pathname === `/workflow/${urlWorkflowId}`}
                 to={`/workflow/${urlWorkflowId}`}
+                collapsed={sidebarCollapsed}
               />
             )}
             <NavItem
@@ -170,12 +181,7 @@ function AppLayout() {
               badge={agents.length > 0 ? agents.length : undefined}
               active={urlWorkflowId ? location.pathname === `/workflow/${urlWorkflowId}/agents` : location.pathname === '/'}
               to={urlWorkflowId ? `/workflow/${urlWorkflowId}/agents` : '/'}
-            />
-            <NavItem
-              label="How to Connect"
-              icon={<Plug size={18} />}
-              active={location.pathname === '/connect'}
-              to="/connect"
+              collapsed={sidebarCollapsed}
             />
           </NavGroup>
           {!sidebarCollapsed && agents.length > 0 && (
@@ -196,6 +202,13 @@ function AppLayout() {
           ))}
         </Sidebar.Section>
         <Sidebar.Footer>
+          <NavItem
+            label="How to Connect"
+            icon={<Plug size={18} />}
+            active={location.pathname === '/connect'}
+            to="/connect"
+            collapsed={sidebarCollapsed}
+          />
           <LocalModeIndicator
             collapsed={sidebarCollapsed}
             storageMode={config?.storage_mode}
