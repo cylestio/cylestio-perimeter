@@ -26,7 +26,7 @@ x-cylestio-agent-id: my-custom-assistant-v1
 
 ### Basic Usage
 ```bash
-curl -X POST "http://localhost:3000/v1/chat/completions" \
+curl -X POST "http://localhost:4000/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "x-cylestio-agent-id: math-tutor-v2" \
   -d '{
@@ -45,7 +45,7 @@ import httpx
 async def chat_with_custom_agent():
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "http://localhost:3000/v1/chat/completions",
+            "http://localhost:4000/v1/chat/completions",
             headers={
                 "Content-Type": "application/json",
                 "x-cylestio-agent-id": "coding-assistant-v1"
@@ -63,7 +63,7 @@ async def chat_with_custom_agent():
 
 ### JavaScript Example
 ```javascript
-const response = await fetch('http://localhost:3000/v1/chat/completions', {
+const response = await fetch('http://localhost:4000/v1/chat/completions', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',

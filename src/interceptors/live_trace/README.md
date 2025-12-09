@@ -10,7 +10,7 @@ interceptors:
   - type: live_trace
     enabled: true
     config:
-      server_port: 8080
+      server_port: 7100
       auto_open_browser: true
 ```
 
@@ -22,7 +22,7 @@ npm install
 npm run build
 ```
 
-Visit `http://localhost:8080` after starting your proxy.
+Visit `http://localhost:7100` after starting your proxy.
 
 ## Features
 
@@ -49,7 +49,7 @@ Visit `http://localhost:8080` after starting your proxy.
 
 ```yaml
 config:
-  server_port: 8080              # Dashboard port
+  server_port: 7100              # Dashboard port
   auto_open_browser: true        # Open browser on startup
   max_events: 10000              # Max events in memory
   retention_minutes: 30          # Session retention

@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class ServerConfig(BaseModel):
     """Server configuration."""
     
-    port: int = Field(default=3000, ge=1, le=65535)
+    port: int = Field(default=4000, ge=1, le=65535)
     host: str = Field(default="0.0.0.0")
     workers: int = Field(default=1, ge=1)
 

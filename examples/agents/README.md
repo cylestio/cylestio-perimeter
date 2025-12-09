@@ -19,10 +19,10 @@ Examples for base URLs (OpenAI-compatible proxies, self-hosted, etc.):
 
 ```bash
 export OPENAI_API_KEY=sk-...
-export OPENAI_BASE_URL=http://0.0.0.0:3000
+export OPENAI_BASE_URL=http://0.0.0.0:4000
 
 export ANTHROPIC_API_KEY=sk-ant-...
-export ANTHROPIC_BASE_URL=http://0.0.0.0:3000
+export ANTHROPIC_BASE_URL=http://0.0.0.0:4000
 ```
 
 ## Run

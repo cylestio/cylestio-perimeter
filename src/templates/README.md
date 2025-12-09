@@ -25,11 +25,11 @@ templates/
 ### Claude Code
 
 ```bash
-# 1. Start Agent Inspector server (includes live trace on port 8080)
-uvicorn src.main:app --reload --port 3000
+# 1. Start Agent Inspector server (includes live trace on port 7100)
+uvicorn src.main:app --reload --port 4000
 
-# 2. Add MCP server to Claude Code (MCP endpoint is on port 8080)
-claude mcp add --transport http agent-inspector http://localhost:8080/mcp
+# 2. Add MCP server to Claude Code (MCP endpoint is on port 7100)
+claude mcp add --transport http agent-inspector http://localhost:7100/mcp
 
 # 3. (Optional) Copy skills to your project
 mkdir -p .claude/skills
@@ -39,12 +39,12 @@ cp templates/skills/static-analysis/SKILL.md .claude/skills/
 ### Cursor
 
 ```bash
-# 1. Start Agent Inspector server (includes live trace on port 8080)
-uvicorn src.main:app --reload --port 3000
+# 1. Start Agent Inspector server (includes live trace on port 7100)
+uvicorn src.main:app --reload --port 4000
 
-# 2. Create MCP config (MCP endpoint is on port 8080)
+# 2. Create MCP config (MCP endpoint is on port 7100)
 mkdir -p ~/.cursor
-echo '{"mcpServers":{"agent-inspector":{"url":"http://localhost:8080/mcp"}}}' > ~/.cursor/mcp.json
+echo '{"mcpServers":{"agent-inspector":{"url":"http://localhost:7100/mcp"}}}' > ~/.cursor/mcp.json
 
 # 3. Restart Cursor and approve the MCP server when prompted
 
@@ -57,8 +57,8 @@ cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
 
 | Port | Service | Purpose |
 |------|---------|---------|
-| 3000 | Proxy Server | LLM API proxy, workflow URLs |
-| 8080 | Dashboard | Live trace UI, MCP endpoint at `/mcp` |
+| 4000 | Proxy Server | LLM API proxy, workflow URLs |
+| 7100 | Dashboard | Live trace UI, MCP endpoint at `/mcp` |
 
 ## MCP Tools Available
 
@@ -80,9 +80,9 @@ cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
 | Analysis Type | How to Set workflow_id |
 |--------------|------------------------|
 | Static Analysis | `create_analysis_session(workflow_id="my-agent")` |
-| Dynamic Analysis | `base_url="http://localhost:3000/workflow/my-agent"` |
+| Dynamic Analysis | `base_url="http://localhost:4000/workflow/my-agent"` |
 
-Both types appear unified in the dashboard at `http://localhost:3000/workflow/{workflow_id}`
+Both types appear unified in the dashboard at `http://localhost:4000/workflow/{workflow_id}`
 
 ## Documentation
 
