@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
+
+import { Section } from '../layout/Section';
 import { Skeleton } from '../feedback/Skeleton';
 import {
   StyledTable,
@@ -33,6 +35,8 @@ export interface TableProps<T> {
   emptyState?: ReactNode;
   stickyHeader?: boolean;
   keyExtractor?: (row: T) => string;
+  /** Optional header content - when provided, table renders with border container */
+  header?: ReactNode;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -47,6 +51,7 @@ export function Table<T>({
   emptyState,
   stickyHeader = false,
   keyExtractor,
+  header,
 }: TableProps<T>) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -91,44 +96,8 @@ export function Table<T>({
     return String(index);
   };
 
-  if (loading) {
-    return (
-      <TableContainer>
-        <StyledTable>
-          <TableHead $sticky={stickyHeader}>
-            <TableRow>
-              {columns.map((column) => (
-                <TableHeader
-                  key={String(column.key)}
-                  $width={column.width}
-                  $align={column.align}
-                >
-                  {column.header}
-                </TableHeader>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {[1, 2, 3].map((i) => (
-              <TableRow key={i}>
-                {columns.map((column) => (
-                  <TableCell key={String(column.key)} $align={column.align}>
-                    <Skeleton variant="text" width="80%" />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </StyledTable>
-      </TableContainer>
-    );
-  }
-
-  if (data.length === 0 && emptyState) {
-    return <EmptyStateContainer>{emptyState}</EmptyStateContainer>;
-  }
-
-  return (
+  // Render the table content
+  const renderTableContent = (tableData: T[]) => (
     <TableContainer>
       <StyledTable>
         <TableHead $sticky={stickyHeader}>
@@ -150,7 +119,12 @@ export function Table<T>({
               >
                 {column.header}
                 {column.sortable && (
-                  <SortIcon $active={sortColumn === String(column.key)} aria-label={sortColumn === String(column.key) ? `sorted ${sortDirection}` : undefined}>
+                  <SortIcon
+                    $active={sortColumn === String(column.key)}
+                    aria-label={
+                      sortColumn === String(column.key) ? `sorted ${sortDirection}` : undefined
+                    }
+                  >
                     {sortColumn === String(column.key) && sortDirection === 'desc' ? (
                       <ChevronDown size={12} />
                     ) : (
@@ -163,7 +137,7 @@ export function Table<T>({
           </TableRow>
         </TableHead>
         <TableBody>
-          {sortedData.map((row, index) => (
+          {tableData.map((row, index) => (
             <TableRow
               key={getRowKey(row, index)}
               $clickable={!!onRowClick}
@@ -181,6 +155,75 @@ export function Table<T>({
       </StyledTable>
     </TableContainer>
   );
+
+  // Render loading skeleton
+  const renderLoadingSkeleton = () => (
+    <TableContainer>
+      <StyledTable>
+        <TableHead $sticky={stickyHeader}>
+          <TableRow>
+            {columns.map((column) => (
+              <TableHeader key={String(column.key)} $width={column.width} $align={column.align}>
+                {column.header}
+              </TableHeader>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {[1, 2, 3].map((i) => (
+            <TableRow key={i}>
+              {columns.map((column) => (
+                <TableCell key={String(column.key)} $align={column.align}>
+                  <Skeleton variant="text" width="80%" />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </StyledTable>
+    </TableContainer>
+  );
+
+  // When header is provided, wrap in Section
+  if (header) {
+    if (loading) {
+      return (
+        <Section>
+          <Section.Header>{header}</Section.Header>
+          <Section.Content noPadding>{renderLoadingSkeleton()}</Section.Content>
+        </Section>
+      );
+    }
+
+    if (data.length === 0 && emptyState) {
+      return (
+        <Section>
+          <Section.Header>{header}</Section.Header>
+          <Section.Content>
+            <EmptyStateContainer>{emptyState}</EmptyStateContainer>
+          </Section.Content>
+        </Section>
+      );
+    }
+
+    return (
+      <Section>
+        <Section.Header>{header}</Section.Header>
+        <Section.Content noPadding>{renderTableContent(sortedData)}</Section.Content>
+      </Section>
+    );
+  }
+
+  // No header - render table without Section wrapper
+  if (loading) {
+    return renderLoadingSkeleton();
+  }
+
+  if (data.length === 0 && emptyState) {
+    return <EmptyStateContainer>{emptyState}</EmptyStateContainer>;
+  }
+
+  return renderTableContent(sortedData);
 }
 
 export default Table;

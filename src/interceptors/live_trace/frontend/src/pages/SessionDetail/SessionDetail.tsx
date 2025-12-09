@@ -10,6 +10,7 @@ import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Timeline } from '@ui/data-display/Timeline';
+import { Section } from '@ui/layout/Section';
 
 import { InfoCard } from '@domain/metrics/InfoCard';
 
@@ -24,9 +25,6 @@ import {
   MetricLabel,
   MetricSubtext,
   MetricValue,
-  TimelineCard,
-  TimelineHeader,
-  TimelineTitle,
   TimelineContent,
   EmptyTimeline,
 } from './SessionDetail.styles';
@@ -170,10 +168,10 @@ export const SessionDetail: FC = () => {
         </SessionSidebar>
 
         <SessionMain>
-          <TimelineCard>
-            <TimelineHeader>
-              <TimelineTitle>Event Timeline ({timeline.length} events)</TimelineTitle>
-            </TimelineHeader>
+          <Section>
+            <Section.Header>
+              <Section.Title>Event Timeline ({timeline.length} events)</Section.Title>
+            </Section.Header>
             <TimelineContent>
               {timeline.length > 0 ? (
                 <Timeline
@@ -187,7 +185,7 @@ export const SessionDetail: FC = () => {
                 </EmptyTimeline>
               )}
             </TimelineContent>
-          </TimelineCard>
+          </Section>
         </SessionMain>
       </SessionLayout>
 

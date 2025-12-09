@@ -60,12 +60,11 @@ export const WorkflowsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: ${({ theme }) => theme.spacing[4]};
-  margin-bottom: ${({ theme }) => theme.spacing[10]};
 `;
 
 export const UnassignedSection = styled.div`
-  margin-top: ${({ theme }) => theme.spacing[10]};
-  padding-top: ${({ theme }) => theme.spacing[8]};
+  margin-top: ${({ theme }) => theme.spacing[6]};
+  padding-top: ${({ theme }) => theme.spacing[6]};
   border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
 `;
 

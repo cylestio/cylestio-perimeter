@@ -59,36 +59,6 @@ export const StatValue = styled.span`
   color: ${({ theme }) => theme.colors.cyan};
 `;
 
-export const SectionCard = styled.div`
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  overflow: hidden;
-`;
-
-export const SectionHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: ${({ theme }) => theme.spacing[4]};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderMedium};
-`;
-
-export const SectionTitle = styled.h2`
-  font-family: ${({ theme }) => theme.typography.fontDisplay};
-  font-size: 16px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const SectionContent = styled.div`
-  padding: ${({ theme }) => theme.spacing[4]};
-`;
-
 export const AgentList = styled.div`
   display: flex;
   flex-direction: column;

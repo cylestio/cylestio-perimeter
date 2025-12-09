@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 
 import { Link } from 'react-router-dom';
 
@@ -22,6 +22,8 @@ export interface SessionsTableProps {
   emptyMessage?: string;
   /** Whether to show the agent column */
   showAgentColumn?: boolean;
+  /** Optional header content - when provided, table renders with border container */
+  header?: ReactNode;
 }
 
 // Column definitions
@@ -150,6 +152,7 @@ export const SessionsTable: FC<SessionsTableProps> = ({
   loading = false,
   emptyMessage = 'No sessions found',
   showAgentColumn = false,
+  header,
 }) => {
   const columns = getColumns(workflowId, showAgentColumn);
 
@@ -159,6 +162,7 @@ export const SessionsTable: FC<SessionsTableProps> = ({
       data={sessions}
       loading={loading}
       keyExtractor={(session) => session.id}
+      header={header}
       emptyState={
         <EmptyState
           title="No Sessions"

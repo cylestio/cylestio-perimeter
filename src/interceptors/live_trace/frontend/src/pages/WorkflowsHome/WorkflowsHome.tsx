@@ -9,7 +9,6 @@ import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchWorkflows } from '@api/endpoints/dashboard';
 import { formatAgentName } from '@utils/formatting';
 
-import { Card } from '@ui/core/Card';
 import { Badge } from '@ui/core/Badge';
 import { Table, type Column } from '@ui/data-display/Table';
 import { Skeleton } from '@ui/feedback/Skeleton';
@@ -211,30 +210,25 @@ export const WorkflowsHome: FC = () => {
         {/* Unassigned Agents Section - only show if there are any */}
         {(hasUnassignedAgents || loading) && (
           <UnassignedSection>
-            <SectionHeader>
-              <SectionTitle>
-                <Bot size={18} />
-                Unassigned Agents
-                {hasUnassignedAgents && <SectionBadge>{unassignedAgents.length}</SectionBadge>}
-              </SectionTitle>
-            </SectionHeader>
-
-            <Card>
-              <Card.Content>
-                <Table
-                  columns={agentColumns}
-                  data={unassignedAgents.map(toAgentRow)}
-                  loading={loading}
-                  onRowClick={handleAgentClick}
-                  keyExtractor={(row) => row.id}
-                  emptyState={
-                    <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-white-50)' }}>
-                      No unassigned agents
-                    </div>
-                  }
-                />
-              </Card.Content>
-            </Card>
+            <Table
+              header={
+                <SectionTitle>
+                  <Bot size={18} />
+                  Unassigned Agents
+                  {hasUnassignedAgents && <SectionBadge>{unassignedAgents.length}</SectionBadge>}
+                </SectionTitle>
+              }
+              columns={agentColumns}
+              data={unassignedAgents.map(toAgentRow)}
+              loading={loading}
+              onRowClick={handleAgentClick}
+              keyExtractor={(row) => row.id}
+              emptyState={
+                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-white-50)' }}>
+                  No unassigned agents
+                </div>
+              }
+            />
           </UnassignedSection>
         )}
       </Stack>

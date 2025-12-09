@@ -109,3 +109,66 @@ export const Empty: Story = {
     await expect(canvas.getByText('No findings found')).toBeInTheDocument();
   },
 };
+
+// Header component for the story
+const TableHeaderContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+`;
+
+export const WithHeader: Story = {
+  args: {
+    columns,
+    data: mockFindings,
+    header: (
+      <TableHeaderContent>
+        Security Findings
+        <Badge variant="critical">4</Badge>
+      </TableHeaderContent>
+    ),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Security Findings')).toBeInTheDocument();
+    await expect(canvas.getByText('4')).toBeInTheDocument();
+    await expect(canvas.getByText('Missing rate limiting')).toBeInTheDocument();
+  },
+};
+
+export const WithHeaderEmpty: Story = {
+  args: {
+    columns,
+    data: [],
+    header: (
+      <TableHeaderContent>
+        Security Findings
+        <Badge variant="info">0</Badge>
+      </TableHeaderContent>
+    ),
+    emptyState: <div style={{ textAlign: 'center', padding: '40px', color: '#ffffff50' }}>No findings found</div>,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Security Findings')).toBeInTheDocument();
+    await expect(canvas.getByText('No findings found')).toBeInTheDocument();
+  },
+};
+
+export const WithHeaderLoading: Story = {
+  args: {
+    columns,
+    data: [],
+    loading: true,
+    header: (
+      <TableHeaderContent>
+        Security Findings
+      </TableHeaderContent>
+    ),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Security Findings')).toBeInTheDocument();
+    await expect(canvas.getByText('Finding')).toBeInTheDocument();
+  },
+};
