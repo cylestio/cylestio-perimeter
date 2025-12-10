@@ -1,42 +1,104 @@
 # Agent Inspector - Cursor Integration
 
 ## MCP Server Connection
-Agent Inspector MCP endpoint at localhost:7100/mcp provides security analysis tools.
-(Note: Port 4000 is the proxy server, port 7100 is the dashboard with MCP endpoint)
+Agent Inspector MCP endpoint at `http://localhost:7100/mcp` provides security analysis tools.
+- **Proxy:** `http://localhost:4000` (point your agent here)
+- **Dashboard/MCP:** `http://localhost:7100`
 
-## Static Analysis Workflow (Code Review)
-1. Get patterns: Call `get_security_patterns` MCP tool
-2. Create session: Call `create_analysis_session` with `workflow_id` (project identifier)
-3. Analyze and store findings: Call `store_finding` MCP tool for each issue
-4. Complete: Call `complete_analysis_session` MCP tool
-5. View results: `http://localhost:4000/workflow/{workflow_id}`
+## Available MCP Tools (13 total)
 
-## Dynamic Analysis Workflow (Runtime Tracing)
-1. Install: `pipx install agent-inspector`
-2. Start: `agent-inspector openai` or `agent-inspector anthropic`
-3. Configure agent code with workflow_id URL pattern:
-   ```python
-   client = OpenAI(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
-   ```
-4. Run agent and view traces at `http://localhost:4000/workflow/{workflow_id}`
+### Analysis Tools
+- `get_security_patterns` - Retrieve OWASP LLM Top 10 patterns
+- `create_analysis_session` - Start session for a workflow (workflow_id required)
+- `store_finding` - Record a security finding
+- `complete_analysis_session` - Finalize session and calculate risk score
+- `get_findings` - Retrieve stored findings
+- `update_finding_status` - Mark finding as FIXED or IGNORED
+
+### Knowledge Tools
+- `get_owasp_control` - Get specific OWASP control details (LLM01-LLM10)
+- `get_fix_template` - Get remediation template for a finding type
+
+### Workflow Lifecycle Tools
+- `get_workflow_state` - Check what analysis exists (static/dynamic/both)
+- `get_tool_usage_summary` - Get tool usage patterns from dynamic sessions
+- `get_workflow_correlation` - Correlate static findings with dynamic runtime
+
+### Agent Discovery Tools
+- `get_agents` - List agents (filter by workflow_id or "unlinked")
+- `update_agent_info` - Link agents to workflows, set display names
+
+## AUTOMATIC WORKFLOW
+
+When user asks for security analysis, follow this flow:
+
+### Step 1: Derive workflow_id (DON'T ASK USER)
+Auto-derive from (priority order):
+1. Git remote: `github.com/acme/my-agent.git` → `my-agent`
+2. Package name: `pyproject.toml` or `package.json`
+3. Folder name: `/projects/my-bot` → `my-bot`
+
+### Step 2: Check Current State
+```
+get_workflow_state(workflow_id)
+```
+- `NO_DATA` → Run static analysis
+- `STATIC_ONLY` → Inform user to run dynamic tests
+- `DYNAMIC_ONLY` → Run static analysis, then correlate
+- `COMPLETE` → Run correlation, report unified results
+
+### Step 3: Discover & Link Agents (if dynamic data exists)
+```
+get_agents("unlinked")
+```
+Link unlinked agents:
+```
+update_agent_info(agent_id, workflow_id="the-workflow-id")
+```
+
+### Step 4: Run Static Analysis
+1. `get_security_patterns()` - NEVER hardcode patterns
+2. `create_analysis_session(workflow_id, "STATIC")`
+3. Analyze code and `store_finding(...)` for each issue
+4. `complete_analysis_session(session_id)`
+
+### Step 5: Correlate (when both static + dynamic exist)
+```
+get_workflow_correlation(workflow_id)
+get_tool_usage_summary(workflow_id)
+```
+Report:
+- **VALIDATED**: Finding's tool was called at runtime
+- **UNEXERCISED**: Tool never called in tests
+
+### Step 6: Name Agents (optional)
+```
+update_agent_info(agent_id, display_name="Customer Support Bot", description="...")
+```
+
+### Step 7: Report Results
+Include dashboard URL: `http://localhost:7100/workflow/{workflow_id}`
+
+## Dynamic Analysis Setup
+
+Tell user to configure their agent's base_url:
+```python
+# OpenAI
+client = OpenAI(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
+
+# Anthropic  
+client = Anthropic(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
+```
 
 ## Fix Workflow
-1. Get findings: Call `get_findings` MCP tool with `workflow_id` to see what needs fixing
-2. Get template: Call `get_fix_template` MCP tool
-3. Apply fix per MCP response guidance
-4. Update status: Call `update_finding_status` MCP tool
+1. `get_findings(workflow_id, status="OPEN")`
+2. `get_fix_template(finding_type)`
+3. Apply fix per guidance
+4. `update_finding_status(finding_id, "FIXED", notes="...")`
 
-## Available MCP Tools (8 total)
-- get_security_patterns - Retrieve OWASP LLM Top 10 patterns
-- get_owasp_control - Get specific OWASP control details (e.g., LLM01)
-- get_fix_template - Get remediation guidance for a finding type
-- create_analysis_session - Start session for a workflow/codebase (workflow_id required)
-- store_finding - Record a security finding (linked to workflow via session)
-- complete_analysis_session - Finalize session and calculate risk score
-- get_findings - Retrieve stored findings (filter by workflow_id, session_id, severity, status)
-- update_finding_status - Mark finding as FIXED or IGNORED
-
-## Important
-- DO NOT use hardcoded patterns. Always fetch from MCP tools.
-- Use the SAME workflow_id for static and dynamic analysis for unified results.
-- All findings are linked to workflows (projects), not individual agents.
+## Key Rules
+1. **Auto-derive** workflow_id - don't ask user
+2. **Auto-link** unlinked agents via `update_agent_info`
+3. **Auto-correlate** when both static + dynamic data exist
+4. **Never hardcode** security patterns - always fetch from MCP
+5. **Same workflow_id** for static and dynamic = unified results
