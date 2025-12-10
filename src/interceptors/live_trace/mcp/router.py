@@ -1,9 +1,16 @@
-"""MCP FastAPI router implementing the Model Context Protocol."""
+"""MCP FastAPI router implementing the Model Context Protocol.
+
+Supports both:
+- Simple HTTP POST (for tools/call)
+- SSE (Server-Sent Events) for Cursor's streamable-http transport
+"""
+import asyncio
 import json
 from typing import Any, Callable, Dict
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from sse_starlette.sse import EventSourceResponse
 
 from src.utils.logger import get_logger
 
@@ -90,5 +97,35 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
         # Unknown method
         else:
             return JSONResponse(_jsonrpc_error(request_id, METHOD_NOT_FOUND, f"Method not found: {method}"))
+
+    # SSE endpoint for Cursor's streamable-http transport
+    @router.get("/mcp")
+    async def mcp_sse_endpoint(request: Request):
+        """MCP SSE endpoint for Cursor integration.
+        
+        This endpoint provides Server-Sent Events transport for the MCP protocol.
+        Cursor uses this for real-time tool communication.
+        """
+        async def event_generator():
+            # Send initial connection message
+            yield {
+                "event": "endpoint",
+                "data": json.dumps("/mcp")
+            }
+            
+            # Keep connection alive with periodic pings
+            while True:
+                if await request.is_disconnected():
+                    logger.info("MCP SSE client disconnected")
+                    break
+                    
+                # Send keepalive ping every 30 seconds
+                yield {
+                    "event": "ping",
+                    "data": json.dumps({"time": asyncio.get_event_loop().time()})
+                }
+                await asyncio.sleep(30)
+        
+        return EventSourceResponse(event_generator())
 
     return router
