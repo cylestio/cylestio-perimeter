@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
+import { Routes, Route } from 'react-router-dom';
 
 import { StaticAnalysis } from './StaticAnalysis';
 
@@ -151,6 +152,13 @@ const createMockFetch = (
   };
 };
 
+// Wrapper to provide route params via Routes
+const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
+  <Routes>
+    <Route path="/workflow/:workflowId/static-analysis" element={children} />
+  </Routes>
+);
+
 export const Empty: Story = {
   decorators: [
     (Story) => {
@@ -163,7 +171,11 @@ export const Empty: Story = {
         fixed_count: 0,
         ignored_count: 0,
       }) as typeof fetch;
-      return <Story />;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
     },
   ],
   parameters: {
@@ -186,7 +198,11 @@ export const WithSessions: Story = {
         mockFindings,
         mockSummary
       ) as typeof fetch;
-      return <Story />;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
     },
   ],
   parameters: {
@@ -213,7 +229,11 @@ export const WithRunningSession: Story = {
         mockFindings,
         mockSummary
       ) as typeof fetch;
-      return <Story />;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
     },
   ],
   parameters: {
@@ -260,7 +280,11 @@ export const WithManyFindings: Story = {
         manyFindings,
         manySummary
       ) as typeof fetch;
-      return <Story />;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
     },
   ],
   parameters: {
