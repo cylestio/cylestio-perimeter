@@ -308,7 +308,7 @@ class SessionDetectionUtility:
         
         # Create hash - using MD5 for consistency with providers
         signature_string = "|".join(sig_parts)
-        return hashlib.md5(signature_string.encode()).hexdigest()
+        return hashlib.md5(signature_string.encode(), usedforsecurity=False).hexdigest()
 
     def _extract_content_text(self, content: Any) -> str:
         """Safely extract text content from various content formats.

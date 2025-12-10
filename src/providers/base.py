@@ -182,7 +182,7 @@ class BaseProvider(ABC):
         
         # Create deterministic ID from session ID
         import hashlib
-        hash_obj = hashlib.md5(session_id.encode())
+        hash_obj = hashlib.md5(session_id.encode(), usedforsecurity=False)
         return hash_obj.hexdigest()  # 32-char hex string
     
     def generate_new_span_id(self) -> str:
@@ -276,7 +276,7 @@ class BaseProvider(ABC):
         
         # Generate agent ID as hash of system prompt
         import hashlib
-        hash_obj = hashlib.md5(system_prompt.encode())
+        hash_obj = hashlib.md5(system_prompt.encode(), usedforsecurity=False)
         return f"prompt-{hash_obj.hexdigest()[:12]}"
     
     def _extract_system_prompt(self, body: Dict[str, Any]) -> str:

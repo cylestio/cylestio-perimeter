@@ -77,7 +77,7 @@ def session_id_to_trace_span_id(session_id: str) -> str:
         return generate_span_id() + generate_span_id()  # 32 chars
     
     # Create deterministic ID from session ID
-    hash_obj = hashlib.md5(session_id.encode())
+    hash_obj = hashlib.md5(session_id.encode(), usedforsecurity=False)
     return hash_obj.hexdigest()  # 32-char hex string
 
 

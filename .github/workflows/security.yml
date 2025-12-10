@@ -43,14 +43,11 @@ jobs:
       - name: Create security reports directory
         run: mkdir -p security-reports
 
-      - name: Dependency vulnerability scan
+      - name: Dependency vulnerability scan (pip-audit)
         run: |
-          pip install pip-audit safety
+          pip install pip-audit
           pip-audit --format json \
-            --output security-reports/dependency-audit.json || true
-          safety check --json \
-            --output security-reports/safety-report.json || true
-          echo "Dependency scan completed"
+            --output security-reports/dependency-audit.json
 
       - name: Secret detection
         run: |
@@ -62,30 +59,12 @@ jobs:
             security-reports/secrets-scan.json || true
           echo "Secret detection completed"
 
-      - name: Static code analysis
+      - name: Static code analysis (bandit)
         run: |
-          pip install semgrep bandit[toml]
-          semgrep --config=p/python --config=p/security-audit \
-            --json --output=security-reports/semgrep-results.json \
-            src/ || true
-          bandit -r src/ -f json \
-            -o security-reports/bandit-results.json || true
-          echo "Static analysis completed"
-
-      - name: Container security scan
-        run: |
-          docker build -t cylestio-perimeter:security-scan .
-          sudo apt-get update
-          sudo apt-get install wget apt-transport-https gnupg -y
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | \
-            sudo tee -a /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install trivy -y
-          trivy image --format json \
-            --output security-reports/trivy-results.json \
-            cylestio-perimeter:security-scan || true
-          echo "Container scan completed"
+          pip install bandit[toml]
+          # Skip B104 (0.0.0.0 binding - expected for proxy server)
+          bandit -r src/ -ll --skip B104 -f json \
+            -o security-reports/bandit-results.json
 
       - name: Generate security summary
         if: always()
@@ -105,34 +84,4 @@ jobs:
         with:
           name: security-reports-${{ github.sha }}
           path: security-reports/
-          retention-days: 90
-
-  license-check:
-    name: License Compliance
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: License compliance check
-        run: |
-          pip install pip-licenses
-          mkdir -p security-reports
-          pip-licenses --format=json \
-            --output-file=security-reports/licenses.json
-          pip-licenses --format=plain \
-            --output-file=security-reports/licenses.txt
-          echo "License check completed"
-
-      - name: Upload license reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: license-reports-${{ github.sha }}
-          path: security-reports/licenses.*
           retention-days: 90

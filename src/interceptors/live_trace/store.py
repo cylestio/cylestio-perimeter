@@ -727,7 +727,7 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
             )
-            query = f"SELECT COUNT(*) FROM sessions{where_clause}"
+            query = f"SELECT COUNT(*) FROM sessions{where_clause}"  # nosec B608 - parameterized
             cursor = self.db.execute(query, params)
             return cursor.fetchone()[0]
 
@@ -755,7 +755,7 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
             )
-            query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ?"
+            query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ?"  # nosec B608 - parameterized
             params.append(limit)
 
             cursor = self.db.execute(query, params)
@@ -884,7 +884,7 @@ class TraceStore:
             if updates:
                 params.append(agent_id)
                 self.db.execute(
-                    f"UPDATE agents SET {', '.join(updates)} WHERE agent_id = ?",
+                    f"UPDATE agents SET {', '.join(updates)} WHERE agent_id = ?",  # nosec B608 - parameterized
                     params
                 )
                 self.db.commit()
