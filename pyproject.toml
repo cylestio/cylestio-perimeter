@@ -39,6 +39,7 @@ dependencies = [
     "numpy>=1.24.3",
     "presidio-analyzer>=2.2.354",
     "spacy>=3.7.0",
+    "sse-starlette>=1.8.2",  # MCP Streamable HTTP transport (SSE for server-to-client)
 ]
 
 [project.optional-dependencies]
