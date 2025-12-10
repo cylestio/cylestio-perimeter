@@ -72,20 +72,16 @@ jobs:
             -o security-reports/bandit-results.json || true
           echo "Static analysis completed"
 
+      - name: Build Docker image for scanning
+        run: docker build -t cylestio-perimeter:security-scan .
+
       - name: Container security scan
-        run: |
-          docker build -t cylestio-perimeter:security-scan .
-          sudo apt-get update
-          sudo apt-get install wget apt-transport-https gnupg -y
-          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | \
-            sudo tee -a /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update
-          sudo apt-get install trivy -y
-          trivy image --format json \
-            --output security-reports/trivy-results.json \
-            cylestio-perimeter:security-scan || true
-          echo "Container scan completed"
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'cylestio-perimeter:security-scan'
+          format: 'json'
+          output: 'security-reports/trivy-results.json'
+          exit-code: '0'
 
       - name: Generate security summary
         if: always()
@@ -105,34 +101,4 @@ jobs:
         with:
           name: security-reports-${{ github.sha }}
           path: security-reports/
-          retention-days: 90
-
-  license-check:
-    name: License Compliance
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: License compliance check
-        run: |
-          pip install pip-licenses
-          mkdir -p security-reports
-          pip-licenses --format=json \
-            --output-file=security-reports/licenses.json
-          pip-licenses --format=plain \
-            --output-file=security-reports/licenses.txt
-          echo "License check completed"
-
-      - name: Upload license reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: license-reports-${{ github.sha }}
-          path: security-reports/licenses.*
           retention-days: 90
