@@ -1,68 +1,52 @@
 # Agent Inspector Templates
 
-Templates for integrating Agent Inspector with AI coding assistants.
-
-## Contents
-
-```
-templates/
-├── INSTALLATION.md          # Complete setup guide
-├── README.md               # This file
-├── skills/
-│   ├── static-analysis/
-│   │   └── SKILL.md        # Security scanning skill for Claude Code
-│   ├── dynamic-analysis/
-│   │   └── SKILL.md        # Runtime tracing skill for Claude Code
-│   └── auto-fix/
-│       └── SKILL.md        # Auto-fix skill for Claude Code
-└── cursor-rules/
-    ├── .cursorrules        # Rules file for Cursor
-    └── agent-inspector.mdc # MDC format rules (alternative)
-```
+Integration templates for AI coding assistants (Claude Code & Cursor).
 
 ## Quick Start
 
-### Claude Code
+### 1. Start Agent Inspector
 
 ```bash
-# 1. Start Agent Inspector server
-uvx cylestio-perimeter run --config examples/configs/anthropic-live-trace.yaml
+uvx cylestio-perimeter run --config path/to/config.yaml
+```
 
-# 2. Add MCP server to Claude Code (MCP endpoint is on port 7100)
+**Default ports:**
+- Proxy: `http://localhost:4000` (point your agent here)
+- Dashboard/MCP: `http://localhost:7100`
+
+### 2. Connect Your IDE
+
+#### Claude Code
+
+```bash
 claude mcp add --transport http agent-inspector http://localhost:7100/mcp
-
-# 3. (Optional) Copy skills to your project
-mkdir -p .claude/skills
-cp templates/skills/static-analysis/SKILL.md .claude/skills/
 ```
 
-### Cursor
+#### Cursor
 
-```bash
-# 1. Start Agent Inspector server
-uvx cylestio-perimeter run --config examples/configs/anthropic-live-trace.yaml
+Create `.cursor/mcp.json` in your project (or `~/.cursor/mcp.json` globally):
 
-# 2. Create MCP config (MCP endpoint is on port 7100)
-mkdir -p ~/.cursor
-echo '{"mcpServers":{"agent-inspector":{"url":"http://localhost:7100/mcp"}}}' > ~/.cursor/mcp.json
-
-# 3. Restart Cursor and approve the MCP server when prompted
-
-# 4. (Optional) Copy rules to your project
-mkdir -p .cursor/rules
-cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/agent-inspector.mdc
+```json
+{
+  "mcpServers": {
+    "agent-inspector": {
+      "url": "http://localhost:7100/mcp"
+    }
+  }
+}
 ```
 
-## Ports Reference
+Then restart Cursor and approve the MCP server when prompted.
 
-| Port | Service | Purpose |
-|------|---------|---------|
-| 4000 | Proxy Server | LLM API proxy, workflow URLs |
-| 7100 | Dashboard | Live trace UI, MCP endpoint at `/mcp` |
+### 3. Verify
 
-## MCP Tools Available (13 total)
+- **Claude Code:** Run `/mcp` - should show 13 tools
+- **Cursor:** Ask "What MCP tools are available?"
 
-### Analysis Tools
+---
+
+## Available MCP Tools (13)
+
 | Tool | Purpose |
 |------|---------|
 | `get_security_patterns` | OWASP LLM Top 10 patterns |
@@ -70,40 +54,93 @@ cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/agent-inspector.mdc
 | `store_finding` | Record security finding |
 | `complete_analysis_session` | Finalize with risk score |
 | `get_findings` | Retrieve findings |
-| `update_finding_status` | Mark fixed/ignored |
-
-### Knowledge Tools
-| Tool | Purpose |
-|------|---------|
-| `get_owasp_control` | Specific OWASP control details |
+| `update_finding_status` | Mark FIXED/IGNORED |
+| `get_owasp_control` | OWASP control details |
 | `get_fix_template` | Remediation templates |
-
-### Workflow Lifecycle Tools
-| Tool | Purpose |
-|------|---------|
-| `get_workflow_state` | Check what data exists (static/dynamic/both) |
+| `get_workflow_state` | Check static/dynamic data exists |
 | `get_tool_usage_summary` | Runtime tool usage patterns |
-| `get_workflow_correlation` | Correlate static findings with dynamic |
+| `get_workflow_correlation` | Correlate static ↔ dynamic |
+| `get_agents` | List agents |
+| `update_agent_info` | Link/name agents |
 
-### Agent Discovery Tools
-| Tool | Purpose |
+---
+
+## Usage
+
+### Run a Security Scan
+
+Ask your AI assistant:
+> "Run a security scan on this codebase"
+
+### Test Your Agent (Dynamic Analysis)
+
+Configure your agent to use the proxy:
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
+
+# or Anthropic
+from anthropic import Anthropic
+client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
+```
+
+### View Results
+
+Open the dashboard: `http://localhost:7100/workflow/{workflow_id}`
+
+---
+
+## Optional: Install Rules/Skills
+
+### Cursor Rules
+
+```bash
+mkdir -p .cursor/rules
+cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
+```
+
+### Claude Code Skills
+
+```bash
+mkdir -p .claude/skills
+cp templates/skills/static-analysis/SKILL.md .claude/skills/
+cp templates/skills/dynamic-analysis/SKILL.md .claude/skills/
+cp templates/skills/auto-fix/SKILL.md .claude/skills/
+```
+
+---
+
+## Templates Directory
+
+```
+templates/
+├── README.md                    # This file (human guide)
+├── AGENT_INSPECTOR_SETUP.md     # AI agent setup instructions
+├── skills/                      # Claude Code skills
+│   ├── static-analysis/SKILL.md
+│   ├── dynamic-analysis/SKILL.md
+│   └── auto-fix/SKILL.md
+└── cursor-rules/                # Cursor rules
+    ├── .cursorrules
+    └── agent-inspector.mdc
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| MCP server not found | Ensure server is running on port 7100 |
+| Connection refused | Check `curl http://localhost:4000/health` |
+| Tools not showing | Restart IDE after adding mcp.json |
+
+---
+
+## Ports Reference
+
+| Port | Service |
 |------|---------|
-| `get_agents` | List agents (filter by workflow_id or "unlinked") |
-| `update_agent_info` | Link agents to workflows, set display names |
-
-## Unified Workflow ID
-
-**Important:** Use the same `workflow_id` for both static and dynamic analysis to get unified results.
-
-| Analysis Type | How to Set workflow_id |
-|--------------|------------------------|
-| Static Analysis | `create_analysis_session(workflow_id="my-agent")` |
-| Dynamic Analysis | `base_url="http://localhost:4000/workflow/my-agent"` |
-
-Both types appear unified in the dashboard at `http://localhost:7100/workflow/{workflow_id}`
-
-## Documentation
-
-- [Full Installation Guide](./INSTALLATION.md)
-- [MCP Protocol](https://modelcontextprotocol.io)
-- [Claude Code Docs](https://code.claude.com/docs)
+| 4000 | Proxy (LLM API routing) |
+| 7100 | Dashboard + MCP endpoint |
