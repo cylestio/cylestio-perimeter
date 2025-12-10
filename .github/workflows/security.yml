@@ -62,7 +62,8 @@ jobs:
       - name: Static code analysis (bandit)
         run: |
           pip install bandit[toml]
-          bandit -r src/ -ll -f json \
+          # Skip B104 (0.0.0.0 binding - expected for proxy server)
+          bandit -r src/ -ll --skip B104 -f json \
             -o security-reports/bandit-results.json
 
       - name: Generate security summary
