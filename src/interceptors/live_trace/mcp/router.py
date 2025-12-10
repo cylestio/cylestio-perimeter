@@ -97,6 +97,11 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
             }))
             return _add_session_header(resp, session_id)
 
+        # Handle notifications/initialized - client ready signal (per MCP spec)
+        # Notifications don't require a response, return 204 No Content
+        elif method == "notifications/initialized":
+            return _add_session_header(Response(status_code=204), session_id)
+
         # Handle tools/list - Return available tools
         elif method == "tools/list":
             resp = JSONResponse(_jsonrpc_response(request_id, {"tools": MCP_TOOLS}))
