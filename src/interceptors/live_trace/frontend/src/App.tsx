@@ -9,7 +9,7 @@ import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
-import { useIsInitialLoad, usePolling } from '@hooks/index';
+import { usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
 import { workflowLink } from '@utils/breadcrumbs';
 
@@ -94,6 +94,7 @@ function AppLayout() {
 
   // Workflow list state (for dropdown)
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
 
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -115,9 +116,11 @@ function AppLayout() {
     fetchWorkflows()
       .then((response) => {
         setWorkflows(response.workflows.map(toWorkflow));
+        setWorkflowsLoaded(true);
       })
       .catch((error) => {
         console.error('Failed to fetch workflows:', error);
+        setWorkflowsLoaded(true); // Mark as loaded even on error to unblock redirect
       });
   }, []);
 
@@ -167,16 +170,17 @@ function AppLayout() {
   });
 
   const agents = data?.agents ?? [];
+  const dashboardLoaded = !loading && data !== null;
 
-  // Check if this is the initial load (fires once when data first loads)
-  const isInitialLoad = useIsInitialLoad(!loading && data !== null);
+  // Derive if we have any data (workflows or agents)
+  const hasData = workflows.length > 0 || agents.length > 0;
 
-  // Redirect to /connect on first load if no workflows exist and no unassigned agents
+  // Redirect to /connect if on root, both loaded, and no data exists
   useEffect(() => {
-    if (isInitialLoad && location.pathname === '/' && workflows.length === 0 && agents.length === 0) {
+    if (location.pathname === '/' && workflowsLoaded && dashboardLoaded && !hasData) {
       navigate('/connect', { replace: true });
     }
-  }, [isInitialLoad, location.pathname, workflows.length, agents.length, navigate]);
+  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, navigate]);
 
   return (
     <Shell>
@@ -198,8 +202,8 @@ function AppLayout() {
           />
         )}
         <Sidebar.Section>
-          {/* Start Here - show on root page and connect page */}
-          {isRootPage && (
+          {/* Start Here - show on root page only if there's data */}
+          {isRootPage && hasData && (
             <NavItem
               icon={<Home size={18} />}
               label="Start Here"

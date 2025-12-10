@@ -264,6 +264,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
         sessions={liveSessions}
         workflowId={workflowId || 'unassigned'}
         loading={liveSessionsLoading}
+        showAgentColumn
         emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
         header={
           <>

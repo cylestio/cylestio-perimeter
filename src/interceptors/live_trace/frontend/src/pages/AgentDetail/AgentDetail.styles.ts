@@ -1,29 +1,413 @@
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 
-export const AgentLayout = styled.div`
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: ${({ theme }) => theme.spacing[6]};
-  min-height: 100%;
+// Button-styled Link component
+export const ButtonLink = styled(Link)<{ $variant?: 'primary' | 'secondary' | 'ghost' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  text-decoration: none;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  cursor: pointer;
 
-  @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
-    grid-template-columns: 1fr;
-  }
+  ${({ theme, $variant = 'primary' }) => {
+    switch ($variant) {
+      case 'secondary':
+        return `
+          background: transparent;
+          border: 1px solid ${theme.colors.borderMedium};
+          color: ${theme.colors.white90};
+          &:hover {
+            background: ${theme.colors.surface2};
+            border-color: ${theme.colors.cyan};
+          }
+        `;
+      case 'ghost':
+        return `
+          background: transparent;
+          border: none;
+          color: ${theme.colors.cyan};
+          padding: ${theme.spacing[1]} ${theme.spacing[2]};
+          &:hover {
+            background: ${theme.colors.surface2};
+          }
+        `;
+      default:
+        return `
+          background: ${theme.colors.cyan};
+          border: 1px solid ${theme.colors.cyan};
+          color: ${theme.colors.void};
+          &:hover {
+            opacity: 0.9;
+          }
+        `;
+    }
+  }}
 `;
 
-export const AgentSidebar = styled.aside`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const AgentMain = styled.main`
+// Main Layout - Full width container
+export const PageContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[5]};
 `;
 
-// Risk Score Hero Card
+// Two-column layout: Operational + Security
+export const ContentGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing[6]};
+
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+// Column container for each side
+export const Column = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[5]};
+  min-width: 0; /* Prevent overflow */
+`;
+
+// Column header label (OPERATIONAL / SECURITY)
+export const ColumnHeader = styled.h2`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+`;
+
+// Agent Header
+export const AgentHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const AgentHeaderLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const AgentTitle = styled.h1`
+  font-size: ${({ theme }) => theme.typography.textXl};
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  color: ${({ theme }) => theme.colors.white};
+  margin: 0;
+`;
+
+export const AgentMeta = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[4]};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+// Critical Alert Banner
+export const CriticalAlertBanner = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.redSoft};
+  border: 1px solid ${({ theme }) => theme.colors.red};
+  border-radius: ${({ theme }) => theme.radii.md};
+  color: ${({ theme }) => theme.colors.red};
+
+  svg {
+    flex-shrink: 0;
+  }
+`;
+
+export const AlertText = styled.span`
+  flex: 1;
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white90};
+`;
+
+// Compact Inline Stats Bar (neutral colors)
+export const StatsBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  flex-wrap: wrap;
+`;
+
+export const StatItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  min-width: 60px;
+`;
+
+export const StatValue = styled.span`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textLg};
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const StatLabel = styled.span`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: lowercase;
+`;
+
+export const StatDivider = styled.div`
+  width: 1px;
+  height: 32px;
+  background: ${({ theme }) => theme.colors.borderMedium};
+`;
+
+// Security Section - Simplified
+export const SecurityStatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.md};
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const SecurityCounts = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[4]};
+  font-size: ${({ theme }) => theme.typography.textSm};
+`;
+
+export const PIINote = styled.div`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white50};
+  padding: ${({ theme }) => theme.spacing[2]} ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
+`;
+
+// Collapsible Checks
+export const CollapsibleHeader = styled.button<{ $isOpen: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  width: 100%;
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  color: ${({ theme }) => theme.colors.white70};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surface2};
+  }
+
+  svg {
+    transition: transform ${({ theme }) => theme.transitions.fast};
+    transform: ${({ $isOpen }) => ($isOpen ? 'rotate(180deg)' : 'rotate(0)')};
+  }
+`;
+
+export const CollapsibleContent = styled.div<{ $isOpen: boolean }>`
+  display: ${({ $isOpen }) => ($isOpen ? 'block' : 'none')};
+  margin-top: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const CheckList = styled.div`
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  overflow: hidden;
+`;
+
+export const CheckItem = styled.div<{ $isLast?: boolean }>`
+  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
+  background: ${({ theme }) => theme.colors.surface};
+  border-bottom: ${({ theme, $isLast }) =>
+    $isLast ? 'none' : `1px solid ${theme.colors.borderSubtle}`};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const CheckStatus = styled.span<{ $color: string }>`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ $color }) => $color};
+  min-width: 36px;
+`;
+
+export const CheckName = styled.span`
+  flex: 1;
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+`;
+
+export const CheckValue = styled.span`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white50};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+`;
+
+// Behavioral Section - Side-by-side layout
+export const BehavioralMetrics = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const BehavioralGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing[5]};
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const ScoresColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const ChartColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const ChartLabel = styled.span`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+`;
+
+export const MetricRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const MetricRowHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+export const MetricRowLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  cursor: help;
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white70};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+
+  span:last-child {
+    opacity: 0.5;
+    font-size: 11px;
+  }
+`;
+
+export const MetricRowValue = styled.span`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textMd};
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  color: ${({ theme }) => theme.colors.cyan};
+`;
+
+export const ConfidenceRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: ${({ theme }) => theme.spacing[2]};
+`;
+
+// Progress/Waiting States
+export const WaitingMessage = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.purpleSoft};
+  border: 1px solid ${({ theme }) => theme.colors.purple};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+export const PlaceholderMessage = styled.div`
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.radii.md};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+// Evaluation Progress
+export const EvaluationCounter = styled.div`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textLg};
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  color: ${({ theme }) => theme.colors.cyan};
+`;
+
+export const EvaluationDescription = styled.p`
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white50};
+  margin: 0;
+  line-height: ${({ theme }) => theme.typography.lineHeightRelaxed};
+`;
+
+// Sessions Table
+export const EmptySessions = styled.div`
+  padding: ${({ theme }) => theme.spacing[8]};
+  text-align: center;
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+// Active Sessions Note
+export const ActiveSessionsNote = styled.div`
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  background: ${({ theme }) => theme.colors.purpleSoft};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  border: 1px solid ${({ theme }) => theme.colors.purple};
+  margin-bottom: ${({ theme }) => theme.spacing[3]};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+// ============================================
+// Shared components (used by AgentReport.tsx)
+// ============================================
+
+// Risk Score Hero Card (for AgentReport sidebar)
 export const RiskHeroCard = styled.div`
   background: ${({ theme }) => theme.colors.surface2};
   border: 1px solid ${({ theme }) => theme.colors.borderMedium};
@@ -59,7 +443,7 @@ export const RiskSummary = styled.div`
   font-weight: ${({ theme }) => theme.typography.weightSemibold};
 `;
 
-// Metric Grid
+// Metric Grid (for AgentReport sidebar)
 export const MetricGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -90,300 +474,4 @@ export const MetricValue = styled.div`
   font-size: ${({ theme }) => theme.typography.textLg};
   font-weight: ${({ theme }) => theme.typography.weightBold};
   color: ${({ theme }) => theme.colors.cyan};
-`;
-
-// Alert Banners
-export const AlertBanner = styled.div<{ $variant: 'info' | 'warning' | 'success' | 'error' }>`
-  padding: ${({ theme }) => theme.spacing[4]};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  display: flex;
-  align-items: flex-start;
-  gap: ${({ theme }) => theme.spacing[3]};
-
-  ${({ theme, $variant }) => {
-    switch ($variant) {
-      case 'info':
-        return `
-          background: linear-gradient(135deg, ${theme.colors.purpleSoft} 0%, ${theme.colors.surface2} 100%);
-          border: 2px solid ${theme.colors.purple};
-        `;
-      case 'warning':
-        return `
-          background: ${theme.colors.orangeSoft};
-          border: 1px solid ${theme.colors.orange};
-        `;
-      case 'success':
-        return `
-          background: ${theme.colors.greenSoft};
-          border: 1px solid ${theme.colors.green};
-        `;
-      case 'error':
-        return `
-          background: ${theme.colors.redSoft};
-          border: 1px solid ${theme.colors.red};
-        `;
-    }
-  }}
-`;
-
-export const AlertContent = styled.div`
-  flex: 1;
-`;
-
-export const AlertTitle = styled.div<{ $color?: string }>`
-  font-size: ${({ theme }) => theme.typography.textSm};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ $color, theme }) => $color || theme.colors.white90};
-  margin-bottom: ${({ theme }) => theme.spacing[1]};
-`;
-
-export const AlertDescription = styled.div`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-// Status Banner
-export const StatusBanner = styled.div<{ $isError: boolean }>`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: ${({ theme }) => theme.spacing[4]};
-  background: ${({ theme, $isError }) =>
-    $isError ? theme.colors.redSoft : theme.colors.greenSoft};
-  border-radius: ${({ theme }) => theme.radii.md};
-  border: 2px solid
-    ${({ theme, $isError }) => ($isError ? theme.colors.red : theme.colors.green)};
-  margin-bottom: ${({ theme }) => theme.spacing[6]};
-`;
-
-export const StatusLeft = styled.div``;
-
-export const StatusRight = styled.div`
-  text-align: right;
-`;
-
-export const StatusLabel = styled.div`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  color: ${({ theme }) => theme.colors.white50};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  margin-bottom: ${({ theme }) => theme.spacing[1]};
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-`;
-
-export const StatusValue = styled.div<{ $color: string }>`
-  font-size: ${({ theme }) => theme.typography.textLg};
-  font-weight: ${({ theme }) => theme.typography.weightBold};
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  color: ${({ $color }) => $color};
-`;
-
-export const StatusMeta = styled.div`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-// Check Lists
-export const CheckSection = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing[6]};
-`;
-
-export const CheckSectionTitle = styled.h3<{ $color: string }>`
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  color: ${({ $color }) => $color};
-  margin: 0 0 ${({ theme }) => theme.spacing[3]} 0;
-`;
-
-export const CheckList = styled.div`
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.md};
-  overflow: hidden;
-`;
-
-export const CheckItem = styled.div<{ $isLast: boolean }>`
-  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
-  background: ${({ theme }) => theme.colors.surface};
-  border-bottom: ${({ theme, $isLast }) =>
-    $isLast ? 'none' : `1px solid ${theme.colors.borderSubtle}`};
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const CheckStatus = styled.div<{ $color: string }>`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  min-width: 32px;
-  text-align: center;
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ $color }) => $color};
-`;
-
-export const CheckName = styled.div`
-  flex: 1;
-  font-size: ${({ theme }) => theme.typography.textSm};
-  font-weight: ${({ theme }) => theme.typography.weightMedium};
-  font-family: ${({ theme }) => theme.typography.fontMono};
-`;
-
-export const CheckValue = styled.span`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  color: ${({ theme }) => theme.colors.white50};
-  font-family: ${({ theme }) => theme.typography.fontMono};
-`;
-
-// Behavioral Snapshot
-export const BehavioralSection = styled.div`
-  padding-top: ${({ theme }) => theme.spacing[6]};
-  margin-top: ${({ theme }) => theme.spacing[6]};
-  border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-`;
-
-export const BehavioralTitle = styled.div`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white50};
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const MetricRow = styled.div`
-  margin-bottom: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const MetricRowHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: ${({ theme }) => theme.spacing[1]};
-`;
-
-export const MetricRowLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[1]};
-  cursor: help;
-
-  span:first-child {
-    font-size: ${({ theme }) => theme.typography.textSm};
-    color: ${({ theme }) => theme.colors.white70};
-    font-weight: ${({ theme }) => theme.typography.weightMedium};
-  }
-
-  span:last-child {
-    opacity: 0.5;
-    font-size: 11px;
-  }
-`;
-
-export const MetricRowValue = styled.span`
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  font-size: ${({ theme }) => theme.typography.textMd};
-  font-weight: ${({ theme }) => theme.typography.weightBold};
-  color: ${({ theme }) => theme.colors.cyan};
-`;
-
-export const ProgressBarContainer = styled.div`
-  height: 8px;
-  background: ${({ theme }) => theme.colors.surface};
-  border-radius: ${({ theme }) => theme.radii.full};
-  overflow: hidden;
-`;
-
-export const ProgressBarFill = styled.div<{ $width: number }>`
-  height: 100%;
-  width: ${({ $width }) => $width}%;
-  background: ${({ theme }) => theme.colors.purple};
-  border-radius: ${({ theme }) => theme.radii.full};
-  transition: width ${({ theme }) => theme.transitions.base};
-`;
-
-export const ConfidenceRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: ${({ theme }) => theme.spacing[2]};
-`;
-
-// Sessions Table
-export const EmptySessions = styled.div`
-  padding: ${({ theme }) => theme.spacing[8]};
-  text-align: center;
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-// View Report Button
-export const ViewReportButton = styled.a`
-  background: ${({ theme }) => theme.colors.purple};
-  color: ${({ theme }) => theme.colors.white};
-  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[5]}`};
-  border-radius: ${({ theme }) => theme.radii.md};
-  text-decoration: none;
-  font-size: ${({ theme }) => theme.typography.textSm};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  border: 2px solid ${({ theme }) => theme.colors.purple};
-  transition: all ${({ theme }) => theme.transitions.fast};
-
-  &:hover {
-    opacity: 0.9;
-    box-shadow: ${({ theme }) => theme.shadows.glowPurple};
-  }
-`;
-
-// Full Report Link
-export const FullReportLink = styled.a`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.purple};
-  text-decoration: none;
-  opacity: 0.9;
-
-  &:hover {
-    opacity: 1;
-  }
-`;
-
-// PII Warning
-export const PIIWarning = styled.div`
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  border: 1px solid #f59e0b;
-  border-radius: ${({ theme }) => theme.radii.md};
-  padding: ${({ theme }) => theme.spacing[3]};
-`;
-
-export const PIIWarningText = styled.div`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: #92400e;
-`;
-
-// Active Sessions Note
-export const ActiveSessionsNote = styled.div`
-  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-  border-radius: ${({ theme }) => theme.radii.sm};
-  border: 1px solid ${({ theme }) => theme.colors.purple};
-  margin-bottom: ${({ theme }) => theme.spacing[3]};
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-  font-size: ${({ theme }) => theme.typography.textXs};
-  color: ${({ theme }) => theme.colors.white70};
-`;
-
-// Evaluation Progress
-export const EvaluationCounter = styled.div`
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  font-size: ${({ theme }) => theme.typography.textLg};
-  font-weight: ${({ theme }) => theme.typography.weightBold};
-  color: ${({ theme }) => theme.colors.cyan};
-`;
-
-export const EvaluationDescription = styled.p`
-  font-size: ${({ theme }) => theme.typography.textSm};
-  color: ${({ theme }) => theme.colors.white50};
-  margin: 0;
-  line-height: ${({ theme }) => theme.typography.lineHeightRelaxed};
 `;

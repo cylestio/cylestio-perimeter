@@ -20,6 +20,9 @@ import { Tooltip } from '@ui/overlays/Tooltip';
 import { Section } from '@ui/layout/Section';
 
 import { InfoCard } from '@domain/metrics/InfoCard';
+import { ClusterVisualization } from '@domain/visualization';
+
+import { buildVisualizationNodes } from '../utils/behavioral';
 
 import { usePageMeta } from '../../context';
 import {
@@ -610,6 +613,16 @@ export const AgentReport: FC = () => {
                       </Badge>
                     </ScoreItem>
                   </ScoresRow>
+
+                  {/* Cluster Visualization */}
+                  <ClusterVisualization
+                    nodes={buildVisualizationNodes(
+                      riskAnalysis.behavioral_analysis.clusters,
+                      riskAnalysis.behavioral_analysis.outliers
+                    )}
+                    height={200}
+                    showLegend={true}
+                  />
                 </>
               ) : (
                 <InterpretationBox>
