@@ -18,7 +18,7 @@ class AnthropicEventBuilder:
         """Get trace and span IDs from session."""
         if self.session_id:
             # Create deterministic ID from session ID
-            hash_obj = hashlib.md5(self.session_id.encode())
+            hash_obj = hashlib.md5(self.session_id.encode(), usedforsecurity=False)
             trace_span_id = hash_obj.hexdigest()  # 32-char hex string
             return trace_span_id, trace_span_id
         else:

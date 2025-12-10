@@ -321,7 +321,7 @@ class MinHashSignature:
         for i in range(self.num_hashes):
             seed = i * 12345
             hash_funcs.append(
-                lambda x, s=seed: int(hashlib.md5(f"{x}_{s}".encode()).hexdigest(), 16)
+                lambda x, s=seed: int(hashlib.md5(f"{x}_{s}".encode(), usedforsecurity=False).hexdigest(), 16)
             )
         return hash_funcs
     

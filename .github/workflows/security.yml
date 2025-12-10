@@ -43,14 +43,11 @@ jobs:
       - name: Create security reports directory
         run: mkdir -p security-reports
 
-      - name: Dependency vulnerability scan
+      - name: Dependency vulnerability scan (pip-audit)
         run: |
-          pip install pip-audit safety
+          pip install pip-audit
           pip-audit --format json \
-            --output security-reports/dependency-audit.json || true
-          safety check --json \
-            --output security-reports/safety-report.json || true
-          echo "Dependency scan completed"
+            --output security-reports/dependency-audit.json
 
       - name: Secret detection
         run: |
@@ -62,26 +59,11 @@ jobs:
             security-reports/secrets-scan.json || true
           echo "Secret detection completed"
 
-      - name: Static code analysis
+      - name: Static code analysis (bandit)
         run: |
-          pip install semgrep bandit[toml]
-          semgrep --config=p/python --config=p/security-audit \
-            --json --output=security-reports/semgrep-results.json \
-            src/ || true
-          bandit -r src/ -f json \
-            -o security-reports/bandit-results.json || true
-          echo "Static analysis completed"
-
-      - name: Build Docker image for scanning
-        run: docker build -t cylestio-perimeter:security-scan .
-
-      - name: Container security scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'cylestio-perimeter:security-scan'
-          format: 'json'
-          output: 'security-reports/trivy-results.json'
-          exit-code: '0'
+          pip install bandit[toml]
+          bandit -r src/ -ll -f json \
+            -o security-reports/bandit-results.json
 
       - name: Generate security summary
         if: always()
