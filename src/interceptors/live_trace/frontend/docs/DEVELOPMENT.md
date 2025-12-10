@@ -49,6 +49,13 @@ See [Import Organization](#import-organization-1) for full details.
 2. Does it know about agents, security, monitoring? → `domain/`
 3. Otherwise → `features/`
 
+### Keep Pages Lean
+
+- [ ] Page components should be thin orchestrators (~100-150 lines max)
+- [ ] Extract components >50 lines to `features/` folder
+- [ ] Pages handle: routing, data fetching, layout composition
+- [ ] Features handle: complex UI logic, multi-element sections
+
 ### Path Aliases
 
 - [ ] Use `@ui/*`, `@domain/*`, `@features/*` for cross-directory imports
@@ -147,6 +154,34 @@ ComponentName/
 ├── ComponentName.styles.ts   # Styled components
 └── ComponentName.stories.tsx # Stories + tests
 ```
+
+### Page Organization
+
+**Pages should be lean orchestrators, not monolithic files.**
+
+```
+pages/
+├── AgentDetail/
+│   ├── AgentDetail.tsx       # ~100-150 lines max - orchestration only
+│   └── AgentDetail.styles.ts # Page-level layout styles only
+│
+components/features/
+├── AgentHeader/              # Extracted from page - complex header section
+├── AgentMetrics/             # Extracted from page - metrics grid
+└── AgentActivity/            # Extracted from page - activity feed section
+```
+
+**When to extract to `features/`:**
+- Component exceeds ~50 lines
+- Component has its own state management
+- Component contains multiple sub-elements
+- Component could be reused across pages
+
+**What stays in pages:**
+- Route parameter handling
+- Data fetching orchestration
+- Layout composition (arranging feature components)
+- Page-level loading/error states
 
 ---
 
