@@ -1,6 +1,6 @@
-import { useCallback, useState, type FC } from 'react';
+import { useCallback, type FC } from 'react';
 
-import { AlertTriangle, ChevronDown } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
@@ -48,8 +48,6 @@ import {
   SecurityStatusRow,
   SecurityCounts,
   PIINote,
-  CollapsibleHeader,
-  CollapsibleContent,
   CheckList,
   CheckItem,
   CheckStatus,
@@ -158,7 +156,6 @@ const getSessionColumns = (workflowId: string): TableColumn<AgentSession>[] => [
 
 export const AgentDetail: FC = () => {
   const { agentId, workflowId } = useParams<{ agentId: string; workflowId: string }>();
-  const [checksExpanded, setChecksExpanded] = useState(false);
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
@@ -484,48 +481,35 @@ export const AgentDetail: FC = () => {
                     <PIINote>PII detection unavailable for this agent</PIINote>
                   )}
 
-                  {/* Collapsible failed/warning checks */}
+                  {/* Issues list */}
                   {allIssues.length > 0 && (
-                    <>
-                      <CollapsibleHeader
-                        $isOpen={checksExpanded}
-                        onClick={() => setChecksExpanded(!checksExpanded)}
-                      >
-                        <ChevronDown size={16} />
-                        <span>
-                          {allIssues.length} issue{allIssues.length !== 1 ? 's' : ''} found
-                        </span>
-                      </CollapsibleHeader>
-                      <CollapsibleContent $isOpen={checksExpanded}>
-                        <CheckList>
-                          {allIssues.map((check, idx) => (
-                            <CheckItem key={idx} $isLast={idx === allIssues.length - 1}>
-                              <CheckStatus
-                                $color={
-                                  check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)'
-                                }
-                              >
-                                {check.status === 'critical' ? 'FAIL' : 'WARN'}
-                              </CheckStatus>
-                              <CheckName
-                                style={{
-                                  color:
-                                    check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)',
-                                }}
-                              >
-                                {check.name}
-                                {check.value !== undefined && (
-                                  <CheckValue> ({String(check.value)})</CheckValue>
-                                )}
-                              </CheckName>
-                              <Badge variant={check.status === 'critical' ? 'critical' : 'medium'}>
-                                {check.categoryName}
-                              </Badge>
-                            </CheckItem>
-                          ))}
-                        </CheckList>
-                      </CollapsibleContent>
-                    </>
+                    <CheckList>
+                      {allIssues.map((check, idx) => (
+                        <CheckItem key={idx} $isLast={idx === allIssues.length - 1}>
+                          <CheckStatus
+                            $color={
+                              check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)'
+                            }
+                          >
+                            {check.status === 'critical' ? 'FAIL' : 'WARN'}
+                          </CheckStatus>
+                          <CheckName
+                            style={{
+                              color:
+                                check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)',
+                            }}
+                          >
+                            {check.name}
+                            {check.value !== undefined && (
+                              <CheckValue> ({String(check.value)})</CheckValue>
+                            )}
+                          </CheckName>
+                          <Badge variant={check.status === 'critical' ? 'critical' : 'medium'}>
+                            {check.categoryName}
+                          </Badge>
+                        </CheckItem>
+                      ))}
+                    </CheckList>
                   )}
                 </>
               ) : (
