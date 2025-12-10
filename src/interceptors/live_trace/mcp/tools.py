@@ -158,6 +158,94 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             },
             "required": ["finding_id", "status"]
         }
+    },
+    # ==================== Workflow Lifecycle Tools ====================
+    {
+        "name": "get_workflow_state",
+        "description": "Get the current lifecycle state of a workflow. Shows what analysis exists (static, dynamic, or both) and recommends next steps. Use this first to understand what data is available.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_tool_usage_summary",
+        "description": "Get tool usage patterns from dynamic sessions. Shows which tools were called, how often, and coverage metrics.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_workflow_correlation",
+        "description": "Correlate static findings with dynamic runtime observations. Shows which findings are VALIDATED (tool exercised at runtime) or UNEXERCISED (never called in tests). Only meaningful when both static and dynamic data exist.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    # ==================== Agent Discovery Tools ====================
+    {
+        "name": "get_agents",
+        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to workflows or naming.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Filter by workflow. Use 'unlinked' to get agents with no workflow_id."
+                },
+                "include_stats": {
+                    "type": "boolean",
+                    "description": "Include session/tool usage stats",
+                    "default": True
+                }
+            }
+        }
+    },
+    {
+        "name": "update_agent_info",
+        "description": "Update an agent's display name, description, or link to a workflow. Use after discovering agents to give them meaningful names or to link dynamic agents to workflows for correlation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "description": "The agent ID from dynamic sessions"
+                },
+                "display_name": {
+                    "type": "string",
+                    "description": "Human-friendly name (e.g., 'Customer Support Bot')"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Brief description of what the agent does"
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Link this agent to a workflow for correlation with static analysis"
+                }
+            },
+            "required": ["agent_id"]
+        }
     }
 ]
 

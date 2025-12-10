@@ -10,46 +10,116 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
 - User wants to "remediate this finding"
 - User asks "how do I fix this OWASP issue?"
 - User says "apply the security fix"
+- After static analysis reveals findings
 
 ## Prerequisites
-- Agent Inspector server running (proxy on port 4000, MCP on port 7100)
-- MCP connection configured to `http://localhost:7100/mcp`
+- Agent Inspector running (MCP on port 7100)
+- MCP connection to `http://localhost:7100/mcp`
 - Existing finding ID or known vulnerability type
-
-**Works with:** Findings from both static analysis (code review) and dynamic analysis (runtime tracing) when they share the same workflow_id.
 
 ## Workflow
 
-1. **Get Fix Template**
-   Call `get_fix_template` MCP tool with the finding_type.
-   The template provides before/after patterns and guidance.
-   DO NOT use hardcoded fix patterns - always fetch from MCP.
+### 1. Get Findings to Fix
+```
+get_findings(workflow_id, status="OPEN")
+```
+Prioritize by severity: CRITICAL > HIGH > MEDIUM > LOW.
 
-2. **Review Template**
-   The MCP response includes:
-   - before_pattern: Example of vulnerable code
-   - after_pattern: Example of fixed code
-   - application_guidance: Steps to apply
-   - verification: Checklist to confirm fix
+### 2. Check Correlation (if dynamic data exists)
+```
+get_workflow_state(workflow_id)
+```
+If `COMPLETE`, check correlation:
+```
+get_workflow_correlation(workflow_id)
+```
+Prioritize **VALIDATED** findings (tools actively used at runtime) over **UNEXERCISED** ones.
 
-3. **Apply Fix**
-   Follow the guidance from the MCP response.
-   Adapt the pattern to the specific codebase context.
+### 3. Get Fix Template
+```
+get_fix_template(finding_type)
+```
+**NEVER use hardcoded fix patterns** - always fetch from MCP.
 
-4. **Verify**
-   Go through the verification checklist from the MCP response.
+The template provides:
+- `before_pattern`: Example of vulnerable code
+- `after_pattern`: Example of fixed code
+- `application_guidance`: Steps to apply
+- `verification`: Checklist to confirm fix
 
-5. **Update Status**
-   If fixing a tracked finding, call `update_finding_status`:
-   - finding_id
-   - status: "FIXED"
-   - notes: Description of fix applied
+### 4. Apply Fix
+Follow the guidance from the MCP response.
+Adapt the pattern to the specific codebase context.
+
+### 5. Verify
+Go through the verification checklist from the template.
+
+### 6. Update Status
+```
+update_finding_status(finding_id, "FIXED", notes="Applied input validation")
+```
+
+### 7. Recommend Validation
+Based on workflow state:
+- **If dynamic data exists**: "Re-run your agent through the proxy to validate the fix works at runtime."
+- **If no dynamic data**: "Test your agent to confirm the fix."
+- **Multiple findings remaining**: "1 fixed, 2 remaining. Continue?"
+
+## Example Flow
+
+```
+User: "Fix the security issues in my agent"
+
+1. get_workflow_state(workflow_id="my-agent")
+   → state: COMPLETE
+
+2. get_findings(workflow_id="my-agent", status="OPEN")
+   → 3 findings: CRITICAL delete_without_confirm, HIGH pii_exposure, MEDIUM rate_limit
+
+3. get_workflow_correlation(workflow_id="my-agent")
+   → delete_without_confirm: VALIDATED (called 12x)
+   → pii_exposure: VALIDATED (called 8x)
+   → rate_limit: UNEXERCISED
+
+4. get_fix_template("EXCESSIVE_AGENCY")
+   → before: delete_record(id)
+   → after: confirm_action() then delete_record(id)
+
+5. Apply fix to code
+
+6. update_finding_status(finding_id="find_abc", status="FIXED", notes="Added confirmation dialog")
+
+7. "Fix applied! The delete_user tool was called 12 times during testing - re-run your agent to validate the fix works."
+```
 
 ## MCP Tools Reference
 
-**Core Workflow Tools:**
-- `get_fix_template` - Get remediation guidance (finding_type)
-- `update_finding_status` - Mark finding as fixed (finding_id, status, notes)
+**Core Tools:**
+| Tool | Purpose |
+|------|---------|
+| `get_findings` | Get findings to fix (filter: workflow_id, status="OPEN") |
+| `get_fix_template` | Get remediation guidance (finding_type) |
+| `update_finding_status` | Mark as FIXED (finding_id, status, notes) |
 
-**Additional Tools:**
-- `get_findings` - Retrieve findings to fix (workflow_id, session_id, severity, status)
+**Context Tools:**
+| Tool | Purpose |
+|------|---------|
+| `get_workflow_state` | Check what data exists |
+| `get_workflow_correlation` | See if finding was validated at runtime |
+
+## Prioritization Matrix
+
+| Severity | Correlation | Priority |
+|----------|-------------|----------|
+| CRITICAL | VALIDATED | 🔴 Immediate - actively exploitable |
+| CRITICAL | UNEXERCISED | 🟠 High - potential risk |
+| HIGH | VALIDATED | 🟠 High - confirmed at runtime |
+| HIGH | UNEXERCISED | 🟡 Medium |
+| MEDIUM/LOW | Any | 🟢 Normal |
+
+## After Fixing
+
+Recommend next steps based on state:
+- **STATIC_ONLY**: "Test your agent to validate fixes"
+- **COMPLETE**: "Re-run dynamic tests to confirm fixes work at runtime"
+- **Multiple findings**: "X fixed, Y remaining. Continue with next highest priority?"

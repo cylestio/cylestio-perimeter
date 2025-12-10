@@ -192,6 +192,257 @@ def handle_update_finding_status(args: Dict[str, Any], store: Any) -> Dict[str, 
     return {"finding": finding}
 
 
+# ==================== Workflow Lifecycle Tools ====================
+
+@register_handler("get_workflow_state")
+def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get the current lifecycle state of a workflow.
+    
+    Returns state, available data, and recommended next steps.
+    """
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    # Get static analysis data
+    static_sessions = store.get_analysis_sessions(workflow_id=workflow_id)
+    findings = store.get_findings(workflow_id=workflow_id)
+    
+    # Get dynamic data (agents running through proxy)
+    dynamic_agents = store.get_all_agents(workflow_id=workflow_id)
+    
+    has_static = len(static_sessions) > 0
+    has_dynamic = len(dynamic_agents) > 0
+    open_findings = [f for f in findings if f.get("status") == "OPEN"]
+    
+    # Determine state and provide context-aware recommendations
+    if not has_static and not has_dynamic:
+        state = "NO_DATA"
+        recommendation = "Start by running a security scan on this codebase. Use get_security_patterns and create_analysis_session to begin static analysis."
+    elif has_static and not has_dynamic:
+        state = "STATIC_ONLY"
+        if open_findings:
+            recommendation = f"Static analysis found {len(open_findings)} open findings. To validate these findings with runtime behavior, configure your agent to use base_url='http://localhost:4000/workflow/{workflow_id}' and run test scenarios."
+        else:
+            recommendation = "Static analysis complete with no open findings. Run dynamic tests to validate runtime behavior."
+    elif has_dynamic and not has_static:
+        state = "DYNAMIC_ONLY"
+        recommendation = "Dynamic runtime data captured. Run static analysis now to identify code-level security issues and correlate with observed runtime behavior."
+    else:
+        state = "COMPLETE"
+        recommendation = f"Both static and dynamic data available! Use get_workflow_correlation to see which of your {len(open_findings)} findings are validated by runtime tests."
+
+    return {
+        "workflow_id": workflow_id,
+        "state": state,
+        "has_static_analysis": has_static,
+        "has_dynamic_sessions": has_dynamic,
+        "static_sessions_count": len(static_sessions),
+        "dynamic_agents_count": len(dynamic_agents),
+        "findings_count": len(findings),
+        "open_findings_count": len(open_findings),
+        "recommendation": recommendation,
+        "dashboard_url": f"http://localhost:7100/workflow/{workflow_id}",
+    }
+
+
+@register_handler("get_tool_usage_summary")
+def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get tool usage patterns from dynamic sessions."""
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    agents = store.get_all_agents(workflow_id=workflow_id)
+    if not agents:
+        return {
+            "workflow_id": workflow_id,
+            "message": "No dynamic sessions found. Run your agent through the proxy to capture tool usage.",
+            "setup_hint": f"Configure agent: base_url='http://localhost:4000/workflow/{workflow_id}'",
+            "tool_usage": {},
+            "total_sessions": 0,
+        }
+
+    # Aggregate tool usage across all agents
+    tool_usage = {}
+    available_tools = set()
+    used_tools = set()
+    total_sessions = 0
+
+    for agent in agents:
+        total_sessions += agent.total_sessions
+        available_tools.update(agent.available_tools)
+        used_tools.update(agent.used_tools)
+
+        for tool_name, count in agent.tool_usage_details.items():
+            if tool_name not in tool_usage:
+                tool_usage[tool_name] = {"count": 0}
+            tool_usage[tool_name]["count"] += count
+
+    # Sort by count descending
+    sorted_usage = dict(sorted(tool_usage.items(), key=lambda x: x[1]["count"], reverse=True))
+
+    # Find unused tools (defined but never called)
+    unused_tools = list(available_tools - used_tools)
+
+    return {
+        "workflow_id": workflow_id,
+        "total_sessions": total_sessions,
+        "tool_usage": sorted_usage,
+        "tools_defined": len(available_tools),
+        "tools_used": len(used_tools),
+        "tools_unused": unused_tools,
+        "coverage_percent": round(len(used_tools) / len(available_tools) * 100, 1) if available_tools else 0,
+    }
+
+
+@register_handler("get_workflow_correlation")
+def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Correlate static findings with dynamic runtime observations.
+    
+    Computed on-the-fly by matching tool references in findings
+    with actual tool usage from dynamic sessions.
+    """
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    # Get static findings
+    findings = store.get_findings(workflow_id=workflow_id)
+    static_sessions = store.get_analysis_sessions(workflow_id=workflow_id)
+    
+    # Get dynamic data
+    agents = store.get_all_agents(workflow_id=workflow_id)
+    
+    if not static_sessions:
+        return {
+            "workflow_id": workflow_id,
+            "error": "No static analysis data. Run a security scan first.",
+            "hint": "Use get_security_patterns and create_analysis_session to begin.",
+        }
+    
+    if not agents:
+        return {
+            "workflow_id": workflow_id,
+            "message": "Static analysis exists but no dynamic data yet.",
+            "findings_count": len(findings),
+            "hint": f"Run your agent with base_url='http://localhost:4000/workflow/{workflow_id}' to capture runtime data.",
+            "correlations": [],
+        }
+
+    # Aggregate dynamic tool usage
+    dynamic_tools_used = set()
+    tool_call_counts = {}
+    total_sessions = 0
+    for agent in agents:
+        dynamic_tools_used.update(agent.used_tools)
+        total_sessions += agent.total_sessions
+        for tool_name, count in agent.tool_usage_details.items():
+            tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + count
+
+    # Return raw data for the coding agent to analyze
+    # The LLM can do intelligent matching between findings and tool usage
+    findings_summary = [
+        {
+            "finding_id": f["finding_id"],
+            "title": f["title"],
+            "severity": f["severity"],
+            "status": f["status"],
+            "file_path": f.get("file_path"),
+            "description": f.get("description"),
+        }
+        for f in findings
+    ]
+
+    return {
+        "workflow_id": workflow_id,
+        "has_static_data": len(findings) > 0,
+        "has_dynamic_data": len(agents) > 0,
+        "static_findings": findings_summary,
+        "static_findings_count": len(findings),
+        "dynamic_tools_used": list(dynamic_tools_used),
+        "dynamic_tool_call_counts": tool_call_counts,
+        "dynamic_sessions_count": total_sessions,
+        "message": "Use AI to correlate findings with tool usage. Match finding titles/descriptions with tools that were called at runtime.",
+    }
+
+
+# ==================== Agent Discovery Tools ====================
+
+@register_handler("get_agents")
+def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """List all agents discovered during dynamic sessions."""
+    workflow_id = args.get("workflow_id")
+    include_stats = args.get("include_stats", True)
+    
+    # Handle special "unlinked" filter
+    if workflow_id == "unlinked":
+        agents = store.get_all_agents(workflow_id=None)
+        # Filter to only agents with no workflow_id
+        agents = [a for a in agents if not a.workflow_id]
+    elif workflow_id:
+        agents = store.get_all_agents(workflow_id=workflow_id)
+    else:
+        agents = store.get_all_agents()
+    
+    result = []
+    for agent in agents:
+        agent_info = {
+            "agent_id": agent.agent_id,
+            "agent_id_short": agent.agent_id[:12] if len(agent.agent_id) > 12 else agent.agent_id,
+            "workflow_id": agent.workflow_id,
+            "display_name": getattr(agent, 'display_name', None),
+            "description": getattr(agent, 'description', None),
+        }
+        
+        if include_stats:
+            agent_info.update({
+                "total_sessions": agent.total_sessions,
+                "total_messages": agent.total_messages,
+                "total_tokens": agent.total_tokens,
+                "tools_available": len(agent.available_tools),
+                "tools_used": len(agent.used_tools),
+                "first_seen": agent.first_seen.isoformat(),
+                "last_seen": agent.last_seen.isoformat(),
+            })
+        
+        result.append(agent_info)
+    
+    return {
+        "agents": result,
+        "total_count": len(result),
+        "filter": workflow_id if workflow_id else "all",
+    }
+
+
+@register_handler("update_agent_info")
+def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Update an agent's display name, description, or link to workflow."""
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
+    
+    display_name = args.get("display_name")
+    description = args.get("description")
+    workflow_id = args.get("workflow_id")
+    
+    # Check at least one field to update
+    if not any([display_name, description, workflow_id]):
+        return {"error": "Provide at least one of: display_name, description, workflow_id"}
+    
+    result = store.update_agent_info(
+        agent_id=agent_id,
+        display_name=display_name,
+        description=description,
+        workflow_id=workflow_id,
+    )
+    
+    if not result:
+        return {"error": f"Agent '{agent_id}' not found"}
+    
+    return {"agent": result, "message": "Agent updated successfully"}
+
+
 # ==================== Helpers ====================
 
 def _convert_findings_to_objects(findings: list) -> list:

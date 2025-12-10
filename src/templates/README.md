@@ -25,8 +25,8 @@ templates/
 ### Claude Code
 
 ```bash
-# 1. Start Agent Inspector server (includes live trace on port 7100)
-uvicorn src.main:app --reload --port 4000
+# 1. Start Agent Inspector server
+uvx cylestio-perimeter run --config examples/configs/anthropic-live-trace.yaml
 
 # 2. Add MCP server to Claude Code (MCP endpoint is on port 7100)
 claude mcp add --transport http agent-inspector http://localhost:7100/mcp
@@ -39,8 +39,8 @@ cp templates/skills/static-analysis/SKILL.md .claude/skills/
 ### Cursor
 
 ```bash
-# 1. Start Agent Inspector server (includes live trace on port 7100)
-uvicorn src.main:app --reload --port 4000
+# 1. Start Agent Inspector server
+uvx cylestio-perimeter run --config examples/configs/anthropic-live-trace.yaml
 
 # 2. Create MCP config (MCP endpoint is on port 7100)
 mkdir -p ~/.cursor
@@ -50,7 +50,7 @@ echo '{"mcpServers":{"agent-inspector":{"url":"http://localhost:7100/mcp"}}}' > 
 
 # 4. (Optional) Copy rules to your project
 mkdir -p .cursor/rules
-cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
+cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/agent-inspector.mdc
 ```
 
 ## Ports Reference
@@ -60,18 +60,36 @@ cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
 | 4000 | Proxy Server | LLM API proxy, workflow URLs |
 | 7100 | Dashboard | Live trace UI, MCP endpoint at `/mcp` |
 
-## MCP Tools Available
+## MCP Tools Available (13 total)
 
+### Analysis Tools
 | Tool | Purpose |
 |------|---------|
 | `get_security_patterns` | OWASP LLM Top 10 patterns |
-| `get_owasp_control` | Specific OWASP control details |
-| `get_fix_template` | Remediation templates |
 | `create_analysis_session` | Start analysis session |
 | `store_finding` | Record security finding |
 | `complete_analysis_session` | Finalize with risk score |
 | `get_findings` | Retrieve findings |
 | `update_finding_status` | Mark fixed/ignored |
+
+### Knowledge Tools
+| Tool | Purpose |
+|------|---------|
+| `get_owasp_control` | Specific OWASP control details |
+| `get_fix_template` | Remediation templates |
+
+### Workflow Lifecycle Tools
+| Tool | Purpose |
+|------|---------|
+| `get_workflow_state` | Check what data exists (static/dynamic/both) |
+| `get_tool_usage_summary` | Runtime tool usage patterns |
+| `get_workflow_correlation` | Correlate static findings with dynamic |
+
+### Agent Discovery Tools
+| Tool | Purpose |
+|------|---------|
+| `get_agents` | List agents (filter by workflow_id or "unlinked") |
+| `update_agent_info` | Link agents to workflows, set display names |
 
 ## Unified Workflow ID
 
@@ -82,7 +100,7 @@ cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
 | Static Analysis | `create_analysis_session(workflow_id="my-agent")` |
 | Dynamic Analysis | `base_url="http://localhost:4000/workflow/my-agent"` |
 
-Both types appear unified in the dashboard at `http://localhost:4000/workflow/{workflow_id}`
+Both types appear unified in the dashboard at `http://localhost:7100/workflow/{workflow_id}`
 
 ## Documentation
 

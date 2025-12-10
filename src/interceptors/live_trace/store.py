@@ -47,6 +47,8 @@ CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity)
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
     workflow_id TEXT,
+    display_name TEXT,
+    description TEXT,
     first_seen REAL NOT NULL,
     last_seen REAL NOT NULL,
     total_sessions INTEGER DEFAULT 0,
@@ -228,6 +230,8 @@ class AgentData:
     def __init__(self, agent_id: str, workflow_id: Optional[str] = None):
         self.agent_id = agent_id
         self.workflow_id = workflow_id
+        self.display_name: Optional[str] = None  # Human-friendly name set via MCP
+        self.description: Optional[str] = None   # Description of what the agent does
         self.sessions = set()
         self.first_seen = datetime.now(timezone.utc)
         self.last_seen = self.first_seen
@@ -395,6 +399,8 @@ class TraceStore:
         return {
             'agent_id': agent.agent_id,
             'workflow_id': agent.workflow_id,
+            'display_name': agent.display_name,
+            'description': agent.description,
             'first_seen': agent.first_seen.timestamp(),
             'last_seen': agent.last_seen.timestamp(),
             'total_sessions': agent.total_sessions,
@@ -415,6 +421,9 @@ class TraceStore:
     def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
         """Convert SQLite row back to AgentData object."""
         agent = AgentData(row['agent_id'], row['workflow_id'])
+        # Handle new columns that may not exist in older databases
+        agent.display_name = row['display_name'] if 'display_name' in row.keys() else None
+        agent.description = row['description'] if 'description' in row.keys() else None
         agent.first_seen = datetime.fromtimestamp(row['first_seen'], tz=timezone.utc)
         agent.last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
         agent.total_sessions = row['total_sessions']
@@ -453,7 +462,8 @@ class TraceStore:
         data = self._serialize_agent(agent)
         self.db.execute("""
             INSERT OR REPLACE INTO agents VALUES (
-                :agent_id, :workflow_id, :first_seen, :last_seen,
+                :agent_id, :workflow_id, :display_name, :description,
+                :first_seen, :last_seen,
                 :total_sessions, :total_messages, :total_tokens,
                 :total_tools, :total_errors, :total_response_time_ms, :response_count,
                 :sessions_set, :available_tools, :used_tools, :tool_usage_details,
@@ -830,6 +840,66 @@ class TraceStore:
                     (workflow_id,)
                 )
             return [self._deserialize_agent(row) for row in cursor.fetchall()]
+
+    def update_agent_info(
+        self,
+        agent_id: str,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        workflow_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update agent display name, description, and/or workflow_id.
+        
+        Args:
+            agent_id: The agent ID to update
+            display_name: Human-friendly name for the agent
+            description: Description of what the agent does
+            workflow_id: Link this agent to a workflow for correlation
+            
+        Returns:
+            Updated agent info dict, or None if agent not found
+        """
+        with self._lock:
+            # Check agent exists
+            cursor = self.db.execute(
+                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            # Build dynamic UPDATE query
+            updates = []
+            params = []
+            if display_name is not None:
+                updates.append("display_name = ?")
+                params.append(display_name)
+            if description is not None:
+                updates.append("description = ?")
+                params.append(description)
+            if workflow_id is not None:
+                updates.append("workflow_id = ?")
+                params.append(workflow_id)
+
+            if updates:
+                params.append(agent_id)
+                self.db.execute(
+                    f"UPDATE agents SET {', '.join(updates)} WHERE agent_id = ?",
+                    params
+                )
+                self.db.commit()
+
+            # Return updated agent info
+            cursor = self.db.execute(
+                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+            )
+            row = cursor.fetchone()
+            return {
+                'agent_id': row['agent_id'],
+                'workflow_id': row['workflow_id'],
+                'display_name': row['display_name'] if 'display_name' in row.keys() else None,
+                'description': row['description'] if 'description' in row.keys() else None,
+            }
 
     def get_workflows(self) -> List[Dict[str, Any]]:
         """Get all unique workflows with their agent counts.
