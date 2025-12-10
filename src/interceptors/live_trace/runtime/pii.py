@@ -3,8 +3,8 @@ import logging
 from collections import Counter, defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
-from .risk_models import PIIAnalysisResult, PIIFinding
-from ..store import SessionData
+from .models import PIIAnalysisResult, PIIFinding
+from ..store.store import SessionData
 
 logger = logging.getLogger(__name__)
 

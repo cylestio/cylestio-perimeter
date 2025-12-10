@@ -7,10 +7,12 @@ from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
-from ..store import TraceStore, AgentData
-from .risk_models import RiskAnalysisResult
-from .behavioral_analysis import analyze_agent_behavior
-from .security_assessment import generate_security_report
+from ..store import TraceStore
+from ..store.store import AgentData
+from .models import RiskAnalysisResult
+from .behavioral import analyze_agent_behavior
+from .security import generate_security_report
+from .scheduler import AnalysisScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +32,18 @@ def _with_store_lock(func):
     return wrapper
 
 
-class InsightsEngine:
-    """Computes various insights from trace data.
-    
+class AnalysisEngine:
+    """Computes various insights and analysis from trace data.
+
+    Analysis Trigger Flow:
+    ---------------------
+    1. Sessions complete via background thread (check_and_complete_sessions)
+    2. Scheduler checks if analysis should run (new completed sessions?)
+    3. If yes, run_analysis() executes:
+       - Behavioral analysis (cached in memory)
+       - Security checks (persisted to DB)
+    4. Scheduler marks completion, checks for burst sessions
+
     PII Analysis Safety Guarantees:
     -------------------------------
     1. At most one PII analysis runs per agent at any time
@@ -40,7 +51,7 @@ class InsightsEngine:
     3. New sessions trigger fresh analysis only after previous task completes
     4. All task launch decisions are protected by _pii_launch_lock (no race conditions)
     5. Main code path never blocks - PII runs in background threads
-    
+
     Deadlock Prevention:
     -------------------
     - _pii_launch_lock (threading.Lock) is held only for fast dictionary operations (< 1ms)
@@ -66,6 +77,11 @@ class InsightsEngine:
         # Lazy initialized since we can't create asyncio.Semaphore without event loop
         self._pii_semaphore: Optional[asyncio.Semaphore] = None
         self._pii_max_concurrent = proxy_config.get("pii_max_concurrent", 2)
+
+        # Analysis scheduler for trigger logic
+        self.scheduler = AnalysisScheduler(
+            get_completed_count=self.store.get_completed_session_count
+        )
 
     async def get_dashboard_data(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get all data needed for the main dashboard.
@@ -1015,7 +1031,7 @@ class InsightsEngine:
 
         # Regenerate security report with PII data included
         # This ensures PRIVACY_COMPLIANCE category is added to the report
-        from .security_assessment import generate_security_report
+        from .security import generate_security_report
 
         agent_sessions = self.store.get_agent_sessions(agent_id)
         updated_security_report = generate_security_report(
@@ -1080,7 +1096,7 @@ class InsightsEngine:
         """
         # Check if PII analysis is disabled by configuration
         if not self.enable_presidio:
-            from .risk_models import PIIAnalysisResult
+            from .models import PIIAnalysisResult
             disabled_result = PIIAnalysisResult(
                 total_findings=0,
                 sessions_without_pii=0,
@@ -1150,7 +1166,7 @@ class InsightsEngine:
         async with self._pii_semaphore:
             start_time = datetime.now(timezone.utc)
             try:
-                from .pii_analysis import analyze_sessions_for_pii
+                from .pii import analyze_sessions_for_pii
                 logger.info(f"[PII BACKGROUND] Starting PII analysis for agent {agent_id} ({analysis_session_count} sessions, key={expected_cache_key})")
 
                 # Run in background thread to avoid blocking event loop
@@ -1188,7 +1204,7 @@ class InsightsEngine:
             except Exception as e:
                 logger.error(f"[PII BACKGROUND] PII analysis failed for agent {agent_id}: {e}", exc_info=True)
                 # Store error result so we don't retry continuously
-                from .risk_models import PIIAnalysisResult
+                from .models import PIIAnalysisResult
                 error_result = PIIAnalysisResult(
                     total_findings=0,
                     sessions_without_pii=len(agent_sessions),
@@ -1436,3 +1452,118 @@ class InsightsEngine:
             "storage_mode": self.proxy_config.get("storage_mode", "memory"),
             "db_path": self.proxy_config.get("db_path"),
         }
+
+    # =========================================================================
+    # Scheduled Analysis Methods (triggered on session completion)
+    # =========================================================================
+
+    async def run_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
+        """Run full analysis for an agent (behavioral + security checks).
+
+        This is the main entry point for scheduled analysis triggered when
+        sessions complete. It runs behavioral analysis (cached in memory)
+        and security checks (persisted to database).
+
+        Args:
+            agent_id: Agent identifier
+
+        Returns:
+            RiskAnalysisResult or None if insufficient sessions
+        """
+        logger.info(f"[ANALYSIS] run_analysis started for {agent_id}")
+        self.scheduler.mark_analysis_started(agent_id)
+        try:
+            # Run the existing compute_risk_analysis
+            result = await self.compute_risk_analysis(agent_id)
+            logger.info(f"[ANALYSIS] compute_risk_analysis returned for {agent_id}: result={result is not None}, has_security_report={result.security_report is not None if result else False}")
+
+            if result and result.security_report:
+                # Get workflow_id and agent info
+                agent = self.store.get_agent(agent_id)
+                workflow_id = agent.workflow_id if agent else None
+                workflow_name = agent.workflow_id if agent else None  # Use workflow_id as name
+
+                # Create analysis session in database first (for foreign key constraint)
+                analysis_session_id = f"analysis_{agent_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+                completed_count = self.store.get_completed_session_count(agent_id)
+
+                self.store.create_analysis_session(
+                    session_id=analysis_session_id,
+                    workflow_id=workflow_id or agent_id,
+                    session_type="DYNAMIC",
+                    workflow_name=workflow_name,
+                )
+
+                # Persist security checks to database
+                checks_persisted = self.store.persist_security_checks(
+                    agent_id=agent_id,
+                    security_report=result.security_report,
+                    analysis_session_id=analysis_session_id,
+                    workflow_id=workflow_id,
+                )
+
+                # Complete the analysis session with findings count
+                self.store.complete_analysis_session(
+                    session_id=analysis_session_id,
+                    findings_count=checks_persisted,
+                    risk_score=result.security_report.overall_score if hasattr(result.security_report, 'overall_score') else None,
+                )
+
+                logger.info(
+                    f"[ANALYSIS] Persisted {checks_persisted} security checks "
+                    f"for agent {agent_id} (session: {analysis_session_id})"
+                )
+
+            completed_count = self.store.get_completed_session_count(agent_id)
+            return result
+        finally:
+            completed_count = self.store.get_completed_session_count(agent_id)
+            self.scheduler.mark_analysis_completed(agent_id, completed_count)
+
+            # Check if more sessions arrived during analysis (burst handling)
+            if self.scheduler.should_run_analysis(agent_id):
+                logger.info(f"[ANALYSIS] New sessions arrived during analysis for {agent_id}, scheduling re-run")
+                asyncio.create_task(self.run_analysis(agent_id))
+
+    def run_analysis_async(self, agent_id: str) -> None:
+        """Schedule analysis to run in the background.
+
+        This is typically called from synchronous code (like session completion
+        callback) to trigger analysis without blocking.
+
+        Works from both asyncio context and regular threads.
+
+        Args:
+            agent_id: Agent identifier
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            # Already in async context - create task
+            asyncio.create_task(self.run_analysis(agent_id))
+            logger.debug(f"[ANALYSIS] Scheduled background analysis for {agent_id}")
+        except RuntimeError:
+            # No running event loop - we're in a thread, run synchronously
+            logger.info(f"[ANALYSIS] Running analysis synchronously for {agent_id}")
+            try:
+                asyncio.run(self.run_analysis(agent_id))
+            except Exception as e:
+                logger.error(f"[ANALYSIS] Error running analysis for {agent_id}: {e}", exc_info=True)
+
+    def on_session_completed(self, agent_id: str) -> None:
+        """Called when a session is marked as completed.
+
+        Checks if analysis should run and triggers it if needed.
+
+        Args:
+            agent_id: Agent identifier for the completed session
+        """
+        logger.info(f"[ANALYSIS] on_session_completed called for {agent_id}")
+        if self.scheduler.should_run_analysis(agent_id):
+            logger.info(f"[ANALYSIS] Scheduler approved, triggering analysis for {agent_id}")
+            self.run_analysis_async(agent_id)
+        else:
+            logger.info(f"[ANALYSIS] Scheduler declined analysis for {agent_id} (running or no new sessions)")
+
+
+# Backward compatibility alias
+InsightsEngine = AnalysisEngine

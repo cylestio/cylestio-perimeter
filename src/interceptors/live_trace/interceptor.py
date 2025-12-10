@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.utils.logger import get_logger
 
-from .analysis.insights import InsightsEngine
+from .runtime.engine import InsightsEngine
 from .server import create_trace_server
 from .store import TraceStore
 
@@ -269,17 +269,25 @@ class LiveTraceInterceptor(BaseInterceptor):
     def _run_completion_checker(self):
         """Background thread that periodically checks and marks inactive sessions as completed."""
         logger.info("Session completion checker thread started")
-        
+
         while not self._completion_stop_event.is_set():
             try:
                 # Check for sessions that should be marked as completed
-                self.store.check_and_complete_sessions(self.session_completion_timeout)
+                # Returns list of agent IDs that had sessions completed
+                completed_agent_ids = self.store.check_and_complete_sessions(self.session_completion_timeout)
+
+                # Trigger analysis for each agent that had sessions complete
+                for agent_id in completed_agent_ids:
+                    try:
+                        self.insights.on_session_completed(agent_id)
+                    except Exception as e:
+                        logger.error(f"Error triggering analysis for agent {agent_id}: {e}")
             except Exception as e:
                 logger.error(f"Error in session completion checker: {e}")
-            
+
             # Wait for the check interval (or until stop event is set)
             self._completion_stop_event.wait(self.completion_check_interval)
-        
+
         logger.info("Session completion checker thread stopped")
     
     def stop(self):

@@ -5,7 +5,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from src.events import BaseEvent
 from src.utils.logger import get_logger
@@ -73,12 +73,16 @@ CREATE TABLE IF NOT EXISTS analysis_sessions (
     session_id TEXT PRIMARY KEY,
     workflow_id TEXT NOT NULL,
     workflow_name TEXT,
+    agent_id TEXT,
+    scope TEXT DEFAULT 'WORKFLOW',
     session_type TEXT NOT NULL,
     status TEXT NOT NULL,
     created_at REAL NOT NULL,
     completed_at REAL,
     findings_count INTEGER DEFAULT 0,
-    risk_score INTEGER
+    risk_score INTEGER,
+    sessions_analyzed INTEGER,
+    completed_sessions_at_analysis INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_analysis_sessions_workflow_id ON analysis_sessions(workflow_id);
@@ -107,6 +111,28 @@ CREATE INDEX IF NOT EXISTS idx_findings_session_id ON findings(session_id);
 CREATE INDEX IF NOT EXISTS idx_findings_workflow_id ON findings(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
+
+CREATE TABLE IF NOT EXISTS security_checks (
+    check_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    workflow_id TEXT,
+    analysis_session_id TEXT NOT NULL,
+    category_id TEXT NOT NULL,
+    check_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    value TEXT,
+    evidence TEXT,
+    recommendations TEXT,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (analysis_session_id) REFERENCES analysis_sessions(session_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_checks_agent_id ON security_checks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_security_checks_analysis_session_id ON security_checks(analysis_session_id);
+CREATE INDEX IF NOT EXISTS idx_security_checks_status ON security_checks(status);
+CREATE INDEX IF NOT EXISTS idx_security_checks_category_id ON security_checks(category_id);
 """
 
 
@@ -390,7 +416,7 @@ class TraceStore:
         if row['behavioral_signature']:
             session.behavioral_signature = json.loads(row['behavioral_signature'])
         if row['behavioral_features']:
-            from .analysis.risk_models import SessionFeatures
+            from ..runtime.models import SessionFeatures
             session.behavioral_features = SessionFeatures.model_validate_json(row['behavioral_features'])
         return session
 
@@ -1015,14 +1041,14 @@ class TraceStore:
                 "top_errors": dict(sorted(self.error_types.items(), key=lambda x: x[1], reverse=True)[:5])
             }
 
-    def check_and_complete_sessions(self, timeout_seconds: int = 30):
+    def check_and_complete_sessions(self, timeout_seconds: int = 30) -> List[str]:
         """Check for inactive sessions and mark them as completed in SQLite.
 
         Args:
             timeout_seconds: Number of seconds of inactivity before marking complete
 
         Returns:
-            Number of sessions newly marked as completed
+            List of agent IDs that had sessions completed (for triggering analysis)
         """
         with self._lock:
             now = datetime.now(timezone.utc)
@@ -1038,16 +1064,20 @@ class TraceStore:
 
             sessions_to_complete = [self._deserialize_session(row) for row in cursor.fetchall()]
 
+            # Track unique agent IDs that had sessions completed
+            completed_agent_ids: Set[str] = set()
+
             # Mark each session as completed and save
             for session in sessions_to_complete:
                 session.mark_completed()
                 self._save_session(session)
+                completed_agent_ids.add(session.agent_id)
 
             newly_completed = len(sessions_to_complete)
             if newly_completed > 0:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
 
-            return newly_completed
+            return list(completed_agent_ids)
 
     # Analysis Session and Finding Methods
 
@@ -1120,6 +1150,7 @@ class TraceStore:
     def complete_analysis_session(
         self,
         session_id: str,
+        findings_count: Optional[int] = None,
         risk_score: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Mark an analysis session as completed."""
@@ -1129,9 +1160,9 @@ class TraceStore:
 
             self.db.execute("""
                 UPDATE analysis_sessions
-                SET status = ?, completed_at = ?, risk_score = ?
+                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count), risk_score = ?
                 WHERE session_id = ?
-            """, ('COMPLETED', completed_at, risk_score, session_id))
+            """, ('COMPLETED', completed_at, findings_count, risk_score, session_id))
             self.db.commit()
 
             # Return the updated session
@@ -1363,4 +1394,255 @@ class TraceStore:
                 'total_findings': total,
                 'by_severity': severity_counts,
                 'by_status': status_counts,
+            }
+
+    # =========================================================================
+    # Security Checks Methods (persisted security assessment results)
+    # =========================================================================
+
+    def get_completed_session_count(self, agent_id: str) -> int:
+        """Get the count of completed sessions for an agent.
+
+        Used by the scheduler to determine if analysis should run.
+        """
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT COUNT(*) as count FROM sessions WHERE agent_id = ? AND is_completed = 1",
+                (agent_id,)
+            )
+            row = cursor.fetchone()
+            return row['count'] if row else 0
+
+    def store_security_check(
+        self,
+        check_id: str,
+        agent_id: str,
+        analysis_session_id: str,
+        category_id: str,
+        check_type: str,
+        status: str,
+        title: str,
+        description: Optional[str] = None,
+        value: Optional[str] = None,
+        evidence: Optional[Dict[str, Any]] = None,
+        recommendations: Optional[List[str]] = None,
+        workflow_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Store a security check result."""
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+
+            self.db.execute("""
+                INSERT INTO security_checks (
+                    check_id, agent_id, workflow_id, analysis_session_id,
+                    category_id, check_type, status, title, description,
+                    value, evidence, recommendations, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                check_id,
+                agent_id,
+                workflow_id,
+                analysis_session_id,
+                category_id,
+                check_type,
+                status,
+                title,
+                description,
+                value,
+                json.dumps(evidence) if evidence else None,
+                json.dumps(recommendations) if recommendations else None,
+                created_at,
+            ))
+            self.db.commit()
+
+            return self.get_security_check(check_id)
+
+    def get_security_check(self, check_id: str) -> Optional[Dict[str, Any]]:
+        """Get a security check by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM security_checks WHERE check_id = ?",
+                (check_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_security_check(row)
+            return None
+
+    def get_security_checks(
+        self,
+        agent_id: Optional[str] = None,
+        analysis_session_id: Optional[str] = None,
+        category_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get security checks with optional filtering."""
+        with self._lock:
+            query = "SELECT * FROM security_checks WHERE 1=1"
+            params = []
+
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
+
+            if analysis_session_id:
+                query += " AND analysis_session_id = ?"
+                params.append(analysis_session_id)
+
+            if category_id:
+                query += " AND category_id = ?"
+                params.append(category_id)
+
+            if status:
+                query += " AND status = ?"
+                params.append(status)
+
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_security_check(row) for row in cursor.fetchall()]
+
+    def get_latest_security_checks_for_agent(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Get the most recent security checks for an agent (from latest analysis session)."""
+        with self._lock:
+            # Find the latest analysis session for this agent
+            cursor = self.db.execute("""
+                SELECT DISTINCT analysis_session_id
+                FROM security_checks
+                WHERE agent_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (agent_id,))
+            row = cursor.fetchone()
+            if not row:
+                return []
+
+            analysis_session_id = row['analysis_session_id']
+            return self.get_security_checks(
+                agent_id=agent_id,
+                analysis_session_id=analysis_session_id
+            )
+
+    def persist_security_checks(
+        self,
+        agent_id: str,
+        security_report: Any,
+        analysis_session_id: str,
+        workflow_id: Optional[str] = None,
+    ) -> int:
+        """Persist all security checks from a security report.
+
+        Args:
+            agent_id: The agent being analyzed
+            security_report: SecurityReport containing assessment checks
+            analysis_session_id: The analysis session ID for grouping
+            workflow_id: Optional workflow ID
+
+        Returns:
+            Number of checks persisted
+        """
+        import uuid
+        count = 0
+
+        # Handle both SecurityReport object and dict
+        categories = getattr(security_report, 'categories', None)
+        if categories is None and isinstance(security_report, dict):
+            categories = security_report.get('categories', [])
+
+        if not categories:
+            return 0
+
+        def _get_attr(obj, attr, default=None):
+            """Get attribute from object or dict, supporting both."""
+            if isinstance(obj, dict):
+                return obj.get(attr, default)
+            return getattr(obj, attr, default)
+
+        for category in categories:
+            category_id = _get_attr(category, 'category_id', '')
+            checks = _get_attr(category, 'checks', [])
+
+            for check in checks:
+                check_id = _get_attr(check, 'check_id', str(uuid.uuid4()))
+                check_type = _get_attr(check, 'check_type', check_id)
+                status = _get_attr(check, 'status', 'passed')
+                title = _get_attr(check, 'name', check_type)
+                description = _get_attr(check, 'description')
+                value = _get_attr(check, 'value')
+                evidence = _get_attr(check, 'evidence')
+                recommendations = _get_attr(check, 'recommendations')
+
+                self.store_security_check(
+                    check_id=f"{analysis_session_id}_{check_id}",
+                    agent_id=agent_id,
+                    analysis_session_id=analysis_session_id,
+                    category_id=category_id,
+                    check_type=check_type,
+                    status=status,
+                    title=title,
+                    description=description,
+                    value=str(value) if value is not None else None,
+                    evidence=evidence if isinstance(evidence, dict) else None,
+                    recommendations=recommendations if isinstance(recommendations, list) else None,
+                    workflow_id=workflow_id,
+                )
+                count += 1
+
+        return count
+
+    def _deserialize_security_check(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert a security_checks row to a dictionary."""
+        return {
+            'check_id': row['check_id'],
+            'agent_id': row['agent_id'],
+            'workflow_id': row['workflow_id'],
+            'analysis_session_id': row['analysis_session_id'],
+            'category_id': row['category_id'],
+            'check_type': row['check_type'],
+            'status': row['status'],
+            'title': row['title'],
+            'description': row['description'],
+            'value': row['value'],
+            'evidence': json.loads(row['evidence']) if row['evidence'] else None,
+            'recommendations': json.loads(row['recommendations']) if row['recommendations'] else None,
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+        }
+
+    def get_agent_security_summary(self, agent_id: str) -> Dict[str, Any]:
+        """Get a summary of security checks for an agent."""
+        with self._lock:
+            # Count by status
+            cursor = self.db.execute("""
+                SELECT status, COUNT(*) as count
+                FROM security_checks
+                WHERE agent_id = ?
+                GROUP BY status
+            """, (agent_id,))
+            status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+
+            # Count by category
+            cursor = self.db.execute("""
+                SELECT category_id, COUNT(*) as count
+                FROM security_checks
+                WHERE agent_id = ?
+                GROUP BY category_id
+            """, (agent_id,))
+            category_counts = {row['category_id']: row['count'] for row in cursor.fetchall()}
+
+            # Get total count
+            cursor = self.db.execute("""
+                SELECT COUNT(*) as total
+                FROM security_checks
+                WHERE agent_id = ?
+            """, (agent_id,))
+            total = cursor.fetchone()['total']
+
+            return {
+                'agent_id': agent_id,
+                'total_checks': total,
+                'by_status': status_counts,
+                'by_category': category_counts,
             }

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from src.kb.loader import get_kb_loader
 from src.utils.logger import get_logger
 
-from .analysis.insights import InsightsEngine
+from .runtime.engine import InsightsEngine
 from .mcp import create_mcp_router
 from .models import (
     FindingSeverity,
@@ -197,8 +197,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_models():
         """Get available models with pricing information."""
         try:
-            from .analysis.default_pricing import DEFAULT_PRICING_DATA
-            from .analysis.model_pricing import get_last_updated
+            from .runtime.default_pricing import DEFAULT_PRICING_DATA
+            from .runtime.model_pricing import get_last_updated
 
             models_by_provider = {}
             for provider, models_dict in DEFAULT_PRICING_DATA["models"].items():
@@ -337,7 +337,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 llm_response = response.json()
 
             # Calculate cost using model pricing
-            from .analysis.model_pricing import get_model_pricing
+            from .runtime.model_pricing import get_model_pricing
             model_name = llm_response.get("model", request_data.get("model", ""))
             input_price, output_price = get_model_pricing(model_name)
 
@@ -595,6 +595,66 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             return JSONResponse({"finding": finding})
         except Exception as e:
             logger.error(f"Error storing finding: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # ==================== Security Checks API Endpoints ====================
+
+    @app.get("/api/agent/{agent_id}/security-checks")
+    async def api_get_agent_security_checks(
+        agent_id: str,
+        category_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get security checks for an agent (from latest analysis)."""
+        try:
+            # Get latest checks for the agent
+            checks = insights.store.get_latest_security_checks_for_agent(agent_id)
+
+            # Apply filters
+            if category_id:
+                checks = [c for c in checks if c['category_id'] == category_id]
+            if status:
+                checks = [c for c in checks if c['status'] == status.lower()]
+
+            # Apply limit
+            checks = checks[:limit]
+
+            # Get summary
+            summary = insights.store.get_agent_security_summary(agent_id)
+
+            return JSONResponse({
+                "agent_id": agent_id,
+                "checks": checks,
+                "summary": summary,
+            })
+        except Exception as e:
+            logger.error(f"Error getting security checks: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/security-checks")
+    async def api_get_security_checks(
+        agent_id: Optional[str] = None,
+        analysis_session_id: Optional[str] = None,
+        category_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get security checks with optional filtering."""
+        try:
+            checks = insights.store.get_security_checks(
+                agent_id=agent_id,
+                analysis_session_id=analysis_session_id,
+                category_id=category_id,
+                status=status.lower() if status else None,
+                limit=limit,
+            )
+            return JSONResponse({
+                "checks": checks,
+                "total_count": len(checks),
+            })
+        except Exception as e:
+            logger.error(f"Error getting security checks: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/sessions/analysis")
