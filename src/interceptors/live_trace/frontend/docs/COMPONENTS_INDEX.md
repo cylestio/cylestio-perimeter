@@ -27,7 +27,7 @@
 | `domain/layout/` | Shell, Sidebar, TopBar, UserMenu, Logo |
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
 | `domain/workflows/` | WorkflowSelector |
-| `domain/analysis/` | AnalysisStatusItem |
+| `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
 | `domain/sessions/` | SessionsTable |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
@@ -752,6 +752,85 @@ interface AnalysisStatusItemProps {
   status="inactive"
   disabled
   collapsed={sidebarCollapsed}
+/>
+```
+
+### SecurityCheckItem
+
+Sidebar navigation item for security check timeline (Dev Connection, Static Analysis, Dynamic Analysis, Production). Shows a ring indicator with status icon, optional timeline connectors, and supports locked/premium states. Uses React Router navigation via `to` prop.
+
+```typescript
+type SecurityCheckStatus = 'ok' | 'warning' | 'critical' | 'inactive' | 'running' | 'locked' | 'premium';
+
+interface SecurityCheckItemProps {
+  label: string;                // Display label (e.g., "Static Analysis")
+  status: SecurityCheckStatus;  // Status determines color and icon
+  count?: number;               // Optional issue count shown as badge
+  stat?: string;                // Optional stat text (e.g., "2 issues")
+  collapsed?: boolean;          // Show only ring when sidebar collapsed
+  active?: boolean;             // Whether this item is currently active/selected
+  disabled?: boolean;           // Disable interaction (grays out)
+  to?: string;                  // React Router navigation path
+  onClick?: () => void;         // Click handler (fallback when no `to`)
+  showConnectorAbove?: boolean; // Show timeline connector above
+  showConnectorBelow?: boolean; // Show timeline connector below
+  isFirst?: boolean;            // First item in timeline (hides top connector)
+  isLast?: boolean;             // Last item in timeline (hides bottom connector)
+  isLocked?: boolean;           // Shows locked state with tooltip
+  icon?: ReactNode;             // Custom icon override
+  lockedTooltip?: string;       // Tooltip content when locked
+}
+```
+
+**Status Colors:**
+- `ok` - Green ring with check icon
+- `warning` - Orange ring with alert icon
+- `critical` - Red ring with X icon
+- `inactive` - Gray ring with minus icon
+- `running` - Cyan spinning ring (animated)
+- `locked` - Gray ring with lock icon
+- `premium` - Gold ring with lock icon (glowing animation)
+
+**Usage:**
+```tsx
+// Security checks timeline
+<SecurityCheckItem
+  label="Dev"
+  status="ok"
+  isFirst
+  showConnectorBelow
+/>
+<SecurityCheckItem
+  label="Static Analysis"
+  status="ok"
+  showConnectorAbove
+  showConnectorBelow
+  to={`/agent/${agentId}/static-analysis`}
+  active={location.pathname === `/agent/${agentId}/static-analysis`}
+/>
+<SecurityCheckItem
+  label="Dynamic Analysis"
+  status="warning"
+  count={3}
+  showConnectorAbove
+  showConnectorBelow
+/>
+<SecurityCheckItem
+  label="Production"
+  status="locked"
+  isLocked
+  isLast
+  showConnectorAbove
+  lockedTooltip="Complete all security checks to unlock"
+/>
+
+// Premium unlocked state
+<SecurityCheckItem
+  label="Production"
+  status="premium"
+  stat="Ready to deploy"
+  isLast
+  showConnectorAbove
 />
 ```
 

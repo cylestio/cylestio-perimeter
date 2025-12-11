@@ -100,8 +100,9 @@ export const AbsoluteFormat: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Absolute format shows full date, check for year
-    await expect(canvas.getByText(/2025/)).toBeInTheDocument();
+    // Absolute format shows full date, check that we have multiple date entries
+    const dateElements = canvas.getAllByText(/2025/);
+    await expect(dateElements.length).toBeGreaterThanOrEqual(2);
   },
 };
 

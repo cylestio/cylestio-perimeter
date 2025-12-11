@@ -131,7 +131,8 @@ export const SingleAgent: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId('security-checks-explorer')).toBeInTheDocument();
-    await expect(canvas.getByText('math-agent')).toBeInTheDocument();
+    // Shows agent_id not agent_name
+    await expect(canvas.getByText('agent_abc123def456')).toBeInTheDocument();
     await expect(canvas.getByText('3 passed')).toBeInTheDocument();
     await expect(canvas.getByText('1 warnings')).toBeInTheDocument();
     await expect(canvas.getByText('1 critical')).toBeInTheDocument();
@@ -145,15 +146,16 @@ export const MultipleAgents: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Agent 1 of 2')).toBeInTheDocument();
-    await expect(canvas.getByText('math-agent')).toBeInTheDocument();
+    // Component now shows "System prompt X of Y"
+    await expect(canvas.getByText('System prompt 1 of 2')).toBeInTheDocument();
+    await expect(canvas.getByText('agent_abc123def456')).toBeInTheDocument();
 
-    // Navigate to next agent
-    const nextButton = canvas.getByLabelText('Next agent');
+    // Navigate to next system prompt
+    const nextButton = canvas.getByLabelText('Next system prompt');
     await userEvent.click(nextButton);
 
-    await expect(canvas.getByText('Agent 2 of 2')).toBeInTheDocument();
-    await expect(canvas.getByText('assistant-v2')).toBeInTheDocument();
+    await expect(canvas.getByText('System prompt 2 of 2')).toBeInTheDocument();
+    await expect(canvas.getByText('agent_xyz789')).toBeInTheDocument();
   },
 };
 
@@ -205,7 +207,8 @@ export const AgentWithNoChecks: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('No checks for this agent yet.')).toBeInTheDocument();
+    // Component now says "system prompt" instead of "agent"
+    await expect(canvas.getByText('No checks for this system prompt yet.')).toBeInTheDocument();
   },
 };
 

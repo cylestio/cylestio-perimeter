@@ -165,7 +165,7 @@ export const IDEIcon = styled.div`
   justify-content: center;
   background: ${({ theme }) => theme.colors.void};
   border-radius: ${({ theme }) => theme.radii.md};
-  font-size: 24px;
+  color: ${({ theme }) => theme.colors.cyan};
   flex-shrink: 0;
 `;
 

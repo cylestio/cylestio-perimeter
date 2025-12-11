@@ -1,12 +1,14 @@
-import { useState, type FC } from 'react';
+import type { FC, ReactNode } from 'react';
+import { useState } from 'react';
 
-import { 
-  Monitor, 
-  Check, 
+import {
+  Monitor,
+  Check,
   X,
   RefreshCw,
   Terminal,
-  Code
+  Code,
+  Bot
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
@@ -52,7 +54,7 @@ interface IDEConnection {
   id: string;
   name: string;
   description: string;
-  icon: string;
+  icon: ReactNode;
   connected: boolean;
   lastSeen?: string;
 }
@@ -63,21 +65,21 @@ const mockIDEs: IDEConnection[] = [
     id: 'cursor',
     name: 'Cursor',
     description: 'AI-powered code editor with MCP support',
-    icon: '🖥️',
+    icon: <Monitor size={24} />,
     connected: false,
   },
   {
     id: 'vscode',
     name: 'VS Code',
     description: 'Visual Studio Code with Claude extension',
-    icon: '💻',
+    icon: <Code size={24} />,
     connected: false,
   },
   {
     id: 'claude-desktop',
     name: 'Claude Desktop',
     description: 'Claude desktop application',
-    icon: '🤖',
+    icon: <Bot size={24} />,
     connected: false,
   },
 ];
