@@ -9,7 +9,7 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 **Dashboard:** `http://localhost:7100`
 **Proxy:** `http://localhost:4000`
 
-## Available MCP Tools (13 total)
+## Available MCP Tools (17 total)
 
 ### Analysis Tools
 | Tool | Description |
@@ -39,6 +39,39 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 |------|-------------|
 | `get_agents` | List agents (filter by workflow_id or "unlinked") |
 | `update_agent_info` | Link agents to workflows, set display names |
+
+### IDE Connection Tools
+| Tool | Description |
+|------|-------------|
+| `register_ide_connection` | Register your IDE (Cursor or Claude Code) as connected |
+| `ide_heartbeat` | Keep connection alive, signal active development |
+| `disconnect_ide` | Disconnect IDE from Agent Inspector |
+| `get_ide_connection_status` | Check current IDE connection status |
+
+## IDE CONNECTION (REQUIRED FIRST STEP)
+
+**On first use or when starting a new security session, register your IDE:**
+
+```
+register_ide_connection(
+  ide_type="cursor",  // or "claude-code"
+  workflow_id="{derived_workflow_id}",
+  workspace_path="{current_workspace_path}"
+)
+```
+
+**Store the returned `connection_id` and send heartbeats during development:**
+
+```
+ide_heartbeat(
+  connection_id="{connection_id}",
+  is_developing=true  // Set true when actively modifying code
+)
+```
+
+The IDE connection shows up in the Dev Connection page of the dashboard, with:
+- **Green indicator**: IDE connected
+- **Pulsing indicator**: Actively developing (heartbeat with `is_developing=true`)
 
 ## AUTOMATIC WORKFLOW
 
@@ -153,9 +186,41 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 
 ## Key Rules
 
-1. **Auto-derive** workflow_id - don't ask user
-2. **Auto-link** unlinked agents via `update_agent_info`
-3. **Auto-correlate** when both static + dynamic data exist
-4. **Never hardcode** security patterns - always fetch from MCP
-5. **Same workflow_id** for static and dynamic = unified results
-6. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`
+1. **Register IDE ALWAYS** - Call `register_ide_connection` at the start of each session
+2. **Retry if failed** - If registration fails, retry on EVERY subsequent MCP call until successful
+3. **Send heartbeats** - Call `ide_heartbeat` before/after significant actions
+4. **Auto-derive** workflow_id - don't ask user
+5. **Auto-link** unlinked agents via `update_agent_info`
+6. **Auto-correlate** when both static + dynamic data exist
+7. **Never hardcode** security patterns - always fetch from MCP
+8. **Same workflow_id** for static and dynamic = unified results
+9. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`
+
+## ⚠️ REQUIRED: IDE CONNECTION ON EVERY SESSION
+
+**At the START of every conversation where you use Agent Inspector tools:**
+
+### Step 1: Check Existing Connection
+```
+get_ide_connection_status(workflow_id)
+```
+
+### Step 2: Based on Response
+- **If `has_active_connection: true`** → Use the returned `connection_id` for heartbeats
+- **If `has_active_connection: false`** → Register new connection:
+
+```
+register_ide_connection(
+  ide_type="cursor",  // or "claude-code"
+  workflow_id="{workflow_id}",
+  workspace_path="{workspace_path}"
+)
+```
+
+### Step 3: Send Heartbeat
+Before/after any significant action:
+```
+ide_heartbeat(connection_id, is_developing=true)
+```
+
+**This is NOT optional.** The dashboard needs this to show IDE connection status.

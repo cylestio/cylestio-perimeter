@@ -238,7 +238,7 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 > - Or press `Cmd+Shift+P` → 'Developer: Reload Window'
 > - Or restart Cursor
 > 
-> You should see 'agent-inspector' with 13 tools enabled."
+> You should see 'agent-inspector' with 17 tools enabled."
 
 **For Claude Code:**
 
@@ -246,18 +246,81 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 ---
 
-## STEP 9: RUN FIRST STATIC SCAN
+## STEP 9: REGISTER IDE CONNECTION (AUTOMATIC)
+
+⚠️ **CRITICAL: This step MUST succeed. If it fails, retry on EVERY subsequent MCP tool call.**
+
+### 9.1 Immediately Register After MCP Connect
+
+As soon as MCP tools are available, call `register_ide_connection`:
+
+```
+register_ide_connection(
+  ide_type="{IDE_TYPE}",  // "cursor" or "claude-code"
+  workflow_id="{WORKFLOW_ID}",  // from folder name, e.g., "next-rooms"
+  workspace_path="{AGENT_PROJECT_FOLDER}"
+)
+```
+
+Where:
+- `{IDE_TYPE}` = `"cursor"` if you're in Cursor, `"claude-code"` if you're Claude Code
+- `{WORKFLOW_ID}` = derived from the agent project folder name
+- `{AGENT_PROJECT_FOLDER}` = the workspace path
+
+### 9.2 Store the Connection ID
+
+**Store the returned `connection_id` in your memory.** You'll use it for heartbeats.
+
+### 9.3 If Registration Fails
+
+If `register_ide_connection` fails (server not ready, MCP not connected, etc.):
+
+1. **DO NOT GIVE UP** - Store a reminder: `PENDING_IDE_REGISTRATION = true`
+2. **Retry on EVERY subsequent MCP call** - Before any other Agent Inspector tool call, try to register again
+3. **Only stop retrying** when you get a successful `connection_id` back
+
+### 9.4 Heartbeat Strategy
+
+Once registered, send heartbeats to keep the connection alive:
+
+```
+ide_heartbeat(
+  connection_id="{CONNECTION_ID}",
+  is_developing=true  // true when actively editing code
+)
+```
+
+**When to send heartbeats:**
+- Before/after each significant action (scanning, fixing, etc.)
+- When the user asks you to do something with the agent code
+- Set `is_developing=true` when actively writing/modifying code
+
+---
+
+## ⚠️ IMPORTANT: RECONNECTION ON FUTURE SESSIONS
+
+Since you don't have persistent memory between conversations, the rules file (`.cursor/rules/agent-inspector.mdc`) tells future you to:
+
+1. **Check existing connection** via `get_ide_connection_status(workflow_id)` at session start
+2. **If active** → Use the returned `connection_id` for heartbeats
+3. **If not active** → Call `register_ide_connection()` again
+
+The backend stores connection state - you just need to check it each session!
+
+---
+
+## STEP 10: RUN FIRST STATIC SCAN
 
 **If there's agent code in the project, run a security scan immediately.**
 
-### 9.1 Check for Code
+### 10.1 Check for Code
 
 Look for Python/JS/TS files in the agent project:
 ```bash
 ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER}/*.ts 2>/dev/null | head -5
 ```
 
-### 9.2 If Code Exists, Run Static Scan
+### 10.2 If Code Exists, Run Static Scan
 
 If MCP is connected, use the Agent Inspector tools to:
 1. Get security patterns: `get_security_patterns()`
@@ -273,17 +336,17 @@ If MCP not connected yet, tell user:
 
 ---
 
-## STEP 10: DISCOVER TOOLS & SHOW WELCOME
+## STEP 11: DISCOVER TOOLS & SHOW WELCOME
 
-### 10.1 Get Available Tools
+### 11.1 Get Available Tools
 
 Query the `agent-inspector` MCP server for available tools.
 
-### 10.2 Understand & Explain
+### 11.2 Understand & Explain
 
 **You're smart.** Read the tool names and descriptions. Figure out what's actually possible - don't assume features exist. Only mention capabilities you can verify from the tool list.
 
-### 10.3 Display Welcome Message
+### 11.3 Display Welcome Message
 
 ```
  ██████╗██╗   ██╗██╗     ███████╗███████╗████████╗██╗ ██████╗ 
@@ -328,10 +391,13 @@ The rules file ensures I'll use these tools when you ask about security - even i
 - [ ] Updated agent code with `base_url`
 - [ ] Started server OR told user how to start it
 - [ ] Told user to reload IDE
+- [ ] **Registered IDE connection** (or set PENDING_IDE_REGISTRATION reminder)
 - [ ] Ran first static scan (if code exists and MCP connected) OR told user to ask for scan after reload
 - [ ] Displayed welcome message with ONLY verified capabilities
 
 **ALL BOXES MUST BE CHECKED.**
+
+**REMEMBER:** If IDE connection registration failed, you MUST retry on every subsequent MCP call!
 
 ---
 

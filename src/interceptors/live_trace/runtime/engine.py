@@ -186,6 +186,54 @@ class AnalysisEngine:
             "agents_total": len(workflow_agents),
         } if workflow_agents else None
 
+        # Get dynamic analysis findings from security checks
+        # Security checks use status values: 'passed', 'warning', 'critical'
+        # Map to severity format expected by frontend: CRITICAL, HIGH, MEDIUM, LOW
+        dynamic_findings = None
+        if dynamic_completed:
+            try:
+                # Get the latest completed DYNAMIC session
+                completed_dynamic_sessions = [
+                    s for s in dynamic_sessions if s.get("status") == "COMPLETED"
+                ]
+                if completed_dynamic_sessions:
+                    # Get the most recent one
+                    latest_dynamic_session = max(
+                        completed_dynamic_sessions,
+                        key=lambda s: s.get("created_at", "")
+                    )
+                    latest_session_id = latest_dynamic_session.get("session_id")
+                    
+                    # Get security checks for this specific analysis session
+                    security_checks = self.store.get_security_checks(
+                        analysis_session_id=latest_session_id,
+                        limit=1000
+                    )
+                    
+                    # Count by status, mapping to severity
+                    critical_count = sum(1 for c in security_checks if c.get("status") == "critical")
+                    warning_count = sum(1 for c in security_checks if c.get("status") == "warning")
+                    passed_count = sum(1 for c in security_checks if c.get("status") == "passed")
+                    
+                    total_checks = critical_count + warning_count + passed_count
+                    
+                    if total_checks > 0:
+                        dynamic_findings = {
+                            "total": total_checks,
+                            "by_severity": {
+                                "CRITICAL": critical_count,
+                                "HIGH": warning_count,  # Map warning to HIGH for frontend
+                                "MEDIUM": 0,
+                                "LOW": 0,
+                            },
+                            "by_status": {
+                                "OPEN": critical_count + warning_count,  # Non-passed are "open"
+                                "FIXED": passed_count,  # Passed checks are "fixed"
+                            },
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to get security checks for dynamic findings: {e}")
+
         # Recommendations status (based on AUTOFIX sessions)
         autofix_sessions = [s for s in analysis_sessions if s.get("session_type") == "AUTOFIX"]
         autofix_in_progress = any(s.get("status") == "IN_PROGRESS" for s in autofix_sessions)
@@ -204,7 +252,7 @@ class AnalysisEngine:
             },
             "dynamic": {
                 "status": dynamic_status,
-                "findings": None,
+                "findings": dynamic_findings,
                 "sessions_progress": dynamic_sessions_progress,
             },
             "recommendations": {

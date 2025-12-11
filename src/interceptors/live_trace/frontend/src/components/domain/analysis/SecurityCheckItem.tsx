@@ -152,9 +152,11 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
   const showBottomConnector = !isLast && showConnectorBelow;
 
   // Determine connector color based on status
-  const getConnectorStatus = (checkStatus: SecurityCheckStatus) => {
+  const getConnectorStatus = (checkStatus: SecurityCheckStatus): 'pending' | 'active' | 'complete' | 'critical' | 'warning' => {
     if (checkStatus === 'ok' || checkStatus === 'premium') return 'complete';
     if (checkStatus === 'running') return 'active';
+    if (checkStatus === 'critical') return 'critical';
+    if (checkStatus === 'warning') return 'warning';
     return 'pending';
   };
 

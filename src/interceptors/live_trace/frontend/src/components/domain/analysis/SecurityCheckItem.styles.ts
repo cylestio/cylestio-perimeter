@@ -169,7 +169,7 @@ export const StatusIndicatorContainer = styled.span<StatusIndicatorProps>`
 
 interface TimelineConnectorProps {
   $position: 'top' | 'bottom';
-  $status: 'pending' | 'active' | 'complete';
+  $status: 'pending' | 'active' | 'complete' | 'critical' | 'warning';
 }
 
 export const TimelineConnector = styled.div<TimelineConnectorProps>`
@@ -202,6 +202,18 @@ export const TimelineConnector = styled.div<TimelineConnectorProps>`
           ${theme.colors.cyan}40,
           ${theme.colors.cyan}
         )`;
+      case 'critical':
+        return `linear-gradient(
+          ${$position === 'top' ? 'to bottom' : 'to top'},
+          ${theme.colors.red}60,
+          ${theme.colors.red}
+        )`;
+      case 'warning':
+        return `linear-gradient(
+          ${$position === 'top' ? 'to bottom' : 'to top'},
+          ${theme.colors.orange}60,
+          ${theme.colors.orange}
+        )`;
       case 'pending':
       default:
         return `linear-gradient(
@@ -223,6 +235,18 @@ export const TimelineConnector = styled.div<TimelineConnectorProps>`
     $status === 'complete' &&
     css`
       box-shadow: 0 0 6px ${({ theme }) => theme.colors.green}30;
+    `}
+
+  ${({ $status }) =>
+    $status === 'critical' &&
+    css`
+      box-shadow: 0 0 6px ${({ theme }) => theme.colors.red}30;
+    `}
+
+  ${({ $status }) =>
+    $status === 'warning' &&
+    css`
+      box-shadow: 0 0 6px ${({ theme }) => theme.colors.orange}30;
     `}
 
   border-radius: 1px;

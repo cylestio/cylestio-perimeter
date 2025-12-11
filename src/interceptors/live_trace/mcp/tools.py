@@ -246,6 +246,88 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             },
             "required": ["agent_id"]
         }
+    },
+    # ==================== IDE Connection Tools ====================
+    {
+        "name": "register_ide_connection",
+        "description": "Register this IDE (Cursor or Claude Code) as connected to Agent Inspector. Call this when starting a security analysis session to enable live connection tracking in the dashboard.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ide_type": {
+                    "type": "string",
+                    "description": "Type of IDE: 'cursor' or 'claude-code'",
+                    "enum": ["cursor", "claude-code"]
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "The workflow/agent ID being developed (from the project folder name or analysis context)"
+                },
+                "host": {
+                    "type": "string",
+                    "description": "Hostname of the machine (optional)"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "Username on the machine (optional)"
+                },
+                "workspace_path": {
+                    "type": "string",
+                    "description": "Path to the workspace/project being edited"
+                }
+            },
+            "required": ["ide_type"]
+        }
+    },
+    {
+        "name": "ide_heartbeat",
+        "description": "Send a heartbeat to keep the IDE connection alive. Call this periodically (every 30s) during active development sessions, or when actively making changes to agent code.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "connection_id": {
+                    "type": "string",
+                    "description": "Connection ID from register_ide_connection"
+                },
+                "is_developing": {
+                    "type": "boolean",
+                    "description": "Set to true if actively writing/modifying agent code right now",
+                    "default": False
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Update the workflow being developed (if changed)"
+                }
+            },
+            "required": ["connection_id"]
+        }
+    },
+    {
+        "name": "disconnect_ide",
+        "description": "Disconnect this IDE from Agent Inspector. Call when ending a security analysis session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "connection_id": {
+                    "type": "string",
+                    "description": "Connection ID from register_ide_connection"
+                }
+            },
+            "required": ["connection_id"]
+        }
+    },
+    {
+        "name": "get_ide_connection_status",
+        "description": "Get the current IDE connection status. Shows which IDEs are connected and if active development is happening.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Filter by workflow/agent ID (optional)"
+                }
+            }
+        }
     }
 ]
 

@@ -17,9 +17,11 @@ import { ThemeProvider } from 'styled-components';
 
 import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
+import type { IDEConnectionStatus } from '@api/types/ide';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
+import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import { usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
 
@@ -135,6 +137,9 @@ function AppLayout() {
 
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
+  
+  // IDE connection state
+  const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
   // Derive selected agent from URL
   const selectedWorkflow = (() => {
@@ -169,6 +174,24 @@ function AppLayout() {
         console.error('Failed to fetch config:', error);
       });
   }, []);
+  
+  // Fetch IDE connection status
+  useEffect(() => {
+    const fetchIDE = async () => {
+      try {
+        const workflowIdForIDE = urlAgentId === 'unassigned' ? undefined : urlAgentId ?? undefined;
+        const status = await fetchIDEConnectionStatus(workflowIdForIDE);
+        setIDEConnectionStatus(status);
+      } catch (error) {
+        // Silently fail - IDE connection is optional
+      }
+    };
+
+    fetchIDE();
+    // Poll IDE status every 5 seconds
+    const interval = setInterval(fetchIDE, 5000);
+    return () => clearInterval(interval);
+  }, [urlAgentId]);
 
   // Refresh workflows periodically (every 30 seconds)
   useEffect(() => {
@@ -237,8 +260,18 @@ function AppLayout() {
   const dynamicStatus = stageToSecurityStatus(data?.security_analysis?.dynamic);
   const allChecksGreen = areAllChecksGreen(data);
   
-  // Dev connection status - would come from actual MCP status, for now assume inactive
-  const devConnectionStatus: SecurityCheckStatus = 'inactive';
+  // Dev connection status - from actual IDE connection
+  // States:
+  // - 'running': Actively developing (pulsing green animation)
+  // - 'ok': Connected or was connected (solid green)
+  // - 'inactive': Never connected (gray)
+  const devConnectionStatus: SecurityCheckStatus = (() => {
+    if (!ideConnectionStatus) return 'inactive';
+    if (ideConnectionStatus.is_developing) return 'running'; // Actively developing shows as pulsing
+    if (ideConnectionStatus.is_connected) return 'ok'; // Currently connected shows as green
+    if (ideConnectionStatus.has_ever_connected) return 'ok'; // Was connected shows as green (idle)
+    return 'inactive';
+  })();
 
   return (
     <Shell>
