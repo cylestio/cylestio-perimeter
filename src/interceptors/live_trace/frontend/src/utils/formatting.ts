@@ -113,9 +113,12 @@ export const extractAgentFromSessionId = (sessionId: string): string | null => {
  * Format a timestamp to a relative time string.
  * e.g., "just now", "5m ago", "2h ago", "3d ago"
  */
-export const timeAgo = (timestamp: string | Date): string => {
+export const timeAgo = (timestamp: string | Date | number | null | undefined): string => {
+  if (!timestamp) return '-';
   const now = new Date();
-  const then = new Date(timestamp);
+  const then = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (isNaN(then.getTime())) return '-';
+
   const diffMs = now.getTime() - then.getTime();
   const diffSec = Math.floor(diffMs / 1000);
 
@@ -123,6 +126,24 @@ export const timeAgo = (timestamp: string | Date): string => {
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
   return `${Math.floor(diffSec / 86400)}d ago`;
+};
+
+/**
+ * Format a timestamp to an absolute date/time string for tooltip display.
+ * e.g., "Dec 11, 2025, 8:58:32 AM"
+ */
+export const formatAbsoluteDateTime = (timestamp: string | Date | number | null | undefined): string => {
+  if (!timestamp) return '-';
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 };
 
 // Constants

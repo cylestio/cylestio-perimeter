@@ -1,5 +1,9 @@
 import type { FC, ReactNode } from 'react';
+
 import { CheckCircle, AlertTriangle, Activity, Search } from 'lucide-react';
+
+import { TimeAgo } from '@ui/core';
+
 import {
   FeedContainer,
   FeedItem,
@@ -7,7 +11,6 @@ import {
   ItemContent,
   ItemTitle,
   ItemDetail,
-  ItemTime,
 } from './ActivityFeed.styles';
 
 // Types
@@ -28,21 +31,6 @@ export interface ActivityFeedProps {
 }
 
 // Helper
-const formatTimestamp = (timestamp: Date | string): string => {
-  if (typeof timestamp === 'string') return timestamp;
-
-  const now = new Date();
-  const diff = now.getTime() - timestamp.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${days}d ago`;
-};
-
 const getIcon = (type: ActivityType): ReactNode => {
   switch (type) {
     case 'fixed':
@@ -77,7 +65,7 @@ export const ActivityFeed: FC<ActivityFeedProps> = ({
             <ItemTitle>{item.title}</ItemTitle>
             {item.detail && <ItemDetail>{item.detail}</ItemDetail>}
           </ItemContent>
-          <ItemTime>{formatTimestamp(item.timestamp)}</ItemTime>
+          <TimeAgo timestamp={item.timestamp} />
         </FeedItem>
       ))}
     </FeedContainer>

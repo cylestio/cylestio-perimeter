@@ -1,15 +1,14 @@
 import type { FC, ReactNode } from 'react';
 
-import { Calendar, Clock, ExternalLink, Shield } from 'lucide-react';
+import { Clock, ExternalLink, Shield } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import type { AnalysisSession } from '@api/types/findings';
 
-import { Badge } from '@ui/core/Badge';
+import { Badge, TimeAgo } from '@ui/core';
 import { Table, type Column } from '@ui/data-display/Table';
 
 import {
-  formatDateTime,
   formatDuration,
   getDurationMinutes,
   extractAgentFromSessionId,
@@ -96,10 +95,7 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       width: '140px',
       sortable: true,
       render: (session) => (
-        <MetaCell>
-          <Calendar size={12} />
-          {formatDateTime(session.created_at)}
-        </MetaCell>
+        <TimeAgo timestamp={session.created_at} />
       ),
     },
     {

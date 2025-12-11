@@ -15,13 +15,25 @@
 ## Critical Rules
 
 
-### 1. Check Existing Components First
+### 1. Follow Templates for New Code
+
+**When creating new components, endpoints, or types, you MUST follow [TEMPLATES.md](./frontend/TEMPLATES.md).**
+
+This includes:
+- Component file structure (`ComponentName.tsx`, `ComponentName.styles.ts`, `ComponentName.stories.tsx`)
+- Type definitions and exports pattern
+- API endpoint structure
+- Story patterns with `play()` tests
+
+---
+
+### 2. Check Existing Components First
 
 Before creating ANY component, check [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md).
 
 | Location | Components |
 |----------|------------|
-| `@ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label |
+| `@ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label, TimeAgo |
 | `@ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
 | `@ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `@ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
@@ -32,11 +44,11 @@ Before creating ANY component, check [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md
 | `@domain/agents/` | AgentSelector, ModeIndicators |
 | `@domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `@domain/activity/` | ActivityFeed, ToolChain, LifecycleProgress |
-| `@domain/visualization/` | ClusterVisualization, SurfaceNode |
+| `@domain/visualization/` | ClusterVisualization, SurfaceNode | 
 
 ---
 
-### 2. Import Order
+### 3. Import Order
 
 Seven groups. Blank line between each.
 
@@ -63,7 +75,7 @@ import { StyledContainer } from './App.styles'; // 7. Relative (same dir only)
 
 ---
 
-### 3. Path Aliases
+### 4. Path Aliases
 
 | Alias | Maps To |
 |-------|---------|
@@ -74,7 +86,7 @@ import { StyledContainer } from './App.styles'; // 7. Relative (same dir only)
 
 ---
 
-### 4. Component Placement
+### 5. Component Placement
 
 ```
 Generic UI primitive? → ui/
@@ -84,7 +96,7 @@ Page-specific? → features/
 
 ---
 
-### 5. Transient Props for Styled Components
+### 6. Transient Props for Styled Components
 
 ```typescript
 // ❌ <StyledButton variant="primary">
@@ -99,7 +111,7 @@ const StyledButton = styled.button<{ $variant: string }>`
 
 ---
 
-### 6. Theme Values Only
+### 7. Theme Values Only
 
 ```typescript
 // ❌ padding: 16px; color: #00ffff;
@@ -111,7 +123,7 @@ Common: `theme.colors.cyan`, `theme.spacing[4]`, `theme.radii.md`, `theme.typogr
 
 ---
 
-### 7. Every Story Needs play()
+### 8. Every Story Needs play()
 
 ```typescript
 export const Default: Story = {
@@ -124,7 +136,7 @@ export const Default: Story = {
 
 ---
 
-### 8. No MemoryRouter in Stories
+### 9. No MemoryRouter in Stories
 
 Global router exists in `.storybook/preview.ts`.
 
@@ -135,14 +147,14 @@ Global router exists in `.storybook/preview.ts`.
 
 ---
 
-### 9. Keep Pages Lean
+### 10. Keep Pages Lean
 
 Pages = orchestrators only (~100-150 lines max).
 Extract to `features/` when component exceeds ~50 lines or has its own state.
 
 ---
 
-### 10. Use git mv for File Moves
+### 11. Use git mv for File Moves
 
 ```bash
 # ❌ mv src/Old.tsx src/New.tsx
@@ -151,7 +163,7 @@ Extract to `features/` when component exceeds ~50 lines or has its own state.
 
 ---
 
-### 11. No Emojis — Use lucide-react
+### 12. No Emojis — Use lucide-react
 
 ```typescript
 // ❌ <span>✅ Success</span>
@@ -160,7 +172,7 @@ Extract to `features/` when component exceeds ~50 lines or has its own state.
 
 ---
 
-### 12. Accessibility
+### 13. Accessibility
 
 - Semantic HTML: `<button>` for actions, `<a>` for navigation
 - ARIA: `aria-expanded`, `aria-haspopup`, `role="listbox"`

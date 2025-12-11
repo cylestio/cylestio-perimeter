@@ -9,12 +9,11 @@ import { usePolling } from '@hooks/usePolling';
 import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
-  timeAgo,
   getAgentStatus,
   BEHAVIORAL_TOOLTIPS,
 } from '../../utils/formatting';
 
-import { Badge } from '@ui/core/Badge';
+import { Badge, TimeAgo } from '@ui/core';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
@@ -149,7 +148,7 @@ const getSessionColumns = (workflowId: string): TableColumn<AgentSession>[] => [
     key: 'last_activity',
     header: 'Last Activity',
     render: (session) => (
-      <span style={{ color: 'var(--color-white-50)' }}>{timeAgo(session.last_activity)}</span>
+      <TimeAgo timestamp={session.last_activity} />
     ),
   },
 ];
@@ -218,8 +217,8 @@ export const AgentDetail: FC = () => {
         <AgentHeaderLeft>
           <AgentTitle>{agent.id}</AgentTitle>
           <AgentMeta>
-            <span>First seen: {timeAgo(agent.first_seen)}</span>
-            <span>Last seen: {timeAgo(agent.last_seen)}</span>
+            <span>First seen: <TimeAgo timestamp={agent.first_seen} /></span>
+            <span>Last seen: <TimeAgo timestamp={agent.last_seen} /></span>
           </AgentMeta>
         </AgentHeaderLeft>
         <ButtonLink $variant="secondary" to={reportLink}>

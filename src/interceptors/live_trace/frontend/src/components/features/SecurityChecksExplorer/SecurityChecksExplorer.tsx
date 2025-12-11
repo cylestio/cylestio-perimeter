@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 
 import type { AgentSecurityData, WorkflowSecurityCheck } from '@api/endpoints/workflow';
 
+import { TimeAgo } from '@ui/core';
+
 import {
   ExplorerContainer,
   ExplorerHeader,
@@ -75,29 +77,6 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-// Format timestamp to relative or absolute time
-const formatTimestamp = (timestamp: number | undefined): string | null => {
-  if (!timestamp) return null;
-  const date = new Date(timestamp * 1000);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
 export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   agents,
   workflowId,
@@ -163,8 +142,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
           )}
           {currentAgent.latest_check_at && (
             <LastUpdated>
-              <Clock size={10} />
-              {formatTimestamp(currentAgent.latest_check_at)}
+              <TimeAgo timestamp={currentAgent.latest_check_at * 1000} />
             </LastUpdated>
           )}
         </AgentInfo>

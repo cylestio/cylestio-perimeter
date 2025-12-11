@@ -12,7 +12,7 @@
 
 | Category | Components |
 |----------|------------|
-| `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label |
+| `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label, TimeAgo |
 | `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
@@ -185,6 +185,35 @@ interface HeadingProps {
   level?: 1 | 2 | 3 | 4;
   children: ReactNode;
 }
+```
+
+### TimeAgo
+
+Displays timestamps in relative format (e.g., "5m ago") with a tooltip showing the absolute date/time.
+
+```typescript
+type TimeAgoFormat = 'relative' | 'absolute';
+
+interface TimeAgoProps {
+  timestamp: string | Date | number | null | undefined;
+  format?: TimeAgoFormat;  // default: 'relative'
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Relative time with absolute tooltip
+<TimeAgo timestamp="2025-12-11T08:58:32.328911+00:00" />
+// Output: "5m ago" (hover shows "Dec 11, 2025, 8:58:32 AM")
+
+// Absolute time with relative tooltip
+<TimeAgo timestamp={new Date()} format="absolute" />
+
+// Works with various input formats
+<TimeAgo timestamp={Date.now()} />
+<TimeAgo timestamp={1733906312000} />
+<TimeAgo timestamp={null} />  // Shows "-"
 ```
 
 ---
