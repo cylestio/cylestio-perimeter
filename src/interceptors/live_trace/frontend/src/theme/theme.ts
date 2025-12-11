@@ -44,6 +44,10 @@ export const colors = {
   yellow: '#f59e0b',
   yellowSoft: 'rgba(245, 158, 11, 0.12)',
 
+  // Signal Colors - Gold (Premium/Enterprise)
+  gold: '#fbbf24',
+  goldSoft: 'rgba(251, 191, 36, 0.12)',
+
   // Text Colors
   white: '#ffffff',
   white90: 'rgba(255, 255, 255, 0.90)',
@@ -51,6 +55,7 @@ export const colors = {
   white70: 'rgba(255, 255, 255, 0.70)',
   white50: 'rgba(255, 255, 255, 0.50)',
   white30: 'rgba(255, 255, 255, 0.30)',
+  white20: 'rgba(255, 255, 255, 0.20)',
   white15: 'rgba(255, 255, 255, 0.15)',
   white08: 'rgba(255, 255, 255, 0.08)',
   white04: 'rgba(255, 255, 255, 0.04)',

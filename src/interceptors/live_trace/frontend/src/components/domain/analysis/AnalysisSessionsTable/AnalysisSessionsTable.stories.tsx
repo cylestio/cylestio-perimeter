@@ -85,7 +85,7 @@ type Story = StoryObj<typeof AnalysisSessionsTable>;
 export const Default: Story = {
   args: {
     sessions: mockSessions,
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -100,7 +100,7 @@ export const Default: Story = {
 export const WithMaxRows: Story = {
   args: {
     sessions: mockSessions,
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     maxRows: 3,
   },
   play: async ({ canvasElement }) => {
@@ -117,7 +117,7 @@ export const WithMaxRows: Story = {
 export const Loading: Story = {
   args: {
     sessions: [],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     loading: true,
   },
   play: async ({ canvasElement }) => {
@@ -129,7 +129,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     sessions: [],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     emptyMessage: 'No analysis sessions yet.',
     emptyDescription: 'Run an analysis to see results here.',
   },
@@ -143,7 +143,7 @@ export const Empty: Story = {
 export const SingleSession: Story = {
   args: {
     sessions: [mockSessions[0]],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -156,7 +156,7 @@ export const SingleSession: Story = {
 export const InProgressSession: Story = {
   args: {
     sessions: [mockSessions[1]],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -167,7 +167,7 @@ export const InProgressSession: Story = {
 export const AgentExtractedFromSessionId: Story = {
   args: {
     sessions: [mockSessions[0]], // Session without explicit agent_id, but has session_id
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -179,7 +179,7 @@ export const AgentExtractedFromSessionId: Story = {
 export const DynamicAnalysisOnly: Story = {
   args: {
     sessions: mockSessions.filter(s => s.session_type === 'DYNAMIC'),
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     maxRows: 5,
   },
   play: async ({ canvasElement }) => {

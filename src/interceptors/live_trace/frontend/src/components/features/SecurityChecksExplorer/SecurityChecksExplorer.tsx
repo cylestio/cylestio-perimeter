@@ -35,7 +35,7 @@ import {
 
 export interface SecurityChecksExplorerProps {
   agents: AgentSecurityData[];
-  workflowId: string;
+  agentId: string;
   className?: string;
 }
 
@@ -79,7 +79,7 @@ const getStatusIcon = (status: string) => {
 
 export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   agents,
-  workflowId,
+  agentId,
   className,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -131,7 +131,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
     <ExplorerContainer className={className} data-testid="security-checks-explorer">
       <ExplorerHeader>
         <AgentInfo>
-          <AgentLink as={Link} to={`/workflow/${workflowId}/agent/${currentAgent.agent_id}`}>
+          <AgentLink as={Link} to={`/agent/${agentId}/system-prompt/${currentAgent.agent_id}`}>
             {currentAgent.agent_id}
             <ExternalLink size={12} />
           </AgentLink>

@@ -138,12 +138,12 @@ export const WorkflowsHome: FC = () => {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  const handleWorkflowClick = (workflowId: string) => {
-    navigate(`/workflow/${workflowId}`);
+  const handleWorkflowClick = (agentId: string) => {
+    navigate(`/agent/${agentId}`);
   };
 
   const handleAgentClick = (agent: AgentRow) => {
-    navigate(`/workflow/unassigned/agent/${agent.id}`);
+    navigate(`/agent/unassigned/system-prompt/${agent.id}`);
   };
 
   const hasWorkflows = workflows.length > 0;

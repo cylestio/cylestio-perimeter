@@ -39,7 +39,7 @@ export interface StaticAnalysisProps {
 }
 
 export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentId } = useParams<{ agentId: string }>();
 
   // State
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -49,13 +49,13 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const [findingsLoading, setFindingsLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  // Fetch findings for this workflow
+  // Fetch findings for this agent
   const fetchFindingsData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentId) return;
 
     setFindingsLoading(true);
     try {
-      const data = await fetchWorkflowFindings(workflowId);
+      const data = await fetchWorkflowFindings(agentId);
       setFindings(data.findings);
       setFindingsSummary(data.summary);
     } catch (err) {
@@ -63,15 +63,15 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     } finally {
       setFindingsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentId]);
 
-  // Fetch analysis sessions for this workflow (STATIC and AUTOFIX only)
+  // Fetch analysis sessions for this agent (STATIC and AUTOFIX only)
   const fetchSessionsData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentId) return;
 
     setSessionsLoading(true);
     try {
-      const data = await fetchAnalysisSessions(workflowId);
+      const data = await fetchAnalysisSessions(agentId);
       // Filter to only STATIC and AUTOFIX sessions
       const filteredSessions = (data.sessions || []).filter(
         (session) => session.session_type === 'STATIC' || session.session_type === 'AUTOFIX'
@@ -82,7 +82,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     } finally {
       setSessionsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentId]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -98,7 +98,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   usePageMeta({
     breadcrumbs: [
       { label: 'Agents', href: '/' },
-      { label: workflowId || '', href: `/workflow/${workflowId}` },
+      { label: agentId || '', href: `/agent/${agentId}` },
       { label: 'Static Analysis' },
     ],
   });
@@ -120,7 +120,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
       <PageHeader>
         <PageInfo>
           <PageTitle>Static Analysis</PageTitle>
-          <PageSubtitle>Agent: {workflowId}</PageSubtitle>
+          <PageSubtitle>Agent: {agentId}</PageSubtitle>
         </PageInfo>
         <PageStats>
           <StatBadge>

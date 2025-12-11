@@ -126,7 +126,7 @@ type Story = StoryObj<typeof SecurityChecksExplorer>;
 export const SingleAgent: Story = {
   args: {
     agents: [mockAgent],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -141,7 +141,7 @@ export const SingleAgent: Story = {
 export const MultipleAgents: Story = {
   args: {
     agents: [mockAgent, mockAgentWithManyChecks],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -160,7 +160,7 @@ export const MultipleAgents: Story = {
 export const WithCategories: Story = {
   args: {
     agents: [mockAgent],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -173,7 +173,7 @@ export const WithCategories: Story = {
 export const WithTimestamp: Story = {
   args: {
     agents: [mockAgent],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -185,7 +185,7 @@ export const WithTimestamp: Story = {
 export const Empty: Story = {
   args: {
     agents: [],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -201,7 +201,7 @@ export const AgentWithNoChecks: Story = {
       checks: [],
       summary: { total: 0, passed: 0, warnings: 0, critical: 0 },
     }],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -221,7 +221,7 @@ export const AllPassedChecks: Story = {
       latest_check_at: new Date(Date.now() - 120 * 1000).toISOString(),
       summary: { total: 3, passed: 3, warnings: 0, critical: 0 },
     }],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

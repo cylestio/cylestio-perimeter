@@ -23,7 +23,7 @@ import {
 
 export interface AnalysisSessionsTableProps {
   sessions: AnalysisSession[];
-  workflowId: string;
+  agentId: string;
   loading?: boolean;
   emptyMessage?: string;
   emptyDescription?: string;
@@ -49,7 +49,7 @@ const getAgentId = (session: AnalysisSession): string | null => {
 
 export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
   sessions,
-  workflowId,
+  agentId,
   loading = false,
   emptyMessage = 'No analysis sessions yet.',
   emptyDescription = 'Analysis sessions will appear here after running.',
@@ -79,10 +79,10 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       width: '180px',
       render: (session) => {
         const agentName = getAgentName(session);
-        const agentId = getAgentId(session);
-        if (!agentName || !agentId) return <MetaCell>-</MetaCell>;
+        const systemPromptId = getAgentId(session);
+        if (!agentName || !systemPromptId) return <MetaCell>-</MetaCell>;
         return (
-          <AgentLink as={Link} to={`/workflow/${workflowId}/agent/${agentId}`}>
+          <AgentLink as={Link} to={`/agent/${agentId}/system-prompt/${systemPromptId}`}>
             {agentName}
             <ExternalLink size={10} />
           </AgentLink>

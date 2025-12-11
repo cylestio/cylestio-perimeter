@@ -6,7 +6,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, AgentSession } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
-import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
+import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   getAgentStatus,
@@ -76,13 +76,13 @@ interface Check {
 }
 
 // Table columns for sessions
-const getSessionColumns = (workflowId: string): TableColumn<AgentSession>[] => [
+const getSessionColumns = (agentId: string): TableColumn<AgentSession>[] => [
   {
     key: 'id',
     header: 'Session ID',
     render: (session) => (
       <Link
-        to={`/workflow/${workflowId}/session/${session.id}`}
+        to={`/agent/${agentId}/session/${session.id}`}
         style={{
           color: 'var(--color-cyan)',
           textDecoration: 'none',
@@ -154,24 +154,24 @@ const getSessionColumns = (workflowId: string): TableColumn<AgentSession>[] => [
 ];
 
 export const AgentDetail: FC = () => {
-  const { agentId, workflowId } = useParams<{ agentId: string; workflowId: string }>();
+  const { agentId, systemPromptId } = useParams<{ agentId: string; systemPromptId: string }>();
 
   const fetchFn = useCallback(() => {
-    if (!agentId) return Promise.reject(new Error('No agent ID'));
-    return fetchAgent(agentId);
-  }, [agentId]);
+    if (!systemPromptId) return Promise.reject(new Error('No system prompt ID'));
+    return fetchAgent(systemPromptId);
+  }, [systemPromptId]);
 
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
-    enabled: !!agentId,
+    enabled: !!systemPromptId,
   });
 
-  // Set breadcrumbs with agent (workflow) context
+  // Set breadcrumbs with agent context
   usePageMeta({
-    breadcrumbs: buildWorkflowBreadcrumbs(
-      workflowId,
+    breadcrumbs: buildAgentBreadcrumbs(
+      agentId,
       { label: 'System prompt' },
-      { label: agentId?.substring(0, 12) + '...' || '' }
+      { label: systemPromptId?.substring(0, 12) + '...' || '' }
     ),
   });
 
@@ -190,7 +190,7 @@ export const AgentDetail: FC = () => {
   const agent = data.agent;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
-  const reportLink = workflowLink(workflowId, `/agent/${agent.id}/report`);
+  const reportLink = agentLink(agentId, `/system-prompt/${agent.id}/report`);
 
   // Build failed and warning check lists
   const failedChecks: Check[] = [];
@@ -419,7 +419,7 @@ export const AgentDetail: FC = () => {
             <Section.Content noPadding>
               {data.sessions && data.sessions.length > 0 ? (
                 <Table<AgentSession>
-                  columns={getSessionColumns(workflowId || 'unassigned')}
+                  columns={getSessionColumns(agentId || 'unassigned')}
                   data={data.sessions}
                   keyExtractor={(session) => session.id}
                   emptyState={<EmptySessions>No sessions found for this system prompt.</EmptySessions>}

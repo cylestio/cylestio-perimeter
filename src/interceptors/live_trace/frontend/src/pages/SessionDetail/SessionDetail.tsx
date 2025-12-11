@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchSession } from '@api/endpoints/session';
 import type { SessionResponse, TimelineEvent } from '@api/types/session';
 import { usePolling } from '@hooks/usePolling';
-import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
+import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -37,7 +37,7 @@ function formatNumber(value: number): string {
 }
 
 export const SessionDetail: FC = () => {
-  const { sessionId, workflowId } = useParams<{ sessionId: string; workflowId: string }>();
+  const { sessionId, agentId } = useParams<{ sessionId: string; agentId: string }>();
   const [replayEventId, setReplayEventId] = useState<string | null>(null);
 
   // Fetch session data with polling
@@ -51,12 +51,12 @@ export const SessionDetail: FC = () => {
     enabled: !!sessionId,
   });
 
-  // Set breadcrumbs with workflow context
+  // Set breadcrumbs with agent context
   usePageMeta({
-    breadcrumbs: buildWorkflowBreadcrumbs(
-      workflowId,
+    breadcrumbs: buildAgentBreadcrumbs(
+      agentId,
       ...(data?.session.agent_id
-        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: workflowLink(workflowId, `/agent/${data.session.agent_id}`) }]
+        ? [{ label: `System prompt ${data.session.agent_id.substring(0, 12)}...`, href: agentLink(agentId, `/system-prompt/${data.session.agent_id}`) }]
         : []),
       { label: 'Session' },
       { label: sessionId?.substring(0, 12) + '...' || '' }
@@ -102,10 +102,10 @@ export const SessionDetail: FC = () => {
             primaryValue={session.id}
             stats={[
               {
-                label: 'AGENT ID',
+                label: 'SYSTEM PROMPT ID',
                 badge: (
                   <Link
-                    to={workflowLink(workflowId, `/agent/${session.agent_id}`)}
+                    to={agentLink(agentId, `/system-prompt/${session.agent_id}`)}
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: '12px',

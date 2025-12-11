@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 
 import { fetchSessions } from '@api/endpoints/session';
 import type { SessionListItem } from '@api/types/session';
-import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -16,7 +16,7 @@ import { usePageMeta } from '../../context';
 import { PageContainer, LoadingContainer } from './Sessions.styles';
 
 export const Sessions: FC = () => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentId } = useParams<{ agentId: string }>();
 
   // Sessions data
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -25,19 +25,19 @@ export const Sessions: FC = () => {
 
   // Set page metadata
   usePageMeta({
-    breadcrumbs: workflowId
-      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Sessions' })
+    breadcrumbs: agentId
+      ? buildAgentBreadcrumbs(agentId, { label: 'Sessions' })
       : [{ label: 'Sessions', href: '/sessions' }],
   });
 
   // Fetch sessions
   const loadSessions = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentId) return;
 
     try {
       setError(null);
       const data = await fetchSessions({
-        workflow_id: workflowId,
+        workflow_id: agentId,
         limit: 100,
       });
       setSessions(data.sessions);
@@ -47,7 +47,7 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [workflowId]);
+  }, [agentId]);
 
   // Initial load
   useEffect(() => {
@@ -92,7 +92,7 @@ export const Sessions: FC = () => {
         <Card.Content noPadding>
           <SessionsTable
             sessions={sessions}
-            workflowId={workflowId || 'unassigned'}
+            agentId={agentId || 'unassigned'}
             showAgentColumn={true}
             emptyMessage="No sessions recorded for this agent yet. Sessions will appear here once system prompts start processing requests."
           />

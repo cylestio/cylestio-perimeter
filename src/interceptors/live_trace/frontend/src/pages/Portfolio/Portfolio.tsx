@@ -7,7 +7,7 @@ import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react'
 import type { APIAgent } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { fetchSessions } from '@api/endpoints/session';
-import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 import { formatAgentName, formatDuration } from '@utils/formatting';
 
 import { Card } from '@ui/core/Card';
@@ -58,7 +58,7 @@ const getSessionStatus = (session: SessionListItem): 'ACTIVE' | 'COMPLETE' | 'ER
 
 export const Portfolio: FC = () => {
   const navigate = useNavigate();
-  const { workflowId } = useParams<{ workflowId?: string }>();
+  const { agentId } = useParams<{ agentId?: string }>();
   const { agents, loading } = useOutletContext<PortfolioContext>();
 
   // Fetch sessions from the new API
@@ -68,7 +68,7 @@ export const Portfolio: FC = () => {
   const loadSessions = useCallback(async () => {
     try {
       const data = await fetchSessions({
-        workflow_id: workflowId || undefined,
+        workflow_id: agentId || undefined,
         limit: 10,
       });
       setSessions(data.sessions);
@@ -77,9 +77,9 @@ export const Portfolio: FC = () => {
     } finally {
       setSessionsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentId]);
 
-  // Fetch sessions on mount and when workflowId changes
+  // Fetch sessions on mount and when agentId changes
   useEffect(() => {
     loadSessions();
     // Refresh sessions periodically
@@ -88,8 +88,8 @@ export const Portfolio: FC = () => {
   }, [loadSessions]);
 
   usePageMeta({
-    breadcrumbs: workflowId
-      ? buildWorkflowBreadcrumbs(workflowId, { label: 'System prompts' })
+    breadcrumbs: agentId
+      ? buildAgentBreadcrumbs(agentId, { label: 'System prompts' })
       : [{ label: 'Agents', href: '/' }],
   });
 
@@ -176,8 +176,8 @@ export const Portfolio: FC = () => {
                     key={agent.id}
                     {...transformAgent(agent)}
                     onClick={() => {
-                      const agentWorkflowId = workflowId || agent.workflow_id || 'unassigned';
-                      navigate(`/workflow/${agentWorkflowId}/agent/${agent.id}`);
+                      const currentAgentId = agentId || agent.workflow_id || 'unassigned';
+                      navigate(`/agent/${currentAgentId}/system-prompt/${agent.id}`);
                     }}
                   />
                 ))
@@ -210,7 +210,7 @@ export const Portfolio: FC = () => {
                     {sessions.map((session) => {
                       // Use session's workflow_id if available, or get from URL, or from agent
                       const agent = agents.find(a => a.id === session.agent_id);
-                      const sessionWorkflowId = session.workflow_id || workflowId || agent?.workflow_id || 'unassigned';
+                      const sessionAgentId = session.workflow_id || agentId || agent?.workflow_id || 'unassigned';
                       return (
                         <SessionItem
                           key={session.id}
@@ -222,7 +222,7 @@ export const Portfolio: FC = () => {
                           duration={formatDuration(session.duration_minutes)}
                           lastActivity={session.last_activity_relative}
                           hasErrors={session.errors > 0}
-                          onClick={() => navigate(`/workflow/${sessionWorkflowId}/session/${session.id}`)}
+                          onClick={() => navigate(`/agent/${sessionAgentId}/session/${session.id}`)}
                         />
                       );
                     })}

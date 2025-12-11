@@ -104,7 +104,7 @@ type Story = StoryObj<typeof SessionsTable>;
 export const Default: Story = {
   args: {
     sessions: mockSessions,
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -116,7 +116,7 @@ export const Default: Story = {
 export const WithSystemPromptColumn: Story = {
   args: {
     sessions: mockSessions,
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     showAgentColumn: true,
   },
   play: async ({ canvasElement }) => {
@@ -131,7 +131,7 @@ export const WithSystemPromptColumn: Story = {
 export const Loading: Story = {
   args: {
     sessions: [],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     loading: true,
   },
   play: async ({ canvasElement }) => {
@@ -143,7 +143,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     sessions: [],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
     emptyMessage: 'No sessions found for this agent',
   },
   play: async ({ canvasElement }) => {
@@ -156,7 +156,7 @@ export const Empty: Story = {
 export const SingleSession: Story = {
   args: {
     sessions: [mockSessions[0]],
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -167,7 +167,7 @@ export const SingleSession: Story = {
 export const WithErrors: Story = {
   args: {
     sessions: mockSessions.filter(s => s.errors > 0),
-    workflowId: 'workflow_001',
+    agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

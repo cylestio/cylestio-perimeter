@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
-import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
+import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   getAgentStatus,
@@ -129,25 +129,25 @@ const getCategorySeverity = (
 };
 
 export const AgentReport: FC = () => {
-  const { agentId, workflowId } = useParams<{ agentId: string; workflowId: string }>();
+  const { agentId, systemPromptId } = useParams<{ agentId: string; systemPromptId: string }>();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
-    if (!agentId) return Promise.reject(new Error('No agent ID'));
-    return fetchAgent(agentId);
-  }, [agentId]);
+    if (!systemPromptId) return Promise.reject(new Error('No system prompt ID'));
+    return fetchAgent(systemPromptId);
+  }, [systemPromptId]);
 
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
-    enabled: !!agentId,
+    enabled: !!systemPromptId,
   });
 
-  // Set breadcrumbs with agent (workflow) context
+  // Set breadcrumbs with agent context
   usePageMeta({
-    breadcrumbs: buildWorkflowBreadcrumbs(
-      workflowId,
-      { label: 'System prompt', href: workflowLink(workflowId, `/agent/${agentId}`) },
-      { label: agentId?.substring(0, 12) + '...' || '', href: workflowLink(workflowId, `/agent/${agentId}`) },
+    breadcrumbs: buildAgentBreadcrumbs(
+      agentId,
+      { label: 'System prompt', href: agentLink(agentId, `/system-prompt/${systemPromptId}`) },
+      { label: systemPromptId?.substring(0, 12) + '...' || '', href: agentLink(agentId, `/system-prompt/${systemPromptId}`) },
       { label: 'Full Report' }
     ),
   });
@@ -649,7 +649,7 @@ export const AgentReport: FC = () => {
                       <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
                         <OutlierHeader>
                           <Link
-                            to={workflowLink(workflowId, `/session/${outlier.session_id}`)}
+                            to={agentLink(agentId, `/session/${outlier.session_id}`)}
                             style={{
                               fontSize: '13px',
                               fontFamily: 'var(--font-mono)',

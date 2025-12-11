@@ -93,7 +93,7 @@ export const Connect: FC = () => {
     : 'http://localhost:4000';
 
   const proxyUrl = urlMode === 'workflow'
-    ? `${baseUrl}/workflow/${workflowId}`
+    ? `${baseUrl}/agent/${workflowId}`
     : baseUrl;
 
   const handleCopy = async () => {
