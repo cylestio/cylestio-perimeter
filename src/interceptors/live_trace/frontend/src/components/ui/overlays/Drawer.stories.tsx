@@ -1,11 +1,12 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fn } from 'storybook/test';
 import { useState } from 'react';
 
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fn, within } from 'storybook/test';
 import styled from 'styled-components';
 
+import { Button } from '@ui/core/Button';
+
 import { Drawer } from './Drawer';
-import { Button } from '../core/Button';
 
 const Container = styled.div`
   padding: 24px;
@@ -40,7 +41,11 @@ export const Default: Story = {
     ),
     onClose: fn(),
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('Drawer Title')).toBeInTheDocument();
+    await expect(body.getByText('This is the drawer content. You can put anything here.')).toBeInTheDocument();
+  },
 };
 
 export const WithFooter: Story = {
@@ -60,7 +65,12 @@ export const WithFooter: Story = {
       </>
     ),
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('Edit Settings')).toBeInTheDocument();
+    await expect(body.getByText('Cancel')).toBeInTheDocument();
+    await expect(body.getByText('Save')).toBeInTheDocument();
+  },
 };
 
 export const Positions: Story = {
@@ -132,7 +142,10 @@ export const NoOverlay: Story = {
     ),
     onClose: fn(),
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('No Overlay')).toBeInTheDocument();
+  },
 };
 
 export const CloseOnOverlayClick: Story = {
@@ -145,7 +158,10 @@ export const CloseOnOverlayClick: Story = {
     onClose: fn(),
     closeOnOverlayClick: true,
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('Click Outside to Close')).toBeInTheDocument();
+  },
 };
 
 export const NoClickOutside: Story = {
@@ -160,7 +176,10 @@ export const NoClickOutside: Story = {
     onClose: fn(),
     closeOnOverlayClick: false,
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('No Click Outside')).toBeInTheDocument();
+  },
 };
 
 export const Interactive: Story = {
@@ -207,7 +226,10 @@ export const WithScrollableContent: Story = {
     ),
     onClose: fn(),
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('Scrollable Content')).toBeInTheDocument();
+  },
 };
 
 export const NoTitle: Story = {
@@ -221,6 +243,10 @@ export const NoTitle: Story = {
     ),
     onClose: fn(),
   },
-  // Drawer renders via portal to document.body
+  play: async () => {
+    const body = within(document.body);
+    await expect(body.getByText('Custom Header')).toBeInTheDocument();
+    await expect(body.getByLabelText('Close drawer')).toBeInTheDocument();
+  },
 };
 
