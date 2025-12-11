@@ -1,3 +1,6 @@
+export { Accordion } from './Accordion';
+export type { AccordionProps } from './Accordion';
+
 export { CodeBlock } from './CodeBlock';
 export type { CodeBlockProps } from './CodeBlock';
 

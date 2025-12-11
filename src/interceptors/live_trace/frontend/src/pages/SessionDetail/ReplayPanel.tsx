@@ -1,5 +1,4 @@
 import { useState, useEffect, type FC } from 'react';
-import { X } from 'lucide-react';
 
 import { fetchReplayConfig, fetchModels, sendReplay } from '@api/endpoints/replay';
 import type { ReplayConfig, ReplayResponse, SessionEvent } from '@api/types';
@@ -11,13 +10,9 @@ import { Checkbox } from '@ui/form/Checkbox';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { JsonEditor } from '@ui/form/JsonEditor';
 import { Section } from '@ui/layout/Section';
+import { Drawer } from '@ui/overlays/Drawer';
 
 import {
-  ReplayPanelOverlay,
-  ReplayPanelHeader,
-  ReplayPanelTitle,
-  ReplayPanelClose,
-  ReplayPanelContent,
   FormGroup,
   FormRow,
   FormLabel,
@@ -193,17 +188,18 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
   };
 
   return (
-    <ReplayPanelOverlay $isOpen={isOpen}>
-      <ReplayPanelHeader>
-        <ReplayPanelTitle>Edit & Replay</ReplayPanelTitle>
-        <ReplayPanelClose onClick={onClose}>
-          <X size={20} />
-        </ReplayPanelClose>
-      </ReplayPanelHeader>
-
-      <ReplayPanelContent>
-        {/* API Key Section */}
-        <Section>
+    <Drawer
+      open={isOpen}
+      onClose={onClose}
+      title="Edit & Replay"
+      position="right"
+      size="lg"
+      showOverlay={true}
+      closeOnOverlayClick={true}
+      closeOnEsc={true}
+    >
+      {/* API Key Section */}
+      <Section>
           <Section.Header>
             <Section.Title>
               {provider === 'openai' ? 'OpenAI' : 'Anthropic'} API Key
@@ -454,7 +450,6 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
             )}
           </Section.Content>
         </Section>
-      </ReplayPanelContent>
-    </ReplayPanelOverlay>
+    </Drawer>
   );
 };

@@ -469,6 +469,39 @@ class AnalysisEngine:
                 }
             }
 
+    def _extract_system_prompt(self, events: List[Any]) -> Optional[str]:
+        """Extract system prompt from the first llm.call.start event.
+
+        Supports both OpenAI and Anthropic formats:
+        - Anthropic: system prompt in llm.request.data.system
+        - OpenAI: system message in llm.request.data.messages with role="system"
+        - OpenAI Responses API: llm.request.data.instructions
+        """
+        for event in events:
+            if event.name.value == "llm.call.start":
+                request_data = event.attributes.get("llm.request.data", {})
+                if not isinstance(request_data, dict):
+                    continue
+
+                # Anthropic: system is top-level field
+                if request_data.get("system"):
+                    system = request_data["system"]
+                    return system if isinstance(system, str) else str(system)
+
+                # OpenAI: system message in messages array
+                messages = request_data.get("messages") or request_data.get("input") or []
+                if isinstance(messages, list):
+                    for msg in messages:
+                        if isinstance(msg, dict) and msg.get("role") == "system":
+                            content = msg.get("content")
+                            return content if isinstance(content, str) else str(content)
+
+                # OpenAI Responses API: instructions field
+                if request_data.get("instructions"):
+                    return str(request_data["instructions"])
+
+        return None
+
     @_with_store_lock
     def get_session_data(self, session_id: str) -> Dict[str, Any]:
         """Get detailed data for a specific session."""
@@ -514,7 +547,8 @@ class AnalysisEngine:
                 "avg_response_time_ms": session.avg_response_time_ms,
                 "error_rate": session.error_rate,
                 "tool_usage_details": dict(session.tool_usage_details),
-                "available_tools": list(session.available_tools)
+                "available_tools": list(session.available_tools),
+                "system_prompt": self._extract_system_prompt(session.events)
             },
             "events": events,
             "timeline": self._create_session_timeline(events),

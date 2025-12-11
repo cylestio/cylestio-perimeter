@@ -75,63 +75,7 @@ export const EmptyTimeline = styled.div`
   text-align: center;
 `;
 
-// Replay Panel Styles
-export const ReplayPanelOverlay = styled.div<{ $isOpen: boolean }>`
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 500px;
-  background: ${({ theme }) => theme.colors.surface};
-  border-left: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  transform: ${({ $isOpen }) => ($isOpen ? 'translateX(0)' : 'translateX(100%)')};
-  transition: transform ${({ theme }) => theme.transitions.base};
-  z-index: ${({ theme }) => theme.zIndex.modal};
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-`;
-
-export const ReplayPanelHeader = styled.div`
-  padding: ${({ theme }) => theme.spacing[4]};
-  border-bottom: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: ${({ theme }) => theme.colors.surface2};
-`;
-
-export const ReplayPanelTitle = styled.h3`
-  font-size: ${({ theme }) => theme.typography.textLg};
-  font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ theme }) => theme.colors.white90};
-  margin: 0;
-`;
-
-export const ReplayPanelClose = styled.button`
-  background: none;
-  border: none;
-  color: ${({ theme }) => theme.colors.white70};
-  cursor: pointer;
-  padding: ${({ theme }) => theme.spacing[2]};
-  border-radius: ${({ theme }) => theme.radii.md};
-  transition: all ${({ theme }) => theme.transitions.fast};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.white08};
-    color: ${({ theme }) => theme.colors.white90};
-  }
-`;
-
-export const ReplayPanelContent = styled.div`
-  flex: 1;
-  overflow-y: auto;
-  padding: ${({ theme }) => theme.spacing[4]};
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[4]};
-`;
-
+// Replay Panel Form Styles
 export const FormGroup = styled.div`
   display: flex;
   flex-direction: column;

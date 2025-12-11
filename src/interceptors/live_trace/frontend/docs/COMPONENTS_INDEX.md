@@ -16,8 +16,8 @@
 | `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
-| `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown |
-| `ui/data-display/` | Table, CodeBlock |
+| `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
+| `ui/data-display/` | Accordion, Table, CodeBlock, Timeline |
 | `ui/layout/` | Grid, Content, Main, PageHeader |
 
 ### Domain Components (`@domain/*`) - AI Security Monitoring
@@ -460,6 +460,31 @@ interface ToastProps {
 ---
 
 ## Data Display Components
+
+### Accordion
+
+Collapsible content section with icon and chevron indicator.
+
+```typescript
+interface AccordionProps {
+  title: ReactNode;
+  icon?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<Accordion
+  title="System Prompt"
+  icon={<Bot size={14} />}
+  defaultOpen={false}
+>
+  You are a helpful assistant...
+</Accordion>
+```
 
 ### Table
 
@@ -1017,6 +1042,75 @@ interface DropdownProps {
   items: DropdownItem[];
   align?: 'left' | 'right';
 }
+```
+
+### Drawer
+
+Slide-out panel (sideover) from any edge of the screen with optional overlay and click-outside-to-close support.
+
+```typescript
+type DrawerPosition = 'left' | 'right' | 'top' | 'bottom';
+type DrawerSize = 'sm' | 'md' | 'lg' | 'xl';
+
+interface DrawerProps {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  position?: DrawerPosition;       // default: 'right'
+  size?: DrawerSize;               // default: 'md'
+  showOverlay?: boolean;           // default: true
+  closeOnOverlayClick?: boolean;   // default: true
+  closeOnEsc?: boolean;            // default: true
+  children: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+}
+```
+
+**Sizes:**
+- `sm` - 320px (horizontal) / 200px (vertical)
+- `md` - 400px (horizontal) / 300px (vertical)
+- `lg` - 500px (horizontal) / 400px (vertical)
+- `xl` - 640px (horizontal) / 500px (vertical)
+
+**Usage:**
+```tsx
+// Basic drawer from right
+<Drawer
+  open={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Edit Settings"
+>
+  <p>Drawer content goes here</p>
+</Drawer>
+
+// Drawer with footer and custom options
+<Drawer
+  open={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Confirm Action"
+  position="left"
+  size="lg"
+  closeOnOverlayClick={false}
+  footer={
+    <>
+      <Button variant="secondary" onClick={() => setIsOpen(false)}>Cancel</Button>
+      <Button variant="primary" onClick={handleSave}>Save</Button>
+    </>
+  }
+>
+  <Form>...</Form>
+</Drawer>
+
+// Drawer without overlay (content behind is visible)
+<Drawer
+  open={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Preview"
+  showOverlay={false}
+>
+  <Preview />
+</Drawer>
 ```
 
 ---

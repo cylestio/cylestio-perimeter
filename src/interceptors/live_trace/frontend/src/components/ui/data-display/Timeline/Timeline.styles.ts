@@ -7,8 +7,9 @@ export type EventType = 'llm.call.start' | 'llm.call.finish' | 'tool.execution' 
 const getEventColor = (eventType: EventType, theme: Theme) => {
   switch (eventType) {
     case 'llm.call.start':
+      return theme.colors.cyan;    // Sent to LLM = cyan
     case 'llm.call.finish':
-      return theme.colors.purple;
+      return theme.colors.purple;  // Received from LLM = purple
     case 'tool.execution':
     case 'tool.result':
       return theme.colors.orange;
@@ -25,23 +26,17 @@ export const TimelineContainer = styled.div`
   gap: ${({ theme }) => theme.spacing[3]};
 `;
 
-export const TimelineItemWrapper = styled.div<{ $isError?: boolean }>`
+export type MessageAlignment = 'left' | 'right' | 'center';
+
+export const TimelineItemWrapper = styled.div<{ $isError?: boolean; $alignment?: MessageAlignment }>`
   position: relative;
-  padding-left: ${({ theme }) => theme.spacing[6]};
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 24px;
-    bottom: -12px;
-    width: 1px;
-    background: ${({ theme }) => theme.colors.borderMedium};
-  }
-
-  &:last-child::before {
-    display: none;
-  }
+  display: flex;
+  flex-direction: column;
+  align-items: ${({ $alignment }) => {
+    if ($alignment === 'right') return 'flex-end';
+    if ($alignment === 'center') return 'center';
+    return 'flex-start';
+  }};
 `;
 
 export const TimelineMarker = styled.div<{ $eventType: EventType }>`
@@ -76,6 +71,7 @@ export const TimelineBubble = styled.div<{ $isError?: boolean }>`
   border-radius: ${({ theme }) => theme.radii.lg};
   padding: ${({ theme }) => theme.spacing[4]};
   transition: all ${({ theme }) => theme.transitions.base};
+  width: 75%;
 
   &:hover {
     background: ${({ theme }) => theme.colors.surface3};
@@ -209,3 +205,73 @@ export const AttributeKey = styled.span`
 export const AttributeValue = styled.span`
   color: ${({ theme }) => theme.colors.cyan};
 `;
+
+export const DirectionIcon = styled.span<{ $direction: 'sent' | 'received' }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme, $direction }) =>
+    $direction === 'sent' ? theme.colors.cyanSoft : theme.colors.purpleSoft};
+  color: ${({ theme, $direction }) =>
+    $direction === 'sent' ? theme.colors.cyan : theme.colors.purple};
+  margin-right: ${({ theme }) => theme.spacing[1]};
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+`;
+
+export const TimelineRow = styled.div<{ $alignment?: MessageAlignment }>`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const TimeGutter = styled.div`
+  width: 70px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: ${({ theme }) => theme.spacing[2]};
+  gap: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const BubbleContainer = styled.div<{ $alignment?: MessageAlignment }>`
+  flex: 1;
+  display: flex;
+  justify-content: ${({ $alignment }) =>
+    $alignment === 'right' ? 'flex-end' : 'flex-start'};
+`;
+
+export const TimeOffset = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.cyan};
+  cursor: default;
+
+  svg {
+    opacity: 0.7;
+  }
+`;
+
+export const TimeDuration = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white30};
+  cursor: default;
+
+  svg {
+    opacity: 0.7;
+  }
+`;
+

@@ -1,11 +1,13 @@
 import { useState, type FC, type ReactNode } from 'react';
 
+import { ArrowLeft, ArrowRight, Bot, Clock, Timer } from 'lucide-react';
+
 import { TimeAgo } from '@ui/core';
+import { Accordion } from '@ui/data-display';
+import { Tooltip } from '@ui/overlays';
 
 import {
   TimelineContainer,
-  TimelineItemWrapper,
-  TimelineMarker,
   TimelineBubble,
   TimelineHeader,
   TimelineEventInfo,
@@ -20,7 +22,14 @@ import {
   AttributeRow,
   AttributeKey,
   AttributeValue,
+  DirectionIcon,
+  TimelineRow,
+  TimeGutter,
+  TimeOffset,
+  TimeDuration,
+  BubbleContainer,
   type EventType,
+  type MessageAlignment,
 } from './Timeline.styles';
 
 // Types
@@ -36,6 +45,7 @@ export interface TimelineEvent {
 export interface TimelineProps {
   events: TimelineEvent[];
   sessionId?: string;
+  systemPrompt?: string | null;
   onReplay?: (eventId: string) => void;
   className?: string;
 }
@@ -44,6 +54,9 @@ export interface TimelineItemProps {
   event: TimelineEvent;
   sessionId?: string;
   onReplay?: (eventId: string) => void;
+  startTime?: Date;
+  durationMs?: number;
+  isFirstEvent?: boolean;
 }
 
 // Utility functions
@@ -83,6 +96,30 @@ function getEventType(eventType: string, level?: string): EventType {
   if (eventType === 'tool.execution') return 'tool.execution';
   if (eventType === 'tool.result') return 'tool.result';
   return 'default';
+}
+
+function getMessageAlignment(eventType: string): MessageAlignment {
+  // Client-side: user message to LLM, tool results (response to LLM's request)
+  if (eventType === 'llm.call.start') return 'left';
+  if (eventType === 'tool.result') return 'left';
+  // LLM-side: LLM response, tool execution (LLM requests a tool)
+  if (eventType === 'llm.call.finish') return 'right';
+  if (eventType === 'tool.execution') return 'right';
+  return 'left';
+}
+
+// Format milliseconds to relative time string "+M:SS"
+function formatRelativeTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `+${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// Format duration in seconds "X.Xs"
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 // Sub-component for LLM Call Start content
@@ -149,12 +186,25 @@ function ToolResultContent({ details }: { details: Record<string, unknown> }) {
 }
 
 // TimelineItem Component
-export const TimelineItem: FC<TimelineItemProps> = ({ event, sessionId, onReplay }) => {
+export const TimelineItem: FC<TimelineItemProps> = ({
+  event,
+  sessionId,
+  onReplay,
+  startTime,
+  durationMs,
+  isFirstEvent = false,
+}) => {
   const [showRaw, setShowRaw] = useState(false);
 
   const eventType = getEventType(event.event_type, event.level);
+  const alignment = getMessageAlignment(event.event_type);
   const isError = event.level === 'ERROR';
   const canReplay = event.event_type === 'llm.call.start' && sessionId && event.id && onReplay;
+
+  // Calculate offset from start
+  const offsetMs = startTime
+    ? new Date(event.timestamp).getTime() - startTime.getTime()
+    : 0;
 
   const handleReplayClick = () => {
     if (onReplay && event.id) {
@@ -185,13 +235,39 @@ export const TimelineItem: FC<TimelineItemProps> = ({ event, sessionId, onReplay
   };
 
   return (
-    <TimelineItemWrapper $isError={isError}>
-      <TimelineMarker $eventType={eventType} />
-      <TimelineBubble $isError={isError}>
+    <TimelineRow>
+      <TimeGutter>
+        {isFirstEvent ? (
+          <TimeAgo timestamp={event.timestamp} />
+        ) : (
+          <>
+            <Tooltip content="Elapsed time since first event" position="right">
+              <TimeOffset>
+                <Clock size={10} />
+                {formatRelativeTime(offsetMs)}
+              </TimeOffset>
+            </Tooltip>
+            {durationMs !== undefined && (
+              <Tooltip content="Wait time before next event" position="right">
+                <TimeDuration>
+                  <Timer size={10} />
+                  {formatDuration(durationMs)}
+                </TimeDuration>
+              </Tooltip>
+            )}
+          </>
+        )}
+      </TimeGutter>
+      <BubbleContainer $alignment={alignment}>
+        <TimelineBubble $isError={isError}>
         <TimelineHeader>
           <TimelineEventInfo>
+            {(eventType === 'llm.call.start' || eventType === 'llm.call.finish') && (
+              <DirectionIcon $direction={eventType === 'llm.call.start' ? 'sent' : 'received'}>
+                {eventType === 'llm.call.start' ? <ArrowRight /> : <ArrowLeft />}
+              </DirectionIcon>
+            )}
             <EventTypeBadge $eventType={eventType}>{event.event_type}</EventTypeBadge>
-            <TimeAgo timestamp={event.timestamp} />
           </TimelineEventInfo>
           {canReplay && (
             <ReplayButton onClick={handleReplayClick}>
@@ -239,23 +315,46 @@ export const TimelineItem: FC<TimelineItemProps> = ({ event, sessionId, onReplay
             )}
           </RawEventContent>
         </DetailsToggle>
-      </TimelineBubble>
-    </TimelineItemWrapper>
+        </TimelineBubble>
+      </BubbleContainer>
+    </TimelineRow>
   );
 };
 
 // Timeline Component
-export const Timeline: FC<TimelineProps> = ({ events, sessionId, onReplay, className }) => {
+export const Timeline: FC<TimelineProps> = ({ events, sessionId, systemPrompt, onReplay, className }) => {
+  // Get start time from first event
+  const startTime = events.length > 0 ? new Date(events[0].timestamp) : null;
+
   return (
     <TimelineContainer className={className}>
-      {events.map((event, index) => (
-        <TimelineItem
-          key={event.id || index}
-          event={event}
-          sessionId={sessionId}
-          onReplay={onReplay}
-        />
-      ))}
+      {systemPrompt && (
+        <Accordion
+          title="System Prompt"
+          icon={<Bot size={14} />}
+          defaultOpen={false}
+        >
+          {systemPrompt}
+        </Accordion>
+      )}
+      {events.map((event, index) => {
+        const nextEvent = events[index + 1];
+        const durationMs = nextEvent
+          ? new Date(nextEvent.timestamp).getTime() - new Date(event.timestamp).getTime()
+          : undefined;
+
+        return (
+          <TimelineItem
+            key={event.id || index}
+            event={event}
+            sessionId={sessionId}
+            onReplay={onReplay}
+            startTime={startTime ?? undefined}
+            durationMs={durationMs}
+            isFirstEvent={index === 0}
+          />
+        );
+      })}
     </TimelineContainer>
   );
 };

@@ -177,6 +177,7 @@ export const SessionDetail: FC = () => {
                 <Timeline
                   events={timeline as TimelineEvent[]}
                   sessionId={sessionId}
+                  systemPrompt={session.system_prompt}
                   onReplay={handleReplay}
                 />
               ) : (

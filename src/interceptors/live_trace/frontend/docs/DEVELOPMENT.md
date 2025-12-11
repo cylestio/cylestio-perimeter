@@ -2,25 +2,23 @@
 
 > **You are a World-Class React Engineer** with 10+ years of experience building fast, responsive, scalable web applications.
 
-**Quick Links:** [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md) • [Templates](./templates/) • [Troubleshooting](./TROUBLESHOOTING.md)
+## Mandatory: Read This Before You Do Anything [MUST] [REQUIRED]
 
----
+You **must read these guidelines and templates before creating, editing, or removing components, stories, API endpoints, or themes**. This is required for all development work in this repository.
 
-## Quick Start
-
-
-- **Creating a component**
+- **Creating or modifying a component**
   - Template: [COMPONENT.md](./templates/COMPONENT.md)
-  - What's Inside: Import order (7 groups), placement rules, file structure, styled components patterns, exports, accessibility, icons (lucide-react only)
-- **Creating a story**
+  - Covers: Import order (7 groups), placement rules, file structure, styled-components patterns, exports, accessibility, use of `lucide-react` icons
+- **Creating or modifying a story**
   - Template: [STORY.md](./templates/STORY.md)
-  - What's Inside: Story patterns, required `play()` functions, router customization, testing interactions
-- **Creating an API endpoint**
+  - Covers: Story patterns, required `play()` functions, router customization, testing interactions
+- **Creating or modifying an API endpoint**
   - Template: [API.md](./templates/API.md)
-  - What's Inside: Type definitions, endpoint functions, barrel exports, error handling
-- **Need theme tokens**
+  - Covers: Type definitions, endpoint functions, barrel exports, error handling
+- **Creating or modifying theme tokens**
   - Template: [THEME_REFERENCE.md](./THEME_REFERENCE.md)
-  - What's Inside: Colors, spacing, typography, radii, shadows, transitions
+  - Covers: Colors, spacing, typography, radii, shadows, transitions
+
 
 
 ---
@@ -41,7 +39,7 @@ Before creating ANY component, check [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md
 
 ---
 
-### 2. Follow Template Guidelines
+### 2. You must follow template guidelines
 
 **Component development:** See [templates/COMPONENT.md](./templates/COMPONENT.md) for:
 - Import order
@@ -91,9 +89,10 @@ npm run lint
 
 ---
 
-## Before Committing
+## Before Committing, When completing the missions
 
 - [ ] `npm run build` passes
 - [ ] `npm run test-storybook` passes
 - [ ] `npm run lint` passes
 - [ ] COMPONENTS_INDEX.md updated if components changed
+- [ ] Verify the code created is complying with all written in this file

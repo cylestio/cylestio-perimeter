@@ -32,6 +32,7 @@ export interface SessionDetail {
   tool_uses: number;
   errors: number;
   error_rate: number;
+  system_prompt?: string | null;
 }
 
 export interface SessionResponse {
