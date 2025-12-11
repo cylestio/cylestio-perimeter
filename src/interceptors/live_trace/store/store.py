@@ -806,6 +806,7 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Get sessions with optional filtering by workflow_id, agent_id, and status.
 
@@ -814,6 +815,7 @@ class TraceStore:
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             limit: Maximum number of sessions to return.
+            offset: Number of sessions to skip (for pagination).
 
         Returns:
             List of session dicts with formatted fields for API response.
@@ -824,8 +826,9 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
             )
-            query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ?"  # nosec B608 - parameterized
+            query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ? OFFSET ?"  # nosec B608 - parameterized
             params.append(limit)
+            params.append(offset)
 
             cursor = self.db.execute(query, params)
             sessions = []

@@ -15,7 +15,7 @@
 | `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label, TimeAgo |
 | `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
-| `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
+| `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
 | `ui/data-display/` | Accordion, Table, CodeBlock, Timeline |
 | `ui/layout/` | Grid, Content, Main, PageHeader |
@@ -28,7 +28,7 @@
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
 | `domain/workflows/` | WorkflowSelector |
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
-| `domain/sessions/` | SessionsTable |
+| `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
@@ -383,6 +383,33 @@ interface ToggleGroupProps {
   multiSelect
 />
 ```
+
+### Pagination
+
+Page navigation controls with previous/next buttons.
+
+```typescript
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<Pagination
+  currentPage={currentPage}
+  totalPages={totalPages}
+  onPageChange={setCurrentPage}
+/>
+```
+
+**Notes:**
+- Returns `null` if `totalPages <= 1` (nothing to paginate)
+- Previous button disabled on page 1
+- Next button disabled on last page
 
 ---
 
@@ -926,6 +953,42 @@ interface SessionListItem {
   loading={isLoading}
 />
 ```
+
+### SystemPromptFilter
+
+Filter toggle group for selecting sessions by system prompt. Uses ToggleGroup internally.
+
+```typescript
+interface SystemPromptOption {
+  id: string;
+  id_short: string;
+  sessionCount: number;
+}
+
+interface SystemPromptFilterProps {
+  systemPrompts: SystemPromptOption[];  // List of system prompts with counts
+  selectedId: string | null;            // Selected ID or null for "All"
+  onSelect: (id: string | null) => void;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<SystemPromptFilter
+  systemPrompts={[
+    { id: 'sp-abc123', id_short: 'abc123def456', sessionCount: 42 },
+    { id: 'sp-xyz789', id_short: 'xyz789ghi012', sessionCount: 18 },
+  ]}
+  selectedId={selectedSystemPrompt}
+  onSelect={setSelectedSystemPrompt}
+/>
+```
+
+**Notes:**
+- Returns `null` when there's 0 or 1 system prompt (no filtering needed)
+- Shows "All (N)" option plus one option per system prompt with session counts
+- Selecting "All" calls `onSelect(null)`
 
 ---
 

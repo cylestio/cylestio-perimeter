@@ -219,6 +219,77 @@ export const ApiKeyWarning = styled.div`
   margin-top: ${({ theme }) => theme.spacing[1]};
 `;
 
+// API Key compact display styles
+export const ApiKeyInfo = styled.span`
+  color: ${({ theme }) => theme.colors.white50};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightNormal};
+  margin-left: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const ApiKeyButtonGroup = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const ApiKeyActionButton = styled.button`
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  color: ${({ theme }) => theme.colors.white70};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[3]}`};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.cyan};
+    color: ${({ theme }) => theme.colors.white90};
+  }
+`;
+
+export const ApiKeySaveButton = styled.button`
+  background: ${({ theme }) => theme.colors.purple};
+  border: 1px solid ${({ theme }) => theme.colors.purple};
+  color: ${({ theme }) => theme.colors.white};
+  padding: 10px 20px;
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: ${({ theme }) => theme.typography.textBase};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+    box-shadow: ${({ theme }) => theme.shadows.glowPurple};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+export const ApiKeyHint = styled.p`
+  color: ${({ theme }) => theme.colors.white50};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  line-height: ${({ theme }) => theme.typography.lineHeightRelaxed};
+  margin: ${({ theme }) => theme.spacing[3]} 0 0 0;
+`;
+
+export const ApiKeyFormRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+
+  /* Make InputWrapper fill available space */
+  & > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+`;
+
 export const ToolCallBlock = styled.div`
   background: ${({ theme }) => theme.colors.orangeSoft};
   border: 1px solid ${({ theme }) => theme.colors.orange};

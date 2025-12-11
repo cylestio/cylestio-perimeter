@@ -6,7 +6,6 @@ import type { ReplayConfig, ReplayResponse, TimelineEvent } from '@api/types';
 import { Badge } from '@ui/core/Badge';
 import { Input } from '@ui/form/Input';
 import { TextArea } from '@ui/form/TextArea';
-import { Checkbox } from '@ui/form/Checkbox';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { JsonEditor } from '@ui/form/JsonEditor';
 import { Section } from '@ui/layout/Section';
@@ -25,13 +24,30 @@ import {
   ReplayPanelContainer,
   ProviderBadge,
   ToggleToolsButton,
-  ApiKeyWarning,
+  ApiKeyInfo,
+  ApiKeyActionButton,
+  ApiKeySaveButton,
+  ApiKeyHint,
+  ApiKeyFormRow,
   ToolCallBlock,
   ToolCallCode,
   RawResponseToggle,
   RawResponseCode,
   ResponseContentItem,
 } from './SessionDetail.styles';
+
+// Module-level API key storage (persists during app runtime, cleared on page reload)
+let memorySavedApiKey: string | null = null;
+
+const getSavedApiKey = (): string | null => memorySavedApiKey;
+const setSavedApiKey = (key: string | null): void => {
+  memorySavedApiKey = key;
+};
+
+const maskKey = (key: string): string => {
+  if (key.length <= 4) return '****';
+  return '****' + key.slice(-4);
+};
 
 interface ReplayPanelProps {
   isOpen: boolean;
@@ -58,7 +74,8 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
   // Form state
   const [provider, setProvider] = useState<'openai' | 'anthropic'>('openai');
   const [apiKey, setApiKey] = useState('');
-  const [useDefaultKey, setUseDefaultKey] = useState(true);
+  const [sessionApiKey, setSessionApiKey] = useState<string | null>(null);
+  const [isEditingKey, setIsEditingKey] = useState(false);
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2048);
@@ -104,14 +121,14 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         let modelStr = '';
         const modelFromRequest = requestData.model;
         const modelFromDetails = event.details?.['llm.model'] ?? event.details?.['llm.request.model'];
-        
+
         if (typeof modelFromRequest === 'string') {
           modelStr = modelFromRequest;
         } else if (modelFromRequest && typeof modelFromRequest === 'object') {
           const obj = modelFromRequest as Record<string, unknown>;
           modelStr = String(obj.id ?? obj.name ?? obj.model ?? '');
         }
-        
+
         if (!modelStr && typeof modelFromDetails === 'string') {
           modelStr = modelFromDetails;
         }
@@ -135,8 +152,13 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         // Set tools JSON (but keep collapsed by default)
         setToolsJson(JSON.stringify(tools, null, 2));
 
-        // Set API key preferences
-        setUseDefaultKey(configData.api_key_available);
+        // Load saved API key from memory
+        const savedKey = getSavedApiKey();
+        setSessionApiKey(savedKey);
+
+        // Start in edit mode if no key available at all
+        setIsEditingKey(!configData.api_key_available && !savedKey);
+        setApiKey('');
 
         // Clear previous response
         setResponse(null);
@@ -205,7 +227,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         provider,
         base_url: replayConfig?.base_url,
         request_data: requestData as never,
-        api_key: !useDefaultKey && apiKey ? apiKey : undefined,
+        api_key: sessionApiKey || (apiKey.trim() ? apiKey : undefined),
       });
 
       setResponse(result);
@@ -215,6 +237,8 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
       setSending(false);
     }
   };
+
+  console.log(">> models", models);
 
   return (
     <Drawer
@@ -236,39 +260,48 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                 {provider === 'openai' ? 'OpenAI' : 'Anthropic'}
               </ProviderBadge>
               API Key
+              {sessionApiKey && <ApiKeyInfo>({maskKey(sessionApiKey)})</ApiKeyInfo>}
+              {!sessionApiKey && replayConfig?.api_key_available && (
+                <ApiKeyInfo>({replayConfig.api_key_masked})</ApiKeyInfo>
+              )}
             </Section.Title>
+            <ApiKeyActionButton type="button" onClick={() => setIsEditingKey(!isEditingKey)}>
+              {isEditingKey ? 'Cancel' : 'Edit'}
+            </ApiKeyActionButton>
           </Section.Header>
-          <Section.Content>
-            {replayConfig?.api_key_available ? (
-              <FormGroup>
-                <Checkbox
-                  checked={useDefaultKey}
-                  onChange={(checked) => setUseDefaultKey(checked)}
-                  label={`Use saved key (${replayConfig.api_key_masked})`}
-                />
-                {!useDefaultKey && (
-                  <Input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter API key"
-                  />
-                )}
-              </FormGroup>
-            ) : (
-              <FormGroup>
+          {/* Show form when: editing, OR no key exists anywhere */}
+          {(isEditingKey || (!replayConfig?.api_key_available && !sessionApiKey)) && (
+            <Section.Content>
+              <ApiKeyFormRow>
                 <Input
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="Enter API key"
+                  fullWidth
                 />
-                <ApiKeyWarning>
-                  ⚠ No API key found in proxy config or environment
-                </ApiKeyWarning>
-              </FormGroup>
-            )}
-          </Section.Content>
+                <ApiKeySaveButton
+                  type="button"
+                  disabled={!apiKey.trim()}
+                  onClick={() => {
+                    setSavedApiKey(apiKey);
+                    setSessionApiKey(apiKey);
+                    setApiKey('');
+                    setIsEditingKey(false);
+                  }}
+                >
+                  Save
+                </ApiKeySaveButton>
+              </ApiKeyFormRow>
+              {!replayConfig?.api_key_available && !sessionApiKey && (
+                <ApiKeyHint>
+                  No API key found in config or environment.<br />
+                  Enter a key to use for replay requests.
+                  It will be saved until page reload.
+                </ApiKeyHint>
+              )}
+            </Section.Content>
+          )}
         </Section>
 
         {/* Request Editor */}

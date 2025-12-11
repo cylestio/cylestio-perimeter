@@ -71,6 +71,7 @@ export interface SessionsListFilters {
   agent_id?: string;
   status?: LiveSessionStatus;
   limit: number;
+  offset: number;
 }
 
 export interface SessionsListResponse {
