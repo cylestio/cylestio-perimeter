@@ -341,3 +341,39 @@ export const ResponseContentItem = styled.div`
     margin-top: 0;
   }
 `;
+
+// Model selector option styles
+export const ModelOptionContent = styled.span`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const ModelOptionName = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+export const ModelOptionPrice = styled.span`
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white50};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  flex-shrink: 0;
+`;
+
+export const ModelValueContent = styled.span`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const ModelValuePrice = styled.span`
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white50};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+`;

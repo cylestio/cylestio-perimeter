@@ -1,11 +1,12 @@
 import { useState, useEffect, type FC } from 'react';
 
 import { fetchReplayConfig, fetchModels, sendReplay } from '@api/endpoints/replay';
-import type { ReplayConfig, ReplayResponse, TimelineEvent } from '@api/types';
+import type { ReplayConfig, ReplayResponse, TimelineEvent, ModelInfo } from '@api/types';
 
 import { Badge } from '@ui/core/Badge';
 import { Input } from '@ui/form/Input';
 import { TextArea } from '@ui/form/TextArea';
+import { RichSelect, type RichSelectOption } from '@ui/form/RichSelect';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { JsonEditor } from '@ui/form/JsonEditor';
 import { Section } from '@ui/layout/Section';
@@ -34,6 +35,11 @@ import {
   RawResponseToggle,
   RawResponseCode,
   ResponseContentItem,
+  ModelOptionContent,
+  ModelOptionName,
+  ModelOptionPrice,
+  ModelValueContent,
+  ModelValuePrice,
 } from './SessionDetail.styles';
 
 // Module-level API key storage (persists during app runtime, cleared on page reload)
@@ -48,6 +54,20 @@ const maskKey = (key: string): string => {
   if (key.length <= 4) return '****';
   return '****' + key.slice(-4);
 };
+
+// Format pricing for display
+const formatPrice = (price: number): string => {
+  if (price >= 1) return `$${price}`;
+  if (price >= 0.1) return `$${price.toFixed(1)}`;
+  return `$${price.toFixed(2)}`;
+};
+
+// Convert ModelInfo to RichSelectOption
+const modelToOption = (model: ModelInfo): RichSelectOption<ModelInfo> => ({
+  value: model.id,
+  label: model.name,
+  data: model,
+});
 
 interface ReplayPanelProps {
   isOpen: boolean;
@@ -66,7 +86,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
 }) => {
   // Config state
   const [replayConfig, setReplayConfig] = useState<ReplayConfig | null>(null);
-  const [models, setModels] = useState<{ openai: string[]; anthropic: string[] }>({
+  const [models, setModels] = useState<{ openai: ModelInfo[]; anthropic: ModelInfo[] }>({
     openai: [],
     anthropic: [],
   });
@@ -238,7 +258,8 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
     }
   };
 
-  console.log(">> models", models);
+  // Build model options for current provider
+  const modelOptions = (provider === 'openai' ? models.openai : models.anthropic).map(modelToOption);
 
   return (
     <Drawer
@@ -313,19 +334,34 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
             <FormGroup>
               <FormRow>
                 <FormGroup>
-                  <FormLabel>Model</FormLabel>
-                  <Input
+                  <RichSelect<ModelInfo>
+                    label="Model"
+                    options={modelOptions}
                     value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="e.g., gpt-4"
-                    list="models-list"
+                    onChange={(value) => setModel(value)}
+                    placeholder="Select a model"
+                    fullWidth
+                    renderOption={(option) => (
+                      <ModelOptionContent>
+                        <ModelOptionName>{option.label}</ModelOptionName>
+                        {option.data && (
+                          <ModelOptionPrice>
+                            {formatPrice(option.data.input)} / {formatPrice(option.data.output)}
+                          </ModelOptionPrice>
+                        )}
+                      </ModelOptionContent>
+                    )}
+                    renderValue={(option) => (
+                      <ModelValueContent>
+                        <span>{option.label}</span>
+                        {option.data && (
+                          <ModelValuePrice>
+                            {formatPrice(option.data.input)} / {formatPrice(option.data.output)}
+                          </ModelValuePrice>
+                        )}
+                      </ModelValueContent>
+                    )}
                   />
-                  <datalist id="models-list">
-                    {(provider === 'openai' ? models.openai : models.anthropic).map((m, idx) => {
-                      const modelName = typeof m === 'string' ? m : (m as { id?: string; name?: string })?.id ?? (m as { id?: string; name?: string })?.name ?? '';
-                      return modelName ? <option key={`${idx}-${modelName}`} value={modelName} /> : null;
-                    })}
-                  </datalist>
                 </FormGroup>
                 <FormGroup>
                   <FormLabel>Temperature</FormLabel>

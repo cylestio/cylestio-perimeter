@@ -13,7 +13,7 @@
 | Category | Components |
 |----------|------------|
 | `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label, TimeAgo |
-| `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
+| `ui/form/` | Input, Select, RichSelect, Checkbox, Radio, TextArea, FormLabel |
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
@@ -290,6 +290,73 @@ interface RadioGroupProps {
   onChange?: (value: string) => void;
 }
 ```
+
+### RichSelect
+
+Custom dropdown select with support for rich option rendering. Useful when options need to display more than just a label (e.g., pricing, icons, descriptions).
+
+```typescript
+interface RichSelectOption<T = unknown> {
+  value: string;
+  label: string;
+  data?: T;           // Custom data for rendering
+  disabled?: boolean;
+}
+
+interface RichSelectProps<T = unknown> {
+  options: RichSelectOption<T>[];
+  value?: string;
+  onChange?: (value: string, option: RichSelectOption<T>) => void;
+  renderOption?: (option: RichSelectOption<T>, isSelected: boolean) => ReactNode;
+  renderValue?: (option: RichSelectOption<T>) => ReactNode;
+  label?: string;
+  placeholder?: string;
+  error?: string;
+  disabled?: boolean;
+  fullWidth?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+// Basic usage
+<RichSelect
+  options={[
+    { value: 'opt1', label: 'Option 1' },
+    { value: 'opt2', label: 'Option 2' },
+  ]}
+  value={selected}
+  onChange={setSelected}
+/>
+
+// With custom rendering (e.g., model pricing)
+interface ModelInfo {
+  input: number;
+  output: number;
+}
+
+<RichSelect<ModelInfo>
+  options={[
+    { value: 'gpt-4o', label: 'GPT-4o', data: { input: 2.5, output: 10 } },
+    { value: 'claude-sonnet', label: 'Claude Sonnet', data: { input: 3, output: 15 } },
+  ]}
+  value={model}
+  onChange={setModel}
+  renderOption={(opt) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <span>{opt.label}</span>
+      <span>${opt.data?.input} / ${opt.data?.output}</span>
+    </div>
+  )}
+/>
+```
+
+**Features:**
+- Keyboard navigation (Arrow keys, Enter, Escape)
+- Click outside to close
+- Custom option and value rendering via render props
+- Scrollable dropdown for many options
+- Disabled state for component and individual options
 
 ---
 
