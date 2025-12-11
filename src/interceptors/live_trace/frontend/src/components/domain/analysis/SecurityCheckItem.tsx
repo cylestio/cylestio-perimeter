@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from 'react';
 
-import { Check, X, AlertTriangle, Minus, Lock } from 'lucide-react';
+import { Check, X, AlertTriangle, Minus, Lock, Crown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { Tooltip } from '@ui/overlays/Tooltip';
@@ -14,6 +14,7 @@ import {
   ItemStat,
   ItemBadge,
   LockIcon,
+  EnterpriseBadge,
 } from './SecurityCheckItem.styles';
 
 // Types
@@ -69,7 +70,7 @@ const getStatusIcon = (status: SecurityCheckStatus, isLocked?: boolean, customIc
     case 'critical':
       return <X size={10} strokeWidth={2.5} />;
     case 'premium':
-      return <Lock size={10} />;
+      return <Crown size={10} />;
     case 'locked':
       return <Lock size={10} />;
     case 'running':
@@ -91,19 +92,30 @@ const StatusIndicator: FC<{
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const isRunning = status === 'running';
+  const isPremium = status === 'premium';
 
   return (
     <StatusIndicatorContainer $status={status} $isLocked={isLocked} $isRunning={isRunning}>
       <svg width={size} height={size} className="ring-svg">
+        {/* Gradient definition for premium status */}
+        {isPremium && (
+          <defs>
+            <linearGradient id="premiumGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#fbbf24" />
+              <stop offset="50%" stopColor="#a855f7" />
+              <stop offset="100%" stopColor="#fbbf24" />
+            </linearGradient>
+          </defs>
+        )}
         {/* Background circle */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="currentColor"
+          stroke={isPremium ? 'url(#premiumGradient)' : 'currentColor'}
           strokeWidth={strokeWidth}
-          opacity={0.2}
+          opacity={0.3}
         />
         {/* Progress/status circle */}
         <circle
@@ -111,7 +123,7 @@ const StatusIndicator: FC<{
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="currentColor"
+          stroke={isPremium ? 'url(#premiumGradient)' : 'currentColor'}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={isRunning ? `${circumference * 0.25} ${circumference * 0.75}` : circumference}
@@ -181,9 +193,10 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
             {stat && <ItemStat>{stat}</ItemStat>}
           </ItemContent>
           {isLocked && (
-            <LockIcon>
-              <Lock size={12} />
-            </LockIcon>
+            <EnterpriseBadge>
+              <Lock size={8} />
+              Enterprise
+            </EnterpriseBadge>
           )}
           {count !== undefined && count > 0 && !isLocked && (
             <ItemBadge $status={status}>

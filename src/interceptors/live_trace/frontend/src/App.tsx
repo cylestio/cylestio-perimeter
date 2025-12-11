@@ -388,7 +388,7 @@ function AppLayout() {
                 isLast
                 showConnectorAbove
                 icon={<Lock size={10} />}
-                lockedTooltip="Complete all security checks to unlock Production deployment. Enterprise feature."
+                lockedTooltip="Enterprise Edition • Production monitoring, alerting & compliance. Complete all security checks to unlock."
               />
             </NavGroup>
           )}

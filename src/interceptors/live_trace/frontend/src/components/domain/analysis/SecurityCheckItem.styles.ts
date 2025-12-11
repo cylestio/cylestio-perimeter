@@ -24,10 +24,20 @@ const getStatusColor = (status: SecurityCheckStatus, isLocked?: boolean): string
   }
 };
 
-// Special glow for premium items
+// Premium gold-purple gradient glow animation
 const premiumGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
-  50% { box-shadow: 0 0 16px rgba(251, 191, 36, 0.5); }
+  0%, 100% { 
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), 0 0 16px rgba(168, 85, 247, 0.2);
+  }
+  50% { 
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.6), 0 0 24px rgba(168, 85, 247, 0.4);
+  }
+`;
+
+// Shimmer animation for enterprise badge
+const shimmer = keyframes`
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
 `;
 
 // Spin animation for running status
@@ -128,6 +138,9 @@ export const StatusIndicatorContainer = styled.span<StatusIndicatorProps>`
   border-radius: 50%;
 
   color: ${({ $status, $isLocked, theme }) => {
+    if ($status === 'premium') {
+      return theme.colors.gold;
+    }
     const color = getStatusColor($status, $isLocked);
     return theme.colors[color as keyof typeof theme.colors] || theme.colors.white30;
   }};
@@ -136,6 +149,11 @@ export const StatusIndicatorContainer = styled.span<StatusIndicatorProps>`
     $status === 'premium' &&
     css`
       animation: ${premiumGlow} 2s ease-in-out infinite;
+      
+      /* Gold-purple gradient effect on the SVG ring */
+      .ring-svg circle {
+        stroke: url(#premiumGradient);
+      }
     `}
 
   .ring-svg {
@@ -299,4 +317,73 @@ export const LockIcon = styled.span`
   color: ${({ theme }) => theme.colors.white30};
   display: flex;
   align-items: center;
+`;
+
+// Enterprise badge with gold-purple gradient
+export const EnterpriseBadge = styled.span`
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  position: relative;
+  
+  /* Gradient text effect */
+  background: linear-gradient(
+    90deg,
+    ${({ theme }) => theme.colors.gold} 0%,
+    ${({ theme }) => theme.colors.purple} 50%,
+    ${({ theme }) => theme.colors.gold} 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: ${shimmer} 3s linear infinite;
+  
+  /* Badge border with gradient */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      ${({ theme }) => theme.colors.gold}80,
+      ${({ theme }) => theme.colors.purple}80
+    );
+    -webkit-mask: 
+      linear-gradient(#fff 0 0) content-box, 
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  
+  /* Badge background fill */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: 2px;
+    background: linear-gradient(
+      135deg,
+      rgba(251, 191, 36, 0.12) 0%,
+      rgba(168, 85, 247, 0.12) 100%
+    );
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  svg {
+    color: ${({ theme }) => theme.colors.gold};
+    -webkit-text-fill-color: initial;
+    flex-shrink: 0;
+  }
 `;
