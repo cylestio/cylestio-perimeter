@@ -12,7 +12,6 @@ from ..store.store import AgentData
 from .models import RiskAnalysisResult
 from .behavioral import analyze_agent_behavior
 from .security import generate_security_report
-from .scheduler import AnalysisScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +34,11 @@ def _with_store_lock(func):
 class AnalysisEngine:
     """Computes various insights and analysis from trace data.
 
-    Analysis Trigger Flow:
-    ---------------------
-    1. Sessions complete via background thread (check_and_complete_sessions)
-    2. Scheduler checks if analysis should run (new completed sessions?)
-    3. If yes, run_analysis() executes:
-       - Behavioral analysis (cached in memory)
-       - Security checks (persisted to DB)
-    4. Scheduler marks completion, checks for burst sessions
+    This is the pure computation component. Analysis orchestration (when to run,
+    state tracking, persistence) is handled by AnalysisRunner.
+
+    Main computation method:
+    - compute_risk_analysis() - Behavioral + Security + PII analysis
 
     PII Analysis Safety Guarantees:
     -------------------------------
@@ -77,11 +73,6 @@ class AnalysisEngine:
         # Lazy initialized since we can't create asyncio.Semaphore without event loop
         self._pii_semaphore: Optional[asyncio.Semaphore] = None
         self._pii_max_concurrent = proxy_config.get("pii_max_concurrent", 2)
-
-        # Analysis scheduler for trigger logic
-        self.scheduler = AnalysisScheduler(
-            get_completed_count=self.store.get_completed_session_count
-        )
 
     async def get_dashboard_data(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get all data needed for the main dashboard.
@@ -245,15 +236,18 @@ class AnalysisEngine:
         # Sort sessions by last activity
         agent_sessions.sort(key=lambda x: x["last_activity"], reverse=True)
 
-        # Compute risk analysis (runs outside lock, uses background thread for PII)
-        risk_analysis = await self.compute_risk_analysis(agent_id)
+        # Read persisted risk analysis from DB (no longer compute inline)
+        risk_analysis = self.get_persisted_risk_analysis(agent_id)
+        if not risk_analysis:
+            # No persisted analysis - return status based on session count
+            risk_analysis = self._get_pending_analysis_status(agent_id)
 
         return {
             "agent": agent_dict,
             "sessions": agent_sessions,
             "patterns": patterns,
             "analytics": analytics,
-            "risk_analysis": self._serialize_risk_analysis(risk_analysis) if risk_analysis else None,
+            "risk_analysis": risk_analysis,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
@@ -288,8 +282,192 @@ class AnalysisEngine:
             # Calculate and add confidence level
             confidence = self._calculate_behavioral_confidence(risk_analysis.behavioral_analysis)
             result['behavioral_analysis']['confidence'] = confidence
-        
+
         return result
+
+    def get_persisted_risk_analysis(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        """Get latest persisted risk analysis from DB.
+
+        Reads security checks and behavioral analysis from the database
+        and reconstructs the API-compatible format.
+
+        Args:
+            agent_id: The agent ID to get analysis for
+
+        Returns:
+            Dict with analysis data matching _serialize_risk_analysis output,
+            or None if no analysis exists
+        """
+        security_checks = self.store.get_latest_security_checks_for_agent(agent_id)
+        if not security_checks:
+            return None
+        return self._reconstruct_analysis_from_checks(agent_id, security_checks)
+
+    def _reconstruct_analysis_from_checks(
+        self,
+        agent_id: str,
+        checks: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Reconstruct analysis from persisted security checks.
+
+        Converts flat DB records back to the nested structure expected by API.
+        Also fetches behavioral analysis from DB if available.
+        """
+        # Group checks by category
+        categories = {}
+        for check in checks:
+            cat_id = check['category_id']
+            if cat_id not in categories:
+                categories[cat_id] = {
+                    'category_id': cat_id,
+                    'category_name': cat_id.replace('_', ' ').title(),
+                    'checks': [],
+                    'critical_checks': 0,
+                    'warning_checks': 0,
+                    'passed_checks': 0,
+                    'total_checks': 0,
+                    'highest_severity': 'passed'
+                }
+
+            categories[cat_id]['checks'].append({
+                'check_id': check['check_id'],
+                'check_type': check['check_type'],
+                'name': check['title'],
+                'description': check['description'],
+                'status': check['status'],
+                'value': check['value'],
+                'evidence': check['evidence'],
+                'recommendations': check['recommendations'],
+            })
+            categories[cat_id]['total_checks'] += 1
+
+            status = check['status']
+            if status == 'critical':
+                categories[cat_id]['critical_checks'] += 1
+                categories[cat_id]['highest_severity'] = 'critical'
+            elif status == 'warning':
+                categories[cat_id]['warning_checks'] += 1
+                if categories[cat_id]['highest_severity'] != 'critical':
+                    categories[cat_id]['highest_severity'] = 'warning'
+            else:
+                categories[cat_id]['passed_checks'] += 1
+
+        # Compute summary totals
+        total_critical = sum(c['critical_checks'] for c in categories.values())
+        total_warnings = sum(c['warning_checks'] for c in categories.values())
+        total_passed = sum(c['passed_checks'] for c in categories.values())
+        total_checks = sum(c['total_checks'] for c in categories.values())
+
+        # Determine overall status
+        if total_critical > 0:
+            overall_status = 'critical'
+        elif total_warnings > 0:
+            overall_status = 'warning'
+        else:
+            overall_status = 'passed'
+
+        # Get analysis session metadata from first check
+        analysis_session_id = checks[0]['analysis_session_id'] if checks else None
+        timestamp = checks[0]['created_at'] if checks else None
+
+        # Get behavioral analysis from DB
+        behavioral_dict = self.store.get_latest_behavioral_analysis(agent_id)
+        behavioral_analysis = None
+        behavioral_status = 'NOT_AVAILABLE'
+
+        if behavioral_dict:
+            behavioral_status = 'COMPLETE'
+            # Calculate confidence based on cluster maturity
+            confidence = 'low'
+            if behavioral_dict['num_clusters'] >= 3 and behavioral_dict['total_sessions'] >= 10:
+                confidence = 'high'
+            elif behavioral_dict['num_clusters'] >= 2 and behavioral_dict['total_sessions'] >= 5:
+                confidence = 'medium'
+
+            behavioral_analysis = {
+                'total_sessions': behavioral_dict['total_sessions'],
+                'num_clusters': behavioral_dict['num_clusters'],
+                'num_outliers': behavioral_dict['num_outliers'],
+                'stability_score': behavioral_dict['stability_score'],
+                'predictability_score': behavioral_dict['predictability_score'],
+                'cluster_diversity': behavioral_dict['cluster_diversity'],
+                'clusters': behavioral_dict['clusters'],
+                'outliers': behavioral_dict['outliers'],
+                'centroid_distances': behavioral_dict['centroid_distances'],
+                'interpretation': behavioral_dict['interpretation'],
+                'confidence': confidence,
+            }
+
+        # Get session counts for the agent
+        with self.store.lock:
+            agent_sessions = self.store.get_agent_sessions(agent_id)
+            completed_count = sum(1 for s in agent_sessions if s.is_completed)
+            active_count = sum(1 for s in agent_sessions if s.is_active and not s.is_completed)
+
+        return {
+            'evaluation_id': analysis_session_id,
+            'evaluation_status': 'COMPLETE' if behavioral_analysis else 'PARTIAL',
+            'agent_id': agent_id,
+            'timestamp': timestamp,
+            'sessions_analyzed': len(agent_sessions) if agent_sessions else 0,
+            'security_report': {
+                'report_id': analysis_session_id,
+                'agent_id': agent_id,
+                'timestamp': timestamp,
+                'sessions_analyzed': len(agent_sessions) if agent_sessions else 0,
+                'overall_status': overall_status,
+                'total_checks': total_checks,
+                'critical_issues': total_critical,
+                'warnings': total_warnings,
+                'passed_checks': total_passed,
+                'categories': categories,
+            },
+            'behavioral_analysis': behavioral_analysis,
+            'pii_analysis': None,  # PII not persisted
+            'summary': {
+                'critical_issues': total_critical,
+                'warnings': total_warnings,
+                'stability_score': behavioral_analysis['stability_score'] if behavioral_analysis else None,
+                'predictability_score': behavioral_analysis['predictability_score'] if behavioral_analysis else None,
+                'total_sessions': len(agent_sessions) if agent_sessions else 0,
+                'completed_sessions': completed_count,
+                'active_sessions': active_count,
+                'behavioral_status': behavioral_status,
+                'pii_status': 'NOT_PERSISTED',
+            }
+        }
+
+    def _get_pending_analysis_status(self, agent_id: str) -> Dict[str, Any]:
+        """Get analysis status when no persisted analysis exists.
+
+        Returns appropriate status based on session count.
+        """
+        with self.store.lock:
+            agent_sessions = self.store.get_agent_sessions(agent_id)
+            session_count = len(agent_sessions) if agent_sessions else 0
+            completed_count = sum(1 for s in agent_sessions if s.is_completed) if agent_sessions else 0
+
+        if session_count < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+            return {
+                'evaluation_status': 'INSUFFICIENT_DATA',
+                'agent_id': agent_id,
+                'summary': {
+                    'min_sessions_required': MIN_SESSIONS_FOR_RISK_ANALYSIS,
+                    'current_sessions': session_count,
+                    'completed_sessions': completed_count,
+                    'message': f'Analysis requires {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions. Currently have {session_count}.'
+                }
+            }
+        else:
+            return {
+                'evaluation_status': 'PENDING',
+                'agent_id': agent_id,
+                'summary': {
+                    'current_sessions': session_count,
+                    'completed_sessions': completed_count,
+                    'message': 'Analysis will run when sessions complete.'
+                }
+            }
 
     @_with_store_lock
     def get_session_data(self, session_id: str) -> Dict[str, Any]:
@@ -404,56 +582,59 @@ class AnalysisEngine:
     
     async def _get_agent_analysis_summary(self, agent_id: str) -> Dict[str, Any]:
         """Get lightweight analysis summary for dashboard display."""
-        # Try to get cached or compute fresh analysis
-        risk_analysis = await self.compute_risk_analysis(agent_id)
+        # Read persisted analysis from DB (no longer compute inline)
+        risk_analysis = self.get_persisted_risk_analysis(agent_id)
 
         logger.debug(f"[ANALYSIS SUMMARY] Agent {agent_id}: risk_analysis exists={risk_analysis is not None}, "
-                   f"status={risk_analysis.evaluation_status if risk_analysis else None}")
+                   f"status={risk_analysis.get('evaluation_status') if risk_analysis else None}")
 
         # Accept both COMPLETE and PARTIAL status (PARTIAL = security done, behavioral waiting)
-        if not risk_analysis or risk_analysis.evaluation_status not in ["COMPLETE", "PARTIAL"]:
+        if not risk_analysis or risk_analysis.get('evaluation_status') not in ["COMPLETE", "PARTIAL"]:
             logger.debug(f"[ANALYSIS SUMMARY] Returning None for agent {agent_id} due to status check")
             return None
-        
-        # Count failed checks and warnings
+
+        # Count failed checks and warnings from dict structure
         failed_checks = 0
         warnings = 0
-        
-        if risk_analysis.security_report and risk_analysis.security_report.categories:
-            for category in risk_analysis.security_report.categories.values():
-                failed_checks += category.critical_checks
-                warnings += category.warning_checks
-        
+
+        security_report = risk_analysis.get('security_report')
+        if security_report and security_report.get('categories'):
+            for category in security_report['categories'].values():
+                failed_checks += category.get('critical_checks', 0)
+                warnings += category.get('warning_checks', 0)
+
         # Get behavioral scores (only if analysis is COMPLETE)
         behavioral_summary = None
-        if risk_analysis.evaluation_status == "COMPLETE" and risk_analysis.behavioral_analysis:
-            # Calculate confidence based on cluster maturity and data volume
-            confidence = self._calculate_behavioral_confidence(risk_analysis.behavioral_analysis)
-            
+        behavioral_analysis = risk_analysis.get('behavioral_analysis')
+        if risk_analysis.get('evaluation_status') == "COMPLETE" and behavioral_analysis:
+            # Confidence is already computed in _reconstruct_analysis_from_checks
+            confidence = behavioral_analysis.get('confidence', 'low')
+
             behavioral_summary = {
-                "stability": round(risk_analysis.behavioral_analysis.stability_score, 2),
-                "predictability": round(risk_analysis.behavioral_analysis.predictability_score, 2),
-                "confidence": confidence  # high, medium, or low
+                "stability": round(behavioral_analysis.get('stability_score', 0), 2),
+                "predictability": round(behavioral_analysis.get('predictability_score', 0), 2),
+                "confidence": confidence
             }
-        
+
         # Determine if action is required (any critical issues)
         action_required = failed_checks > 0
-        
+
         # Add session completion status for UX (always include session counts)
+        analysis_summary = risk_analysis.get('summary', {})
         summary = {
             "failed_checks": failed_checks,
             "warnings": warnings,
             "behavioral": behavioral_summary,
             "action_required": action_required,
-            "completed_sessions": risk_analysis.summary.get("completed_sessions", 0),
-            "active_sessions": risk_analysis.summary.get("active_sessions", 0),
-            "total_sessions": risk_analysis.summary.get("total_sessions", 0)
+            "completed_sessions": analysis_summary.get("completed_sessions", 0),
+            "active_sessions": analysis_summary.get("active_sessions", 0),
+            "total_sessions": analysis_summary.get("total_sessions", 0)
         }
-        
+
         # Add behavioral waiting indicator if applicable
-        if risk_analysis.evaluation_status == "PARTIAL":
+        if risk_analysis.get('evaluation_status') == "PARTIAL":
             summary["behavioral_waiting"] = True
-        
+
         return summary
     
     def _calculate_behavioral_confidence(self, behavioral_analysis) -> str:
@@ -1224,6 +1405,9 @@ class AnalysisEngine:
     async def compute_risk_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
         """Compute risk analysis for an agent (behavioral + security).
 
+        This is the core computation method called by AnalysisRunner.
+        API endpoints should use get_persisted_risk_analysis() to read from DB.
+
         Args:
             agent_id: Agent identifier
 
@@ -1452,118 +1636,6 @@ class AnalysisEngine:
             "storage_mode": self.proxy_config.get("storage_mode", "memory"),
             "db_path": self.proxy_config.get("db_path"),
         }
-
-    # =========================================================================
-    # Scheduled Analysis Methods (triggered on session completion)
-    # =========================================================================
-
-    async def run_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
-        """Run full analysis for an agent (behavioral + security checks).
-
-        This is the main entry point for scheduled analysis triggered when
-        sessions complete. It runs behavioral analysis (cached in memory)
-        and security checks (persisted to database).
-
-        Args:
-            agent_id: Agent identifier
-
-        Returns:
-            RiskAnalysisResult or None if insufficient sessions
-        """
-        logger.info(f"[ANALYSIS] run_analysis started for {agent_id}")
-        self.scheduler.mark_analysis_started(agent_id)
-        try:
-            # Run the existing compute_risk_analysis
-            result = await self.compute_risk_analysis(agent_id)
-            logger.info(f"[ANALYSIS] compute_risk_analysis returned for {agent_id}: result={result is not None}, has_security_report={result.security_report is not None if result else False}")
-
-            if result and result.security_report:
-                # Get workflow_id and agent info
-                agent = self.store.get_agent(agent_id)
-                workflow_id = agent.workflow_id if agent else None
-                workflow_name = agent.workflow_id if agent else None  # Use workflow_id as name
-
-                # Create analysis session in database first (for foreign key constraint)
-                analysis_session_id = f"analysis_{agent_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-                completed_count = self.store.get_completed_session_count(agent_id)
-
-                self.store.create_analysis_session(
-                    session_id=analysis_session_id,
-                    workflow_id=workflow_id or agent_id,
-                    session_type="DYNAMIC",
-                    workflow_name=workflow_name,
-                )
-
-                # Persist security checks to database
-                checks_persisted = self.store.persist_security_checks(
-                    agent_id=agent_id,
-                    security_report=result.security_report,
-                    analysis_session_id=analysis_session_id,
-                    workflow_id=workflow_id,
-                )
-
-                # Complete the analysis session with findings count
-                self.store.complete_analysis_session(
-                    session_id=analysis_session_id,
-                    findings_count=checks_persisted,
-                    risk_score=result.security_report.overall_score if hasattr(result.security_report, 'overall_score') else None,
-                )
-
-                logger.info(
-                    f"[ANALYSIS] Persisted {checks_persisted} security checks "
-                    f"for agent {agent_id} (session: {analysis_session_id})"
-                )
-
-            completed_count = self.store.get_completed_session_count(agent_id)
-            return result
-        finally:
-            completed_count = self.store.get_completed_session_count(agent_id)
-            self.scheduler.mark_analysis_completed(agent_id, completed_count)
-
-            # Check if more sessions arrived during analysis (burst handling)
-            if self.scheduler.should_run_analysis(agent_id):
-                logger.info(f"[ANALYSIS] New sessions arrived during analysis for {agent_id}, scheduling re-run")
-                asyncio.create_task(self.run_analysis(agent_id))
-
-    def run_analysis_async(self, agent_id: str) -> None:
-        """Schedule analysis to run in the background.
-
-        This is typically called from synchronous code (like session completion
-        callback) to trigger analysis without blocking.
-
-        Works from both asyncio context and regular threads.
-
-        Args:
-            agent_id: Agent identifier
-        """
-        try:
-            loop = asyncio.get_running_loop()
-            # Already in async context - create task
-            asyncio.create_task(self.run_analysis(agent_id))
-            logger.debug(f"[ANALYSIS] Scheduled background analysis for {agent_id}")
-        except RuntimeError:
-            # No running event loop - we're in a thread, run synchronously
-            logger.info(f"[ANALYSIS] Running analysis synchronously for {agent_id}")
-            try:
-                asyncio.run(self.run_analysis(agent_id))
-            except Exception as e:
-                logger.error(f"[ANALYSIS] Error running analysis for {agent_id}: {e}", exc_info=True)
-
-    def on_session_completed(self, agent_id: str) -> None:
-        """Called when a session is marked as completed.
-
-        Checks if analysis should run and triggers it if needed.
-
-        Args:
-            agent_id: Agent identifier for the completed session
-        """
-        logger.info(f"[ANALYSIS] on_session_completed called for {agent_id}")
-        if self.scheduler.should_run_analysis(agent_id):
-            logger.info(f"[ANALYSIS] Scheduler approved, triggering analysis for {agent_id}")
-            self.run_analysis_async(agent_id)
-        else:
-            logger.info(f"[ANALYSIS] Scheduler declined analysis for {agent_id} (running or no new sessions)")
-
 
 # Backward compatibility alias
 InsightsEngine = AnalysisEngine

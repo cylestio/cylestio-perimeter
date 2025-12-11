@@ -6,7 +6,9 @@ from typing import Any, Dict, Optional
 from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMResponseData
 from src.utils.logger import get_logger
 
-from .runtime.engine import InsightsEngine
+from .runtime.analysis_runner import AnalysisRunner
+from .runtime.engine import AnalysisEngine
+from .runtime.session_monitor import SessionMonitor
 from .server import create_trace_server
 from .store import TraceStore
 
@@ -79,16 +81,29 @@ class LiveTraceInterceptor(BaseInterceptor):
             "storage_mode": self.storage_mode,
             "db_path": self.db_path,
         }
-        self.insights = InsightsEngine(self.store, proxy_config)
+
+        # Initialize analysis engine (pure computation)
+        self.engine = AnalysisEngine(self.store, proxy_config)
+
+        # Initialize analysis runner (orchestration)
+        self.analysis_runner = AnalysisRunner(
+            store=self.store,
+            compute_fn=self.engine.compute_risk_analysis,
+        )
+
+        # Initialize session monitor (background thread)
+        self.session_monitor = SessionMonitor(
+            store=self.store,
+            analysis_runner=self.analysis_runner,
+            config=config,
+        )
+
+        # Keep insights as alias for backward compatibility (server uses it)
+        self.insights = self.engine
 
         # Server management
         self.server_thread = None
         self.server_started = False
-        
-        # Session completion checker
-        self.completion_checker_thread = None
-        self.completion_checker_running = False
-        self._completion_stop_event = threading.Event()
 
         logger.info(f"LiveTraceInterceptor initialized on {self.server_host}:{self.server_port}")
         logger.info(f"Session completion timeout: {self.session_completion_timeout}s, "
@@ -102,9 +117,10 @@ class LiveTraceInterceptor(BaseInterceptor):
                 download_model_async()
             else:
                 logger.info("PII analysis disabled (enable_presidio: false) - skipping model download")
-            
+
             self._start_server()
-            self._start_completion_checker()
+            self.session_monitor.start()
+            self.session_monitor.check_pending_on_startup()
         else:
             logger.info("LiveTraceInterceptor disabled; server not started")
 
@@ -246,56 +262,7 @@ class LiveTraceInterceptor(BaseInterceptor):
         """Get the URL for the dashboard."""
         host_display = "127.0.0.1" if self.server_host in ("0.0.0.0", "::") else self.server_host
         return f"http://{host_display}:{self.server_port}"
-    
-    def _start_completion_checker(self):
-        """Start the background thread that checks for completed sessions."""
-        if self.completion_checker_running:
-            return
-        
-        try:
-            self.completion_checker_thread = threading.Thread(
-                target=self._run_completion_checker,
-                daemon=True,
-                name="SessionCompletionChecker"
-            )
-            self.completion_checker_thread.start()
-            self.completion_checker_running = True
-            
-            logger.info(f"Session completion checker started (timeout={self.session_completion_timeout}s, "
-                       f"interval={self.completion_check_interval}s)")
-        except Exception as e:
-            logger.error(f"Failed to start session completion checker: {e}")
-    
-    def _run_completion_checker(self):
-        """Background thread that periodically checks and marks inactive sessions as completed."""
-        logger.info("Session completion checker thread started")
 
-        while not self._completion_stop_event.is_set():
-            try:
-                # Check for sessions that should be marked as completed
-                # Returns list of agent IDs that had sessions completed
-                completed_agent_ids = self.store.check_and_complete_sessions(self.session_completion_timeout)
-
-                # Trigger analysis for each agent that had sessions complete
-                for agent_id in completed_agent_ids:
-                    try:
-                        self.insights.on_session_completed(agent_id)
-                    except Exception as e:
-                        logger.error(f"Error triggering analysis for agent {agent_id}: {e}")
-            except Exception as e:
-                logger.error(f"Error in session completion checker: {e}")
-
-            # Wait for the check interval (or until stop event is set)
-            self._completion_stop_event.wait(self.completion_check_interval)
-
-        logger.info("Session completion checker thread stopped")
-    
     def stop(self):
-        """Stop the completion checker thread and cleanup."""
-        if self.completion_checker_running:
-            logger.info("Stopping session completion checker...")
-            self._completion_stop_event.set()
-            if self.completion_checker_thread:
-                self.completion_checker_thread.join(timeout=5)
-            self.completion_checker_running = False
-            logger.info("Session completion checker stopped")
+        """Stop the session monitor and cleanup."""
+        self.session_monitor.stop()

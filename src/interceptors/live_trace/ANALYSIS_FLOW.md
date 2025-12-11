@@ -156,22 +156,28 @@ if the cache was just invalidated.
 
 ---
 
-## Scheduler Logic (runtime/scheduler.py)
+## Analysis Runner Logic (runtime/analysis_runner.py)
 
 ```python
-class AnalysisScheduler:
+class AnalysisRunner:
     _running: Dict[str, bool]           # agent_id → is_running
-    _last_analyzed_count: Dict[str, int] # agent_id → completed_count
 
-    def should_run_analysis(agent_id) -> bool:
+    def _should_run(agent_id) -> bool:
         if analysis_currently_running:
+            return False
+        if completed_count < MIN_SESSIONS:  # 5
             return False
         if current_completed_count > last_analyzed_count:
             return True
         return False
+
+    def trigger(agent_id) -> None:
+        """Single entry point for all analysis triggers."""
+        if _should_run(agent_id):
+            _run_async(agent_id)
 ```
 
-**Burst Handling:** After analysis completes, scheduler checks if new sessions arrived during analysis. If yes, triggers another run.
+**Burst Handling:** After analysis completes, runner checks if new sessions arrived during analysis. If yes, triggers another run.
 
 ---
 

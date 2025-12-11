@@ -4,11 +4,12 @@ This module handles:
 - Behavioral analysis (clustering, stability, outliers)
 - Security checks (the "Report Checks")
 - PII detection
-- Analysis scheduling and triggering
+- Analysis triggering and session monitoring
 """
 
 from .engine import AnalysisEngine, InsightsEngine
-from .scheduler import AnalysisScheduler
+from .analysis_runner import AnalysisRunner
+from .session_monitor import SessionMonitor
 from .models import (
     RiskAnalysisResult,
     BehavioralAnalysisResult,
@@ -20,7 +21,8 @@ from .models import (
 __all__ = [
     "AnalysisEngine",
     "InsightsEngine",  # Backward compatibility
-    "AnalysisScheduler",
+    "AnalysisRunner",
+    "SessionMonitor",
     "RiskAnalysisResult",
     "BehavioralAnalysisResult",
     "SecurityReport",

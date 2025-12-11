@@ -45,3 +45,63 @@ export const fetchAnalysisSessions = async (
   }
   return data;
 };
+
+// Security Checks Types
+export interface WorkflowSecurityCheck {
+  check_id: string;
+  agent_id: string;
+  workflow_id?: string;
+  analysis_session_id: string;
+  category_id: string;
+  check_type: string;
+  status: 'passed' | 'warning' | 'critical';
+  title: string;
+  description?: string;
+  value?: string;
+  evidence?: Record<string, unknown>;
+  recommendations?: string[];
+  created_at: string;
+}
+
+export interface AgentChecksSummary {
+  total: number;
+  passed: number;
+  warnings: number;
+  critical: number;
+}
+
+export interface AgentSecurityData {
+  agent_id: string;
+  agent_name: string;
+  checks: WorkflowSecurityCheck[];
+  latest_check_at?: number;
+  summary: AgentChecksSummary;
+}
+
+export interface WorkflowSecurityChecksSummary {
+  total_checks: number;
+  passed: number;
+  warnings: number;
+  critical: number;
+  agents_analyzed: number;
+}
+
+export interface WorkflowSecurityChecksResponse {
+  workflow_id: string;
+  agents: AgentSecurityData[];
+  total_summary: WorkflowSecurityChecksSummary;
+}
+
+export const fetchWorkflowSecurityChecks = async (
+  workflowId: string
+): Promise<WorkflowSecurityChecksResponse> => {
+  const response = await fetch(`/api/workflow/${workflowId}/security-checks`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch security checks: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};

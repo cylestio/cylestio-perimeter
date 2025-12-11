@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS agents (
     used_tools TEXT,
     tool_usage_details TEXT,
     cached_percentiles TEXT,
-    percentiles_session_count INTEGER DEFAULT 0
+    percentiles_session_count INTEGER DEFAULT 0,
+    last_analyzed_session_count INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
@@ -133,6 +134,27 @@ CREATE INDEX IF NOT EXISTS idx_security_checks_agent_id ON security_checks(agent
 CREATE INDEX IF NOT EXISTS idx_security_checks_analysis_session_id ON security_checks(analysis_session_id);
 CREATE INDEX IF NOT EXISTS idx_security_checks_status ON security_checks(status);
 CREATE INDEX IF NOT EXISTS idx_security_checks_category_id ON security_checks(category_id);
+
+CREATE TABLE IF NOT EXISTS behavioral_analysis (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    analysis_session_id TEXT NOT NULL,
+    stability_score REAL NOT NULL,
+    predictability_score REAL NOT NULL,
+    cluster_diversity REAL NOT NULL,
+    num_clusters INTEGER NOT NULL,
+    num_outliers INTEGER NOT NULL,
+    total_sessions INTEGER NOT NULL,
+    interpretation TEXT,
+    clusters TEXT,
+    outliers TEXT,
+    centroid_distances TEXT,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (analysis_session_id) REFERENCES analysis_sessions(session_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_agent_id ON behavioral_analysis(agent_id);
+CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_session_id ON behavioral_analysis(analysis_session_id);
 """
 
 
@@ -281,6 +303,9 @@ class AgentData:
         self.cached_percentiles = None  # Frozen percentiles (calculated once from first sessions)
         self.percentiles_session_count = 0  # Number of sessions when percentiles were frozen
 
+        # Analysis tracking - persisted to DB for scheduler state
+        self.last_analyzed_session_count = 0  # Completed session count at last analysis
+
     def add_session(self, session_id: str):
         """Add a session to this agent."""
         if session_id not in self.sessions:
@@ -349,6 +374,9 @@ class TraceStore:
         self.db.executescript(SQL_SCHEMA)
         self.db.commit()
 
+        # Run migrations for existing databases
+        self._run_migrations()
+
         # Global stats (kept in memory for performance)
         self.start_time = datetime.now(timezone.utc)
         self.total_events = 0
@@ -368,6 +396,18 @@ class TraceStore:
     def lock(self) -> RLock:
         """Expose the underlying lock for coordinated read access."""
         return self._lock
+
+    def _run_migrations(self) -> None:
+        """Run database migrations for existing databases."""
+        # Migration: add last_analyzed_session_count column if missing
+        cursor = self.db.execute("PRAGMA table_info(agents)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'last_analyzed_session_count' not in columns:
+            self.db.execute(
+                "ALTER TABLE agents ADD COLUMN last_analyzed_session_count INTEGER DEFAULT 0"
+            )
+            self.db.commit()
+            logger.info("Migration: Added last_analyzed_session_count column to agents table")
 
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
@@ -442,6 +482,7 @@ class TraceStore:
             'tool_usage_details': json.dumps(dict(agent.tool_usage_details)),
             'cached_percentiles': json.dumps(agent.cached_percentiles) if agent.cached_percentiles else None,
             'percentiles_session_count': agent.percentiles_session_count,
+            'last_analyzed_session_count': agent.last_analyzed_session_count,
         }
 
     def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
@@ -466,6 +507,8 @@ class TraceStore:
         if row['cached_percentiles']:
             agent.cached_percentiles = json.loads(row['cached_percentiles'])
         agent.percentiles_session_count = row['percentiles_session_count']
+        # Handle new column that may not exist in older databases (before migration runs)
+        agent.last_analyzed_session_count = row['last_analyzed_session_count'] if 'last_analyzed_session_count' in row.keys() else 0
         return agent
 
     def _save_session(self, session: SessionData):
@@ -493,7 +536,7 @@ class TraceStore:
                 :total_sessions, :total_messages, :total_tokens,
                 :total_tools, :total_errors, :total_response_time_ms, :response_count,
                 :sessions_set, :available_tools, :used_tools, :tool_usage_details,
-                :cached_percentiles, :percentiles_session_count
+                :cached_percentiles, :percentiles_session_count, :last_analyzed_session_count
             )
         """, data)
         self.db.commit()
@@ -1121,6 +1164,7 @@ class TraceStore:
         workflow_id: str,
         session_type: str,
         workflow_name: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new analysis session for a workflow/codebase."""
         with self._lock:
@@ -1129,16 +1173,17 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT INTO analysis_sessions (
-                    session_id, workflow_id, workflow_name, session_type, status,
+                    session_id, workflow_id, workflow_name, agent_id, session_type, status,
                     created_at, findings_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (session_id, workflow_id, workflow_name, session_type, 'IN_PROGRESS', created_at, 0))
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, workflow_id, workflow_name, agent_id, session_type, 'IN_PROGRESS', created_at, 0))
             self.db.commit()
 
             return {
                 'session_id': session_id,
                 'workflow_id': workflow_id,
                 'workflow_name': workflow_name,
+                'agent_id': agent_id,
                 'session_type': session_type,
                 'status': 'IN_PROGRESS',
                 'created_at': now.isoformat(),
@@ -1413,6 +1458,56 @@ class TraceStore:
             row = cursor.fetchone()
             return row['count'] if row else 0
 
+    def get_agent_last_analyzed_count(self, agent_id: str) -> int:
+        """Get the completed session count at time of last analysis.
+
+        Used by the scheduler to determine if new analysis should run.
+        """
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT last_analyzed_session_count FROM agents WHERE agent_id = ?",
+                (agent_id,)
+            )
+            row = cursor.fetchone()
+            return row['last_analyzed_session_count'] if row else 0
+
+    def update_agent_last_analyzed(self, agent_id: str, session_count: int) -> None:
+        """Update the last analyzed session count for an agent.
+
+        Called by the scheduler after analysis completes.
+        """
+        with self._lock:
+            self.db.execute(
+                "UPDATE agents SET last_analyzed_session_count = ? WHERE agent_id = ?",
+                (session_count, agent_id)
+            )
+            self.db.commit()
+            logger.debug(f"Updated last_analyzed_session_count for {agent_id}: {session_count}")
+
+    def get_agents_needing_analysis(self, min_sessions: int = 5) -> List[str]:
+        """Get agent IDs that need analysis.
+
+        Finds agents where:
+        - Completed session count >= min_sessions
+        - Completed session count > last_analyzed_session_count
+
+        Used for startup check to trigger analysis for agents missed during downtime.
+        """
+        with self._lock:
+            cursor = self.db.execute("""
+                SELECT a.agent_id
+                FROM agents a
+                WHERE (
+                    SELECT COUNT(*) FROM sessions s
+                    WHERE s.agent_id = a.agent_id AND s.is_completed = 1
+                ) >= ?
+                AND (
+                    SELECT COUNT(*) FROM sessions s
+                    WHERE s.agent_id = a.agent_id AND s.is_completed = 1
+                ) > COALESCE(a.last_analyzed_session_count, 0)
+            """, (min_sessions,))
+            return [row[0] for row in cursor.fetchall()]
+
     def store_security_check(
         self,
         check_id: str,
@@ -1547,13 +1642,28 @@ class TraceStore:
         import uuid
         count = 0
 
+        logger.debug(f"[PERSIST] persist_security_checks called for agent {agent_id}")
+        logger.debug(f"[PERSIST] security_report type: {type(security_report)}")
+
         # Handle both SecurityReport object and dict
         categories = getattr(security_report, 'categories', None)
+        logger.debug(f"[PERSIST] categories from getattr: {type(categories)}")
+
         if categories is None and isinstance(security_report, dict):
             categories = security_report.get('categories', [])
+            logger.debug(f"[PERSIST] categories from dict.get: {categories}")
 
         if not categories:
+            logger.warning(f"[PERSIST] No categories found for agent {agent_id}, returning 0")
             return 0
+
+        # Handle dict (Dict[str, AssessmentCategory]) vs list
+        if isinstance(categories, dict):
+            categories_list = list(categories.values())
+            logger.debug(f"[PERSIST] Converting dict to list, {len(categories_list)} categories")
+        else:
+            categories_list = categories
+            logger.debug(f"[PERSIST] Using list directly, {len(categories_list)} categories")
 
         def _get_attr(obj, attr, default=None):
             """Get attribute from object or dict, supporting both."""
@@ -1561,9 +1671,10 @@ class TraceStore:
                 return obj.get(attr, default)
             return getattr(obj, attr, default)
 
-        for category in categories:
+        for category in categories_list:
             category_id = _get_attr(category, 'category_id', '')
             checks = _get_attr(category, 'checks', [])
+            logger.debug(f"[PERSIST] Category {category_id}: {len(checks)} checks")
 
             for check in checks:
                 check_id = _get_attr(check, 'check_id', str(uuid.uuid4()))
@@ -1646,3 +1757,144 @@ class TraceStore:
                 'by_status': status_counts,
                 'by_category': category_counts,
             }
+
+    # ==================== Behavioral Analysis Methods ====================
+
+    def store_behavioral_analysis(
+        self,
+        agent_id: str,
+        analysis_session_id: str,
+        behavioral_result: Any,
+    ) -> Dict[str, Any]:
+        """Store behavioral analysis results.
+
+        Args:
+            agent_id: The agent being analyzed
+            analysis_session_id: The analysis session ID
+            behavioral_result: BehavioralAnalysisResult object or dict
+
+        Returns:
+            Dict with stored behavioral analysis data
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+            record_id = f"{analysis_session_id}_behavioral"
+
+            # Handle both object and dict
+            def _get_attr(obj, attr, default=None):
+                if isinstance(obj, dict):
+                    return obj.get(attr, default)
+                return getattr(obj, attr, default)
+
+            # Extract fields from behavioral_result
+            stability_score = _get_attr(behavioral_result, 'stability_score', 0.0)
+            predictability_score = _get_attr(behavioral_result, 'predictability_score', 0.0)
+            cluster_diversity = _get_attr(behavioral_result, 'cluster_diversity', 0.0)
+            num_clusters = _get_attr(behavioral_result, 'num_clusters', 0)
+            num_outliers = _get_attr(behavioral_result, 'num_outliers', 0)
+            total_sessions = _get_attr(behavioral_result, 'total_sessions', 0)
+            interpretation = _get_attr(behavioral_result, 'interpretation', '')
+
+            # Serialize complex fields to JSON
+            clusters = _get_attr(behavioral_result, 'clusters', [])
+            outliers = _get_attr(behavioral_result, 'outliers', [])
+            centroid_distances = _get_attr(behavioral_result, 'centroid_distances', [])
+
+            # Convert to JSON strings (handle Pydantic models)
+            def to_json(data):
+                if not data:
+                    return None
+                if isinstance(data, list) and len(data) > 0:
+                    # Check if items are Pydantic models
+                    if hasattr(data[0], 'model_dump'):
+                        return json.dumps([item.model_dump() for item in data])
+                    elif hasattr(data[0], 'dict'):
+                        return json.dumps([item.dict() for item in data])
+                return json.dumps(data)
+
+            clusters_json = to_json(clusters)
+            outliers_json = to_json(outliers)
+            centroid_distances_json = to_json(centroid_distances)
+
+            self.db.execute("""
+                INSERT OR REPLACE INTO behavioral_analysis (
+                    id, agent_id, analysis_session_id,
+                    stability_score, predictability_score, cluster_diversity,
+                    num_clusters, num_outliers, total_sessions,
+                    interpretation, clusters, outliers, centroid_distances,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                record_id,
+                agent_id,
+                analysis_session_id,
+                stability_score,
+                predictability_score,
+                cluster_diversity,
+                num_clusters,
+                num_outliers,
+                total_sessions,
+                interpretation,
+                clusters_json,
+                outliers_json,
+                centroid_distances_json,
+                created_at,
+            ))
+            self.db.commit()
+
+            return {
+                'id': record_id,
+                'agent_id': agent_id,
+                'analysis_session_id': analysis_session_id,
+                'stability_score': stability_score,
+                'predictability_score': predictability_score,
+                'cluster_diversity': cluster_diversity,
+                'num_clusters': num_clusters,
+                'num_outliers': num_outliers,
+                'total_sessions': total_sessions,
+                'interpretation': interpretation,
+                'created_at': now.isoformat(),
+            }
+
+    def get_latest_behavioral_analysis(self, agent_id: str) -> Optional[Dict[str, Any]]:
+        """Get the most recent behavioral analysis for an agent.
+
+        Args:
+            agent_id: The agent ID
+
+        Returns:
+            Dict with behavioral analysis data or None if not found
+        """
+        with self._lock:
+            cursor = self.db.execute("""
+                SELECT * FROM behavioral_analysis
+                WHERE agent_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (agent_id,))
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            return self._deserialize_behavioral_analysis(row)
+
+    def _deserialize_behavioral_analysis(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Deserialize a behavioral_analysis row."""
+        return {
+            'id': row['id'],
+            'agent_id': row['agent_id'],
+            'analysis_session_id': row['analysis_session_id'],
+            'stability_score': row['stability_score'],
+            'predictability_score': row['predictability_score'],
+            'cluster_diversity': row['cluster_diversity'],
+            'num_clusters': row['num_clusters'],
+            'num_outliers': row['num_outliers'],
+            'total_sessions': row['total_sessions'],
+            'interpretation': row['interpretation'],
+            'clusters': json.loads(row['clusters']) if row['clusters'] else [],
+            'outliers': json.loads(row['outliers']) if row['outliers'] else [],
+            'centroid_distances': json.loads(row['centroid_distances']) if row['centroid_distances'] else [],
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+        }
