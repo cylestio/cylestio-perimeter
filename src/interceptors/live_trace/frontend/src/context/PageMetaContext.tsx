@@ -52,8 +52,7 @@ export const usePageMeta = (meta: Partial<PageMeta>) => {
     context?.setPageMeta(meta);
     // Reset breadcrumbs on unmount
     return () => context?.setPageMeta({ breadcrumbs: [], hide: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(meta)]);
+  }, [JSON.stringify(meta), context]);
 };
 
 // Hook for layout to read metadata
