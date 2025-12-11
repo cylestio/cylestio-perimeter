@@ -38,7 +38,7 @@ export interface DynamicAnalysisProps {
 const MAX_SESSIONS_DISPLAYED = 5;
 
 export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentId } = useParams<{ agentId: string }>();
 
   // State
   const [agentsData, setAgentsData] = useState<AgentSecurityData[]>([]);
@@ -48,13 +48,13 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  // Fetch security checks for this workflow (grouped by agent)
+  // Fetch security checks for this agent (grouped by system prompt)
   const fetchChecksData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentId) return;
 
     setChecksLoading(true);
     try {
-      const data = await fetchWorkflowSecurityChecks(workflowId);
+      const data = await fetchWorkflowSecurityChecks(agentId);
       setAgentsData(data.agents);
       setChecksSummary(data.total_summary);
     } catch (err) {
@@ -62,15 +62,15 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     } finally {
       setChecksLoading(false);
     }
-  }, [workflowId]);
+  }, [agentId]);
 
-  // Fetch analysis sessions for this workflow (DYNAMIC only)
+  // Fetch analysis sessions for this agent (DYNAMIC only)
   const fetchSessionsData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentId) return;
 
     setSessionsLoading(true);
     try {
-      const data = await fetchAnalysisSessions(workflowId);
+      const data = await fetchAnalysisSessions(agentId);
       // Filter to only DYNAMIC sessions
       const filteredSessions = (data.sessions || []).filter(
         (session) => session.session_type === 'DYNAMIC'
@@ -81,7 +81,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     } finally {
       setSessionsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentId]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -96,8 +96,8 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Workflows', href: '/' },
-      { label: workflowId || '', href: `/workflow/${workflowId}` },
+      { label: 'Agents', href: '/' },
+      { label: agentId || '', href: `/agent/${agentId}` },
       { label: 'Dynamic Analysis' },
     ],
   });
@@ -118,7 +118,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
       <PageHeader>
         <PageInfo>
           <PageTitle>Dynamic Analysis</PageTitle>
-          <PageSubtitle>Workflow: {workflowId}</PageSubtitle>
+          <PageSubtitle>Agent: {agentId}</PageSubtitle>
         </PageInfo>
         <PageStats>
           <StatBadge>
@@ -159,11 +159,11 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         <Section.Content noPadding>
           <AnalysisSessionsTable
             sessions={analysisSessions}
-            workflowId={workflowId || ''}
+            agentId={agentId || ''}
             loading={sessionsLoading}
             maxRows={MAX_SESSIONS_DISPLAYED}
             emptyMessage="No dynamic analysis sessions yet."
-            emptyDescription="Dynamic analysis runs automatically after agents collect enough sessions."
+            emptyDescription="Dynamic analysis runs automatically after system prompts collect enough sessions."
           />
         </Section.Content>
       </Section>
@@ -173,7 +173,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         <Section.Header>
           <Section.Title icon={<Shield size={16} />}>Latest Security Checks</Section.Title>
           {checksSummary && checksSummary.agents_analyzed > 0 && (
-            <Badge variant="medium">{checksSummary.agents_analyzed} agents</Badge>
+            <Badge variant="medium">{checksSummary.agents_analyzed} system prompts</Badge>
           )}
         </Section.Header>
         <Section.Content>
@@ -184,7 +184,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
           ) : (
             <SecurityChecksExplorer
               agents={agentsData}
-              workflowId={workflowId || ''}
+              agentId={agentId || ''}
             />
           )}
         </Section.Content>

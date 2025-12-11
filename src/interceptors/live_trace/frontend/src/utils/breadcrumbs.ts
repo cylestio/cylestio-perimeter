@@ -3,28 +3,32 @@ import type { BreadcrumbItem } from '@ui/navigation/Breadcrumb';
 export type { BreadcrumbItem };
 
 /**
- * Builds breadcrumbs with workflow context.
- * Always starts with Workflows, then adds workflow name (or Unassigned), then page-specific items.
+ * Builds breadcrumbs with agent context.
+ * Always starts with Agents, then adds agent name (or Unassigned), then page-specific items.
  */
-export function buildWorkflowBreadcrumbs(
-  workflowId: string | null | undefined,
+export function buildAgentBreadcrumbs(
+  agentId: string | null | undefined,
   ...pageItems: BreadcrumbItem[]
 ): BreadcrumbItem[] {
-  const wfId = workflowId || 'unassigned';
+  const id = agentId || 'unassigned';
 
   return [
-    { label: 'Workflows', href: '/' },
-    ...(wfId !== 'unassigned'
-      ? [{ label: wfId, href: `/workflow/${wfId}` }]
-      : [{ label: 'Unassigned', href: '/workflow/unassigned' }]),
+    { label: 'Agents', href: '/' },
+    ...(id !== 'unassigned'
+      ? [{ label: id, href: `/agent/${id}` }]
+      : [{ label: 'Unassigned', href: '/agent/unassigned' }]),
     ...pageItems,
   ];
 }
 
 /**
- * Builds a workflow-prefixed link path.
- * Ensures workflowId is never undefined/null in the URL.
+ * Builds an agent-prefixed link path.
+ * Ensures agentId is never undefined/null in the URL.
  */
-export function workflowLink(workflowId: string | null | undefined, path: string): string {
-  return `/workflow/${workflowId || 'unassigned'}${path}`;
+export function agentLink(agentId: string | null | undefined, path: string): string {
+  return `/agent/${agentId || 'unassigned'}${path}`;
 }
+
+// Legacy aliases for backwards compatibility during migration
+export const buildWorkflowBreadcrumbs = buildAgentBreadcrumbs;
+export const workflowLink = agentLink;

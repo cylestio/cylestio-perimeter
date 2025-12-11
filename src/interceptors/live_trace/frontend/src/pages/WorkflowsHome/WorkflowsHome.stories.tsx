@@ -101,7 +101,7 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // Wait for loading to finish and verify empty state
-    await expect(await canvas.findByText('No workflows yet')).toBeInTheDocument();
+    await expect(await canvas.findByText('No agents yet')).toBeInTheDocument();
   },
 };
 
@@ -138,7 +138,7 @@ export const WithUnassignedAgents: Story = {
     const canvas = within(canvasElement);
     // Wait for loading and verify both sections appear
     await expect(await canvas.findByText('E-Commerce Platform')).toBeInTheDocument();
-    await expect(canvas.getByText('Unassigned Agents')).toBeInTheDocument();
+    await expect(canvas.getByText('Unassigned System Prompts')).toBeInTheDocument();
   },
 };
 
@@ -153,7 +153,7 @@ export const OnlyUnassignedAgents: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // Should show empty workflows and unassigned section
-    await expect(await canvas.findByText('No workflows yet')).toBeInTheDocument();
-    await expect(canvas.getByText('Unassigned Agents')).toBeInTheDocument();
+    await expect(await canvas.findByText('No agents yet')).toBeInTheDocument();
+    await expect(canvas.getByText('Unassigned System Prompts')).toBeInTheDocument();
   },
 };
