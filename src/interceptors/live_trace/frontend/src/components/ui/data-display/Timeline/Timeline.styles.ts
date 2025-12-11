@@ -71,7 +71,7 @@ export const TimelineBubble = styled.div<{ $isError?: boolean }>`
   border-radius: ${({ theme }) => theme.radii.lg};
   padding: ${({ theme }) => theme.spacing[4]};
   transition: all ${({ theme }) => theme.transitions.base};
-  width: 75%;
+  width: 85%;
 
   &:hover {
     background: ${({ theme }) => theme.colors.surface3};
