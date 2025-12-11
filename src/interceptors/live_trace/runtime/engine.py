@@ -151,8 +151,40 @@ class AnalysisEngine:
             static_status = "completed"
             static_findings = findings_data
 
-        # Dynamic Analysis status (not yet implemented, always pending)
+        # Dynamic Analysis status - based on session gathering progress
+        # Get all agents (system prompts) for this workflow to compute session progress
+        workflow_agents = self.store.get_all_agents(workflow_id=workflow_id)
+        
+        # Calculate aggregate session progress
+        total_current_sessions = sum(agent.total_sessions for agent in workflow_agents)
+        total_min_required = len(workflow_agents) * MIN_SESSIONS_FOR_RISK_ANALYSIS
+        agents_with_enough_sessions = sum(
+            1 for agent in workflow_agents 
+            if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
+        )
+        
+        # Check for DYNAMIC analysis sessions
+        dynamic_sessions = [s for s in analysis_sessions if s.get("session_type") == "DYNAMIC"]
+        dynamic_in_progress = any(s.get("status") == "IN_PROGRESS" for s in dynamic_sessions)
+        dynamic_completed = any(s.get("status") == "COMPLETED" for s in dynamic_sessions)
+        
+        # Determine dynamic status
         dynamic_status = "pending"
+        if dynamic_in_progress:
+            dynamic_status = "active"
+        elif dynamic_completed:
+            dynamic_status = "completed"
+        elif total_current_sessions > 0:
+            # Has sessions but no dynamic analysis yet - show as gathering/active
+            dynamic_status = "active"
+        
+        # Session progress info for dynamic analysis
+        dynamic_sessions_progress = {
+            "current": total_current_sessions,
+            "required": total_min_required,
+            "agents_ready": agents_with_enough_sessions,
+            "agents_total": len(workflow_agents),
+        } if workflow_agents else None
 
         # Recommendations status (based on AUTOFIX sessions)
         autofix_sessions = [s for s in analysis_sessions if s.get("session_type") == "AUTOFIX"]
@@ -173,6 +205,7 @@ class AnalysisEngine:
             "dynamic": {
                 "status": dynamic_status,
                 "findings": None,
+                "sessions_progress": dynamic_sessions_progress,
             },
             "recommendations": {
                 "status": recommendations_status,

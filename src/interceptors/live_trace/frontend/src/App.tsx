@@ -83,6 +83,19 @@ function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefi
   return openCount > 0 ? openCount : undefined;
 }
 
+// Get dynamic analysis stat text (sessions progress or findings count)
+function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | undefined {
+  if (!stage) return undefined;
+  
+  // If we have sessions progress and status is active, show progress
+  if (stage.sessions_progress && stage.status === 'active') {
+    const { current, required } = stage.sessions_progress;
+    return `${current}/${required}`;
+  }
+  
+  return undefined;
+}
+
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
   id: api.id,
@@ -324,6 +337,8 @@ function AppLayout() {
               <SecurityCheckItem
                 label="Dynamic Analysis"
                 status={dynamicStatus}
+                count={getOpenFindingsCount(data?.security_analysis?.dynamic)}
+                stat={getDynamicAnalysisStat(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent/${urlAgentId}/dynamic-analysis`}
@@ -393,7 +408,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading }} />
+          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading, securityAnalysis: data?.security_analysis }} />
         </Content>
       </Main>
     </Shell>

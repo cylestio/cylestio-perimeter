@@ -72,10 +72,19 @@ export interface StageFindingsSummary {
 
 export type AnalysisStageStatus = 'pending' | 'active' | 'completed';
 
+// Sessions progress for dynamic analysis
+export interface SessionsProgress {
+  current: number;
+  required: number;
+  agents_ready: number;
+  agents_total: number;
+}
+
 // Analysis stage with embedded findings
 export interface AnalysisStage {
   status: AnalysisStageStatus;
   findings: StageFindingsSummary | null;
+  sessions_progress?: SessionsProgress | null;
 }
 
 // Unified security analysis object
