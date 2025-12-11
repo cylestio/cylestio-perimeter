@@ -32,7 +32,7 @@ build/
 # Project specific
 traces/
 message_logs/
-# tasks/
+temp_tasks/
 temp/
 event_logs/
 *.log
