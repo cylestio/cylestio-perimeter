@@ -175,12 +175,25 @@ function AppLayout() {
   // Derive if we have any data (workflows or agents)
   const hasData = workflows.length > 0 || agents.length > 0;
 
-  // Redirect to /connect if on root, both loaded, and no data exists
+  // Redirect logic based on data availability
   useEffect(() => {
-    if (location.pathname === '/' && workflowsLoaded && dashboardLoaded && !hasData) {
+    // Only act when both data sources have loaded
+    if (!workflowsLoaded || !dashboardLoaded) return;
+
+    if (location.pathname === '/' && !hasData) {
+      // No data → show Connect page
       navigate('/connect', { replace: true });
+    } else if (location.pathname === '/connect' && hasData) {
+      // Has data → redirect away from Connect page
+      if (workflows.length > 0) {
+        // Go to first workflow
+        navigate(`/workflow/${workflows[0].id}`, { replace: true });
+      } else {
+        // No workflows but has agents → go to home
+        navigate('/', { replace: true });
+      }
     }
-  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, navigate]);
+  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, workflows, navigate]);
 
   return (
     <Shell>
