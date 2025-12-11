@@ -1,2 +1,3 @@
-export { Timeline, TimelineItem } from './Timeline';
-export type { TimelineProps, TimelineItemProps, TimelineEvent } from './Timeline';
+export { Timeline } from './Timeline';
+export { TimelineItem } from './TimelineItem';
+export type { TimelineProps, TimelineEvent, TimelineItemProps } from './Timeline';

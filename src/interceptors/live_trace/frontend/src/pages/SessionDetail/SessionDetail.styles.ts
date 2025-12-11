@@ -132,9 +132,11 @@ export const ResponseSection = styled.div`
   padding: ${({ theme }) => theme.spacing[4]};
 `;
 
+// Response metadata badges container
 export const ResponseMeta = styled.div`
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: ${({ theme }) => theme.spacing[2]};
   margin-bottom: ${({ theme }) => theme.spacing[3]};
 `;

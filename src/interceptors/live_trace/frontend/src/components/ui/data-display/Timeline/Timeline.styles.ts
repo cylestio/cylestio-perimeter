@@ -64,14 +64,14 @@ export const TimelineMarker = styled.div<{ $eventType: EventType }>`
   }
 `;
 
-export const TimelineBubble = styled.div<{ $isError?: boolean }>`
+export const TimelineBubble = styled.div<{ $isError?: boolean; $fullWidth?: boolean }>`
   background: ${({ theme }) => theme.colors.surface2};
   border: 1px solid ${({ theme, $isError }) =>
     $isError ? theme.colors.red : theme.colors.borderMedium};
   border-radius: ${({ theme }) => theme.radii.lg};
   padding: ${({ theme }) => theme.spacing[4]};
   transition: all ${({ theme }) => theme.transitions.base};
-  width: 85%;
+  width: ${({ $fullWidth }) => ($fullWidth ? '100%' : '85%')};
 
   &:hover {
     background: ${({ theme }) => theme.colors.surface3};
@@ -275,3 +275,7 @@ export const TimeDuration = styled.span`
   }
 `;
 
+// Response variant styles
+export const ResponseBubbleWrapper = styled.div`
+  width: 100%;
+`;

@@ -434,11 +434,6 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         <Section>
           <Section.Header>
             <Section.Title>Response</Section.Title>
-            {response?.parsed?.usage && (
-              <Badge variant="info">
-                {response.parsed.usage.total_tokens} tokens
-              </Badge>
-            )}
           </Section.Header>
           <Section.Content>
             {!response && !responseError && !sending && (
@@ -460,15 +455,22 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
             {response && (
               <>
                 <ResponseMeta>
-                  <Badge variant="success">{response.parsed?.model}</Badge>
                   {response.parsed?.finish_reason && (
                     <Badge variant="info">{response.parsed.finish_reason}</Badge>
                   )}
-                  {response.elapsed_ms && (
+                  {response.parsed?.model && (
+                    <Badge variant="success">{response.parsed.model}</Badge>
+                  )}
+                  {response.elapsed_ms !== undefined && (
                     <Badge variant="low">
                       {response.elapsed_ms >= 1000
                         ? `${(response.elapsed_ms / 1000).toFixed(2)}s`
                         : `${Math.round(response.elapsed_ms)}ms`}
+                    </Badge>
+                  )}
+                  {response.parsed?.usage?.total_tokens !== undefined && (
+                    <Badge variant="info">
+                      {response.parsed.usage.total_tokens} tokens
                     </Badge>
                   )}
                   {response.cost?.total !== undefined && response.cost.total > 0 && (
@@ -479,7 +481,6 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                     </Badge>
                   )}
                 </ResponseMeta>
-
                 {response.parsed?.content?.map((item, idx) => (
                   <ResponseContentItem key={idx}>
                     {item.type === 'text' && (

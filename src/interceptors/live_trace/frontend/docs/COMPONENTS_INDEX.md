@@ -17,7 +17,7 @@
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
-| `ui/data-display/` | Accordion, Table, CodeBlock, Timeline |
+| `ui/data-display/` | Accordion, Table, CodeBlock, Timeline, TimelineItem |
 | `ui/layout/` | Grid, Content, Main, PageHeader |
 
 ### Domain Components (`@domain/*`) - AI Security Monitoring
@@ -671,6 +671,82 @@ interface CodeBlockProps {
   showLineNumbers?: boolean;
 }
 ```
+
+### Timeline
+
+Event timeline container that renders a list of events with system prompt accordion.
+
+```typescript
+interface TimelineProps {
+  events: TimelineEvent[];
+  sessionId?: string;
+  systemPrompt?: string | null;
+  onReplay?: (eventId: string) => void;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<Timeline
+  events={events}
+  sessionId="session-123"
+  systemPrompt="You are a helpful assistant"
+  onReplay={(eventId) => openReplayPanel(eventId)}
+/>
+```
+
+### TimelineItem
+
+Individual timeline event bubble with content rendering for different event types (llm.call.start, llm.call.finish, tool.execution, tool.result). Supports a `response` variant for displaying replay responses.
+
+```typescript
+interface TimelineEvent {
+  id?: string;
+  event_type: string;
+  timestamp: string;
+  level?: string;
+  description?: string;
+  details?: Record<string, unknown>;
+}
+
+interface TimelineItemProps {
+  event: TimelineEvent;
+  sessionId?: string;
+  onReplay?: (eventId: string) => void;
+  startTime?: Date;
+  durationMs?: number;
+  isFirstEvent?: boolean;
+  variant?: 'default' | 'response';
+  showRawToggle?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+// Default variant (full timeline item with time gutter)
+<TimelineItem
+  event={event}
+  sessionId="session-123"
+  onReplay={(id) => openReplayPanel(id)}
+  startTime={startTime}
+  durationMs={5000}
+  isFirstEvent={false}
+/>
+
+// Response variant (simplified, for displaying replay responses)
+<TimelineItem
+  event={responseEvent}
+  variant="response"
+  showRawToggle={true}
+/>
+```
+
+**Variants:**
+- `default`: Full timeline item with time gutter, replay button, direction icons
+- `response`: Simplified layout for response display, no time gutter or replay button
+
+**Note:** Metadata badges (model, tokens, cost, elapsed time) should be rendered separately outside of TimelineItem using the Badge component.
 
 ---
 
