@@ -32,12 +32,13 @@ export interface AnalysisSession {
   session_id: string;
   workflow_id: string;
   workflow_name?: string;
+  agent_id?: string;
   session_type: SessionType;
   status: SessionStatus;
-  created_at: number;
-  completed_at?: number;
+  created_at: string; // ISO date string
+  completed_at?: string | null; // ISO date string
   findings_count: number;
-  risk_score?: number;
+  risk_score?: number | null;
 }
 
 export interface FindingsSummary {

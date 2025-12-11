@@ -3,10 +3,9 @@ import type { FC, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import type { SessionListItem } from '@api/types/session';
-import { formatCompactNumber, timeAgo } from '@utils/formatting';
+import { formatCompactNumber } from '@utils/formatting';
 
-import { Avatar } from '@ui/core/Avatar';
-import { Badge } from '@ui/core/Badge';
+import { Avatar, Badge, TimeAgo } from '@ui/core';
 import { Table, type Column } from '@ui/data-display/Table';
 import { EmptyState } from '@ui/feedback/EmptyState';
 
@@ -134,9 +133,7 @@ const getColumns = (workflowId: string, showAgentColumn: boolean): Column<Sessio
       key: 'last_activity',
       header: 'Last Activity',
       render: (session) => (
-        <span style={{ color: 'var(--color-white-50)' }}>
-          {session.last_activity_relative || timeAgo(session.last_activity)}
-        </span>
+        <TimeAgo timestamp={session.last_activity} />
       ),
       sortable: true,
     }

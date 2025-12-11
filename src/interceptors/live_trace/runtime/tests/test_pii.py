@@ -2,13 +2,13 @@
 from unittest.mock import Mock, patch
 from collections import deque
 
-from .pii_analysis import (
+from ..pii import (
     extract_text_from_message,
     extract_message_content,
     analyze_sessions_for_pii,
 )
-from ..store import SessionData
-from .risk_models import PIIAnalysisResult
+from ...store.store import SessionData
+from ..models import PIIAnalysisResult
 
 
 class MockEvent:
@@ -163,7 +163,7 @@ class TestExtractMessageContent:
 class TestAnalyzeSessionsForPII:
     """Test analyze_sessions_for_pii function."""
 
-    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
+    @patch('src.interceptors.live_trace.runtime.pii.PresidioAnalyzer')
     def test_no_pii_found(self, mock_presidio_class):
         """Test when no PII is found."""
         # Mock analyzer to return no findings
@@ -189,9 +189,13 @@ class TestAnalyzeSessionsForPII:
         assert result.sessions_with_pii == 0
         assert result.sessions_without_pii == 1
 
-    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
-    def test_pii_detected(self, mock_presidio_class):
+    @patch('src.interceptors.live_trace.runtime.pii.is_pii_available')
+    @patch('src.interceptors.live_trace.runtime.pii.PresidioAnalyzer')
+    def test_pii_detected(self, mock_presidio_class, mock_is_pii_available):
         """Test when PII is detected."""
+        # Mock PII availability check
+        mock_is_pii_available.return_value = (True, None)
+
         # Mock analyzer to return findings
         mock_result = Mock()
         mock_result.entity_type = "EMAIL_ADDRESS"
@@ -223,9 +227,13 @@ class TestAnalyzeSessionsForPII:
         assert "EMAIL_ADDRESS" in result.findings_by_type
         assert result.findings_by_type["EMAIL_ADDRESS"] == 1
 
-    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
-    def test_multiple_pii_types(self, mock_presidio_class):
+    @patch('src.interceptors.live_trace.runtime.pii.is_pii_available')
+    @patch('src.interceptors.live_trace.runtime.pii.PresidioAnalyzer')
+    def test_multiple_pii_types(self, mock_presidio_class, mock_is_pii_available):
         """Test detection of multiple PII types."""
+        # Mock PII availability check
+        mock_is_pii_available.return_value = (True, None)
+
         # Mock analyzer to return multiple findings
         mock_email = Mock()
         mock_email.entity_type = "EMAIL_ADDRESS"
@@ -262,9 +270,13 @@ class TestAnalyzeSessionsForPII:
         assert "EMAIL_ADDRESS" in result.findings_by_type
         assert "PHONE_NUMBER" in result.findings_by_type
 
-    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
-    def test_confidence_level_classification(self, mock_presidio_class):
+    @patch('src.interceptors.live_trace.runtime.pii.is_pii_available')
+    @patch('src.interceptors.live_trace.runtime.pii.PresidioAnalyzer')
+    def test_confidence_level_classification(self, mock_presidio_class, mock_is_pii_available):
         """Test that findings are classified by confidence level."""
+        # Mock PII availability check
+        mock_is_pii_available.return_value = (True, None)
+
         # Mock findings with different confidence levels
         high_conf = Mock()
         high_conf.entity_type = "EMAIL_ADDRESS"
@@ -314,9 +326,13 @@ class TestAnalyzeSessionsForPII:
         assert result.sessions_with_pii == 0
         assert result.sessions_without_pii == 0
 
-    @patch('src.interceptors.live_trace.analysis.pii_analysis.PresidioAnalyzer')
-    def test_most_common_entities(self, mock_presidio_class):
+    @patch('src.interceptors.live_trace.runtime.pii.is_pii_available')
+    @patch('src.interceptors.live_trace.runtime.pii.PresidioAnalyzer')
+    def test_most_common_entities(self, mock_presidio_class, mock_is_pii_available):
         """Test that most common entities are tracked."""
+        # Mock PII availability check
+        mock_is_pii_available.return_value = (True, None)
+
         # Mock multiple email findings
         mock_findings = []
         for i in range(3):

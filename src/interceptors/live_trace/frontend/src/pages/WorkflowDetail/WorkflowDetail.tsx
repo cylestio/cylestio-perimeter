@@ -9,6 +9,8 @@ import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
 import type { APIAgent, SecurityAnalysis, AnalysisStage } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
+
+import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/formatting';
 import { workflowLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
@@ -158,24 +160,6 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
 
   const openCount = findingsSummary?.open_count || 0;
 
-  // Helper to format timestamps
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // Helper to get duration in minutes
-  const getDuration = (start: number, end: number) => {
-    const minutes = Math.round((end - start) / 60);
-    if (minutes < 1) return 'Less than a minute';
-    if (minutes === 1) return '1 minute';
-    return `${minutes} minutes`;
-  };
-
   // Count sessions by status
   const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
 
@@ -324,12 +308,12 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
                   <SessionMeta>
                     <SessionMetaItem>
                       <Calendar size={12} />
-                      Started {formatDate(session.created_at)}
+                      Started {formatDateTime(session.created_at)}
                     </SessionMetaItem>
                     {session.completed_at && (
                       <SessionMetaItem>
                         <Clock size={12} />
-                        Duration: {getDuration(session.created_at, session.completed_at)}
+                        Duration: {formatDuration(getDurationMinutes(session.created_at, session.completed_at) || 0)}
                       </SessionMetaItem>
                     )}
                     <SessionMetaItem>

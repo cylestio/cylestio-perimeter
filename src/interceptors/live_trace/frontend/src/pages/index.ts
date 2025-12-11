@@ -1,6 +1,7 @@
 export { AgentDetail } from './AgentDetail';
 export { AgentReport } from './AgentReport';
 export { Connect } from './Connect';
+export { DynamicAnalysis } from './DynamicAnalysis';
 export { Portfolio } from './Portfolio';
 export { SessionDetail } from './SessionDetail';
 export { Sessions } from './Sessions';

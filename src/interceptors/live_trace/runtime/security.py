@@ -5,14 +5,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from .risk_models import (
+from .models import (
     AssessmentCategory,
     AssessmentCheck,
     BehavioralAnalysisResult,
     PIIAnalysisResult,
     SecurityReport,
 )
-from ..store import SessionData
+from ..store.store import SessionData
 
 
 # Universal safety bounds (section 4.2, H3)

@@ -1,5 +1,7 @@
 import { useState, type FC, type ReactNode } from 'react';
 
+import { TimeAgo } from '@ui/core';
+
 import {
   TimelineContainer,
   TimelineItemWrapper,
@@ -8,7 +10,6 @@ import {
   TimelineHeader,
   TimelineEventInfo,
   EventTypeBadge,
-  TimeStamp,
   ReplayButton,
   TimelineContent,
   ToolBadge,
@@ -46,18 +47,6 @@ export interface TimelineItemProps {
 }
 
 // Utility functions
-function timeAgo(timestamp: string): string {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diffMs = now.getTime() - then.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-
-  if (diffSec < 60) return 'just now';
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-  return `${Math.floor(diffSec / 86400)}d ago`;
-}
-
 function extractTextContent(content: unknown): string | null {
   if (typeof content === 'string') return content;
   if (!content) return null;
@@ -202,7 +191,7 @@ export const TimelineItem: FC<TimelineItemProps> = ({ event, sessionId, onReplay
         <TimelineHeader>
           <TimelineEventInfo>
             <EventTypeBadge $eventType={eventType}>{event.event_type}</EventTypeBadge>
-            <TimeStamp>{timeAgo(event.timestamp)}</TimeStamp>
+            <TimeAgo timestamp={event.timestamp} />
           </TimelineEventInfo>
           {canReplay && (
             <ReplayButton onClick={handleReplayClick}>

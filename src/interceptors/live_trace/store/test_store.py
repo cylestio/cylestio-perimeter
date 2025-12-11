@@ -1,9 +1,9 @@
-"""Tests for storage layer extension (analysis sessions and findings)."""
+"""Tests for storage layer extension (analysis sessions, findings, and security checks)."""
 import json
 import pytest
 from datetime import datetime, timezone
 
-from .store import TraceStore
+from .store import TraceStore, SessionData
 
 
 class TestAnalysisSessionMethods:
@@ -635,3 +635,221 @@ class TestWorkflowIdMethods:
         findings = store.get_findings(workflow_id="workflow-a")
         assert len(findings) == 2
         assert all(f['workflow_id'] == "workflow-a" for f in findings)
+
+
+class TestSecurityChecksMethods:
+    """Test security checks CRUD operations."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store for testing."""
+        return TraceStore(storage_mode="memory")
+
+    def _create_analysis_session(self, store, session_id):
+        """Helper to create analysis session (required for FK)."""
+        store.create_analysis_session(session_id, "test-workflow", "DYNAMIC")
+
+    def test_store_security_check(self, store):
+        """Test storing a security check."""
+        self._create_analysis_session(store, "analysis_001")
+        check = store.store_security_check(
+            check_id="check_001",
+            agent_id="agent-123",
+            analysis_session_id="analysis_001",
+            category_id="RESOURCE_MANAGEMENT",
+            check_type="RESOURCE_001_TOKEN_BOUNDS",
+            status="passed",
+            title="Token Bounds Check",
+            description="Check token limits",
+            value="1500 tokens",
+            evidence={"tokens_used": 1500, "limit": 50000},
+            recommendations=["Monitor token usage"],
+        )
+
+        assert check['check_id'] == "check_001"
+        assert check['agent_id'] == "agent-123"
+        assert check['category_id'] == "RESOURCE_MANAGEMENT"
+        assert check['status'] == "passed"
+        assert check['evidence']['tokens_used'] == 1500
+
+    def test_get_security_check(self, store):
+        """Test retrieving a security check."""
+        self._create_analysis_session(store, "analysis_001")
+        store.store_security_check(
+            check_id="check_002",
+            agent_id="agent-123",
+            analysis_session_id="analysis_001",
+            category_id="BEHAVIORAL",
+            check_type="BEHAV_001",
+            status="warning",
+            title="Behavioral Check",
+        )
+
+        check = store.get_security_check("check_002")
+        assert check is not None
+        assert check['status'] == "warning"
+
+    def test_get_nonexistent_security_check(self, store):
+        """Test retrieving non-existent security check."""
+        check = store.get_security_check("nonexistent")
+        assert check is None
+
+    def test_get_security_checks_by_agent(self, store):
+        """Test filtering security checks by agent_id."""
+        self._create_analysis_session(store, "sess1")
+        self._create_analysis_session(store, "sess2")
+        store.store_security_check("check_a1", "agent-a", "sess1", "CAT1", "TYPE1", "passed", "C1")
+        store.store_security_check("check_a2", "agent-a", "sess1", "CAT2", "TYPE2", "warning", "C2")
+        store.store_security_check("check_b1", "agent-b", "sess2", "CAT1", "TYPE1", "passed", "C3")
+
+        checks = store.get_security_checks(agent_id="agent-a")
+        assert len(checks) == 2
+        assert all(c['agent_id'] == "agent-a" for c in checks)
+
+    def test_get_security_checks_by_status(self, store):
+        """Test filtering security checks by status."""
+        self._create_analysis_session(store, "sess")
+        store.store_security_check("check_1", "agent", "sess", "CAT1", "TYPE1", "passed", "C1")
+        store.store_security_check("check_2", "agent", "sess", "CAT2", "TYPE2", "warning", "C2")
+        store.store_security_check("check_3", "agent", "sess", "CAT3", "TYPE3", "critical", "C3")
+
+        warning_checks = store.get_security_checks(status="warning")
+        assert len(warning_checks) == 1
+        assert warning_checks[0]['status'] == "warning"
+
+    def test_get_security_checks_by_category(self, store):
+        """Test filtering security checks by category_id."""
+        self._create_analysis_session(store, "sess")
+        store.store_security_check("check_1", "agent", "sess", "RESOURCE_MANAGEMENT", "TYPE1", "passed", "C1")
+        store.store_security_check("check_2", "agent", "sess", "RESOURCE_MANAGEMENT", "TYPE2", "passed", "C2")
+        store.store_security_check("check_3", "agent", "sess", "BEHAVIORAL", "TYPE3", "passed", "C3")
+
+        resource_checks = store.get_security_checks(category_id="RESOURCE_MANAGEMENT")
+        assert len(resource_checks) == 2
+
+    def test_get_latest_security_checks_for_agent(self, store):
+        """Test getting only latest analysis session's checks."""
+        import time
+        self._create_analysis_session(store, "old_session")
+        self._create_analysis_session(store, "new_session")
+        # Create checks in first analysis session
+        store.store_security_check("check_old_1", "agent-x", "old_session", "CAT1", "TYPE1", "passed", "Old1")
+        store.store_security_check("check_old_2", "agent-x", "old_session", "CAT2", "TYPE2", "warning", "Old2")
+
+        time.sleep(0.1)  # Ensure different timestamps
+
+        # Create checks in second (latest) analysis session
+        store.store_security_check("check_new_1", "agent-x", "new_session", "CAT1", "TYPE1", "passed", "New1")
+
+        # Should only get checks from new_session
+        latest = store.get_latest_security_checks_for_agent("agent-x")
+        assert len(latest) == 1
+        assert latest[0]['analysis_session_id'] == "new_session"
+
+    def test_get_agent_security_summary(self, store):
+        """Test getting security summary for an agent."""
+        self._create_analysis_session(store, "sess")
+        store.store_security_check("c1", "agent-123", "sess", "CAT1", "T1", "passed", "C1")
+        store.store_security_check("c2", "agent-123", "sess", "CAT1", "T2", "warning", "C2")
+        store.store_security_check("c3", "agent-123", "sess", "CAT2", "T3", "critical", "C3")
+
+        summary = store.get_agent_security_summary("agent-123")
+
+        assert summary['agent_id'] == "agent-123"
+        assert summary['total_checks'] == 3
+        assert summary['by_status']['passed'] == 1
+        assert summary['by_status']['warning'] == 1
+        assert summary['by_status']['critical'] == 1
+        assert summary['by_category']['CAT1'] == 2
+        assert summary['by_category']['CAT2'] == 1
+
+    def test_get_completed_session_count(self, store):
+        """Test getting completed session count for an agent."""
+        # Create some sessions
+        session1 = SessionData("sess1", "agent-xyz")
+        session2 = SessionData("sess2", "agent-xyz")
+        session3 = SessionData("sess3", "agent-other")
+
+        # Mark some as completed
+        session1.is_completed = True
+        session2.is_completed = False
+        session3.is_completed = True
+
+        store._save_session(session1)
+        store._save_session(session2)
+        store._save_session(session3)
+
+        # Should only count completed sessions for agent-xyz
+        count = store.get_completed_session_count("agent-xyz")
+        assert count == 1
+
+    def test_persist_security_checks(self, store):
+        """Test persisting security checks from a security report."""
+        from dataclasses import dataclass, field
+        from typing import Optional, List, Dict, Any
+
+        # Create proper data classes to avoid Mock serialization issues
+        @dataclass
+        class MockCheck:
+            check_id: str
+            check_type: str
+            status: str
+            name: str
+            description: Optional[str] = None
+            value: Optional[str] = None
+            evidence: Optional[Dict[str, Any]] = None
+            recommendations: Optional[List[str]] = None
+
+        @dataclass
+        class MockCategory:
+            category_id: str
+            checks: List[MockCheck] = field(default_factory=list)
+
+        @dataclass
+        class MockSecurityReport:
+            categories: List[MockCategory] = field(default_factory=list)
+
+        # Create analysis session first (foreign key constraint)
+        self._create_analysis_session(store, "analysis_session_123")
+
+        category1 = MockCategory(
+            category_id="RESOURCE_MANAGEMENT",
+            checks=[
+                MockCheck(
+                    check_id="RES_001",
+                    check_type="TOKEN_CHECK",
+                    status="passed",
+                    name="Token Bounds",
+                    description="Check token limits",
+                    value="1500",
+                    evidence={"tokens": 1500},
+                    recommendations=["Monitor"]
+                ),
+                MockCheck(
+                    check_id="RES_002",
+                    check_type="RATE_CHECK",
+                    status="warning",
+                    name="Rate Limit",
+                    description=None,
+                    value="high",
+                    evidence=None,
+                    recommendations=None
+                ),
+            ]
+        )
+
+        security_report = MockSecurityReport(categories=[category1])
+
+        count = store.persist_security_checks(
+            agent_id="test-agent",
+            security_report=security_report,
+            analysis_session_id="analysis_session_123",
+            workflow_id="test-workflow",
+        )
+
+        assert count == 2
+
+        # Verify checks were stored
+        checks = store.get_security_checks(agent_id="test-agent")
+        assert len(checks) == 2
+        assert checks[0]['category_id'] == "RESOURCE_MANAGEMENT"

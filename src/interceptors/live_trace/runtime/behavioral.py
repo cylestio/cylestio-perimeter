@@ -11,7 +11,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-from .risk_models import (
+from .models import (
     BehavioralAnalysisResult,
     CentroidDistance,
     ClusterCharacteristics,
@@ -19,7 +19,7 @@ from .risk_models import (
     OutlierInfo,
     SessionFeatures,
 )
-from ..store import SessionData
+from ..store.store import SessionData
 
 
 # ============================================================================

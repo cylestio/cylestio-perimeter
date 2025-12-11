@@ -68,12 +68,57 @@ export const formatDuration = (minutes: number): string => {
 };
 
 /**
+ * Calculate duration in minutes between two ISO date strings.
+ * Returns null if either date is invalid or missing.
+ */
+export const getDurationMinutes = (
+  startIso: string | null | undefined,
+  endIso: string | null | undefined
+): number | null => {
+  if (!startIso || !endIso) return null;
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+  return (end.getTime() - start.getTime()) / 60000;
+};
+
+/**
+ * Format an ISO date string to a readable date/time.
+ * e.g., "2025-12-11T08:58:32.324156+00:00" -> "Dec 11, 8:58 AM"
+ */
+export const formatDateTime = (isoString: string | null | undefined): string => {
+  if (!isoString) return '-';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+};
+
+/**
+ * Extract agent name from analysis session ID.
+ * e.g., "analysis_ant-math-agent-v8_20251211_085832" -> "ant-math-agent-v8"
+ */
+export const extractAgentFromSessionId = (sessionId: string): string | null => {
+  if (!sessionId) return null;
+  // Format: analysis_<agent-name>_<date>_<time>
+  const match = sessionId.match(/^analysis_(.+?)_\d{8}_\d{6}$/);
+  return match ? match[1] : null;
+};
+
+/**
  * Format a timestamp to a relative time string.
  * e.g., "just now", "5m ago", "2h ago", "3d ago"
  */
-export const timeAgo = (timestamp: string | Date): string => {
+export const timeAgo = (timestamp: string | Date | number | null | undefined): string => {
+  if (!timestamp) return '-';
   const now = new Date();
-  const then = new Date(timestamp);
+  const then = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (isNaN(then.getTime())) return '-';
+
   const diffMs = now.getTime() - then.getTime();
   const diffSec = Math.floor(diffMs / 1000);
 
@@ -81,6 +126,24 @@ export const timeAgo = (timestamp: string | Date): string => {
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
   return `${Math.floor(diffSec / 86400)}d ago`;
+};
+
+/**
+ * Format a timestamp to an absolute date/time string for tooltip display.
+ * e.g., "Dec 11, 2025, 8:58:32 AM"
+ */
+export const formatAbsoluteDateTime = (timestamp: string | Date | number | null | undefined): string => {
+  if (!timestamp) return '-';
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 };
 
 // Constants

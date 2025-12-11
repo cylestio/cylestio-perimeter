@@ -1,8 +1,9 @@
 """Tests for InsightsEngine workflow filtering."""
 import pytest
 
-from ..store import TraceStore, AgentData
-from .insights import InsightsEngine
+from ...store import TraceStore
+from ...store.store import AgentData
+from ..engine import InsightsEngine
 
 
 class TestInsightsWorkflowFiltering:

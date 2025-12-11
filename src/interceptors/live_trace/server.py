@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from src.kb.loader import get_kb_loader
 from src.utils.logger import get_logger
 
-from .analysis.insights import InsightsEngine
+from .runtime.engine import InsightsEngine
 from .mcp import create_mcp_router
 from .models import (
     FindingSeverity,
@@ -197,8 +197,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_models():
         """Get available models with pricing information."""
         try:
-            from .analysis.default_pricing import DEFAULT_PRICING_DATA
-            from .analysis.model_pricing import get_last_updated
+            from .runtime.default_pricing import DEFAULT_PRICING_DATA
+            from .runtime.model_pricing import get_last_updated
 
             models_by_provider = {}
             for provider, models_dict in DEFAULT_PRICING_DATA["models"].items():
@@ -337,7 +337,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 llm_response = response.json()
 
             # Calculate cost using model pricing
-            from .analysis.model_pricing import get_model_pricing
+            from .runtime.model_pricing import get_model_pricing
             model_name = llm_response.get("model", request_data.get("model", ""))
             input_price, output_price = get_model_pricing(model_name)
 
@@ -526,6 +526,84 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting workflow findings: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/workflow/{workflow_id}/security-checks")
+    async def api_get_workflow_security_checks(
+        workflow_id: str,
+        category_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get security checks grouped by agent for a workflow."""
+        try:
+            # Get all agents in workflow
+            agents = insights.store.get_all_agents(workflow_id=workflow_id)
+
+            # Build per-agent data
+            agents_data = []
+            total_checks = 0
+            total_passed = 0
+            total_warnings = 0
+            total_critical = 0
+
+            for agent in agents:
+                checks = insights.store.get_latest_security_checks_for_agent(
+                    agent.agent_id
+                )
+
+                # Apply filters
+                if category_id:
+                    checks = [c for c in checks if c['category_id'] == category_id]
+                if status:
+                    checks = [c for c in checks if c['status'] == status.lower()]
+
+                # Per-agent summary
+                passed = sum(1 for c in checks if c['status'] == 'passed')
+                warnings = sum(1 for c in checks if c['status'] == 'warning')
+                critical = sum(1 for c in checks if c['status'] == 'critical')
+
+                # Get latest check timestamp
+                latest_check_at = None
+                if checks:
+                    timestamps = [c.get('created_at') for c in checks if c.get('created_at')]
+                    if timestamps:
+                        latest_check_at = max(timestamps)
+
+                agents_data.append({
+                    "agent_id": agent.agent_id,
+                    "agent_name": agent.id_short if hasattr(agent, 'id_short') else agent.agent_id[:12],
+                    "checks": checks[:limit],
+                    "latest_check_at": latest_check_at,
+                    "summary": {
+                        "total": len(checks),
+                        "passed": passed,
+                        "warnings": warnings,
+                        "critical": critical,
+                    }
+                })
+
+                total_checks += len(checks)
+                total_passed += passed
+                total_warnings += warnings
+                total_critical += critical
+
+            # Total summary across all agents
+            total_summary = {
+                "total_checks": total_checks,
+                "passed": total_passed,
+                "warnings": total_warnings,
+                "critical": total_critical,
+                "agents_analyzed": len(agents),
+            }
+
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "agents": agents_data,
+                "total_summary": total_summary,
+            })
+        except Exception as e:
+            logger.error(f"Error getting workflow security checks: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.post("/api/findings")
     async def api_store_finding(request: Request):
         """Store a security finding discovered during analysis."""
@@ -595,6 +673,66 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             return JSONResponse({"finding": finding})
         except Exception as e:
             logger.error(f"Error storing finding: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # ==================== Security Checks API Endpoints ====================
+
+    @app.get("/api/agent/{agent_id}/security-checks")
+    async def api_get_agent_security_checks(
+        agent_id: str,
+        category_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get security checks for an agent (from latest analysis)."""
+        try:
+            # Get latest checks for the agent
+            checks = insights.store.get_latest_security_checks_for_agent(agent_id)
+
+            # Apply filters
+            if category_id:
+                checks = [c for c in checks if c['category_id'] == category_id]
+            if status:
+                checks = [c for c in checks if c['status'] == status.lower()]
+
+            # Apply limit
+            checks = checks[:limit]
+
+            # Get summary
+            summary = insights.store.get_agent_security_summary(agent_id)
+
+            return JSONResponse({
+                "agent_id": agent_id,
+                "checks": checks,
+                "summary": summary,
+            })
+        except Exception as e:
+            logger.error(f"Error getting security checks: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/security-checks")
+    async def api_get_security_checks(
+        agent_id: Optional[str] = None,
+        analysis_session_id: Optional[str] = None,
+        category_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get security checks with optional filtering."""
+        try:
+            checks = insights.store.get_security_checks(
+                agent_id=agent_id,
+                analysis_session_id=analysis_session_id,
+                category_id=category_id,
+                status=status.lower() if status else None,
+                limit=limit,
+            )
+            return JSONResponse({
+                "checks": checks,
+                "total_count": len(checks),
+            })
+        except Exception as e:
+            logger.error(f"Error getting security checks: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/sessions/analysis")

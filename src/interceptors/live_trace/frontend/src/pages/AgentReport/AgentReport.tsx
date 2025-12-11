@@ -7,12 +7,11 @@ import { usePolling } from '@hooks/usePolling';
 import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
-  timeAgo,
   getAgentStatus,
   BEHAVIORAL_TOOLTIPS,
 } from '../../utils/formatting';
 
-import { Badge } from '@ui/core/Badge';
+import { Badge, TimeAgo } from '@ui/core';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
@@ -192,8 +191,8 @@ export const AgentReport: FC = () => {
           primaryLabel="AGENT ID"
           primaryValue={agent.id}
           stats={[
-            { label: 'FIRST SEEN', value: timeAgo(agent.first_seen) },
-            { label: 'LAST SEEN', value: timeAgo(agent.last_seen) },
+            { label: 'FIRST SEEN', badge: <TimeAgo timestamp={agent.first_seen} /> },
+            { label: 'LAST SEEN', badge: <TimeAgo timestamp={agent.last_seen} /> },
           ]}
         />
 

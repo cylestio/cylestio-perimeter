@@ -28,7 +28,7 @@ import { WorkflowSelector, type Workflow } from '@domain/workflows';
 import { AnalysisStatusItem, type AnalysisStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { AgentDetail, AgentReport, Connect, Portfolio, SessionDetail, Sessions, StaticAnalysis, WorkflowDetail, WorkflowsHome } from '@pages/index';
+import { AgentDetail, AgentReport, Connect, DynamicAnalysis, Portfolio, SessionDetail, Sessions, StaticAnalysis, WorkflowDetail, WorkflowsHome } from '@pages/index';
 
 // Convert backend stage status to sidebar AnalysisStatus
 function stageToSidebarStatus(stage: AnalysisStage | undefined): AnalysisStatus {
@@ -230,6 +230,8 @@ function AppLayout() {
                 status={stageToSidebarStatus(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
+                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/dynamic-analysis`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/dynamic-analysis`}
               />
               <AnalysisStatusItem
                 label="Recommendations"
@@ -342,6 +344,7 @@ function App() {
               <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
               <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
               <Route path="/workflow/:workflowId/static-analysis" element={<StaticAnalysis />} />
+              <Route path="/workflow/:workflowId/dynamic-analysis" element={<DynamicAnalysis />} />
               <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
               <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
               <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />

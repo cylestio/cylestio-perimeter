@@ -21,3 +21,6 @@ export type { LabelProps } from './Label';
 
 export { Text } from './Text';
 export type { TextProps } from './Text';
+
+export { TimeAgo } from './TimeAgo';
+export type { TimeAgoProps, TimeAgoFormat } from './TimeAgo';
