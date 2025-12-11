@@ -12,7 +12,7 @@ import {
   Lightbulb,
   BarChart3
 } from 'lucide-react';
-import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 
 import type { ConfigResponse } from '@api/types/config';
@@ -427,8 +427,8 @@ function App() {
               <Route path="/" element={<WorkflowsHome />} />
               <Route path="/connect" element={<Connect />} />
               
-              {/* Agent-prefixed routes */}
-              <Route path="/agent/:agentId" element={<Portfolio />} />
+              {/* Agent-prefixed routes - redirect base path to overview */}
+              <Route path="/agent/:agentId" element={<Navigate to="overview" replace />} />
               
               {/* Developer section */}
               <Route path="/agent/:agentId/overview" element={<Overview />} />
