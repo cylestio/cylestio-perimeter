@@ -285,22 +285,22 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "ide_heartbeat",
-        "description": "Keep IDE connection alive. Call AFTER every action: scanning, fixing, editing code. Use the connection_id from register_ide_connection. Set is_developing=true when actively coding.",
+        "description": "Send ONE heartbeat at the START of Agent Inspector work. Do NOT call after every action - that wastes tokens. Connection stays active for 60 seconds.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "connection_id": {
                     "type": "string",
-                    "description": "The connection_id returned from register_ide_connection. You MUST have saved this!"
+                    "description": "The connection_id from register_ide_connection"
                 },
                 "is_developing": {
                     "type": "boolean",
-                    "description": "true = actively editing/scanning code, false = idle/just chatting",
+                    "description": "true when doing security work, false otherwise",
                     "default": False
                 },
                 "workflow_id": {
                     "type": "string",
-                    "description": "Only needed if switching to a different workflow"
+                    "description": "Only if switching workflows"
                 }
             },
             "required": ["connection_id"]
@@ -322,13 +322,13 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_ide_connection_status",
-        "description": "Get the current IDE connection status. Shows which IDEs are connected and if active development is happening.",
+        "description": "OPTIONAL: Check IDE connection status. Usually you can skip this and just call register_ide_connection directly (it's idempotent).",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "workflow_id": {
                     "type": "string",
-                    "description": "Filter by workflow/agent ID (optional)"
+                    "description": "Filter by workflow/agent ID"
                 }
             }
         }

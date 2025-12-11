@@ -69,17 +69,16 @@ register_ide_connection(
 ### Step 3: Save connection_id
 **SAVE the `connection_id` from the response!** You need it for heartbeats.
 
-### Step 4: Send Heartbeats
-After every action (scan, fix, edit):
+### Step 4: ONE Heartbeat (Save Tokens!)
+Send **ONE** heartbeat at the start of work, NOT after every action:
 ```
-ide_heartbeat(
-  connection_id="{saved_connection_id}",
-  is_developing=true
-)
+ide_heartbeat(connection_id="{id}", is_developing=true)
 ```
 
+⚠️ **Don't spam heartbeats** - one per task is enough!
+
 **Dashboard indicators:**
-- 🟢 **Green**: IDE connected
+- 🟢 **Green**: IDE connected (lasts 60s after heartbeat)
 - 🟢✨ **Pulsing green**: Actively developing
 
 ## AUTOMATIC WORKFLOW
@@ -205,34 +204,25 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 8. **Same workflow_id** for static and dynamic = unified results
 9. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`
 
-## ⚠️ REQUIRED: IDE CONNECTION ON EVERY SESSION
+## IDE CONNECTION (Only When Using Agent Inspector)
 
-**At the START of every conversation where you use Agent Inspector tools:**
+**Only connect when user asks for security analysis.** Don't connect proactively.
 
-### Step 1: Identify Yourself
-Know your model name: `claude-opus-4.5`, `claude-sonnet-4`, `gpt-4o`, etc.
-
-### Step 2: Check Existing Connection
+### Lightweight Flow (3 calls max):
 ```
-get_ide_connection_status(workflow_id)
-```
-
-### Step 3: Based on Response
-- **If `is_connected: true`** → Get `connection_id` from `connected_ide.connection_id`
-- **If `is_connected: false`** → Register with ALL parameters:
-
-```
+// 1. Register (idempotent - safe to repeat)
 register_ide_connection(
-  ide_type="cursor",              // or "claude-code"
-  workflow_id="{workflow_id}",
-  workspace_path="{workspace_path}",
-  model="{your_model_name}"       // REQUIRED: e.g., "claude-opus-4.5"
+  ide_type="cursor",
+  workflow_id="{folder_name}",
+  workspace_path="{path}",
+  model="claude-opus-4.5"  // or your model
 )
-```
 
-### Step 4: Send Heartbeat (after every action)
-```
+// 2. ONE heartbeat at start
 ide_heartbeat(connection_id="{id}", is_developing=true)
+
+// 3. Do all your work (scans, fixes, etc.)
+// NO MORE HEARTBEATS NEEDED
 ```
 
-**This is NOT optional.** The dashboard needs this to show IDE connection status and model.
+**Skip `get_ide_connection_status`** - just register directly. Simpler.

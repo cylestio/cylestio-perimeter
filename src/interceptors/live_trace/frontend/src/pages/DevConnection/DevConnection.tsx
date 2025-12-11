@@ -5,19 +5,19 @@ import {
   Monitor,
   Check,
   X,
-  RefreshCw,
   Terminal,
   Code,
-  Bot,
   Zap,
-  Clock,
   User,
   FolderOpen,
   Server,
   Copy,
   CheckCircle,
-  Cpu
+  Cpu,
+  Clock
 } from 'lucide-react';
+
+import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
 import { useParams } from 'react-router-dom';
 
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
@@ -53,19 +53,12 @@ import {
   StepTitle,
   StepDescription,
   CodeBlock,
-  RefreshButton,
   LiveIndicator,
   LiveDot,
   ConnectionDetails,
   DetailItem,
   DetailLabel,
   DetailValue,
-  ConnectionHistory,
-  HistoryItem,
-  HistoryIcon,
-  HistoryInfo,
-  HistoryTitle,
-  HistoryMeta,
   DevelopingBanner,
   DevelopingIcon,
   DevelopingContent,
@@ -95,13 +88,13 @@ const ideInfoList: IDEInfoType[] = [
     id: 'cursor',
     name: 'Cursor',
     description: 'AI-powered code editor with MCP support',
-    icon: <Monitor size={24} />,
+    icon: <CursorIcon size={24} />,
   },
   {
     id: 'claude-code',
     name: 'Claude Code',
     description: 'Claude coding assistant CLI',
-    icon: <Bot size={24} />,
+    icon: <ClaudeCodeIcon size={24} />,
   },
 ];
 
@@ -109,12 +102,6 @@ const ideInfoList: IDEInfoType[] = [
 function getIDEDisplayName(ideType: string): string {
   const ide = ideInfoList.find(i => i.id === ideType);
   return ide?.name ?? ideType;
-}
-
-// Get IDE icon
-function getIDEIcon(ideType: string): ReactNode {
-  const ide = ideInfoList.find(i => i.id === ideType);
-  return ide?.icon ?? <Monitor size={24} />;
 }
 
 // The instructions URL that users paste into their IDE
@@ -126,7 +113,6 @@ const SETUP_MESSAGE = `Install Agent Inspector from: ${SETUP_INSTRUCTIONS_URL}`;
 export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
   const { agentId } = useParams<{ agentId: string }>();
   const [connectionStatus, setConnectionStatus] = useState<IDEConnectionStatus | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
   const [copied, setCopied] = useState(false);
 
   usePageMeta({
@@ -147,6 +133,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
       setConnectionStatus({
         is_connected: false,
         is_developing: false,
+        has_ever_connected: false,
         connected_ide: null,
         active_connections: [],
         recent_connections: [],
@@ -163,12 +150,6 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const handleRefresh = async () => {
-    setIsChecking(true);
-    await fetchStatus();
-    setTimeout(() => setIsChecking(false), 500);
-  };
-
   const handleCopyInstructions = async () => {
     try {
       await navigator.clipboard.writeText(SETUP_MESSAGE);
@@ -183,7 +164,6 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
   const isDeveloping = connectionStatus?.is_developing ?? false;
   const hasEverConnected = connectionStatus?.has_ever_connected ?? false;
   const connectedIDE = connectionStatus?.connected_ide;
-  const recentConnections = connectionStatus?.recent_connections ?? [];
 
   // Check which IDEs are connected
   const connectedIDETypes = new Set(
@@ -207,7 +187,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
       return `Connected to ${connectedIDE ? getIDEDisplayName(connectedIDE.ide_type) : 'IDE'}`;
     }
     if (hasEverConnected && connectedIDE) {
-      return `Last connected: ${getIDEDisplayName(connectedIDE.ide_type)}`;
+      return `${getIDEDisplayName(connectedIDE.ide_type)} Configured`;
     }
     return 'Not Connected';
   };
@@ -217,19 +197,19 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
       return 'Actively developing agent code. Changes are being tracked.';
     }
     if (isConnected) {
-      return `IDE connected and ready for security analysis. Last seen: ${connectedIDE?.last_seen_relative ?? 'just now'}`;
+      return 'IDE connected and ready for security analysis.';
     }
     if (hasEverConnected && connectedIDE) {
-      return `Connection inactive. Last activity: ${connectedIDE.last_seen_relative}. Start your IDE to reconnect.`;
+      return 'IDE setup complete. Ready for security analysis when you need it.';
     }
     return 'Connect your IDE to enable AI-powered security scanning in your development workflow';
   };
 
   const getBadgeText = () => {
-    if (isDeveloping) return 'Developing';
+    if (isDeveloping) return 'Active';
     if (isConnected) return 'Connected';
-    if (hasEverConnected) return 'Idle';
-    return 'Inactive';
+    if (hasEverConnected) return 'Ready';
+    return 'Setup';
   };
 
   return (
@@ -242,10 +222,6 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
           </PageTitle>
           <PageSubtitle>Connect your development environment for AI-powered security scanning</PageSubtitle>
         </PageInfo>
-        <RefreshButton onClick={handleRefresh} disabled={isChecking}>
-          <RefreshCw size={14} className={isChecking ? 'spinning' : ''} />
-          {isChecking ? 'Checking...' : 'Check Connection'}
-        </RefreshButton>
       </PageHeader>
 
       {/* Actively Developing Banner */}
@@ -284,31 +260,31 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
             <ConnectionDetails style={{ marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.2)' }}>
               {connectedIDE.user && (
                 <DetailItem>
-                  <DetailLabel><User size={10} /> User</DetailLabel>
+                  <DetailLabel><User size={10} />&nbsp;User</DetailLabel>
                   <DetailValue>{connectedIDE.user}</DetailValue>
                 </DetailItem>
               )}
               {connectedIDE.host && (
                 <DetailItem>
-                  <DetailLabel><Server size={10} /> Host</DetailLabel>
+                  <DetailLabel><Server size={10} />&nbsp;Host</DetailLabel>
                   <DetailValue>{connectedIDE.host}</DetailValue>
                 </DetailItem>
               )}
               <DetailItem>
-                <DetailLabel><FolderOpen size={10} /> Workspace</DetailLabel>
+                <DetailLabel><FolderOpen size={10} />&nbsp;Workspace</DetailLabel>
                 <DetailValue>{connectedIDE.workspace_path || 'Unknown'}</DetailValue>
               </DetailItem>
               <DetailItem>
-                <DetailLabel><Clock size={10} /> Connected</DetailLabel>
+                <DetailLabel><Clock size={10} />&nbsp;Connected</DetailLabel>
                 <DetailValue>{new Date(connectedIDE.connected_at).toLocaleString()}</DetailValue>
               </DetailItem>
               <DetailItem>
-                <DetailLabel><Zap size={10} /> Last Seen</DetailLabel>
-                <DetailValue>{connectedIDE.last_seen_relative}</DetailValue>
+                <DetailLabel><Zap size={10} />&nbsp;Last Dev Check</DetailLabel>
+                <DetailValue>{new Date(connectedIDE.last_heartbeat).toLocaleString()}</DetailValue>
               </DetailItem>
               {connectedIDE.model && (
                 <DetailItem>
-                  <DetailLabel><Cpu size={10} /> Model</DetailLabel>
+                  <DetailLabel><Cpu size={10} />&nbsp;Model</DetailLabel>
                   <DetailValue>{connectedIDE.model}</DetailValue>
                 </DetailItem>
               )}
@@ -321,7 +297,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
             {getBadgeText()}
           </LiveIndicator>
         ) : (
-          <Badge variant="medium">Inactive</Badge>
+          <Badge variant="medium">Setup Required</Badge>
         )}
       </ConnectionStatus>
 
@@ -335,7 +311,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
         <Section.Content>
           <IDEList>
             {ideInfoList.map((ide) => {
-              const isIDECurrentlyConnected = connectedIDETypes.has(ide.id);
+              const isIDECurrentlyConnected = connectedIDETypes.has(ide.id as 'cursor' | 'claude-code');
               const wasIDEEverConnected = connectedIDE?.ide_type === ide.id;
               const isIDEConnected = isIDECurrentlyConnected || wasIDEEverConnected;
               return (
@@ -370,34 +346,6 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
         </Section.Content>
       </Section>
 
-      {/* Recent Connections */}
-      {recentConnections.length > 0 && !isConnected && (
-        <Section>
-          <Section.Header>
-            <Section.Title icon={<Clock size={16} />}>
-              Recent Connections
-            </Section.Title>
-          </Section.Header>
-          <Section.Content>
-            <ConnectionHistory>
-              {recentConnections.slice(0, 5).map((connection) => (
-                <HistoryItem key={connection.connection_id}>
-                  <HistoryIcon>
-                    {getIDEIcon(connection.ide_type)}
-                  </HistoryIcon>
-                  <HistoryInfo>
-                    <HistoryTitle>{getIDEDisplayName(connection.ide_type)}</HistoryTitle>
-                    <HistoryMeta>
-                      {connection.is_active ? 'Active' : `Disconnected ${connection.last_seen_relative}`}
-                      {connection.workspace_path && ` • ${connection.workspace_path}`}
-                    </HistoryMeta>
-                  </HistoryInfo>
-                </HistoryItem>
-              ))}
-            </ConnectionHistory>
-          </Section.Content>
-        </Section>
-      )}
 
       {/* Quick Setup - Primary Method */}
       <Section>

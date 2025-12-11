@@ -308,47 +308,38 @@ If `register_ide_connection` fails:
 2. **Retry on EVERY subsequent MCP call** - Before any other Agent Inspector tool, try again
 3. **Only stop retrying** when you get a successful `connection_id` back
 
-### 9.5 Heartbeat Strategy
+### 9.5 Heartbeat Strategy (MINIMAL - Save Tokens!)
 
-**After every significant action, send a heartbeat:**
+⚠️ **DO NOT send heartbeats after every action!** This wastes tokens and context.
 
+**Send heartbeats ONLY:**
+1. **Once at the START** of Agent Inspector work (after registration)
+2. **Once at the END** of a complete task (optional)
+
+That's it! The dashboard will show "connected" for 60 seconds after each heartbeat.
+
+**Example minimal flow:**
 ```
-ide_heartbeat(
-  connection_id="ide_abc123def456",  // The ID from registration
-  is_developing=true                  // true when editing code
-)
+// User: "Scan my agent for security issues"
+register_ide_connection(...)  // Only if not already registered
+ide_heartbeat(connection_id, is_developing=true)  // ONE heartbeat at start
+// ... do all the scanning work ...
+// Done! No more heartbeats needed
 ```
-
-**When to send heartbeats:**
-| Action | Send heartbeat? | is_developing |
-|--------|----------------|---------------|
-| Before scanning code | ✅ Yes | `true` |
-| After storing findings | ✅ Yes | `true` |
-| After fixing code | ✅ Yes | `true` |
-| Just answering questions | ✅ Yes | `false` |
-| User is idle | Optional | `false` |
 
 ---
 
-## ⚠️ IMPORTANT: RECONNECTION ON FUTURE SESSIONS
+## ⚠️ RECONNECTION ON FUTURE SESSIONS (Lightweight)
 
-**At the START of every new conversation, do this:**
+**Only register when user asks for Agent Inspector features.** Don't register proactively.
 
-### Step 1: Check if already connected
-```
-get_ide_connection_status(workflow_id="the-workflow-id")
-```
+### When user asks for security analysis:
+1. Call `register_ide_connection()` (idempotent - safe to call again)
+2. Send ONE `ide_heartbeat(is_developing=true)`
+3. Do the work
+4. Done - no more calls needed
 
-### Step 2: Based on response
-- **If `is_connected: true`** → Get `connection_id` from `connected_ide.connection_id`, use for heartbeats
-- **If `is_connected: false`** → Call `register_ide_connection()` with all parameters including `model`
-
-### Step 3: Send heartbeat
-```
-ide_heartbeat(connection_id="...", is_developing=true)
-```
-
-The backend stores connection state - you just need to check and reconnect each session!
+**Skip `get_ide_connection_status`** - just register directly. It's simpler and uses same tokens.
 
 ---
 
