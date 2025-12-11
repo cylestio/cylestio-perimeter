@@ -4,7 +4,8 @@ export const SessionLayout = styled.div`
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: ${({ theme }) => theme.spacing[6]};
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
 
   @media (max-width: ${({ theme }) => theme.breakpoints.lg}) {
     grid-template-columns: 1fr;
@@ -15,12 +16,15 @@ export const SessionSidebar = styled.aside`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[4]};
+  align-self: start;
 `;
 
 export const SessionMain = styled.main`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[4]};
+  min-height: 0;
+  flex: 1;
 `;
 
 export const MetricCard = styled.div`
@@ -56,7 +60,8 @@ export const MetricValue = styled.div`
 
 export const TimelineContent = styled.div`
   padding: ${({ theme }) => theme.spacing[5]};
-  max-height: 600px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 `;
 
