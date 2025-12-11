@@ -97,7 +97,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Workflows', href: '/' },
+      { label: 'Agents', href: '/' },
       { label: workflowId || '', href: `/workflow/${workflowId}` },
       { label: 'Static Analysis' },
     ],
@@ -120,7 +120,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
       <PageHeader>
         <PageInfo>
           <PageTitle>Static Analysis</PageTitle>
-          <PageSubtitle>Workflow: {workflowId}</PageSubtitle>
+          <PageSubtitle>Agent: {workflowId}</PageSubtitle>
         </PageInfo>
         <PageStats>
           <StatBadge>

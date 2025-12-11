@@ -75,7 +75,7 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
     },
     {
       key: 'agent_id',
-      header: 'Agent',
+      header: 'System prompt',
       width: '180px',
       render: (session) => {
         const agentName = getAgentName(session);

@@ -166,11 +166,11 @@ export const AgentDetail: FC = () => {
     enabled: !!agentId,
   });
 
-  // Set breadcrumbs with workflow context
+  // Set breadcrumbs with agent (workflow) context
   usePageMeta({
     breadcrumbs: buildWorkflowBreadcrumbs(
       workflowId,
-      { label: 'Agent' },
+      { label: 'System prompt' },
       { label: agentId?.substring(0, 12) + '...' || '' }
     ),
   });
@@ -184,7 +184,7 @@ export const AgentDetail: FC = () => {
   }
 
   if (error || !data) {
-    return <EmptyState title="Failed to load agent" description={error || 'Agent not found'} />;
+    return <EmptyState title="Failed to load system prompt" description={error || 'System prompt not found'} />;
   }
 
   const agent = data.agent;
@@ -403,7 +403,7 @@ export const AgentDetail: FC = () => {
                   </BehavioralMetrics>
                 ) : (
                   <PlaceholderMessage>
-                    Behavioral scores require cluster formation. Once the agent has more sessions with
+                    Behavioral scores require cluster formation. Once the system prompt has more sessions with
                     similar patterns, detailed stability metrics will be available.
                   </PlaceholderMessage>
                 )}
@@ -422,11 +422,11 @@ export const AgentDetail: FC = () => {
                   columns={getSessionColumns(workflowId || 'unassigned')}
                   data={data.sessions}
                   keyExtractor={(session) => session.id}
-                  emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
+                  emptyState={<EmptySessions>No sessions found for this system prompt.</EmptySessions>}
                 />
               ) : (
                 <EmptySessions>
-                  <p>No sessions found for this agent.</p>
+                  <p>No sessions found for this system prompt.</p>
                 </EmptySessions>
               )}
             </Section.Content>
@@ -477,7 +477,7 @@ export const AgentDetail: FC = () => {
 
                   {/* Inline PII note */}
                   {riskAnalysis?.summary?.pii_disabled && (
-                    <PIINote>PII detection unavailable for this agent</PIINote>
+                    <PIINote>PII detection unavailable for this system prompt</PIINote>
                   )}
 
                   {/* Issues list */}

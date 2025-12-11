@@ -142,11 +142,11 @@ export const AgentReport: FC = () => {
     enabled: !!agentId,
   });
 
-  // Set breadcrumbs with workflow context
+  // Set breadcrumbs with agent (workflow) context
   usePageMeta({
     breadcrumbs: buildWorkflowBreadcrumbs(
       workflowId,
-      { label: 'Agent', href: workflowLink(workflowId, `/agent/${agentId}`) },
+      { label: 'System prompt', href: workflowLink(workflowId, `/agent/${agentId}`) },
       { label: agentId?.substring(0, 12) + '...' || '', href: workflowLink(workflowId, `/agent/${agentId}`) },
       { label: 'Full Report' }
     ),
@@ -168,7 +168,7 @@ export const AgentReport: FC = () => {
   }
 
   if (error || !data) {
-    return <EmptyState title="Failed to load report" description={error || 'Agent not found'} />;
+    return <EmptyState title="Failed to load report" description={error || 'System prompt not found'} />;
   }
 
   const agent = data.agent;
@@ -185,10 +185,10 @@ export const AgentReport: FC = () => {
   return (
     <ReportLayout>
       <ReportSidebar>
-        {/* Agent Identity Card */}
+        {/* System Prompt Identity Card */}
         <InfoCard
-          title="Agent Identity"
-          primaryLabel="AGENT ID"
+          title="System Prompt Identity"
+          primaryLabel="ID"
           primaryValue={agent.id}
           stats={[
             { label: 'FIRST SEEN', badge: <TimeAgo timestamp={agent.first_seen} /> },
@@ -265,7 +265,7 @@ export const AgentReport: FC = () => {
               />
               <EvaluationDescription style={{ marginTop: '12px' }}>
                 We need at least {status.minSessionsRequired} sessions to provide meaningful risk
-                analysis. Keep using your agent to build up session history.
+                analysis. Keep using your system prompt to build up session history.
               </EvaluationDescription>
             </Section.Content>
           </Section>
@@ -510,7 +510,7 @@ export const AgentReport: FC = () => {
                 </CategoryBadges>
               </CategoryTitleRow>
               <CategoryDescription>
-                Analyze behavior, flag outliers, and forecast the probability your agent stays on
+                Analyze behavior, flag outliers, and forecast the probability your system prompt stays on
                 track, predictable, and stable.
               </CategoryDescription>
             </BehavioralHeader>
@@ -625,7 +625,7 @@ export const AgentReport: FC = () => {
                 </>
               ) : (
                 <InterpretationBox>
-                  Behavioral scores require cluster formation. Once the agent has more sessions
+                  Behavioral scores require cluster formation. Once the system prompt has more sessions
                   with similar patterns, clustering will occur and detailed stability metrics will
                   be available.
                 </InterpretationBox>

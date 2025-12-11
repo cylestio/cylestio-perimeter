@@ -3,8 +3,8 @@ import type { BreadcrumbItem } from '@ui/navigation/Breadcrumb';
 export type { BreadcrumbItem };
 
 /**
- * Builds breadcrumbs with workflow context.
- * Always starts with Workflows, then adds workflow name (or Unassigned), then page-specific items.
+ * Builds breadcrumbs with agent (workflow) context.
+ * Always starts with Agents, then adds agent name (or Unassigned), then page-specific items.
  */
 export function buildWorkflowBreadcrumbs(
   workflowId: string | null | undefined,
@@ -13,7 +13,7 @@ export function buildWorkflowBreadcrumbs(
   const wfId = workflowId || 'unassigned';
 
   return [
-    { label: 'Workflows', href: '/' },
+    { label: 'Agents', href: '/' },
     ...(wfId !== 'unassigned'
       ? [{ label: wfId, href: `/workflow/${wfId}` }]
       : [{ label: 'Unassigned', href: '/workflow/unassigned' }]),

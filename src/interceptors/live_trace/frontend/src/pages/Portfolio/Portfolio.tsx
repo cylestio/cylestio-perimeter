@@ -89,8 +89,8 @@ export const Portfolio: FC = () => {
 
   usePageMeta({
     breadcrumbs: workflowId
-      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Agents' })
-      : [{ label: 'Workflows', href: '/' }],
+      ? buildWorkflowBreadcrumbs(workflowId, { label: 'System prompts' })
+      : [{ label: 'Agents', href: '/' }],
   });
 
   // Calculate summary stats from agents
@@ -109,7 +109,7 @@ export const Portfolio: FC = () => {
           <StatCard
             icon={<Bot size={16} />}
             iconColor="cyan"
-            label="Total Agents"
+            label="Total System Prompts"
             value={isLoading ? '-' : totalAgents}
             detail={`${activeAgents} active sessions`}
             size="sm"
@@ -120,7 +120,7 @@ export const Portfolio: FC = () => {
             label="Total Errors"
             value={isLoading ? '-' : totalErrors}
             valueColor={totalErrors > 0 ? 'red' : undefined}
-            detail="Across all agents"
+            detail="Across all system prompts"
             size="sm"
           />
           <StatCard
@@ -129,7 +129,7 @@ export const Portfolio: FC = () => {
             label="OK Status"
             value={isLoading ? '-' : agents.filter((a) => a.risk_status === 'ok').length}
             valueColor="green"
-            detail="Evaluated agents"
+            detail="Evaluated system prompts"
             size="sm"
           />
           <StatCard
@@ -167,8 +167,8 @@ export const Portfolio: FC = () => {
               ) : agents.length === 0 ? (
                 <EmptyState
                   icon={<Bot size={24} />}
-                  title="No agents yet"
-                  description="Connect your first agent to get started. Go to the Connect page for instructions."
+                  title="No system prompts yet"
+                  description="Connect your first system prompt to get started. Go to the Connect page for instructions."
                 />
               ) : (
                 agents.map((agent) => (

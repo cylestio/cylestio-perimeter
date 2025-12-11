@@ -47,11 +47,11 @@ const getColumns = (workflowId: string, showAgentColumn: boolean): Column<Sessio
     },
   ];
 
-  // Optionally show agent column
+  // Optionally show system prompt column
   if (showAgentColumn) {
     columns.push({
       key: 'agent_id',
-      header: 'Agent',
+      header: 'System prompt',
       render: (session) => (
         <Link
           to={`/workflow/${workflowId}/agent/${session.agent_id}`}

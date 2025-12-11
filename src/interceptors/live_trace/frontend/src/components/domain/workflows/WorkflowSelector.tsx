@@ -37,7 +37,7 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
   workflows,
   selectedWorkflow,
   onSelect,
-  label = 'Workflow',
+  label = 'Agent',
   collapsed = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,7 +83,7 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
   if (collapsed) {
     return (
       <WorkflowSelectorContainer ref={containerRef} $collapsed>
-        <WorkflowIcon title={displayWorkflow?.name ?? 'Workflow'}>
+        <WorkflowIcon title={displayWorkflow?.name ?? 'Agent'}>
           <Folder size={20} />
         </WorkflowIcon>
       </WorkflowSelectorContainer>
@@ -108,7 +108,7 @@ export const WorkflowSelector: FC<WorkflowSelectorProps> = ({
         </WorkflowIcon>
         <WorkflowInfo>
           <Text size="sm" truncate>
-            {displayWorkflow?.name ?? 'Select workflow'}
+            {displayWorkflow?.name ?? 'Select agent'}
           </Text>
         </WorkflowInfo>
         <Badge variant="info" size="sm">

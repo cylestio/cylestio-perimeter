@@ -269,7 +269,7 @@ function AppLayout() {
                 />
               )}
               <NavItem
-                label="Agents"
+                label="System prompts"
                 icon={<LayoutDashboard size={18} />}
                 badge={agents.length > 0 ? agents.length : undefined}
                 active={urlWorkflowId ? location.pathname === `/workflow/${urlWorkflowId}/agents` : location.pathname === '/'}
@@ -289,11 +289,11 @@ function AppLayout() {
             </NavGroup>
           )}
 
-          {/* Agent List - only show when NOT on root page */}
+          {/* System Prompts List - only show when NOT on root page */}
           {!isRootPage && !sidebarCollapsed && agents.length > 0 && (
             <div style={{ marginTop: 16, marginBottom: 8, paddingLeft: 12 }}>
               <Label size="xs" uppercase>
-                Agents ({agents.length})
+                System prompts ({agents.length})
               </Label>
             </div>
           )}

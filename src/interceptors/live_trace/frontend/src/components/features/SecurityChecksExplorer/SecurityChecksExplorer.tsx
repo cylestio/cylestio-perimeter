@@ -137,7 +137,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
           </AgentLink>
           {hasMultipleAgents && (
             <AgentCounter>
-              Agent {currentIndex + 1} of {agents.length}
+              System prompt {currentIndex + 1} of {agents.length}
             </AgentCounter>
           )}
           {currentAgent.latest_check_at && (
@@ -174,7 +174,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
               onClick={handlePrevious}
               disabled={currentIndex === 0}
               $disabled={currentIndex === 0}
-              aria-label="Previous agent"
+              aria-label="Previous system prompt"
             >
               <ChevronLeft size={16} />
             </NavButton>
@@ -182,7 +182,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
               onClick={handleNext}
               disabled={currentIndex === agents.length - 1}
               $disabled={currentIndex === agents.length - 1}
-              aria-label="Next agent"
+              aria-label="Next system prompt"
             >
               <ChevronRight size={16} />
             </NavButton>
@@ -192,7 +192,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
 
       {currentAgent.checks.length === 0 ? (
         <EmptyState>
-          <p>No checks for this agent yet.</p>
+          <p>No checks for this system prompt yet.</p>
         </EmptyState>
       ) : (
         <ChecksGrid>

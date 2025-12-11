@@ -86,7 +86,7 @@ export const Sessions: FC = () => {
     <PageContainer>
       <PageHeader
         title="Sessions"
-        description={`${sessions.length} session${sessions.length !== 1 ? 's' : ''} from all agents in this workflow`}
+        description={`${sessions.length} session${sessions.length !== 1 ? 's' : ''} from all system prompts in this agent`}
       />
       <Card>
         <Card.Content noPadding>
@@ -94,7 +94,7 @@ export const Sessions: FC = () => {
             sessions={sessions}
             workflowId={workflowId || 'unassigned'}
             showAgentColumn={true}
-            emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
+            emptyMessage="No sessions recorded for this agent yet. Sessions will appear here once system prompts start processing requests."
           />
         </Card.Content>
       </Card>

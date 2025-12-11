@@ -141,7 +141,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Workflows', href: '/' },
+      { label: 'Agents', href: '/' },
       { label: workflowId || '' },
     ],
   });
@@ -155,7 +155,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   }
 
   if (error) {
-    return <EmptyState title="Failed to load workflow" description={error} />;
+    return <EmptyState title="Failed to load agent" description={error} />;
   }
 
   const openCount = findingsSummary?.open_count || 0;
@@ -210,13 +210,13 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
       {/* Header */}
       <WorkflowHeader>
         <WorkflowInfo>
-          <WorkflowName>Workflow</WorkflowName>
+          <WorkflowName>Agent</WorkflowName>
           <WorkflowId>{workflowId}</WorkflowId>
         </WorkflowInfo>
         <WorkflowStats>
           <StatBadge>
             <Bot size={14} />
-            <StatValue>{agents.length}</StatValue> agents
+            <StatValue>{agents.length}</StatValue> system prompts
           </StatBadge>
           {analysisSessions.length > 0 && (
             <StatBadge>
@@ -249,7 +249,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
         workflowId={workflowId || 'unassigned'}
         loading={liveSessionsLoading}
         showAgentColumn
-        emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
+        emptyMessage="No sessions recorded for this agent yet. Sessions will appear here once system prompts start processing requests."
         header={
           <>
             <Section.Title>Recent Sessions</Section.Title>
@@ -355,10 +355,10 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
         </Section.Content>
       </Section>
 
-      {/* Agents List */}
+      {/* System Prompts List */}
       <Section>
         <Section.Header>
-          <Section.Title icon={<Bot size={16} />}>Agents ({agents.length})</Section.Title>
+          <Section.Title icon={<Bot size={16} />}>System Prompts ({agents.length})</Section.Title>
         </Section.Header>
         <Section.Content>
           {agents.length > 0 ? (
@@ -386,9 +386,9 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
             </AgentList>
           ) : (
             <EmptyContent>
-              <p>No agents in this workflow yet.</p>
+              <p>No system prompts in this agent yet.</p>
               <p style={{ fontSize: '12px' }}>
-                Agents will appear here when they connect using this workflow ID.
+                System prompts will appear here when they connect using this agent ID.
               </p>
             </EmptyContent>
           )}

@@ -54,11 +54,11 @@ const toAgentRow = (agent: APIAgent): AgentRow => ({
   status: agent.risk_status,
 });
 
-// Table columns for unassigned agents
+// Table columns for unassigned system prompts
 const agentColumns: Column<AgentRow>[] = [
   {
     key: 'name',
-    header: 'Agent',
+    header: 'System prompt',
     render: (row) => (
       <span style={{ fontWeight: 500 }}>{row.name}</span>
     ),
@@ -113,7 +113,7 @@ export const WorkflowsHome: FC = () => {
   const [loading, setLoading] = useState(true);
 
   usePageMeta({
-    breadcrumbs: [{ label: 'Workflows', href: '/' }],
+    breadcrumbs: [{ label: 'Agents', href: '/' }],
   });
 
   const loadData = useCallback(async () => {
@@ -155,21 +155,21 @@ export const WorkflowsHome: FC = () => {
         {/* Hero Section */}
         <HeroSection>
           <HeroTitle>
-            Your <HeroHighlight>Workflows</HeroHighlight>
+            Your <HeroHighlight>Agents</HeroHighlight>
           </HeroTitle>
           <HeroSubtitle>
-            Workflows organize your agents by project. Each workflow can have its own
-            static analysis, security scans, and recommendations. Select a workflow
+            Agents organize your system prompts by project. Each agent can have its own
+            static analysis, security scans, and recommendations. Select an agent
             to view detailed insights.
           </HeroSubtitle>
         </HeroSection>
 
-        {/* Workflows Grid */}
+        {/* Agents Grid */}
         <div>
           <SectionHeader>
             <SectionTitle>
               <Folder size={18} />
-              Workflows
+              Agents
               {hasWorkflows && <SectionBadge>{workflows.length}</SectionBadge>}
             </SectionTitle>
           </SectionHeader>
@@ -197,9 +197,9 @@ export const WorkflowsHome: FC = () => {
                 <EmptyIcon>
                   <Folder size={24} />
                 </EmptyIcon>
-                <EmptyTitle>No workflows yet</EmptyTitle>
+                <EmptyTitle>No agents yet</EmptyTitle>
                 <EmptyDescription>
-                  Connect an agent with a workflow ID to create your first workflow.
+                  Connect a system prompt with an agent ID to create your first agent.
                   Go to the Connect page for instructions.
                 </EmptyDescription>
               </EmptyWorkflows>
@@ -207,14 +207,14 @@ export const WorkflowsHome: FC = () => {
           </WorkflowsGrid>
         </div>
 
-        {/* Unassigned Agents Section - only show if there are any */}
+        {/* Unassigned System Prompts Section - only show if there are any */}
         {(hasUnassignedAgents || loading) && (
           <UnassignedSection>
             <Table
               header={
                 <SectionTitle>
                   <Bot size={18} />
-                  Unassigned Agents
+                  Unassigned System Prompts
                   {hasUnassignedAgents && <SectionBadge>{unassignedAgents.length}</SectionBadge>}
                 </SectionTitle>
               }
@@ -225,7 +225,7 @@ export const WorkflowsHome: FC = () => {
               keyExtractor={(row) => row.id}
               emptyState={
                 <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-white-50)' }}>
-                  No unassigned agents
+                  No unassigned system prompts
                 </div>
               }
             />

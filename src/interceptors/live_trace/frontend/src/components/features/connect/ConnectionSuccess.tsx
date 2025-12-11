@@ -19,12 +19,12 @@ import {
 
 export interface ConnectionSuccessProps {
   agentCount: number;
-  onViewWorkflows: () => void;
+  onViewAgents: () => void;
 }
 
 export const ConnectionSuccess: FC<ConnectionSuccessProps> = ({
   agentCount,
-  onViewWorkflows,
+  onViewAgents,
 }) => (
   <SuccessContainer>
     <IconContainer>
@@ -34,14 +34,14 @@ export const ConnectionSuccess: FC<ConnectionSuccessProps> = ({
     <ContentSection>
       <Title>Connection Successful</Title>
       <Subtitle>
-        Your agent{agentCount !== 1 ? 's are' : ' is'} now being monitored
+        Your system prompt{agentCount !== 1 ? 's are' : ' is'} now being monitored
       </Subtitle>
     </ContentSection>
 
     <StatsSection>
       <Stat>
         <StatValue>{agentCount}</StatValue>
-        <StatLabel>Agent{agentCount !== 1 ? 's' : ''}</StatLabel>
+        <StatLabel>System prompt{agentCount !== 1 ? 's' : ''}</StatLabel>
       </Stat>
     </StatsSection>
 
@@ -50,9 +50,9 @@ export const ConnectionSuccess: FC<ConnectionSuccessProps> = ({
         variant="primary"
         size="md"
         icon={<ArrowRight size={16} />}
-        onClick={onViewWorkflows}
+        onClick={onViewAgents}
       >
-        View Workflows
+        View Agents
       </Button>
     </ActionSection>
   </SuccessContainer>

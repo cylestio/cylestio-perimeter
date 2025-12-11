@@ -96,7 +96,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Workflows', href: '/' },
+      { label: 'Agents', href: '/' },
       { label: workflowId || '', href: `/workflow/${workflowId}` },
       { label: 'Dynamic Analysis' },
     ],
@@ -118,7 +118,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
       <PageHeader>
         <PageInfo>
           <PageTitle>Dynamic Analysis</PageTitle>
-          <PageSubtitle>Workflow: {workflowId}</PageSubtitle>
+          <PageSubtitle>Agent: {workflowId}</PageSubtitle>
         </PageInfo>
         <PageStats>
           <StatBadge>
@@ -173,7 +173,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         <Section.Header>
           <Section.Title icon={<Shield size={16} />}>Latest Security Checks</Section.Title>
           {checksSummary && checksSummary.agents_analyzed > 0 && (
-            <Badge variant="medium">{checksSummary.agents_analyzed} agents</Badge>
+            <Badge variant="medium">{checksSummary.agents_analyzed} system prompts</Badge>
           )}
         </Section.Header>
         <Section.Content>
