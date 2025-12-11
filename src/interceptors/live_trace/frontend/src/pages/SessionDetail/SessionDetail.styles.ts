@@ -2,7 +2,7 @@ import styled from 'styled-components';
 
 export const SessionLayout = styled.div`
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 310px 1fr;
   gap: ${({ theme }) => theme.spacing[6]};
   height: 100%;
   min-height: 0;
@@ -167,4 +167,106 @@ export const ResponseEmpty = styled.div`
 
 export const ResponseEmptyIcon = styled.div`
   font-size: ${({ theme }) => theme.typography.text3xl};
+`;
+
+// Replay Panel Additional Styles
+export const ReplayPanelContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const ProviderBadge = styled.span<{ $provider: 'openai' | 'anthropic' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  background: ${({ $provider, theme }) =>
+    $provider === 'openai' ? theme.colors.greenSoft : theme.colors.orangeSoft};
+  color: ${({ $provider, theme }) =>
+    $provider === 'openai' ? theme.colors.green : theme.colors.orange};
+`;
+
+export const ToggleToolsButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  background: ${({ theme }) => theme.colors.surface3};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  color: ${({ theme }) => theme.colors.white70};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surface4};
+    color: ${({ theme }) => theme.colors.white90};
+    border-color: ${({ theme }) => theme.colors.borderMedium};
+  }
+`;
+
+export const ApiKeyWarning = styled.div`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.orange};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  margin-top: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const ToolCallBlock = styled.div`
+  background: ${({ theme }) => theme.colors.orangeSoft};
+  border: 1px solid ${({ theme }) => theme.colors.orange};
+  border-radius: ${({ theme }) => theme.radii.md};
+  padding: ${({ theme }) => theme.spacing[3]};
+  margin-top: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const ToolCallCode = styled.pre`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  margin-top: ${({ theme }) => theme.spacing[2]};
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
+export const RawResponseToggle = styled.details`
+  margin-top: ${({ theme }) => theme.spacing[4]};
+
+  > summary {
+    cursor: pointer;
+    font-size: ${({ theme }) => theme.typography.textXs};
+    color: ${({ theme }) => theme.colors.white50};
+    user-select: none;
+    transition: color ${({ theme }) => theme.transitions.fast};
+
+    &:hover {
+      color: ${({ theme }) => theme.colors.white70};
+    }
+  }
+`;
+
+export const RawResponseCode = styled.pre`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textXs};
+  margin-top: ${({ theme }) => theme.spacing[2]};
+  background: ${({ theme }) => theme.colors.surface};
+  padding: ${({ theme }) => theme.spacing[3]};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  overflow: auto;
+  max-height: 300px;
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+export const ResponseContentItem = styled.div`
+  margin-top: ${({ theme }) => theme.spacing[3]};
+
+  &:first-child {
+    margin-top: 0;
+  }
 `;

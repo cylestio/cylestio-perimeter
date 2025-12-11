@@ -345,7 +345,7 @@ export const Timeline: FC<TimelineProps> = ({ events, sessionId, systemPrompt, o
 
         return (
           <TimelineItem
-            key={event.id || index}
+            key={event.id ? `${event.id}-${event.event_type}` : `${index}`}
             event={event}
             sessionId={sessionId}
             onReplay={onReplay}

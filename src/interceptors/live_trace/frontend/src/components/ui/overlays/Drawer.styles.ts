@@ -35,6 +35,7 @@ export const DrawerOverlay = styled.div<DrawerOverlayProps>`
     $showOverlay &&
     css`
       background: ${theme.colors.void}60;
+      backdrop-filter: blur(4px);
     `}
 `;
 

@@ -3,7 +3,7 @@ import styled, { css } from 'styled-components';
 export const CheckboxWrapper = styled.label`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: ${({ theme }) => theme.spacing[2]};
   cursor: pointer;
 
   &[data-disabled='true'] {
@@ -29,12 +29,12 @@ export const StyledCheckbox = styled.span<StyledCheckboxProps>`
   width: 16px;
   height: 16px;
   border-radius: ${({ theme }) => theme.radii.sm};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  background: ${({ theme }) => theme.colors.surface2};
+  border: 1px solid ${({ theme }) => theme.colors.borderStrong};
+  background: ${({ theme }) => theme.colors.surface3};
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 150ms ease;
+  transition: all ${({ theme }) => theme.transitions.fast};
   flex-shrink: 0;
 
   svg {
@@ -42,7 +42,7 @@ export const StyledCheckbox = styled.span<StyledCheckboxProps>`
     height: 12px;
     color: ${({ theme }) => theme.colors.void};
     opacity: 0;
-    transition: opacity 150ms ease;
+    transition: opacity ${({ theme }) => theme.transitions.fast};
   }
 
   ${({ $checked, $indeterminate, theme }) =>
@@ -68,6 +68,6 @@ export const StyledCheckbox = styled.span<StyledCheckboxProps>`
 `;
 
 export const CheckboxLabel = styled.span`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.typography.textBase};
   color: ${({ theme }) => theme.colors.white};
 `;

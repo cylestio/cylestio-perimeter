@@ -196,7 +196,7 @@ export const SessionDetail: FC = () => {
         onClose={handleCloseReplay}
         sessionId={sessionId || ''}
         eventId={replayEventId || ''}
-        events={data.events}
+        events={data.timeline}
       />
     </>
   );

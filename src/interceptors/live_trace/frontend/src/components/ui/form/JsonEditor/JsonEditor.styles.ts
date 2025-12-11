@@ -13,16 +13,46 @@ export const JsonEditorLabel = styled.label`
 `;
 
 export const JsonEditorContainer = styled.div`
-  background: ${({ theme }) => theme.colors.white};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  background: ${({ theme }) => theme.colors.surface3};
+  border: 1px solid ${({ theme }) => theme.colors.borderStrong};
   border-radius: ${({ theme }) => theme.radii.md};
   padding: ${({ theme }) => theme.spacing[3]};
   overflow: auto;
   max-height: 400px;
 
-  /* Override json-edit-react styles to fit dark theme better */
+  /* Override json-edit-react default styles for dark theme */
   & > div {
     background: transparent !important;
+  }
+
+  /* Force dark theme on all input elements */
+  input,
+  textarea {
+    color: ${({ theme }) => theme.colors.white} !important;
+    background-color: ${({ theme }) => theme.colors.surface4} !important;
+    border: 1px solid ${({ theme }) => theme.colors.borderStrong} !important;
+    border-radius: ${({ theme }) => theme.radii.sm} !important;
+    caret-color: ${({ theme }) => theme.colors.cyan} !important;
+
+    &:focus {
+      border-color: ${({ theme }) => theme.colors.cyan} !important;
+      outline: none !important;
+      box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.cyanSoft} !important;
+    }
+
+    &::selection {
+      background: ${({ theme }) => theme.colors.cyanSoft} !important;
+      color: ${({ theme }) => theme.colors.white} !important;
+    }
+  }
+
+  /* Ensure buttons and interactive elements are visible */
+  button {
+    color: ${({ theme }) => theme.colors.white70} !important;
+    
+    &:hover {
+      color: ${({ theme }) => theme.colors.cyan} !important;
+    }
   }
 `;
 
@@ -32,8 +62,8 @@ export const JsonEditorEmpty = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.spacing[3]};
   padding: ${({ theme }) => theme.spacing[6]};
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px dashed ${({ theme }) => theme.colors.borderMedium};
+  background: ${({ theme }) => theme.colors.surface3};
+  border: 1px dashed ${({ theme }) => theme.colors.borderStrong};
   border-radius: ${({ theme }) => theme.radii.md};
 `;
 
@@ -47,8 +77,8 @@ export const AddButton = styled.button`
   align-items: center;
   gap: ${({ theme }) => theme.spacing[1]};
   padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
-  background: ${({ theme }) => theme.colors.surface3};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  background: ${({ theme }) => theme.colors.surface4};
+  border: 1px solid ${({ theme }) => theme.colors.borderStrong};
   border-radius: ${({ theme }) => theme.radii.md};
   color: ${({ theme }) => theme.colors.white90};
   font-size: ${({ theme }) => theme.typography.textSm};
@@ -57,9 +87,9 @@ export const AddButton = styled.button`
   transition: all ${({ theme }) => theme.transitions.fast};
 
   &:hover {
-    background: ${({ theme }) => theme.colors.surface4};
+    background: ${({ theme }) => theme.colors.cyan};
     border-color: ${({ theme }) => theme.colors.cyan};
-    color: ${({ theme }) => theme.colors.cyan};
+    color: ${({ theme }) => theme.colors.void};
   }
 `;
 
@@ -88,18 +118,25 @@ export const FallbackTextarea = styled.textarea`
   width: 100%;
   min-height: 200px;
   padding: ${({ theme }) => theme.spacing[3]};
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  background: ${({ theme }) => theme.colors.surface3};
+  border: 1px solid ${({ theme }) => theme.colors.borderStrong};
   border-radius: ${({ theme }) => theme.radii.md};
   color: ${({ theme }) => theme.colors.white90};
   font-family: ${({ theme }) => theme.typography.fontMono};
   font-size: ${({ theme }) => theme.typography.textSm};
   line-height: ${({ theme }) => theme.typography.lineHeightRelaxed};
   resize: vertical;
+  transition: all ${({ theme }) => theme.transitions.base};
+
+  &:hover:not(:focus) {
+    border-color: ${({ theme }) => theme.colors.white30};
+  }
 
   &:focus {
     outline: none;
+    background: ${({ theme }) => theme.colors.surface4};
     border-color: ${({ theme }) => theme.colors.cyan};
+    box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.cyanSoft};
   }
 
   &::placeholder {

@@ -2,6 +2,8 @@
 
 Quick lookup for design tokens. Always use theme values, never hardcode.
 
+See `src/theme/theme.ts` file for full list
+
 ---
 
 ## Colors
