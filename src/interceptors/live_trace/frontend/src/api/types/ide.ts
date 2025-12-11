@@ -10,6 +10,7 @@ export interface IDEConnection {
   host: string | null;
   user: string | null;
   workspace_path: string | null;
+  model: string | null;
   connected_at: string;
   last_heartbeat: string;
   last_seen_relative: string;

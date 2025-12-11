@@ -250,18 +250,26 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     # ==================== IDE Connection Tools ====================
     {
         "name": "register_ide_connection",
-        "description": "Register this IDE (Cursor or Claude Code) as connected to Agent Inspector. Call this when starting a security analysis session to enable live connection tracking in the dashboard.",
+        "description": "Register this IDE as connected to Agent Inspector. REQUIRED at start of every session. You MUST include your AI model name (e.g., 'claude-opus-4.5', 'gpt-4o'). Save the returned connection_id for heartbeats.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "ide_type": {
                     "type": "string",
-                    "description": "Type of IDE: 'cursor' or 'claude-code'",
+                    "description": "Type of IDE you are running in. Use 'cursor' for Cursor IDE, 'claude-code' for Claude Code CLI.",
                     "enum": ["cursor", "claude-code"]
                 },
                 "workflow_id": {
                     "type": "string",
-                    "description": "The workflow/agent ID being developed (from the project folder name or analysis context)"
+                    "description": "The workflow/agent ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
+                },
+                "workspace_path": {
+                    "type": "string",
+                    "description": "Full path to the workspace/project being edited"
+                },
+                "model": {
+                    "type": "string",
+                    "description": "YOUR AI model name. Examples: 'claude-opus-4.5', 'claude-sonnet-4', 'gpt-4o', 'gpt-4-turbo'. Check your system prompt if unsure."
                 },
                 "host": {
                     "type": "string",
@@ -270,33 +278,29 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "user": {
                     "type": "string",
                     "description": "Username on the machine (optional)"
-                },
-                "workspace_path": {
-                    "type": "string",
-                    "description": "Path to the workspace/project being edited"
                 }
             },
-            "required": ["ide_type"]
+            "required": ["ide_type", "workflow_id", "workspace_path", "model"]
         }
     },
     {
         "name": "ide_heartbeat",
-        "description": "Send a heartbeat to keep the IDE connection alive. Call this periodically (every 30s) during active development sessions, or when actively making changes to agent code.",
+        "description": "Keep IDE connection alive. Call AFTER every action: scanning, fixing, editing code. Use the connection_id from register_ide_connection. Set is_developing=true when actively coding.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "connection_id": {
                     "type": "string",
-                    "description": "Connection ID from register_ide_connection"
+                    "description": "The connection_id returned from register_ide_connection. You MUST have saved this!"
                 },
                 "is_developing": {
                     "type": "boolean",
-                    "description": "Set to true if actively writing/modifying agent code right now",
+                    "description": "true = actively editing/scanning code, false = idle/just chatting",
                     "default": False
                 },
                 "workflow_id": {
                     "type": "string",
-                    "description": "Update the workflow being developed (if changed)"
+                    "description": "Only needed if switching to a different workflow"
                 }
             },
             "required": ["connection_id"]

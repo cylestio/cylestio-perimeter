@@ -15,7 +15,8 @@ import {
   FolderOpen,
   Server,
   Copy,
-  CheckCircle
+  CheckCircle,
+  Cpu
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
@@ -305,6 +306,12 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
                 <DetailLabel><Zap size={10} /> Last Seen</DetailLabel>
                 <DetailValue>{connectedIDE.last_seen_relative}</DetailValue>
               </DetailItem>
+              {connectedIDE.model && (
+                <DetailItem>
+                  <DetailLabel><Cpu size={10} /> Model</DetailLabel>
+                  <DetailValue>{connectedIDE.model}</DetailValue>
+                </DetailItem>
+              )}
             </ConnectionDetails>
           )}
         </StatusContent>

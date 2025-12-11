@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS ide_connections (
     host TEXT,
     user TEXT,
     workspace_path TEXT,
+    model TEXT,
     connected_at REAL NOT NULL,
     last_heartbeat REAL NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -429,6 +430,16 @@ class TraceStore:
             )
             self.db.commit()
             logger.info("Migration: Added last_analyzed_session_count column to agents table")
+
+        # Migration: add model column to ide_connections if missing
+        cursor = self.db.execute("PRAGMA table_info(ide_connections)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'model' not in columns:
+            self.db.execute(
+                "ALTER TABLE ide_connections ADD COLUMN model TEXT"
+            )
+            self.db.commit()
+            logger.info("Migration: Added model column to ide_connections table")
 
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
@@ -1936,6 +1947,7 @@ class TraceStore:
         host: Optional[str] = None,
         user: Optional[str] = None,
         workspace_path: Optional[str] = None,
+        model: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Register a new IDE connection.
@@ -1948,6 +1960,7 @@ class TraceStore:
             host: Hostname of the connected machine
             user: Username on the connected machine
             workspace_path: Path to the workspace being edited
+            model: AI model being used (e.g., claude-sonnet-4, gpt-4o)
             metadata: Additional connection metadata
 
         Returns:
@@ -1960,9 +1973,9 @@ class TraceStore:
             self.db.execute("""
                 INSERT OR REPLACE INTO ide_connections (
                     connection_id, ide_type, workflow_id, mcp_session_id,
-                    host, user, workspace_path, connected_at, last_heartbeat,
+                    host, user, workspace_path, model, connected_at, last_heartbeat,
                     is_active, is_developing, disconnected_at, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 connection_id,
                 ide_type,
@@ -1971,6 +1984,7 @@ class TraceStore:
                 host,
                 user,
                 workspace_path,
+                model,
                 connected_at,
                 connected_at,  # last_heartbeat = connected_at initially
                 1,  # is_active
@@ -2198,6 +2212,7 @@ class TraceStore:
             'host': row['host'],
             'user': row['user'],
             'workspace_path': row['workspace_path'],
+            'model': row['model'] if 'model' in row.keys() else None,
             'connected_at': connected_at.isoformat(),
             'last_heartbeat': last_heartbeat.isoformat(),
             'last_seen_relative': last_seen_relative,

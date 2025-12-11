@@ -50,28 +50,37 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 
 ## IDE CONNECTION (REQUIRED FIRST STEP)
 
-**On first use or when starting a new security session, register your IDE:**
+### Step 1: Know Your Model
+**You MUST identify what AI model you are.** Common values:
+- `claude-opus-4.5`, `claude-sonnet-4`, `claude-sonnet-3.5`
+- `gpt-4o`, `gpt-4-turbo`
+- Check your system prompt for "powered by X"
 
+### Step 2: Register with ALL Parameters
 ```
 register_ide_connection(
-  ide_type="cursor",  // or "claude-code"
-  workflow_id="{derived_workflow_id}",
-  workspace_path="{current_workspace_path}"
+  ide_type="cursor",              // "cursor" or "claude-code"
+  workflow_id="{workflow_id}",    // from folder name
+  workspace_path="{full_path}",   // workspace path
+  model="{your_model_name}"       // e.g., "claude-opus-4.5"
 )
 ```
 
-**Store the returned `connection_id` and send heartbeats during development:**
+### Step 3: Save connection_id
+**SAVE the `connection_id` from the response!** You need it for heartbeats.
 
+### Step 4: Send Heartbeats
+After every action (scan, fix, edit):
 ```
 ide_heartbeat(
-  connection_id="{connection_id}",
-  is_developing=true  // Set true when actively modifying code
+  connection_id="{saved_connection_id}",
+  is_developing=true
 )
 ```
 
-The IDE connection shows up in the Dev Connection page of the dashboard, with:
-- **Green indicator**: IDE connected
-- **Pulsing indicator**: Actively developing (heartbeat with `is_developing=true`)
+**Dashboard indicators:**
+- 🟢 **Green**: IDE connected
+- 🟢✨ **Pulsing green**: Actively developing
 
 ## AUTOMATIC WORKFLOW
 
@@ -200,27 +209,30 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 
 **At the START of every conversation where you use Agent Inspector tools:**
 
-### Step 1: Check Existing Connection
+### Step 1: Identify Yourself
+Know your model name: `claude-opus-4.5`, `claude-sonnet-4`, `gpt-4o`, etc.
+
+### Step 2: Check Existing Connection
 ```
 get_ide_connection_status(workflow_id)
 ```
 
-### Step 2: Based on Response
-- **If `has_active_connection: true`** → Use the returned `connection_id` for heartbeats
-- **If `has_active_connection: false`** → Register new connection:
+### Step 3: Based on Response
+- **If `is_connected: true`** → Get `connection_id` from `connected_ide.connection_id`
+- **If `is_connected: false`** → Register with ALL parameters:
 
 ```
 register_ide_connection(
-  ide_type="cursor",  // or "claude-code"
+  ide_type="cursor",              // or "claude-code"
   workflow_id="{workflow_id}",
-  workspace_path="{workspace_path}"
+  workspace_path="{workspace_path}",
+  model="{your_model_name}"       // REQUIRED: e.g., "claude-opus-4.5"
 )
 ```
 
-### Step 3: Send Heartbeat
-Before/after any significant action:
+### Step 4: Send Heartbeat (after every action)
 ```
-ide_heartbeat(connection_id, is_developing=true)
+ide_heartbeat(connection_id="{id}", is_developing=true)
 ```
 
-**This is NOT optional.** The dashboard needs this to show IDE connection status.
+**This is NOT optional.** The dashboard needs this to show IDE connection status and model.

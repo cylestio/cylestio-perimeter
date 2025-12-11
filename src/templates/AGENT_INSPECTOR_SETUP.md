@@ -250,62 +250,105 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 ⚠️ **CRITICAL: This step MUST succeed. If it fails, retry on EVERY subsequent MCP tool call.**
 
-### 9.1 Immediately Register After MCP Connect
+### 9.1 Determine Your Model Name
 
-As soon as MCP tools are available, call `register_ide_connection`:
+**You MUST know what AI model you are.** Check your system prompt or self-identify:
+
+| If you are... | Use model value |
+|---------------|-----------------|
+| Claude Opus 4.5 | `"claude-opus-4.5"` |
+| Claude Sonnet 4 | `"claude-sonnet-4"` |
+| Claude Sonnet 3.5 | `"claude-sonnet-3.5"` |
+| GPT-4o | `"gpt-4o"` |
+| GPT-4 Turbo | `"gpt-4-turbo"` |
+| Other | Use your actual model identifier |
+
+**If unsure, check:** Your system prompt often says "powered by X" or "You are X".
+
+### 9.2 Immediately Register After MCP Connect
+
+As soon as MCP tools are available, call `register_ide_connection` with ALL parameters:
 
 ```
 register_ide_connection(
-  ide_type="{IDE_TYPE}",  // "cursor" or "claude-code"
-  workflow_id="{WORKFLOW_ID}",  // from folder name, e.g., "next-rooms"
-  workspace_path="{AGENT_PROJECT_FOLDER}"
+  ide_type="cursor",           // REQUIRED: "cursor" or "claude-code"
+  workflow_id="my-agent",      // REQUIRED: from folder name
+  workspace_path="/path/to/project",  // REQUIRED: full workspace path
+  model="claude-opus-4.5"      // REQUIRED: your AI model name
 )
 ```
 
-Where:
-- `{IDE_TYPE}` = `"cursor"` if you're in Cursor, `"claude-code"` if you're Claude Code
-- `{WORKFLOW_ID}` = derived from the agent project folder name
-- `{AGENT_PROJECT_FOLDER}` = the workspace path
+**Parameter values:**
+| Parameter | How to determine |
+|-----------|------------------|
+| `ide_type` | `"cursor"` if in Cursor IDE, `"claude-code"` if Claude Code CLI |
+| `workflow_id` | Agent project folder name (e.g., `"next-rooms"`, `"my-agent"`) |
+| `workspace_path` | Full path to the workspace you're editing |
+| `model` | Your AI model name (see table above) |
 
-### 9.2 Store the Connection ID
+### 9.3 Store the Connection ID
 
-**Store the returned `connection_id` in your memory.** You'll use it for heartbeats.
+**IMPORTANT: Store the returned `connection_id` in your context.** You need it for heartbeats.
 
-### 9.3 If Registration Fails
+Example response:
+```json
+{
+  "connection": {
+    "connection_id": "ide_abc123def456",  // ← SAVE THIS!
+    ...
+  }
+}
+```
 
-If `register_ide_connection` fails (server not ready, MCP not connected, etc.):
+### 9.4 If Registration Fails
 
-1. **DO NOT GIVE UP** - Store a reminder: `PENDING_IDE_REGISTRATION = true`
-2. **Retry on EVERY subsequent MCP call** - Before any other Agent Inspector tool call, try to register again
+If `register_ide_connection` fails:
+
+1. **DO NOT GIVE UP** - Remember: `PENDING_IDE_REGISTRATION = true`
+2. **Retry on EVERY subsequent MCP call** - Before any other Agent Inspector tool, try again
 3. **Only stop retrying** when you get a successful `connection_id` back
 
-### 9.4 Heartbeat Strategy
+### 9.5 Heartbeat Strategy
 
-Once registered, send heartbeats to keep the connection alive:
+**After every significant action, send a heartbeat:**
 
 ```
 ide_heartbeat(
-  connection_id="{CONNECTION_ID}",
-  is_developing=true  // true when actively editing code
+  connection_id="ide_abc123def456",  // The ID from registration
+  is_developing=true                  // true when editing code
 )
 ```
 
 **When to send heartbeats:**
-- Before/after each significant action (scanning, fixing, etc.)
-- When the user asks you to do something with the agent code
-- Set `is_developing=true` when actively writing/modifying code
+| Action | Send heartbeat? | is_developing |
+|--------|----------------|---------------|
+| Before scanning code | ✅ Yes | `true` |
+| After storing findings | ✅ Yes | `true` |
+| After fixing code | ✅ Yes | `true` |
+| Just answering questions | ✅ Yes | `false` |
+| User is idle | Optional | `false` |
 
 ---
 
 ## ⚠️ IMPORTANT: RECONNECTION ON FUTURE SESSIONS
 
-Since you don't have persistent memory between conversations, the rules file (`.cursor/rules/agent-inspector.mdc`) tells future you to:
+**At the START of every new conversation, do this:**
 
-1. **Check existing connection** via `get_ide_connection_status(workflow_id)` at session start
-2. **If active** → Use the returned `connection_id` for heartbeats
-3. **If not active** → Call `register_ide_connection()` again
+### Step 1: Check if already connected
+```
+get_ide_connection_status(workflow_id="the-workflow-id")
+```
 
-The backend stores connection state - you just need to check it each session!
+### Step 2: Based on response
+- **If `is_connected: true`** → Get `connection_id` from `connected_ide.connection_id`, use for heartbeats
+- **If `is_connected: false`** → Call `register_ide_connection()` with all parameters including `model`
+
+### Step 3: Send heartbeat
+```
+ide_heartbeat(connection_id="...", is_developing=true)
+```
+
+The backend stores connection state - you just need to check and reconnect each session!
 
 ---
 

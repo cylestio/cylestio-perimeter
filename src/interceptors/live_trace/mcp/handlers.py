@@ -466,6 +466,7 @@ def handle_register_ide_connection(args: Dict[str, Any], store: Any) -> Dict[str
         host=args.get("host"),
         user=args.get("user"),
         workspace_path=args.get("workspace_path"),
+        model=args.get("model"),
     )
 
     return {
