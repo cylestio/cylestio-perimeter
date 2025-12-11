@@ -132,7 +132,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
       <ExplorerHeader>
         <AgentInfo>
           <AgentLink as={Link} to={`/workflow/${workflowId}/agent/${currentAgent.agent_id}`}>
-            {currentAgent.agent_name}
+            {currentAgent.agent_id}
             <ExternalLink size={12} />
           </AgentLink>
           {hasMultipleAgents && (
@@ -142,7 +142,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
           )}
           {currentAgent.latest_check_at && (
             <LastUpdated>
-              <TimeAgo timestamp={currentAgent.latest_check_at * 1000} />
+              <TimeAgo timestamp={currentAgent.latest_check_at} />
             </LastUpdated>
           )}
         </AgentInfo>

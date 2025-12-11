@@ -72,7 +72,7 @@ const mockAgent: AgentSecurityData = {
   agent_id: 'agent_abc123def456',
   agent_name: 'math-agent',
   checks: mockChecks,
-  latest_check_at: Math.floor(Date.now() / 1000) - 300, // 5 minutes ago
+  latest_check_at: new Date(Date.now() - 300 * 1000).toISOString(), // 5 minutes ago
   summary: {
     total: 5,
     passed: 3,
@@ -98,7 +98,7 @@ const mockAgentWithManyChecks: AgentSecurityData = {
       created_at: '2024-01-15T11:00:00Z',
     },
   ],
-  latest_check_at: Math.floor(Date.now() / 1000) - 60, // 1 minute ago
+  latest_check_at: new Date(Date.now() - 60 * 1000).toISOString(), // 1 minute ago
   summary: {
     total: 6,
     passed: 4,
@@ -218,7 +218,7 @@ export const AllPassedChecks: Story = {
         ...c,
         check_id: `perfect_${i}`,
       })),
-      latest_check_at: Math.floor(Date.now() / 1000) - 120,
+      latest_check_at: new Date(Date.now() - 120 * 1000).toISOString(),
       summary: { total: 3, passed: 3, warnings: 0, critical: 0 },
     }],
     workflowId: 'workflow_001',

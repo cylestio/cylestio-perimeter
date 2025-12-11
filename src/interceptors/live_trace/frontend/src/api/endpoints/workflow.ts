@@ -74,7 +74,7 @@ export interface AgentSecurityData {
   agent_id: string;
   agent_name: string;
   checks: WorkflowSecurityCheck[];
-  latest_check_at?: number;
+  latest_check_at?: string;
   summary: AgentChecksSummary;
 }
 
