@@ -57,8 +57,9 @@ class TestSettings:
         )
         assert settings.llm.base_url == "https://api.openai.com"
         assert settings.llm.type == "openai"
+        # Default settings
         assert settings.server.port == 4000
-        assert settings.server.host == "0.0.0.0"
+        assert settings.server.host == "127.0.0.1"
         assert len(settings.interceptors) == 0
     
     def test_from_yaml(self, tmp_path):
