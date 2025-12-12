@@ -117,8 +117,12 @@ export const Default: Story = {
     isFirstEvent: true,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('llm.call.start')).toBeInTheDocument();
-    await expect(canvas.getByText(/Hello, can you help me/)).toBeInTheDocument();
+    // Event type appears in badge and raw details - use getAllByText
+    const eventTypes = canvas.getAllByText('llm.call.start');
+    await expect(eventTypes.length).toBeGreaterThan(0);
+    // Content also appears in raw details - use getAllByText
+    const content = canvas.getAllByText(/Hello, can you help me/);
+    await expect(content.length).toBeGreaterThan(0);
   },
 };
 
@@ -128,8 +132,12 @@ export const LLMCallFinish: Story = {
     startTime: new Date(Date.now() - 60000),
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('llm.call.finish')).toBeInTheDocument();
-    await expect(canvas.getByText(/fibonacci function/)).toBeInTheDocument();
+    // Event type appears in badge and raw details - use getAllByText
+    const eventTypes = canvas.getAllByText('llm.call.finish');
+    await expect(eventTypes.length).toBeGreaterThan(0);
+    // Content also appears in raw details - use getAllByText
+    const content = canvas.getAllByText(/fibonacci function/);
+    await expect(content.length).toBeGreaterThan(0);
   },
 };
 
@@ -139,8 +147,12 @@ export const ToolExecution: Story = {
     startTime: new Date(Date.now() - 60000),
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('tool.execution')).toBeInTheDocument();
-    await expect(canvas.getByText('code_executor')).toBeInTheDocument();
+    // Event type appears in badge and raw details - use getAllByText
+    const eventTypes = canvas.getAllByText('tool.execution');
+    await expect(eventTypes.length).toBeGreaterThan(0);
+    // Tool name also appears in raw details - use getAllByText
+    const toolNames = canvas.getAllByText('code_executor');
+    await expect(toolNames.length).toBeGreaterThan(0);
   },
 };
 
@@ -150,8 +162,12 @@ export const ToolResult: Story = {
     startTime: new Date(Date.now() - 60000),
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('tool.result')).toBeInTheDocument();
-    await expect(canvas.getByText(/0, 1, 1, 2, 3, 5/)).toBeInTheDocument();
+    // Event type appears in badge and raw details - use getAllByText
+    const eventTypes = canvas.getAllByText('tool.result');
+    await expect(eventTypes.length).toBeGreaterThan(0);
+    // Result also appears in raw details - use getAllByText
+    const results = canvas.getAllByText(/0, 1, 1, 2, 3, 5/);
+    await expect(results.length).toBeGreaterThan(0);
   },
 };
 
@@ -177,8 +193,12 @@ export const WithError: Story = {
     startTime: new Date(Date.now() - 60000),
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('llm.call.finish')).toBeInTheDocument();
-    await expect(canvas.getByText(/Rate limit exceeded/)).toBeInTheDocument();
+    // Event type appears in badge and raw details - use getAllByText
+    const eventTypes = canvas.getAllByText('llm.call.finish');
+    await expect(eventTypes.length).toBeGreaterThan(0);
+    // Error message also appears in raw details
+    const errorMessages = canvas.getAllByText(/Rate limit exceeded/);
+    await expect(errorMessages.length).toBeGreaterThan(0);
   },
 };
 
@@ -189,7 +209,9 @@ export const WithDuration: Story = {
     durationMs: 5200,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('llm.call.finish')).toBeInTheDocument();
+    // Event type appears in badge and raw details - use getAllByText
+    const eventTypes = canvas.getAllByText('llm.call.finish');
+    await expect(eventTypes.length).toBeGreaterThan(0);
     await expect(canvas.getByText('5.2s')).toBeInTheDocument();
   },
 };
@@ -217,10 +239,12 @@ export const ResponseVariant: Story = {
     variant: 'response',
   },
   play: async ({ canvas }) => {
-    // Should show event type badge
-    await expect(canvas.getByText('llm.call.finish')).toBeInTheDocument();
-    // Should show content
-    await expect(canvas.getByText(/fibonacci function/)).toBeInTheDocument();
+    // Should show event type badge - may appear in multiple places
+    const eventTypes = canvas.getAllByText('llm.call.finish');
+    await expect(eventTypes.length).toBeGreaterThan(0);
+    // Content may appear in multiple places (content area + raw)
+    const content = canvas.getAllByText(/fibonacci function/);
+    await expect(content.length).toBeGreaterThan(0);
   },
 };
 
@@ -230,7 +254,9 @@ export const ResponseWithToolUse: Story = {
     variant: 'response',
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText(/I'll help you search/)).toBeInTheDocument();
+    // Text may appear in multiple places (content area + raw response)
+    const searchText = canvas.getAllByText(/I'll help you search/);
+    await expect(searchText.length).toBeGreaterThan(0);
     await expect(canvas.getByText('web_search')).toBeInTheDocument();
   },
 };
@@ -271,6 +297,8 @@ export const ResponseErrorState: Story = {
     variant: 'response',
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText(/Rate limit exceeded/)).toBeInTheDocument();
+    // Error message appears in content area and raw response
+    const errorMessages = canvas.getAllByText(/Rate limit exceeded/);
+    await expect(errorMessages.length).toBeGreaterThan(0);
   },
 };

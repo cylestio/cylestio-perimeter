@@ -230,14 +230,16 @@ export const KeyboardNavigation: Story = {
 
 export const NoOptions: Story = {
   render: () => (
-    <RichSelectWithState options={[]} label="Empty" placeholder="No options available" />
+    <RichSelectWithState options={[]} label="Empty" placeholder="Select..." />
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const trigger = canvas.getByRole('button');
     await userEvent.click(trigger);
 
-    await expect(canvas.getByText('No options available')).toBeInTheDocument();
+    // When dropdown opens with no options, it shows the NoOptions message inside the menu
+    const menu = canvas.getByRole('listbox');
+    await expect(within(menu).getByText('No options available')).toBeInTheDocument();
   },
 };
 
