@@ -2,11 +2,13 @@
 
 export interface SessionEvent {
   id: string;
-  event_type: string;
+  name: string;
+  event_type?: string;
   timestamp: string;
   level: 'INFO' | 'WARNING' | 'ERROR';
   description?: string;
   details?: Record<string, unknown>;
+  attributes?: Record<string, unknown>;
 }
 
 export interface TimelineEvent {
@@ -23,6 +25,8 @@ export interface SessionDetail {
   agent_id: string;
   is_active: boolean;
   is_completed: boolean;
+  model?: string | null;
+  provider?: string | null;
   created_at: string;
   last_activity: string;
   duration_minutes: number;
@@ -33,6 +37,9 @@ export interface SessionDetail {
   errors: number;
   error_rate: number;
   system_prompt?: string | null;
+  available_tools?: string[];
+  tool_usage_details?: Record<string, number>;
+  avg_response_time_ms?: number;
 }
 
 export interface SessionResponse {

@@ -17,7 +17,7 @@
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
-| `ui/data-display/` | Accordion, Table, CodeBlock, Timeline, TimelineItem |
+| `ui/data-display/` | Accordion, KeyValueList, Table, CodeBlock, Timeline, TimelineItem |
 | `ui/layout/` | Grid, Content, Main, PageHeader |
 
 ### Domain Components (`@domain/*`) - AI Security Monitoring
@@ -578,6 +578,53 @@ interface AccordionProps {
 >
   You are a helpful assistant...
 </Accordion>
+```
+
+### KeyValueList
+
+Displays a list of key-value pairs with consistent styling. Useful for metadata, configuration details, or any labeled information.
+
+```typescript
+interface KeyValuePair {
+  key: string;
+  value: ReactNode;
+  mono?: boolean;  // Use monospace font for value
+}
+
+interface KeyValueListProps {
+  items: KeyValuePair[];
+  size?: 'sm' | 'md';
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Basic metadata display
+<KeyValueList
+  items={[
+    { key: 'Session ID', value: 'sess_a7f3b291c4e8d5f6', mono: true },
+    { key: 'Model', value: 'claude-sonnet-4-20250514', mono: true },
+    { key: 'Provider', value: 'Anthropic' },
+  ]}
+/>
+
+// With badges as values
+<KeyValueList
+  items={[
+    { key: 'Session ID', value: 'sess_abc123', mono: true },
+    {
+      key: 'Status',
+      value: (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Badge variant="success">ACTIVE</Badge>
+          <Badge variant="info">ANTHROPIC</Badge>
+        </div>
+      ),
+    },
+  ]}
+  size="sm"
+/>
 ```
 
 ### Table

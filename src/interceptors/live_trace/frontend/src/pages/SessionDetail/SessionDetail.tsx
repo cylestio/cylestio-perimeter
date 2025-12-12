@@ -1,44 +1,63 @@
-import { useState, useCallback, type FC } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useCallback, useEffect, useMemo, type FC } from 'react';
+import { useParams } from 'react-router-dom';
 
 import { fetchSession } from '@api/endpoints/session';
+import { fetchModels } from '@api/endpoints/replay';
 import type { SessionResponse, TimelineEvent } from '@api/types/session';
+import type { ModelsResponse, ModelInfo } from '@api/types/replay';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
 
-import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Timeline } from '@ui/data-display/Timeline';
 import { Section } from '@ui/layout/Section';
 
-import { InfoCard } from '@domain/metrics/InfoCard';
-
 import { usePageMeta } from '../../context';
 import { ReplayPanel } from './ReplayPanel';
+import { SessionSidebarInfo } from './SessionSidebarInfo';
 import {
   SessionLayout,
-  SessionSidebar,
   SessionMain,
-  MetricCard,
-  MetricInfo,
-  MetricLabel,
-  MetricSubtext,
-  MetricValue,
   TimelineContent,
   EmptyTimeline,
 } from './SessionDetail.styles';
 
-// Utility to format numbers
-function formatNumber(value: number): string {
-  if (value >= 1000000) return (value / 1000000).toFixed(0) + 'M';
-  if (value >= 1000) return (value / 1000).toFixed(0) + 'K';
-  return value.toString();
+/**
+ * Find model pricing from models response.
+ * Uses fuzzy matching for model name variants.
+ */
+function findModelPricing(
+  modelsData: ModelsResponse | null,
+  modelName: string | null | undefined
+): ModelInfo | undefined {
+  if (!modelsData || !modelName) return undefined;
+
+  const modelLower = modelName.toLowerCase();
+  const allModels = [
+    ...modelsData.models.openai,
+    ...modelsData.models.anthropic,
+  ];
+
+  // Direct match by id
+  const directMatch = allModels.find(m => m.id.toLowerCase() === modelLower);
+  if (directMatch) return directMatch;
+
+  // Fuzzy match - find a model whose id is contained in the name or vice versa
+  return allModels.find(
+    m => modelLower.includes(m.id.toLowerCase()) || m.id.toLowerCase().includes(modelLower)
+  );
 }
 
 export const SessionDetail: FC = () => {
   const { sessionId, agentId } = useParams<{ sessionId: string; agentId: string }>();
   const [replayEventId, setReplayEventId] = useState<string | null>(null);
+  const [modelsData, setModelsData] = useState<ModelsResponse | null>(null);
+
+  // Fetch models pricing on mount
+  useEffect(() => {
+    fetchModels().then(setModelsData);
+  }, []);
 
   // Fetch session data with polling
   const fetchFn = useCallback(() => {
@@ -50,6 +69,12 @@ export const SessionDetail: FC = () => {
     interval: 2000,
     enabled: !!sessionId,
   });
+
+  // Find pricing for current model
+  const modelPricing = useMemo(
+    () => findModelPricing(modelsData, data?.session.model),
+    [modelsData, data?.session.model]
+  );
 
   // Set breadcrumbs with agent context
   usePageMeta({
@@ -94,78 +119,24 @@ export const SessionDetail: FC = () => {
   return (
     <>
       <SessionLayout>
-        <SessionSidebar>
-          {/* Session Info Card */}
-          <InfoCard
-            title="Session Info"
-            primaryLabel="SESSION ID"
-            primaryValue={session.id}
-            stats={[
-              {
-                label: 'SYSTEM PROMPT ID',
-                badge: (
-                  <Link
-                    to={agentLink(agentId, `/system-prompt/${session.agent_id}`)}
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '12px',
-                      color: 'var(--color-cyan)',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    {session.agent_id.substring(0, 16)}...
-                  </Link>
-                ),
-              },
-              {
-                label: 'STATUS',
-                badge: session.is_active ? (
-                  <Badge variant="success">ACTIVE</Badge>
-                ) : (
-                  <Badge variant="info">COMPLETE</Badge>
-                ),
-              },
-              { label: 'DURATION', value: `${session.duration_minutes.toFixed(1)} minutes` },
-            ]}
-          />
-
-          {/* Session Metrics */}
-          <MetricCard>
-            <MetricInfo>
-              <MetricLabel>Total Events</MetricLabel>
-            </MetricInfo>
-            <MetricValue>{session.total_events}</MetricValue>
-          </MetricCard>
-
-          <MetricCard>
-            <MetricInfo>
-              <MetricLabel>Messages</MetricLabel>
-              <MetricSubtext>LLM exchanges</MetricSubtext>
-            </MetricInfo>
-            <MetricValue>{session.message_count}</MetricValue>
-          </MetricCard>
-
-          <MetricCard>
-            <MetricInfo>
-              <MetricLabel>Total Tokens</MetricLabel>
-            </MetricInfo>
-            <MetricValue>{formatNumber(session.total_tokens)}</MetricValue>
-          </MetricCard>
-
-          <MetricCard>
-            <MetricInfo>
-              <MetricLabel>Tool Uses</MetricLabel>
-              <MetricSubtext>
-                {session.errors > 0 ? (
-                  <span style={{ color: 'var(--color-red)' }}>{session.errors} errors</span>
-                ) : (
-                  'no errors'
-                )}
-              </MetricSubtext>
-            </MetricInfo>
-            <MetricValue>{session.tool_uses}</MetricValue>
-          </MetricCard>
-        </SessionSidebar>
+        {/* Sidebar with real data from API */}
+        <SessionSidebarInfo
+          sessionId={session.id}
+          agentId={session.agent_id}
+          isActive={session.is_active}
+          totalTokens={session.total_tokens}
+          messageCount={session.message_count}
+          durationMinutes={session.duration_minutes}
+          toolUses={session.tool_uses}
+          errors={session.errors}
+          errorRate={session.error_rate}
+          model={session.model ?? undefined}
+          provider={session.provider ?? undefined}
+          events={data.events}
+          availableTools={session.available_tools}
+          toolUsageDetails={session.tool_usage_details}
+          modelPricing={modelPricing}
+        />
 
         <SessionMain>
           <Section>

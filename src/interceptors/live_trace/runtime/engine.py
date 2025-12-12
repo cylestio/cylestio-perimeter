@@ -531,6 +531,16 @@ class AnalysisEngine:
         # Sort events by timestamp
         events.sort(key=lambda x: x["timestamp"])
 
+        # Extract model and provider from first llm.call.start event
+        model = None
+        provider = None
+        for event in events:
+            if event["name"] == "llm.call.start":
+                attrs = event.get("attributes", {})
+                model = attrs.get("llm.model")
+                provider = attrs.get("llm.vendor")
+                break
+
         return {
             "session": {
                 "id": session_id,
@@ -539,6 +549,9 @@ class AnalysisEngine:
                 "last_activity": session.last_activity.isoformat(),
                 "duration_minutes": session.duration_minutes,
                 "is_active": session.is_active,
+                "is_completed": session.is_completed,
+                "model": model,
+                "provider": provider,
                 "total_events": session.total_events,
                 "message_count": session.message_count,
                 "tool_uses": session.tool_uses,

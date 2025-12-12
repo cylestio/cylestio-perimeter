@@ -4,6 +4,9 @@ export type { AccordionProps } from './Accordion';
 export { CodeBlock } from './CodeBlock';
 export type { CodeBlockProps } from './CodeBlock';
 
+export { KeyValueList } from './KeyValueList';
+export type { KeyValueListProps, KeyValuePair } from './KeyValueList';
+
 export { Table } from './Table';
 export type { TableProps, Column } from './Table';
 
