@@ -6,6 +6,10 @@ export const StyledSection = styled.div`
   border: 1px solid ${({ theme }) => theme.colors.borderMedium};
   border-radius: ${({ theme }) => theme.radii.xl};
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 `;
 
 // Header
@@ -34,6 +38,10 @@ interface StyledSectionContentProps {
 }
 
 export const StyledSectionContent = styled.div<StyledSectionContentProps>`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   ${({ $noPadding, theme }) =>
     !$noPadding &&
     css`

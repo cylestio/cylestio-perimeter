@@ -13,11 +13,11 @@
 | Category | Components |
 |----------|------------|
 | `ui/core/` | Button, Card, Badge, Text, Heading, Avatar, Code, Label, TimeAgo |
-| `ui/form/` | Input, Select, Checkbox, Radio, TextArea, FormLabel |
+| `ui/form/` | Input, Select, RichSelect, Checkbox, Radio, TextArea, FormLabel |
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
-| `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup |
-| `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown |
-| `ui/data-display/` | Table, CodeBlock |
+| `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
+| `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
+| `ui/data-display/` | Accordion, KeyValueList, Table, CodeBlock, Timeline, TimelineItem |
 | `ui/layout/` | Grid, Content, Main, PageHeader |
 
 ### Domain Components (`@domain/*`) - AI Security Monitoring
@@ -28,7 +28,7 @@
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
 | `domain/workflows/` | WorkflowSelector |
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
-| `domain/sessions/` | SessionsTable |
+| `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
@@ -291,6 +291,73 @@ interface RadioGroupProps {
 }
 ```
 
+### RichSelect
+
+Custom dropdown select with support for rich option rendering. Useful when options need to display more than just a label (e.g., pricing, icons, descriptions).
+
+```typescript
+interface RichSelectOption<T = unknown> {
+  value: string;
+  label: string;
+  data?: T;           // Custom data for rendering
+  disabled?: boolean;
+}
+
+interface RichSelectProps<T = unknown> {
+  options: RichSelectOption<T>[];
+  value?: string;
+  onChange?: (value: string, option: RichSelectOption<T>) => void;
+  renderOption?: (option: RichSelectOption<T>, isSelected: boolean) => ReactNode;
+  renderValue?: (option: RichSelectOption<T>) => ReactNode;
+  label?: string;
+  placeholder?: string;
+  error?: string;
+  disabled?: boolean;
+  fullWidth?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+// Basic usage
+<RichSelect
+  options={[
+    { value: 'opt1', label: 'Option 1' },
+    { value: 'opt2', label: 'Option 2' },
+  ]}
+  value={selected}
+  onChange={setSelected}
+/>
+
+// With custom rendering (e.g., model pricing)
+interface ModelInfo {
+  input: number;
+  output: number;
+}
+
+<RichSelect<ModelInfo>
+  options={[
+    { value: 'gpt-4o', label: 'GPT-4o', data: { input: 2.5, output: 10 } },
+    { value: 'claude-sonnet', label: 'Claude Sonnet', data: { input: 3, output: 15 } },
+  ]}
+  value={model}
+  onChange={setModel}
+  renderOption={(opt) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <span>{opt.label}</span>
+      <span>${opt.data?.input} / ${opt.data?.output}</span>
+    </div>
+  )}
+/>
+```
+
+**Features:**
+- Keyboard navigation (Arrow keys, Enter, Escape)
+- Click outside to close
+- Custom option and value rendering via render props
+- Scrollable dropdown for many options
+- Disabled state for component and individual options
+
 ---
 
 ## Navigation Components
@@ -384,6 +451,33 @@ interface ToggleGroupProps {
 />
 ```
 
+### Pagination
+
+Page navigation controls with previous/next buttons.
+
+```typescript
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<Pagination
+  currentPage={currentPage}
+  totalPages={totalPages}
+  onPageChange={setCurrentPage}
+/>
+```
+
+**Notes:**
+- Returns `null` if `totalPages <= 1` (nothing to paginate)
+- Previous button disabled on page 1
+- Next button disabled on last page
+
 ---
 
 ## Feedback Components
@@ -460,6 +554,78 @@ interface ToastProps {
 ---
 
 ## Data Display Components
+
+### Accordion
+
+Collapsible content section with icon and chevron indicator.
+
+```typescript
+interface AccordionProps {
+  title: ReactNode;
+  icon?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<Accordion
+  title="System Prompt"
+  icon={<Bot size={14} />}
+  defaultOpen={false}
+>
+  You are a helpful assistant...
+</Accordion>
+```
+
+### KeyValueList
+
+Displays a list of key-value pairs with consistent styling. Useful for metadata, configuration details, or any labeled information.
+
+```typescript
+interface KeyValuePair {
+  key: string;
+  value: ReactNode;
+  mono?: boolean;  // Use monospace font for value
+}
+
+interface KeyValueListProps {
+  items: KeyValuePair[];
+  size?: 'sm' | 'md';
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Basic metadata display
+<KeyValueList
+  items={[
+    { key: 'Session ID', value: 'sess_a7f3b291c4e8d5f6', mono: true },
+    { key: 'Model', value: 'claude-sonnet-4-20250514', mono: true },
+    { key: 'Provider', value: 'Anthropic' },
+  ]}
+/>
+
+// With badges as values
+<KeyValueList
+  items={[
+    { key: 'Session ID', value: 'sess_abc123', mono: true },
+    {
+      key: 'Status',
+      value: (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Badge variant="success">ACTIVE</Badge>
+          <Badge variant="info">ANTHROPIC</Badge>
+        </div>
+      ),
+    },
+  ]}
+  size="sm"
+/>
+```
 
 ### Table
 
@@ -552,6 +718,82 @@ interface CodeBlockProps {
   showLineNumbers?: boolean;
 }
 ```
+
+### Timeline
+
+Event timeline container that renders a list of events with system prompt accordion.
+
+```typescript
+interface TimelineProps {
+  events: TimelineEvent[];
+  sessionId?: string;
+  systemPrompt?: string | null;
+  onReplay?: (eventId: string) => void;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<Timeline
+  events={events}
+  sessionId="session-123"
+  systemPrompt="You are a helpful assistant"
+  onReplay={(eventId) => openReplayPanel(eventId)}
+/>
+```
+
+### TimelineItem
+
+Individual timeline event bubble with content rendering for different event types (llm.call.start, llm.call.finish, tool.execution, tool.result). Supports a `response` variant for displaying replay responses.
+
+```typescript
+interface TimelineEvent {
+  id?: string;
+  event_type: string;
+  timestamp: string;
+  level?: string;
+  description?: string;
+  details?: Record<string, unknown>;
+}
+
+interface TimelineItemProps {
+  event: TimelineEvent;
+  sessionId?: string;
+  onReplay?: (eventId: string) => void;
+  startTime?: Date;
+  durationMs?: number;
+  isFirstEvent?: boolean;
+  variant?: 'default' | 'response';
+  showRawToggle?: boolean;
+}
+```
+
+**Usage:**
+```tsx
+// Default variant (full timeline item with time gutter)
+<TimelineItem
+  event={event}
+  sessionId="session-123"
+  onReplay={(id) => openReplayPanel(id)}
+  startTime={startTime}
+  durationMs={5000}
+  isFirstEvent={false}
+/>
+
+// Response variant (simplified, for displaying replay responses)
+<TimelineItem
+  event={responseEvent}
+  variant="response"
+  showRawToggle={true}
+/>
+```
+
+**Variants:**
+- `default`: Full timeline item with time gutter, replay button, direction icons
+- `response`: Simplified layout for response display, no time gutter or replay button
+
+**Note:** Metadata badges (model, tokens, cost, elapsed time) should be rendered separately outside of TimelineItem using the Badge component.
 
 ---
 
@@ -902,6 +1144,42 @@ interface SessionListItem {
 />
 ```
 
+### SystemPromptFilter
+
+Filter toggle group for selecting sessions by system prompt. Uses ToggleGroup internally.
+
+```typescript
+interface SystemPromptOption {
+  id: string;
+  id_short: string;
+  sessionCount: number;
+}
+
+interface SystemPromptFilterProps {
+  systemPrompts: SystemPromptOption[];  // List of system prompts with counts
+  selectedId: string | null;            // Selected ID or null for "All"
+  onSelect: (id: string | null) => void;
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+<SystemPromptFilter
+  systemPrompts={[
+    { id: 'sp-abc123', id_short: 'abc123def456', sessionCount: 42 },
+    { id: 'sp-xyz789', id_short: 'xyz789ghi012', sessionCount: 18 },
+  ]}
+  selectedId={selectedSystemPrompt}
+  onSelect={setSelectedSystemPrompt}
+/>
+```
+
+**Notes:**
+- Returns `null` when there's 0 or 1 system prompt (no filtering needed)
+- Shows "All (N)" option plus one option per system prompt with session counts
+- Selecting "All" calls `onSelect(null)`
+
 ---
 
 ## Visualization Components
@@ -1017,6 +1295,75 @@ interface DropdownProps {
   items: DropdownItem[];
   align?: 'left' | 'right';
 }
+```
+
+### Drawer
+
+Slide-out panel (sideover) from any edge of the screen with optional overlay and click-outside-to-close support.
+
+```typescript
+type DrawerPosition = 'left' | 'right' | 'top' | 'bottom';
+type DrawerSize = 'sm' | 'md' | 'lg' | 'xl';
+
+interface DrawerProps {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  position?: DrawerPosition;       // default: 'right'
+  size?: DrawerSize;               // default: 'md'
+  showOverlay?: boolean;           // default: true
+  closeOnOverlayClick?: boolean;   // default: true
+  closeOnEsc?: boolean;            // default: true
+  children: ReactNode;
+  footer?: ReactNode;
+  className?: string;
+}
+```
+
+**Sizes:**
+- `sm` - 320px (horizontal) / 200px (vertical)
+- `md` - 400px (horizontal) / 300px (vertical)
+- `lg` - 500px (horizontal) / 400px (vertical)
+- `xl` - 640px (horizontal) / 500px (vertical)
+
+**Usage:**
+```tsx
+// Basic drawer from right
+<Drawer
+  open={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Edit Settings"
+>
+  <p>Drawer content goes here</p>
+</Drawer>
+
+// Drawer with footer and custom options
+<Drawer
+  open={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Confirm Action"
+  position="left"
+  size="lg"
+  closeOnOverlayClick={false}
+  footer={
+    <>
+      <Button variant="secondary" onClick={() => setIsOpen(false)}>Cancel</Button>
+      <Button variant="primary" onClick={handleSave}>Save</Button>
+    </>
+  }
+>
+  <Form>...</Form>
+</Drawer>
+
+// Drawer without overlay (content behind is visible)
+<Drawer
+  open={isOpen}
+  onClose={() => setIsOpen(false)}
+  title="Preview"
+  showOverlay={false}
+>
+  <Preview />
+</Drawer>
 ```
 
 ---

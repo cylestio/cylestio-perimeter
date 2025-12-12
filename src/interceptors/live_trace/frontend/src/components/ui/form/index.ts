@@ -19,3 +19,6 @@ export type { RadioProps, RadioGroupProps } from './Radio';
 
 export { TextArea } from './TextArea';
 export type { TextAreaProps } from './TextArea';
+
+export { RichSelect } from './RichSelect';
+export type { RichSelectProps, RichSelectOption } from './RichSelect';

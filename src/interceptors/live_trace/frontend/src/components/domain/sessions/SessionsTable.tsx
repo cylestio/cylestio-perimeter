@@ -66,7 +66,7 @@ const getColumns = (agentId: string, showAgentColumn: boolean): Column<SessionLi
           }}
         >
           <Avatar name={session.agent_id} size="sm" />
-          {session.agent_id_short || session.agent_id.substring(0, 12)}
+          {session.agent_id}
         </Link>
       ),
     });

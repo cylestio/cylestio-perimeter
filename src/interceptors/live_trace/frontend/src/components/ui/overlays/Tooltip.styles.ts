@@ -65,21 +65,29 @@ const arrowStyles: Record<TooltipPosition, ReturnType<typeof css>> = {
     bottom: -6px;
     left: 50%;
     transform: translateX(-50%) rotate(45deg);
+    border-top: none;
+    border-left: none;
   `,
   bottom: css`
     top: -6px;
     left: 50%;
     transform: translateX(-50%) rotate(45deg);
+    border-bottom: none;
+    border-right: none;
   `,
   left: css`
     right: -6px;
     top: 50%;
     transform: translateY(-50%) rotate(45deg);
+    border-bottom: none;
+    border-left: none;
   `,
   right: css`
     left: -6px;
     top: 50%;
     transform: translateY(-50%) rotate(45deg);
+    border-top: none;
+    border-right: none;
   `,
 };
 
@@ -89,8 +97,6 @@ export const TooltipArrow = styled.div<TooltipArrowProps>`
   height: 10px;
   background: ${({ theme }) => theme.colors.surface3};
   border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-top: none;
-  border-left: none;
 
   ${({ $position }) => arrowStyles[$position]}
 `;

@@ -17,6 +17,7 @@ export interface FetchSessionsParams {
   agent_id?: string;
   status?: LiveSessionStatus;
   limit?: number;
+  offset?: number;
 }
 
 export const fetchSessions = async (params?: FetchSessionsParams): Promise<SessionsListResponse> => {
@@ -33,6 +34,9 @@ export const fetchSessions = async (params?: FetchSessionsParams): Promise<Sessi
   }
   if (params?.limit) {
     searchParams.set('limit', params.limit.toString());
+  }
+  if (params?.offset !== undefined) {
+    searchParams.set('offset', params.offset.toString());
   }
 
   const queryString = searchParams.toString();

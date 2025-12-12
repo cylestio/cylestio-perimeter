@@ -32,3 +32,19 @@ This includes:
 - API layer conventions
 
 When adding, updating, or removing components, you MUST also update [docs/COMPONENTS_INDEX.md](./docs/COMPONENTS_INDEX.md).
+
+You must read those files if you're doing anything relevant:
+
+- **Creating a component**
+  - Template: [COMPONENT.md](./templates/COMPONENT.md)
+  - What's Inside: Import order (7 groups), placement rules, file structure, styled components patterns, exports, accessibility, icons (lucide-react only)
+- **Creating a story**
+  - Template: [STORY.md](./templates/STORY.md)
+  - What's Inside: Story patterns, required `play()` functions, router customization, testing interactions
+- **Creating an API endpoint**
+  - Template: [API.md](./templates/API.md)
+  - What's Inside: Type definitions, endpoint functions, barrel exports, error handling
+- **Need theme tokens**
+  - Template: [THEME_REFERENCE.md](./THEME_REFERENCE.md)
+  - What's Inside: Colors, spacing, typography, radii, shadows, transitions
+

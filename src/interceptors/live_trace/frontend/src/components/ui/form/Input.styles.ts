@@ -52,28 +52,33 @@ export const StyledInput = styled.input<StyledInputProps>`
   width: 100%;
   padding: 10px 14px;
   border-radius: ${({ theme }) => theme.radii.md};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  background: ${({ theme }) => theme.colors.surface2};
+  border: 1px solid ${({ theme }) => theme.colors.borderStrong};
+  background: ${({ theme }) => theme.colors.surface3};
   color: ${({ theme }) => theme.colors.white};
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.typography.textBase};
   font-family: ${({ theme, $mono }) =>
     $mono ? theme.typography.fontMono : theme.typography.fontDisplay};
-  transition: all 200ms ease;
+  transition: all ${({ theme }) => theme.transitions.base};
   outline: none;
 
-  ${({ $mono }) =>
+  ${({ $mono, theme }) =>
     $mono &&
     css`
-      font-size: 12px;
+      font-size: ${theme.typography.textSm};
     `}
 
   &::placeholder {
     color: ${({ theme }) => theme.colors.white30};
   }
 
+  &:hover:not(:disabled):not(:focus) {
+    border-color: ${({ theme }) => theme.colors.white30};
+  }
+
   &:focus {
-    background: ${({ theme }) => theme.colors.surface3};
+    background: ${({ theme }) => theme.colors.surface4};
     border-color: ${({ theme }) => theme.colors.cyan};
+    box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.cyanSoft};
   }
 
   &:disabled {

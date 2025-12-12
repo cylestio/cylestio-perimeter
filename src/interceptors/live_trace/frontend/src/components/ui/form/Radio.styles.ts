@@ -3,7 +3,7 @@ import styled, { css } from 'styled-components';
 export const RadioWrapper = styled.label`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: ${({ theme }) => theme.spacing[2]};
   cursor: pointer;
 
   &[data-disabled='true'] {
@@ -27,24 +27,24 @@ interface StyledRadioProps {
 export const StyledRadio = styled.span<StyledRadioProps>`
   width: 16px;
   height: 16px;
-  border-radius: 50%;
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.full};
+  border: 1px solid ${({ theme }) => theme.colors.borderStrong};
+  background: ${({ theme }) => theme.colors.surface3};
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 150ms ease;
+  transition: all ${({ theme }) => theme.transitions.fast};
   flex-shrink: 0;
 
   &::after {
     content: '';
     width: 8px;
     height: 8px;
-    border-radius: 50%;
+    border-radius: ${({ theme }) => theme.radii.full};
     background: ${({ theme }) => theme.colors.cyan};
     opacity: 0;
     transform: scale(0);
-    transition: all 150ms ease;
+    transition: all ${({ theme }) => theme.transitions.fast};
   }
 
   ${({ $checked, theme }) =>
@@ -70,7 +70,7 @@ export const StyledRadio = styled.span<StyledRadioProps>`
 `;
 
 export const RadioLabel = styled.span`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.typography.textBase};
   color: ${({ theme }) => theme.colors.white};
 `;
 
@@ -81,12 +81,12 @@ interface RadioGroupWrapperProps {
 
 export const RadioGroupWrapper = styled.div<RadioGroupWrapperProps>`
   display: flex;
-  gap: 16px;
+  gap: ${({ theme }) => theme.spacing[4]};
 
-  ${({ $direction }) =>
+  ${({ $direction, theme }) =>
     $direction === 'vertical' &&
     css`
       flex-direction: column;
-      gap: 12px;
+      gap: ${theme.spacing[3]};
     `}
 `;
