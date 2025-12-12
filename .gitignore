@@ -52,3 +52,9 @@ trace_data/
 
 specs/
 plans/
+
+# Database files
+*.db
+
+# Local TODO/planning files
+TODO_*.md
