@@ -13,6 +13,7 @@ import { formatAgentName, formatDuration } from '@utils/formatting';
 import { Card } from '@ui/core/Card';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Skeleton } from '@ui/feedback/Skeleton';
+import { Page } from '@ui/layout/Page';
 import { StatsRow, TwoColumn, Stack } from '@ui/layout/Grid';
 
 import { SessionItem } from '@domain/activity';
@@ -102,7 +103,7 @@ export const Portfolio: FC = () => {
   const isLoading = loading && agents.length === 0;
 
   return (
-    <>
+    <Page>
       <Stack gap="lg">
         {/* Overview Stats - 5 columns */}
         <StatsRow columns={5}>
@@ -233,6 +234,6 @@ export const Portfolio: FC = () => {
           }
         />
       </Stack>
-    </>
+    </Page>
   );
 };

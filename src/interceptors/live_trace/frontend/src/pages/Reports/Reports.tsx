@@ -1,30 +1,28 @@
 import { useState, type FC } from 'react';
 
-import { 
-  FileText, 
-  Download, 
+import {
+  Download,
   Calendar,
   Users,
   Shield,
   Briefcase,
   Plus,
-  Eye
+  Eye,
+  FileText,
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
+import { ReportsIcon } from '@constants/pageIcons';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 import { Button } from '@ui/core/Button';
 
 import { usePageMeta } from '../../context';
 import {
-  ReportsLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   ReportTemplates,
   TemplateCard,
   TemplateIcon,
@@ -114,16 +112,12 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
   };
 
   return (
-    <ReportsLayout className={className} data-testid="reports">
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>
-            <FileText size={24} style={{ marginRight: '8px' }} />
-            Reports
-          </PageTitle>
-          <PageSubtitle>Generate and manage security reports for different stakeholders</PageSubtitle>
-        </PageInfo>
-      </PageHeader>
+    <Page className={className} data-testid="reports">
+      <PageHeader
+        icon={<ReportsIcon size={24} />}
+        title="Reports"
+        description="Generate and manage security reports for different stakeholders"
+      />
 
       {/* Report Templates */}
       <Section>
@@ -206,6 +200,6 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
           )}
         </Section.Content>
       </Section>
-    </ReportsLayout>
+    </Page>
   );
 };

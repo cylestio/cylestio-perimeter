@@ -14,6 +14,8 @@ import type { SecurityAnalysis } from '@api/types/dashboard';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
 import { AnalysisSessionsTable } from '@domain/analysis';
@@ -23,11 +25,6 @@ import { SecurityChecksExplorer } from '@features/SecurityChecksExplorer';
 
 import { usePageMeta } from '../../context';
 import {
-  DynamicAnalysisLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   PageStats,
   StatBadge,
   StatValue,
@@ -128,40 +125,40 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const inProgressCount = analysisSessions.filter((s) => s.status === 'IN_PROGRESS').length;
 
   return (
-    <DynamicAnalysisLayout className={className} data-testid="dynamic-analysis">
+    <Page className={className} data-testid="dynamic-analysis">
       {/* Header */}
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>Dynamic Analysis</PageTitle>
-          <PageSubtitle>Agent: {agentId}</PageSubtitle>
-        </PageInfo>
-        <PageStats>
-          <StatBadge>
-            <FileSearch size={14} />
-            <StatValue>{analysisSessions.length}</StatValue> scans
-          </StatBadge>
-          {checksSummary && (
-            <>
-              <StatBadge>
-                <Shield size={14} />
-                <StatValue>{checksSummary.total_checks}</StatValue> checks
-              </StatBadge>
-              {checksSummary.critical > 0 && (
-                <StatBadge $variant="critical">
-                  <X size={14} />
-                  <StatValue>{checksSummary.critical}</StatValue> critical
+      <PageHeader
+        title="Dynamic Analysis"
+        description={`Agent: ${agentId}`}
+        actions={
+          <PageStats>
+            <StatBadge>
+              <FileSearch size={14} />
+              <StatValue>{analysisSessions.length}</StatValue> scans
+            </StatBadge>
+            {checksSummary && (
+              <>
+                <StatBadge>
+                  <Shield size={14} />
+                  <StatValue>{checksSummary.total_checks}</StatValue> checks
                 </StatBadge>
-              )}
-              {checksSummary.warnings > 0 && (
-                <StatBadge $variant="warning">
-                  <AlertTriangle size={14} />
-                  <StatValue>{checksSummary.warnings}</StatValue> warnings
-                </StatBadge>
-              )}
-            </>
-          )}
-        </PageStats>
-      </PageHeader>
+                {checksSummary.critical > 0 && (
+                  <StatBadge $variant="critical">
+                    <X size={14} />
+                    <StatValue>{checksSummary.critical}</StatValue> critical
+                  </StatBadge>
+                )}
+                {checksSummary.warnings > 0 && (
+                  <StatBadge $variant="warning">
+                    <AlertTriangle size={14} />
+                    <StatValue>{checksSummary.warnings}</StatValue> warnings
+                  </StatBadge>
+                )}
+              </>
+            )}
+          </PageStats>
+        }
+      />
 
       {/* Session Progress - Show when gathering sessions */}
       {isGatheringSessions && sessionsProgress && (
@@ -222,6 +219,6 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
           )}
         </Section.Content>
       </Section>
-    </DynamicAnalysisLayout>
+    </Page>
   );
 };

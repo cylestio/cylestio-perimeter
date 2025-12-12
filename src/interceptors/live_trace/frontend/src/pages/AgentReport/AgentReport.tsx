@@ -16,6 +16,7 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Tooltip } from '@ui/overlays/Tooltip';
+import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
 
 import { InfoCard } from '@domain/metrics/InfoCard';
@@ -183,8 +184,9 @@ export const AgentReport: FC = () => {
   };
 
   return (
-    <ReportLayout>
-      <ReportSidebar>
+    <Page>
+      <ReportLayout>
+        <ReportSidebar>
         {/* System Prompt Identity Card */}
         <InfoCard
           title="System Prompt Identity"
@@ -737,7 +739,8 @@ export const AgentReport: FC = () => {
             </BehavioralContent>
           </BehavioralCard>
         )}
-      </ReportMain>
-    </ReportLayout>
+        </ReportMain>
+      </ReportLayout>
+    </Page>
   );
 };

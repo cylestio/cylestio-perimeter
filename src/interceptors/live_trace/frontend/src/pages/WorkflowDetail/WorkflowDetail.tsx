@@ -16,6 +16,7 @@ import { agentLink } from '../../utils/breadcrumbs';
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
+import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
 
 import { LifecycleProgress, type LifecycleStage } from '@domain/activity';
@@ -24,7 +25,6 @@ import { SessionsTable } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
 import {
-  WorkflowLayout,
   WorkflowHeader,
   WorkflowInfo,
   WorkflowName,
@@ -206,7 +206,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   ];
 
   return (
-    <WorkflowLayout className={className} data-testid="workflow-detail">
+    <Page className={className} data-testid="workflow-detail">
       {/* Header */}
       <WorkflowHeader>
         <WorkflowInfo>
@@ -394,6 +394,6 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
           )}
         </Section.Content>
       </Section>
-    </WorkflowLayout>
+    </Page>
   );
 };

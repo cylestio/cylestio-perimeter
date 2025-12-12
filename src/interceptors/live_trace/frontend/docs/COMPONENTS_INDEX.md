@@ -18,7 +18,7 @@
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
 | `ui/data-display/` | Accordion, KeyValueList, Table, CodeBlock, Timeline, TimelineItem |
-| `ui/layout/` | Grid, Content, Main, PageHeader |
+| `ui/layout/` | Grid, Content, Main, Page, PageHeader |
 | `ui/icons/` | CursorIcon, ClaudeCodeIcon |
 
 ### Domain Components (`@domain/*`) - AI Security Monitoring
@@ -1407,13 +1407,48 @@ interface DrawerProps {
 
 ## Layout Components
 
+### Page
+
+Page layout wrapper that provides consistent max-width (1400px) and padding across all pages.
+
+```typescript
+interface PageProps {
+  children: ReactNode;
+  fullWidth?: boolean;  // When true, removes max-width constraint
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Standard page (1400px max-width with padding)
+<Page>
+  <PageHeader title="Dashboard" />
+  <Section>...</Section>
+</Page>
+
+// Full-width page (e.g., SessionDetail with sidebar)
+<Page fullWidth>
+  <SessionLayout>
+    <Sidebar>...</Sidebar>
+    <Main>...</Main>
+  </SessionLayout>
+</Page>
+```
+
+**Notes:**
+- All pages should use `<Page>` as their top-level wrapper
+- Default: 1400px max-width, centered, with `spacing[6]` (24px) padding
+- `fullWidth={true}`: No max-width constraint, no padding (for custom layouts)
+
 ### PageHeader
 
-Page header with title, optional description, and actions.
+Page header with title, optional icon, description, and actions.
 
 ```typescript
 interface PageHeaderProps {
   title: string;
+  icon?: ReactNode;
   description?: string;
   actions?: ReactNode;
 }
@@ -1427,12 +1462,23 @@ interface PageHeaderProps {
   description="Overview of agent security monitoring"
 />
 
-// With actions
+// With icon
 <PageHeader
-  title="Findings"
-  description="Security vulnerabilities detected"
+  icon={<FileText size={24} />}
+  title="Reports"
+  description="Generate and view security reports"
+/>
+
+// With icon and actions
+<PageHeader
+  icon={<Target size={24} />}
+  title="Attack Surface"
+  description="Analyze potential attack vectors"
   actions={
-    <Button icon={<Plus size={16} />}>New Scan</Button>
+    <>
+      <Badge variant="medium">12 vectors</Badge>
+      <Button icon={<Shield size={16} />}>Scan Now</Button>
+    </>
   }
 />
 ```

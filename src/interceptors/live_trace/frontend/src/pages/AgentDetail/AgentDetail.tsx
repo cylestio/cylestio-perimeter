@@ -19,6 +19,7 @@ import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Table, type Column as TableColumn } from '@ui/data-display/Table';
 import { Tooltip } from '@ui/overlays/Tooltip';
+import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
 
 import { ClusterVisualization } from '@domain/visualization';
@@ -29,7 +30,6 @@ import { buildVisualizationNodes } from '../utils/behavioral';
 import { usePageMeta } from '../../context';
 import {
   ButtonLink,
-  PageContainer,
   ContentGrid,
   Column,
   ColumnHeader,
@@ -211,7 +211,7 @@ export const AgentDetail: FC = () => {
   const allIssues = [...failedChecks, ...warningChecks];
 
   return (
-    <PageContainer>
+    <Page>
       {/* Agent Header */}
       <AgentHeader>
         <AgentHeaderLeft>
@@ -520,6 +520,6 @@ export const AgentDetail: FC = () => {
           {/* Future: Analysis Log Section */}
         </Column>
       </ContentGrid>
-    </PageContainer>
+    </Page>
   );
 };

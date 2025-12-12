@@ -1,15 +1,5 @@
 import styled from 'styled-components';
 
-export const WorkflowLayout = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[6]};
-  padding: ${({ theme }) => theme.spacing[6]};
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
-`;
-
 export const WorkflowHeader = styled.div`
   display: flex;
   justify-content: space-between;

@@ -10,17 +10,14 @@ import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/forma
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
 import { FindingsTab } from '@domain/findings';
 
 import { usePageMeta } from '../../context';
 import {
-  StaticAnalysisLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   PageStats,
   StatBadge,
   StatValue,
@@ -115,26 +112,26 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
 
   return (
-    <StaticAnalysisLayout className={className} data-testid="static-analysis">
+    <Page className={className} data-testid="static-analysis">
       {/* Header */}
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>Static Analysis</PageTitle>
-          <PageSubtitle>Agent: {agentId}</PageSubtitle>
-        </PageInfo>
-        <PageStats>
-          <StatBadge>
-            <FileSearch size={14} />
-            <StatValue>{analysisSessions.length}</StatValue> scans
-          </StatBadge>
-          {findingsSummary && (
+      <PageHeader
+        title="Static Analysis"
+        description={`Agent: ${agentId}`}
+        actions={
+          <PageStats>
             <StatBadge>
-              <Shield size={14} />
-              <StatValue>{findingsSummary.total_findings}</StatValue> findings
+              <FileSearch size={14} />
+              <StatValue>{analysisSessions.length}</StatValue> scans
             </StatBadge>
-          )}
-        </PageStats>
-      </PageHeader>
+            {findingsSummary && (
+              <StatBadge>
+                <Shield size={14} />
+                <StatValue>{findingsSummary.total_findings}</StatValue> findings
+              </StatBadge>
+            )}
+          </PageStats>
+        }
+      />
 
       {/* Analysis Sessions */}
       <Section>
@@ -218,6 +215,6 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
           />
         </Section.Content>
       </Section>
-    </StaticAnalysisLayout>
+    </Page>
   );
 };

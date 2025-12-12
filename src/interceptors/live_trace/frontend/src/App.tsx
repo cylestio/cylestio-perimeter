@@ -1,20 +1,20 @@
 import { useState, useCallback, useEffect } from 'react';
 
-import { 
-  LayoutDashboard, 
-  Plug, 
-  History, 
-  Home,
-  Monitor,
-  Lock,
-  FileText,
-  Target,
-  Lightbulb,
-  BarChart3
-} from 'lucide-react';
 import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 
+import {
+  AttackSurfaceIcon,
+  ConnectIcon,
+  DevConnectionIcon,
+  HomeIcon,
+  OverviewIcon,
+  ProductionIcon,
+  RecommendationsIcon,
+  ReportsIcon,
+  SessionsIcon,
+  SystemPromptsIcon,
+} from '@constants/pageIcons';
 import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { IDEConnectionStatus } from '@api/types/ide';
@@ -289,7 +289,7 @@ function AppLayout() {
           {/* Start Here - show on root page only if there's data */}
           {isRootPage && hasData && (
             <NavItem
-              icon={<Home size={18} />}
+              icon={<HomeIcon size={18} />}
               label="Start Here"
               active={location.pathname === '/'}
               to="/"
@@ -301,7 +301,7 @@ function AppLayout() {
           {urlAgentId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Developer' : undefined}>
               <NavItem
-                icon={<BarChart3 size={18} />}
+                icon={<OverviewIcon size={18} />}
                 label="Overview"
                 active={location.pathname === `/agent/${urlAgentId}/overview`}
                 to={`/agent/${urlAgentId}/overview`}
@@ -309,14 +309,14 @@ function AppLayout() {
               />
               <NavItem
                 label="System prompts"
-                icon={<LayoutDashboard size={18} />}
+                icon={<SystemPromptsIcon size={18} />}
                 badge={agents.length > 0 ? agents.length : undefined}
                 active={location.pathname === `/agent/${urlAgentId}/system-prompts` || location.pathname === `/agent/${urlAgentId}`}
                 to={`/agent/${urlAgentId}/system-prompts`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
-                icon={<History size={18} />}
+                icon={<SessionsIcon size={18} />}
                 label="Sessions"
                 badge={data?.sessions_count ? data.sessions_count : undefined}
                 active={location.pathname === `/agent/${urlAgentId}/sessions`}
@@ -324,7 +324,7 @@ function AppLayout() {
                 collapsed={sidebarCollapsed}
               />
               <NavItem
-                icon={<Lightbulb size={18} />}
+                icon={<RecommendationsIcon size={18} />}
                 label="Recommendations"
                 active={location.pathname === `/agent/${urlAgentId}/recommendations`}
                 to={`/agent/${urlAgentId}/recommendations`}
@@ -345,7 +345,7 @@ function AppLayout() {
                 active={location.pathname === `/agent/${urlAgentId}/dev-connection`}
                 showConnectorBelow
                 isFirst
-                icon={<Monitor size={10} />}
+                icon={<DevConnectionIcon size={10} />}
               />
               <SecurityCheckItem
                 label="Static Analysis"
@@ -378,7 +378,7 @@ function AppLayout() {
                 isLocked={!allChecksGreen}
                 isLast
                 showConnectorAbove
-                icon={<Lock size={10} />}
+                icon={<ProductionIcon size={10} />}
                 lockedTooltip="Enterprise Edition • Production monitoring, alerting & compliance. Complete all security checks to unlock."
               />
             </NavGroup>
@@ -388,14 +388,14 @@ function AppLayout() {
           {urlAgentId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Reports' : undefined}>
               <NavItem
-                icon={<FileText size={18} />}
+                icon={<ReportsIcon size={18} />}
                 label="Reports"
                 active={location.pathname === `/agent/${urlAgentId}/reports`}
                 to={`/agent/${urlAgentId}/reports`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
-                icon={<Target size={18} />}
+                icon={<AttackSurfaceIcon size={18} />}
                 label="Attack Surface"
                 active={location.pathname === `/agent/${urlAgentId}/attack-surface`}
                 to={`/agent/${urlAgentId}/attack-surface`}
@@ -408,7 +408,7 @@ function AppLayout() {
         <Sidebar.Footer>
           <NavItem
             label="How to Connect"
-            icon={<Plug size={18} />}
+            icon={<ConnectIcon size={18} />}
             active={location.pathname === '/connect'}
             to="/connect"
             collapsed={sidebarCollapsed}

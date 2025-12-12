@@ -1,8 +1,8 @@
 import { useState, type FC } from 'react';
 
-import { 
-  Target, 
-  Radar, 
+import {
+  Target,
+  Radar,
   AlertTriangle,
   Shield,
   Layers,
@@ -12,18 +12,16 @@ import {
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
+import { AttackSurfaceIcon } from '@constants/pageIcons';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
 import { usePageMeta } from '../../context';
 import {
-  AttackSurfaceLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   SurfaceOverview,
   SurfaceCard,
   SurfaceIcon,
@@ -119,26 +117,24 @@ export const AttackSurface: FC<AttackSurfaceProps> = ({ className }) => {
   const totalExposure = vectors.length;
 
   return (
-    <AttackSurfaceLayout className={className} data-testid="attack-surface">
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>
-            <Target size={24} style={{ marginRight: '8px' }} />
-            Attack Surface
-          </PageTitle>
-          <PageSubtitle>Live analysis of potential attack vectors and vulnerabilities</PageSubtitle>
-        </PageInfo>
-        <LastScan>
-          <LastScanInfo>
-            <Clock size={14} />
-            Last scan: 2 minutes ago
-          </LastScanInfo>
-          <ScanButton onClick={handleScan} disabled={isScanning}>
-            <RefreshCw size={14} className={isScanning ? 'spinning' : ''} />
-            {isScanning ? 'Scanning...' : 'Rescan'}
-          </ScanButton>
-        </LastScan>
-      </PageHeader>
+    <Page className={className} data-testid="attack-surface">
+      <PageHeader
+        icon={<AttackSurfaceIcon size={24} />}
+        title="Attack Surface"
+        description="Live analysis of potential attack vectors and vulnerabilities"
+        actions={
+          <LastScan>
+            <LastScanInfo>
+              <Clock size={14} />
+              Last scan: 2 minutes ago
+            </LastScanInfo>
+            <ScanButton onClick={handleScan} disabled={isScanning}>
+              <RefreshCw size={14} className={isScanning ? 'spinning' : ''} />
+              {isScanning ? 'Scanning...' : 'Rescan'}
+            </ScanButton>
+          </LastScan>
+        }
+      />
 
       {/* Surface Overview */}
       <SurfaceOverview>
@@ -228,6 +224,6 @@ export const AttackSurface: FC<AttackSurfaceProps> = ({ className }) => {
           </VectorList>
         </Section.Content>
       </Section>
-    </AttackSurfaceLayout>
+    </Page>
   );
 };
