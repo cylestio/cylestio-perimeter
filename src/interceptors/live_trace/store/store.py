@@ -211,9 +211,11 @@ CREATE TABLE IF NOT EXISTS recommendations (
     file_path TEXT,
     line_start INTEGER,
     line_end INTEGER,
+    function_name TEXT,
+    class_name TEXT,
     code_snippet TEXT,
     related_files TEXT,                   -- JSON array
-    
+
     -- Status
     status TEXT DEFAULT 'PENDING',        -- PENDING, FIXING, FIXED, VERIFIED, REOPENED, DISMISSED, IGNORED
     
@@ -591,6 +593,8 @@ class TraceStore:
                     file_path TEXT,
                     line_start INTEGER,
                     line_end INTEGER,
+                    function_name TEXT,
+                    class_name TEXT,
                     code_snippet TEXT,
                     related_files TEXT,
                     status TEXT DEFAULT 'PENDING',
@@ -645,6 +649,22 @@ class TraceStore:
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at)")
             self.db.commit()
             logger.info("Migration: Created audit_log table")
+
+        # Migration: Add function_name and class_name to recommendations table
+        cursor = self.db.execute("PRAGMA table_info(recommendations)")
+        rec_columns = {col[1] for col in cursor.fetchall()}
+        
+        rec_migrations = [
+            ("function_name", "TEXT"),
+            ("class_name", "TEXT"),
+        ]
+        
+        for column_name, column_type in rec_migrations:
+            if column_name not in rec_columns:
+                self.db.execute(f"ALTER TABLE recommendations ADD COLUMN {column_name} {column_type}")
+                logger.info(f"Migration: Added {column_name} column to recommendations table")
+        
+        self.db.commit()
 
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
@@ -1681,6 +1701,8 @@ class TraceStore:
                 file_path=file_path,
                 line_start=line_start,
                 line_end=line_end,
+                function_name=function_name,
+                class_name=class_name,
                 code_snippet=code_snippet_str,
                 fix_hints=fix_recommendation,
                 correlation_state=correlation_state,
@@ -1707,6 +1729,8 @@ class TraceStore:
         file_path: Optional[str] = None,
         line_start: Optional[int] = None,
         line_end: Optional[int] = None,
+        function_name: Optional[str] = None,
+        class_name: Optional[str] = None,
         code_snippet: Optional[str] = None,
         fix_hints: Optional[str] = None,
         correlation_state: Optional[str] = None,
@@ -1737,9 +1761,9 @@ class TraceStore:
                     owasp_llm, cwe, mitre_atlas, soc2_controls, nist_csf,
                     title, description, fix_hints, fix_complexity,
                     requires_architectural_change, file_path, line_start, line_end,
-                    code_snippet, correlation_state, fingerprint,
-                    status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    function_name, class_name, code_snippet, correlation_state,
+                    fingerprint, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 recommendation_id,
                 workflow_id,
@@ -1762,6 +1786,8 @@ class TraceStore:
                 file_path,
                 line_start,
                 line_end,
+                function_name,
+                class_name,
                 code_snippet,
                 correlation_state,
                 fingerprint,
@@ -2699,6 +2725,8 @@ class TraceStore:
         file_path: Optional[str] = None,
         line_start: Optional[int] = None,
         line_end: Optional[int] = None,
+        function_name: Optional[str] = None,
+        class_name: Optional[str] = None,
         code_snippet: Optional[str] = None,
         related_files: Optional[List[str]] = None,
         correlation_state: Optional[str] = None,
@@ -2729,9 +2757,10 @@ class TraceStore:
                     owasp_llm, cwe, mitre_atlas, soc2_controls, nist_csf,
                     title, description, impact, fix_hints, fix_complexity,
                     requires_architectural_change, file_path, line_start, line_end,
-                    code_snippet, related_files, correlation_state, correlation_evidence,
-                    fingerprint, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    function_name, class_name, code_snippet, related_files,
+                    correlation_state, correlation_evidence, fingerprint, status,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 recommendation_id,
                 workflow_id,
@@ -2755,6 +2784,8 @@ class TraceStore:
                 file_path,
                 line_start,
                 line_end,
+                function_name,
+                class_name,
                 code_snippet,
                 json.dumps(related_files) if related_files else None,
                 correlation_state,
@@ -3112,6 +3143,8 @@ class TraceStore:
             'file_path': row['file_path'],
             'line_start': row['line_start'],
             'line_end': row['line_end'],
+            'function_name': row['function_name'] if 'function_name' in row.keys() else None,
+            'class_name': row['class_name'] if 'class_name' in row.keys() else None,
             'code_snippet': row['code_snippet'],
             'related_files': json.loads(row['related_files']) if row['related_files'] else [],
             'status': row['status'],
@@ -3227,3 +3260,84 @@ class TraceStore:
             'performed_at': datetime.fromtimestamp(row['performed_at'], tz=timezone.utc).isoformat(),
             'metadata': json.loads(row['metadata']) if row['metadata'] else None,
         }
+
+    # ==================== Backfill Utilities ====================
+
+    def backfill_recommendations_from_findings(
+        self,
+        workflow_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create recommendations for findings that don't have them.
+
+        This is useful for backfilling after adding the auto-recommendation feature.
+
+        Args:
+            workflow_id: Optional workflow to limit backfill to
+
+        Returns:
+            Dict with created_count and skipped_count
+        """
+        with self._lock:
+            # Get all findings
+            findings = self.get_findings(workflow_id=workflow_id, limit=10000)
+
+            # Get existing recommendations to check for duplicates
+            existing_recs = self.get_recommendations(workflow_id=workflow_id, limit=10000)
+            existing_finding_ids = {r.get('source_finding_id') for r in existing_recs if r.get('source_finding_id')}
+
+            created_count = 0
+            skipped_count = 0
+
+            for finding in findings:
+                finding_id = finding['finding_id']
+
+                # Skip if recommendation already exists for this finding
+                if finding_id in existing_finding_ids:
+                    skipped_count += 1
+                    continue
+
+                # Extract data from finding
+                evidence = finding.get('evidence', {})
+                code_snippet = None
+                if isinstance(evidence, dict):
+                    code_snippet = evidence.get('code_snippet')
+
+                # Get first items from lists for OWASP/CWE
+                owasp_mapping = finding.get('owasp_mapping', [])
+                cwe_mapping = finding.get('cwe_mapping', [])
+
+                try:
+                    self._create_recommendation_from_finding(
+                        finding_id=finding_id,
+                        workflow_id=finding['workflow_id'],
+                        finding_type=finding['finding_type'],
+                        severity=finding['severity'],
+                        title=finding['title'],
+                        description=finding.get('description'),
+                        cvss_score=finding.get('cvss_score'),
+                        cvss_vector=finding.get('cvss_vector'),
+                        owasp_llm=owasp_mapping[0] if owasp_mapping else None,
+                        cwe=cwe_mapping[0] if cwe_mapping else None,
+                        mitre_atlas=finding.get('mitre_atlas'),
+                        soc2_controls=finding.get('soc2_controls'),
+                        nist_csf=finding.get('nist_csf'),
+                        file_path=finding.get('file_path'),
+                        line_start=finding.get('line_start'),
+                        line_end=finding.get('line_end'),
+                        function_name=finding.get('function_name'),
+                        class_name=finding.get('class_name'),
+                        code_snippet=code_snippet,
+                        fix_hints=finding.get('fix_recommendation'),
+                        correlation_state=finding.get('correlation_state'),
+                        fingerprint=finding.get('fingerprint'),
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.warning(f"Failed to create recommendation for finding {finding_id}: {e}")
+                    skipped_count += 1
+
+            return {
+                'created_count': created_count,
+                'skipped_count': skipped_count,
+                'total_findings': len(findings),
+            }

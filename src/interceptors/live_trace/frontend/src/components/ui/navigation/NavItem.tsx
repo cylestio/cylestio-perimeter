@@ -14,7 +14,7 @@ import {
 } from './NavItem.styles';
 
 // Types
-export type NavItemBadgeColor = 'orange' | 'red' | 'cyan';
+export type NavItemBadgeColor = 'orange' | 'red' | 'cyan' | 'green';
 
 export interface NavItemProps {
   icon?: ReactNode;

@@ -7,6 +7,7 @@ export * from './metrics';
 export * from './activity';
 export * from './analysis';
 export * from './findings';
+export * from './recommendations';
 export * from './security';
 export * from './sessions';
 export * from './visualization';

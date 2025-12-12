@@ -213,3 +213,88 @@ export const dismissRecommendation = async (
   }
   return data;
 };
+
+// Import AuditLogEntry from types
+import type { AuditLogEntry } from '../types/findings';
+
+// Re-export for convenience
+export type { AuditLogEntry };
+
+export interface AuditLogResponse {
+  audit_log: AuditLogEntry[];
+  total_count: number;
+}
+
+export const fetchRecommendationAuditLog = async (
+  recommendationId: string,
+  limit: number = 100
+): Promise<AuditLogResponse> => {
+  const response = await fetch(
+    `/api/recommendations/${recommendationId}/audit-log?limit=${limit}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch audit log: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+export const fetchWorkflowAuditLog = async (
+  workflowId: string,
+  limit: number = 100
+): Promise<AuditLogResponse> => {
+  const response = await fetch(
+    `/api/workflow/${workflowId}/audit-log?limit=${limit}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch audit log: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+// IDE Connection Status Types
+export interface IdeConnection {
+  connection_id: string;
+  ide_type: string;
+  workflow_id?: string;
+  host?: string;
+  user?: string;
+  workspace_path?: string;
+  model?: string;
+  is_active: boolean;
+  is_developing: boolean;
+  connected_at: string;
+  last_heartbeat: string;
+  last_seen_relative?: string;
+}
+
+export interface IdeConnectionStatus {
+  is_connected: boolean;
+  is_developing: boolean;
+  connected_ide?: IdeConnection;
+  all_connections: IdeConnection[];
+}
+
+export const fetchIdeStatus = async (
+  workflowId?: string
+): Promise<IdeConnectionStatus> => {
+  const url = workflowId
+    ? `/api/ide/status?workflow_id=${workflowId}`
+    : '/api/ide/status';
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch IDE status: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};

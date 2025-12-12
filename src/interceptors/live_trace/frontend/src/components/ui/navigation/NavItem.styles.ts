@@ -79,6 +79,7 @@ const badgeColors: Record<NavItemBadgeColor, { bg: string; fg: string }> = {
   orange: { bg: 'orangeSoft', fg: 'orange' },
   red: { bg: 'redSoft', fg: 'red' },
   cyan: { bg: 'cyanSoft', fg: 'cyan' },
+  green: { bg: 'greenSoft', fg: 'green' },
 };
 
 export const NavItemBadge = styled.span<NavItemBadgeProps>`

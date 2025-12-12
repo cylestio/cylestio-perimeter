@@ -85,6 +85,27 @@ function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefi
   return openCount > 0 ? openCount : undefined;
 }
 
+// Get recommendations count (returns count even if 0 to show green badge)
+function getRecommendationsCount(stage: AnalysisStage | undefined): number {
+  if (!stage?.findings) return 0;
+  return stage.findings.by_status?.OPEN ?? 0;
+}
+
+// Get badge color based on recommendations severity
+function getRecommendationsBadgeColor(stage: AnalysisStage | undefined): 'red' | 'orange' | 'green' {
+  if (!stage?.findings) return 'green';
+  
+  const openCount = stage.findings.by_status?.OPEN ?? 0;
+  if (openCount === 0) return 'green';
+  
+  // Check if any critical/high severity issues
+  const criticalCount = stage.findings.by_severity?.CRITICAL ?? 0;
+  const highCount = stage.findings.by_severity?.HIGH ?? 0;
+  
+  if (criticalCount > 0 || highCount > 0) return 'red';
+  return 'orange';
+}
+
 // Get dynamic analysis stat text (sessions progress or findings count)
 function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | undefined {
   if (!stage) return undefined;
@@ -326,6 +347,8 @@ function AppLayout() {
               <NavItem
                 icon={<Lightbulb size={18} />}
                 label="Recommendations"
+                badge={getRecommendationsCount(data?.security_analysis?.recommendations)}
+                badgeColor={getRecommendationsBadgeColor(data?.security_analysis?.recommendations)}
                 active={location.pathname === `/agent/${urlAgentId}/recommendations`}
                 to={`/agent/${urlAgentId}/recommendations`}
                 collapsed={sidebarCollapsed}

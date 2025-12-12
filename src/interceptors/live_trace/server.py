@@ -1214,6 +1214,52 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error dismissing recommendation: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/recommendations/{recommendation_id}/audit-log")
+    async def api_get_recommendation_audit_log(
+        recommendation_id: str,
+        limit: int = 100,
+    ):
+        """Get audit log entries for a specific recommendation."""
+        try:
+            # Verify recommendation exists
+            rec = insights.store.get_recommendation(recommendation_id)
+            if not rec:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            # Get audit log entries for this recommendation
+            entries = insights.store.get_audit_log(
+                entity_id=recommendation_id,
+                limit=limit,
+            )
+
+            return JSONResponse({
+                "recommendation_id": recommendation_id,
+                "audit_log": entries,
+                "total_count": len(entries),
+            })
+        except Exception as e:
+            logger.error(f"Error getting recommendation audit log: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/workflow/{workflow_id}/backfill-recommendations")
+    async def api_backfill_recommendations(workflow_id: str):
+        """Backfill recommendations from existing findings.
+        
+        Creates recommendations for findings that don't have them yet.
+        Useful after upgrading to the new recommendation system.
+        """
+        try:
+            result = insights.store.backfill_recommendations_from_findings(workflow_id)
+            return JSONResponse({
+                "success": True,
+                "workflow_id": workflow_id,
+                **result,
+                "message": f"Created {result['created_count']} recommendations from {result['total_findings']} findings",
+            })
+        except Exception as e:
+            logger.error(f"Error backfilling recommendations: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/workflow/{workflow_id}/audit-log")
     async def api_get_workflow_audit_log(
         workflow_id: str,

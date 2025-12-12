@@ -234,16 +234,52 @@ class AnalysisEngine:
             except Exception as e:
                 logger.warning(f"Failed to get security checks for dynamic findings: {e}")
 
-        # Recommendations status (based on AUTOFIX sessions)
-        autofix_sessions = [s for s in analysis_sessions if s.get("session_type") == "AUTOFIX"]
-        autofix_in_progress = any(s.get("status") == "IN_PROGRESS" for s in autofix_sessions)
-        autofix_completed = any(s.get("status") == "COMPLETED" for s in autofix_sessions)
+        # Recommendations status and counts
+        # Get recommendation counts from store
+        recommendations_findings = None
+        try:
+            recs_response = self.store.get_recommendations(workflow_id=workflow_id, limit=1000)
+            recommendations = recs_response.get("recommendations", [])
+            
+            if recommendations:
+                # Count by severity
+                by_severity = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+                # Count by status (PENDING/FIXING are "OPEN", rest are "FIXED")
+                pending_count = 0
+                resolved_count = 0
+                
+                for rec in recommendations:
+                    severity = rec.get("severity", "MEDIUM")
+                    status = rec.get("status", "PENDING")
+                    
+                    # Count all recommendations by severity
+                    if severity in by_severity:
+                        by_severity[severity] += 1
+                    
+                    # Count open (pending/fixing) vs resolved
+                    if status in ("PENDING", "FIXING"):
+                        pending_count += 1
+                    else:
+                        resolved_count += 1
+                
+                recommendations_findings = {
+                    "total": len(recommendations),
+                    "by_severity": by_severity,
+                    "by_status": {
+                        "OPEN": pending_count,
+                        "FIXED": resolved_count,
+                    },
+                }
+        except Exception as e:
+            logger.warning(f"Failed to get recommendations for workflow {workflow_id}: {e}")
 
+        # Determine recommendations status
         recommendations_status = "pending"
-        if autofix_in_progress:
-            recommendations_status = "active"
-        elif autofix_completed:
-            recommendations_status = "completed"
+        if recommendations_findings and recommendations_findings["total"] > 0:
+            if recommendations_findings["by_status"]["OPEN"] > 0:
+                recommendations_status = "active"  # Has pending recommendations
+            else:
+                recommendations_status = "completed"  # All resolved
 
         return {
             "static": {
@@ -257,7 +293,7 @@ class AnalysisEngine:
             },
             "recommendations": {
                 "status": recommendations_status,
-                "findings": None,
+                "findings": recommendations_findings,
             },
         }
 

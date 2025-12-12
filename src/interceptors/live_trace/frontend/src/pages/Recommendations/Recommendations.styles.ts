@@ -37,189 +37,177 @@ export const PageSubtitle = styled.span`
   color: ${({ theme }) => theme.colors.white50};
 `;
 
-export const ScoreCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: ${({ theme }) => theme.spacing[8]};
-  background: linear-gradient(
-    135deg,
-    ${({ theme }) => theme.colors.surface2} 0%,
-    ${({ theme }) => theme.colors.surface} 100%
-  );
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  border-radius: ${({ theme }) => theme.radii.xl};
-`;
-
-interface ScoreValueProps {
-  $color: 'green' | 'orange' | 'red';
-}
-
-export const ScoreValue = styled.div<ScoreValueProps>`
-  font-family: ${({ theme }) => theme.typography.fontDisplay};
-  font-size: 72px;
-  font-weight: 700;
-  color: ${({ $color, theme }) => theme.colors[$color]};
-  line-height: 1;
-  text-shadow: ${({ $color, theme }) => {
-    const shadowColor = theme.colors[$color];
-    return `0 0 40px ${shadowColor}40`;
-  }};
-`;
-
-export const ScoreLabel = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.white50};
-  margin-top: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const ScoreBreakdown = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.spacing[6]};
-  margin-top: ${({ theme }) => theme.spacing[5]};
-  padding-top: ${({ theme }) => theme.spacing[5]};
-  border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-`;
-
-interface ScoreItemProps {
-  $color: 'red' | 'orange' | 'yellow' | 'green';
-}
-
-export const ScoreItem = styled.div<ScoreItemProps>`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[1]};
+export const AgentBadge = styled.span`
+  font-family: ${({ theme }) => theme.typography.fontMono};
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.white50};
+  color: ${({ theme }) => theme.colors.cyan};
+  background: ${({ theme }) => theme.colors.cyanSoft};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[3]}`};
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
 
-  span {
-    font-weight: 600;
-    color: ${({ $color, theme }) => theme.colors[$color]};
+// Filter tabs section
+export const FilterTabsRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  padding-bottom: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const FilterTabs = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const FixAllButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  font-size: 13px;
+  font-weight: 500;
+  background: ${({ theme }) => theme.colors.cyanSoft};
+  color: ${({ theme }) => theme.colors.cyan};
+  border: 1px solid ${({ theme }) => theme.colors.cyan}40;
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.cyan}30;
+    border-color: ${({ theme }) => theme.colors.cyan}60;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
+export const CopiedToast = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.green};
+  margin-left: ${({ theme }) => theme.spacing[2]};
+`;
+
+interface FilterTabProps {
+  $active: boolean;
+}
+
+export const FilterTab = styled.button<FilterTabProps>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  font-size: 13px;
+  font-weight: 500;
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.surface2 : 'transparent'};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.white : theme.colors.white50};
+  border: 1px solid ${({ $active, theme }) =>
+    $active ? theme.colors.borderMedium : 'transparent'};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.white};
+    background: ${({ theme }) => theme.colors.surface2};
+  }
+`;
+
+export const FilterCount = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px ${({ theme }) => theme.spacing[2]};
+  border-radius: ${({ theme }) => theme.radii.full};
+  background: ${({ theme }) => theme.colors.surface};
+`;
+
+// Recommendations list
 export const RecommendationsList = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[3]};
-`;
-
-interface RecommendationCardProps {
-  $severity: 'high' | 'medium' | 'low';
-}
-
-export const RecommendationCard = styled.div<RecommendationCardProps>`
-  display: flex;
-  align-items: flex-start;
   gap: ${({ theme }) => theme.spacing[4]};
-  padding: ${({ theme }) => theme.spacing[5]};
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ $severity, theme }) => {
-    switch ($severity) {
-      case 'high':
-        return `${theme.colors.red}30`;
-      case 'medium':
-        return `${theme.colors.orange}30`;
-      default:
-        return theme.colors.borderSubtle;
-    }
-  }};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  transition: all ${({ theme }) => theme.transitions.base};
-
-  &:hover {
-    border-color: ${({ $severity, theme }) => {
-      switch ($severity) {
-        case 'high':
-          return `${theme.colors.red}50`;
-        case 'medium':
-          return `${theme.colors.orange}50`;
-        default:
-          return theme.colors.borderMedium;
-      }
-    }};
-  }
 `;
 
-interface RecommendationIconProps {
-  $severity: 'high' | 'medium' | 'low';
-}
-
-export const RecommendationIcon = styled.div<RecommendationIconProps>`
-  width: 40px;
-  height: 40px;
+// Section header with count
+export const SectionHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: ${({ theme }) => theme.radii.md};
-  flex-shrink: 0;
-  
-  background: ${({ $severity, theme }) => {
-    switch ($severity) {
-      case 'high':
-        return theme.colors.redSoft;
-      case 'medium':
-        return theme.colors.orangeSoft;
-      default:
-        return theme.colors.greenSoft;
-    }
-  }};
-  
-  color: ${({ $severity, theme }) => {
-    switch ($severity) {
-      case 'high':
-        return theme.colors.red;
-      case 'medium':
-        return theme.colors.orange;
-      default:
-        return theme.colors.green;
-    }
-  }};
+  justify-content: space-between;
+  margin-bottom: ${({ theme }) => theme.spacing[3]};
 `;
 
-export const RecommendationContent = styled.div`
-  flex: 1;
+export const SectionTitle = styled.h2`
+  font-size: 16px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.white};
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const SectionCount = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+// Resolved section
+export const ResolvedSection = styled.div`
+  margin-top: ${({ theme }) => theme.spacing[4]};
+  padding-top: ${({ theme }) => theme.spacing[4]};
+  border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+`;
+
+export const ResolvedList = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[2]};
 `;
 
-export const RecommendationTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0;
-`;
-
-export const RecommendationDescription = styled.p`
+export const ResolvedItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.radii.md};
   font-size: 13px;
   color: ${({ theme }) => theme.colors.white70};
-  margin: 0;
-  line-height: 1.5;
 `;
 
-export const RecommendationActions = styled.div`
+export const ResolvedId = styled.code`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.cyan};
+`;
+
+export const ResolvedStatus = styled.span`
   display: flex;
-  gap: ${({ theme }) => theme.spacing[3]};
-  margin-top: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const ActionLink = styled.a`
-  display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[1]};
-  font-size: 13px;
+  color: ${({ theme }) => theme.colors.green};
   font-weight: 500;
-  color: ${({ theme }) => theme.colors.cyan};
-  text-decoration: none;
-  transition: color ${({ theme }) => theme.transitions.fast};
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.white};
-  }
 `;
 
+export const ResolvedTitle = styled.span`
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+export const ResolvedDate = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white30};
+`;
+
+// Empty state
 export const EmptyState = styled.div`
   display: flex;
   flex-direction: column;
@@ -240,5 +228,48 @@ export const EmptyState = styled.div`
     font-size: 13px;
     color: ${({ theme }) => theme.colors.white50};
     margin: 0;
+    max-width: 400px;
   }
 `;
+
+// Evidence modal content
+export const EvidenceContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const EvidenceSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const EvidenceLabel = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+`;
+
+export const EvidenceCode = styled.pre`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white};
+  background: ${({ theme }) => theme.colors.surface2};
+  padding: ${({ theme }) => theme.spacing[4]};
+  border-radius: ${({ theme }) => theme.radii.md};
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+`;
+
+export const EvidenceText = styled.p`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.white70};
+  line-height: 1.5;
+  margin: 0;
+`;
+

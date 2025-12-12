@@ -82,6 +82,8 @@ export interface Recommendation {
   file_path?: string;
   line_start?: number;
   line_end?: number;
+  function_name?: string;
+  class_name?: string;
   code_snippet?: string;
   related_files?: string[];
   
