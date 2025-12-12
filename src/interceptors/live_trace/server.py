@@ -6,6 +6,7 @@ from typing import Optional
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -44,6 +45,21 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         title="Live Trace Dashboard",
         description="Real-time tracing and debugging dashboard",
         version="1.0.0"
+    )
+
+    # Add CORS middleware for local development security
+    # Only allow requests from localhost origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",    # Vite dev server
+            "http://127.0.0.1:5173",
+            "http://localhost:7100",    # Dashboard itself
+            "http://127.0.0.1:7100",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # Include MCP router

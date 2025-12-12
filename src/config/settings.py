@@ -10,9 +10,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class ServerConfig(BaseModel):
     """Server configuration."""
-    
+
     port: int = Field(default=4000, ge=1, le=65535)
-    host: str = Field(default="0.0.0.0")
+    host: str = Field(default="127.0.0.1")  # Localhost only for security (use 0.0.0.0 to expose)
     workers: int = Field(default=1, ge=1)
 
 

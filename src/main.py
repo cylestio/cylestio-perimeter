@@ -9,6 +9,7 @@ import typer
 import uvicorn
 import yaml
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 import click
 
@@ -90,7 +91,24 @@ def create_app(config: Settings) -> FastAPI:
         version="1.0.0",
         lifespan=lifespan
     )
-    
+
+    # Add CORS middleware for local development security
+    # Only allow requests from localhost origins
+    fast_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",    # Vite dev server
+            "http://127.0.0.1:5173",
+            "http://localhost:7100",    # Live trace dashboard
+            "http://127.0.0.1:7100",
+            "http://localhost:4000",    # Proxy itself
+            "http://127.0.0.1:4000",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Store proxy handler in app state for access in routes
     fast_app.state.proxy_handler = proxy_handler_instance
     
