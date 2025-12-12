@@ -66,14 +66,46 @@ Before creating ANY component, check [COMPONENTS_INDEX.md](./COMPONENTS_INDEX.md
 src/
 ├── components/
 │   ├── ui/           # Generic primitives
-│   ├── domain/       # AI/security-specific  
+│   ├── domain/       # AI/security-specific
 │   └── features/     # Page-specific
+├── constants/        # App-wide constants (page icons, etc.)
 ├── pages/            # Thin orchestrators
 ├── theme/            # Design tokens
 ├── api/              # Types, endpoints, mocks
 ├── hooks/
 └── utils/
 ```
+
+---
+
+## Page Icons
+
+Page and navigation icons are centralized in `@constants/pageIcons`. This ensures consistency between sidebar navigation (App.tsx) and page headers.
+
+**When adding a new page:**
+1. Add its icon to `src/constants/pageIcons.ts`
+2. Import from `@constants/pageIcons` in both App.tsx and the page component
+3. Do NOT import icons directly from `lucide-react` for page headers
+
+**Available page icons:**
+```typescript
+import {
+  HomeIcon,           // Start Here / Home
+  OverviewIcon,       // Overview (BarChart3)
+  SystemPromptsIcon,  // System Prompts (LayoutDashboard)
+  SessionsIcon,       // Sessions (History)
+  RecommendationsIcon,// Recommendations (Lightbulb)
+  DevConnectionIcon,  // Dev Connection (Monitor)
+  StaticAnalysisIcon, // Static Analysis (Shield)
+  DynamicAnalysisIcon,// Dynamic Analysis (Shield)
+  ProductionIcon,     // Production (Lock)
+  ReportsIcon,        // Reports (FileText)
+  AttackSurfaceIcon,  // Attack Surface (Target)
+  ConnectIcon,        // Connect (Plug)
+} from '@constants/pageIcons';
+```
+
+**Note:** Icons used within page content (not in headers/navigation) can still be imported directly from `lucide-react`.
 
 ---
 

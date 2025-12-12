@@ -11,6 +11,7 @@ import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Timeline } from '@ui/data-display/Timeline';
+import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
 
 import { usePageMeta } from '../../context';
@@ -118,9 +119,10 @@ export const SessionDetail: FC = () => {
 
   return (
     <>
-      <SessionLayout>
-        {/* Sidebar with real data from API */}
-        <SessionSidebarInfo
+      <Page fullWidth>
+        <SessionLayout>
+          {/* Sidebar with real data from API */}
+          <SessionSidebarInfo
           sessionId={session.id}
           agentId={session.agent_id}
           isActive={session.is_active}
@@ -159,7 +161,8 @@ export const SessionDetail: FC = () => {
             </TimelineContent>
           </Section>
         </SessionMain>
-      </SessionLayout>
+        </SessionLayout>
+      </Page>
 
       {/* Replay Panel */}
       <ReplayPanel

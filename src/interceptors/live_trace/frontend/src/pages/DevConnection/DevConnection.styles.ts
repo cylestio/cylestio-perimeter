@@ -15,43 +15,6 @@ const glow = keyframes`
   50% { box-shadow: 0 0 20px ${({ theme }) => theme.colors.green}80; }
 `;
 
-export const DevConnectionLayout = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[6]};
-  padding: ${({ theme }) => theme.spacing[6]};
-  width: 100%;
-  max-width: 1000px;
-  margin: 0 auto;
-`;
-
-export const PageHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-`;
-
-export const PageInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const PageTitle = styled.h1`
-  font-family: ${({ theme }) => theme.typography.fontDisplay};
-  font-size: 24px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0;
-  display: flex;
-  align-items: center;
-`;
-
-export const PageSubtitle = styled.span`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
 export const RefreshButton = styled.button`
   display: inline-flex;
   align-items: center;
@@ -512,12 +475,6 @@ export const QuickSetupCode = styled.code`
   color: ${({ theme }) => theme.colors.cyan};
   word-break: break-all;
   max-width: 100%;
-`;
-
-// Icon wrapper for consistent spacing
-export const TitleIcon = styled.span`
-  display: inline-flex;
-  margin-right: ${({ theme }) => theme.spacing[2]};
 `;
 
 // Inline connection details variant

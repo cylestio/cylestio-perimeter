@@ -23,6 +23,8 @@ import { formatDuration } from '@utils/formatting';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Card } from '@ui/core/Card';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 import { StatsRow } from '@ui/layout/Grid';
 
@@ -30,11 +32,6 @@ import { StatCard } from '@domain/metrics/StatCard';
 
 import { usePageMeta } from '../../context';
 import {
-  OverviewLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   MetricsGrid,
   MetricCard,
   MetricIcon,
@@ -135,11 +132,11 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   if (error) {
     return (
-      <OverviewLayout>
+      <Page>
         <div style={{ textAlign: 'center', padding: '48px', color: 'var(--color-white50)' }}>
           {error}
         </div>
-      </OverviewLayout>
+      </Page>
     );
   }
 
@@ -156,14 +153,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   const errorRate = sessions.length > 0 ? (sessionsWithErrors / sessions.length) * 100 : 0;
 
   return (
-    <OverviewLayout className={className} data-testid="overview">
+    <Page className={className} data-testid="overview">
       {/* Header */}
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>Overview</PageTitle>
-          <PageSubtitle>Aggregated metrics for agent: {agentId}</PageSubtitle>
-        </PageInfo>
-      </PageHeader>
+      <PageHeader
+        title="Overview"
+        description={`Aggregated metrics for agent: ${agentId}`}
+      />
 
       {/* Key Metrics Row */}
       <StatsRow columns={5}>
@@ -315,6 +310,6 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
           )}
         </Section.Content>
       </Section>
-    </OverviewLayout>
+    </Page>
   );
 };

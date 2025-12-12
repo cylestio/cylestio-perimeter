@@ -12,13 +12,13 @@ import { formatAgentName } from '@utils/formatting';
 import { Badge } from '@ui/core/Badge';
 import { Table, type Column } from '@ui/data-display/Table';
 import { Skeleton } from '@ui/feedback/Skeleton';
+import { Page } from '@ui/layout/Page';
 import { Stack } from '@ui/layout/Grid';
 
 import { WorkflowCard } from '@domain/workflows';
 
 import { usePageMeta } from '../../context';
 import {
-  PageContainer,
   HeroSection,
   HeroTitle,
   HeroHighlight,
@@ -150,7 +150,7 @@ export const WorkflowsHome: FC = () => {
   const hasUnassignedAgents = unassignedAgents.length > 0;
 
   return (
-    <PageContainer>
+    <Page>
       <Stack gap="lg">
         {/* Hero Section */}
         <HeroSection>
@@ -232,6 +232,6 @@ export const WorkflowsHome: FC = () => {
           </UnassignedSection>
         )}
       </Stack>
-    </PageContainer>
+    </Page>
   );
 };

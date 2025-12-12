@@ -1,42 +1,5 @@
 import styled from 'styled-components';
 
-export const RecommendationsLayout = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[6]};
-  padding: ${({ theme }) => theme.spacing[6]};
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-`;
-
-export const PageHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-`;
-
-export const PageInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const PageTitle = styled.h1`
-  font-family: ${({ theme }) => theme.typography.fontDisplay};
-  font-size: 24px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0;
-  display: flex;
-  align-items: center;
-`;
-
-export const PageSubtitle = styled.span`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
 export const ScoreCard = styled.div`
   display: flex;
   flex-direction: column;

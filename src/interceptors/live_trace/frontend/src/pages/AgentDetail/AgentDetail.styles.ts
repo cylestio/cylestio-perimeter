@@ -49,13 +49,6 @@ export const ButtonLink = styled(Link)<{ $variant?: 'primary' | 'secondary' | 'g
   }}
 `;
 
-// Main Layout - Full width container
-export const PageContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[5]};
-`;
-
 // Two-column layout: Operational + Security
 export const ContentGrid = styled.div`
   display: grid;

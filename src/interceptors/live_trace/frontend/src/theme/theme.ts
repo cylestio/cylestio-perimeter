@@ -206,6 +206,7 @@ export const layout = {
   sidebarWidth: '260px',
   sidebarCollapsed: '64px',
   contentMaxWidth: '1200px',
+  pageMaxWidth: '1400px',
   pagePadding: '32px',
   cardPadding: '24px',
   cardHeaderPadding: '16px 20px',

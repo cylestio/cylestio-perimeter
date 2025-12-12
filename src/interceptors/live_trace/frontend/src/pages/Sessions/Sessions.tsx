@@ -10,6 +10,7 @@ import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
+import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
 import { Pagination } from '@ui/navigation/Pagination';
 
@@ -17,7 +18,7 @@ import { SessionsTable, SystemPromptFilter } from '@domain/sessions';
 import type { SystemPromptOption } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
-import { PageContainer, LoadingContainer } from './Sessions.styles';
+import { LoadingContainer } from './Sessions.styles';
 
 const PAGE_SIZE = 10;
 
@@ -133,7 +134,7 @@ export const Sessions: FC = () => {
 
   if (error) {
     return (
-      <PageContainer>
+      <Page>
         <Card>
           <Card.Content>
             <div style={{ color: 'var(--color-red)', textAlign: 'center', padding: 24 }}>
@@ -141,12 +142,12 @@ export const Sessions: FC = () => {
             </div>
           </Card.Content>
         </Card>
-      </PageContainer>
+      </Page>
     );
   }
 
   return (
-    <PageContainer>
+    <Page>
       <PageHeader
         title="Sessions"
         description={descriptionText}
@@ -173,6 +174,6 @@ export const Sessions: FC = () => {
           />
         </Card.Content>
       </Card>
-    </PageContainer>
+    </Page>
   );
 };

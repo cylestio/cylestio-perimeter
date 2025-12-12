@@ -1,29 +1,26 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { 
-  Lightbulb, 
-  CheckCircle2, 
+import {
+  Lightbulb,
+  CheckCircle2,
   AlertCircle,
   ArrowRight,
-  Sparkles
 } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
+import { RecommendationsIcon } from '@constants/pageIcons';
 import { fetchWorkflowFindings } from '@api/endpoints/workflow';
 import type { Finding } from '@api/types/findings';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Badge } from '@ui/core/Badge';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
 import { usePageMeta } from '../../context';
 import {
-  RecommendationsLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   RecommendationsList,
   RecommendationCard,
   RecommendationIcon,
@@ -192,16 +189,12 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   };
 
   return (
-    <RecommendationsLayout className={className} data-testid="recommendations">
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>
-            <Sparkles size={24} style={{ marginRight: '8px' }} />
-            Recommendations
-          </PageTitle>
-          <PageSubtitle>AI-powered suggestions to improve your agent's security and performance</PageSubtitle>
-        </PageInfo>
-      </PageHeader>
+    <Page className={className} data-testid="recommendations">
+      <PageHeader
+        icon={<RecommendationsIcon size={24} />}
+        title="Recommendations"
+        description="AI-powered suggestions to improve your agent's security and performance"
+      />
 
       {/* Security Score */}
       <Section>
@@ -268,6 +261,6 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
           )}
         </Section.Content>
       </Section>
-    </RecommendationsLayout>
+    </Page>
   );
 };

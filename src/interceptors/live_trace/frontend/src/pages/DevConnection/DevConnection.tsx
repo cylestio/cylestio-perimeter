@@ -2,7 +2,6 @@ import type { FC, ReactNode } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 
 import {
-  Monitor,
   Check,
   X,
   Terminal,
@@ -18,21 +17,19 @@ import {
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
+import { DevConnectionIcon } from '@constants/pageIcons';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import type { IDEConnectionStatus } from '@api/types/ide';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
+import { Page } from '@ui/layout/Page';
+import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
 import { usePageMeta } from '../../context';
 import {
-  DevConnectionLayout,
-  PageHeader,
-  PageInfo,
-  PageTitle,
-  PageSubtitle,
   ConnectionStatus,
   StatusIcon,
   StatusContent,
@@ -67,7 +64,6 @@ import {
   QuickSetupTitle,
   QuickSetupDescription,
   QuickSetupCode,
-  TitleIcon,
   InlineConnectionDetails,
   StepDescriptionWithMargin,
 } from './DevConnection.styles';
@@ -214,16 +210,12 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
   };
 
   return (
-    <DevConnectionLayout className={className} data-testid="dev-connection">
-      <PageHeader>
-        <PageInfo>
-          <PageTitle>
-            <TitleIcon><Monitor size={24} /></TitleIcon>
-            IDE Connection
-          </PageTitle>
-          <PageSubtitle>Connect your development environment for AI-powered security scanning</PageSubtitle>
-        </PageInfo>
-      </PageHeader>
+    <Page className={className} data-testid="dev-connection">
+      <PageHeader
+        icon={<DevConnectionIcon size={24} />}
+        title="IDE Connection"
+        description="Connect your development environment for AI-powered security scanning"
+      />
 
       {/* Actively Developing Banner */}
       {isDeveloping && connectedIDE && (
@@ -447,6 +439,6 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
           </SetupSteps>
         </Section.Content>
       </Section>
-    </DevConnectionLayout>
+    </Page>
   );
 };

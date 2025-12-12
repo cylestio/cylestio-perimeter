@@ -15,6 +15,7 @@ import { Button } from '@ui/core/Button';
 import { Label } from '@ui/core/Label';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Skeleton } from '@ui/feedback/Skeleton';
+import { Page } from '@ui/layout/Page';
 
 import { ConnectionSuccess } from '@features/index';
 
@@ -106,9 +107,10 @@ export const Connect: FC = () => {
   const isConnected = status === 'connected';
 
   return (
-    <ConnectContainer>
-      {/* Hero Section */}
-      <HeroSection>
+    <Page>
+      <ConnectContainer>
+        {/* Hero Section */}
+        <HeroSection>
         <LogoOrb />
         <HeroTitle>
           Connect Your <HeroHighlight>Agent</HeroHighlight>
@@ -233,16 +235,17 @@ export const Connect: FC = () => {
         />
       )}
 
-      <FooterButton
-        as="a"
-        variant="ghost"
-        href="https://github.com/cylestio/agent-inspector/blob/main/README.md"
-        target="_blank"
-        rel="noopener noreferrer"
-        icon={<ExternalLink size={14} />}
-      >
-        Documentation
-      </FooterButton>
-    </ConnectContainer>
+        <FooterButton
+          as="a"
+          variant="ghost"
+          href="https://github.com/cylestio/agent-inspector/blob/main/README.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          icon={<ExternalLink size={14} />}
+        >
+          Documentation
+        </FooterButton>
+      </ConnectContainer>
+    </Page>
   );
 };
