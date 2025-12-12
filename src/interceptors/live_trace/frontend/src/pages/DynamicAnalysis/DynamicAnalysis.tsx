@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
 import { AlertTriangle, FileSearch, Shield, X } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useOutletContext, useParams } from 'react-router-dom';
 
 import {
   fetchAnalysisSessions,
@@ -10,6 +10,7 @@ import {
   type AgentSecurityData,
   type WorkflowSecurityChecksSummary,
 } from '@api/endpoints/workflow';
+import type { SecurityAnalysis } from '@api/types/dashboard';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -17,6 +18,7 @@ import { Section } from '@ui/layout/Section';
 
 import { AnalysisSessionsTable } from '@domain/analysis';
 
+import { GatheringData } from '@features/GatheringData';
 import { SecurityChecksExplorer } from '@features/SecurityChecksExplorer';
 
 import { usePageMeta } from '../../context';
@@ -29,7 +31,13 @@ import {
   PageStats,
   StatBadge,
   StatValue,
+  LoaderContainer,
 } from './DynamicAnalysis.styles';
+
+// Context from App layout
+interface DynamicAnalysisContext {
+  securityAnalysis?: SecurityAnalysis;
+}
 
 export interface DynamicAnalysisProps {
   className?: string;
@@ -39,6 +47,7 @@ const MAX_SESSIONS_DISPLAYED = 5;
 
 export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const { agentId } = useParams<{ agentId: string }>();
+  const { securityAnalysis } = useOutletContext<DynamicAnalysisContext>() || {};
 
   // State
   const [agentsData, setAgentsData] = useState<AgentSecurityData[]>([]);
@@ -47,6 +56,12 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const [loading, setLoading] = useState(true);
   const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Get dynamic analysis session progress
+  const sessionsProgress = securityAnalysis?.dynamic?.sessions_progress;
+  const isGatheringSessions = sessionsProgress && 
+    securityAnalysis?.dynamic?.status === 'active' && 
+    analysisSessions.length === 0;
 
   // Fetch security checks for this agent (grouped by system prompt)
   const fetchChecksData = useCallback(async () => {
@@ -104,9 +119,9 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+      <LoaderContainer $size="lg">
         <OrbLoader size="lg" />
-      </div>
+      </LoaderContainer>
     );
   }
 
@@ -148,6 +163,24 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         </PageStats>
       </PageHeader>
 
+      {/* Session Progress - Show when gathering sessions */}
+      {isGatheringSessions && sessionsProgress && (
+        <Section>
+          <Section.Header>
+            <Section.Title>Gathering Data for Risk Analysis</Section.Title>
+            <Badge variant="medium">
+              {sessionsProgress.current} / {sessionsProgress.required}
+            </Badge>
+          </Section.Header>
+          <Section.Content noPadding>
+            <GatheringData
+              currentSessions={sessionsProgress.current}
+              minSessionsRequired={sessionsProgress.required}
+            />
+          </Section.Content>
+        </Section>
+      )}
+
       {/* Analysis Sessions - Table with limit */}
       <Section>
         <Section.Header>
@@ -178,9 +211,9 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         </Section.Header>
         <Section.Content>
           {checksLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
+            <LoaderContainer $size="md">
               <OrbLoader size="md" />
-            </div>
+            </LoaderContainer>
           ) : (
             <SecurityChecksExplorer
               agents={agentsData}

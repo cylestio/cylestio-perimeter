@@ -443,6 +443,107 @@ def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]
     return {"agent": result, "message": "Agent updated successfully"}
 
 
+# ==================== IDE Connection Tools ====================
+
+@register_handler("register_ide_connection")
+def handle_register_ide_connection(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Register an IDE connection to Agent Inspector."""
+    import uuid
+
+    ide_type = args.get("ide_type")
+    if not ide_type:
+        return {"error": "ide_type is required (cursor or claude-code)"}
+
+    if ide_type not in ["cursor", "claude-code"]:
+        return {"error": f"Invalid ide_type: {ide_type}. Must be cursor or claude-code"}
+
+    connection_id = f"ide_{uuid.uuid4().hex[:12]}"
+
+    connection = store.register_ide_connection(
+        connection_id=connection_id,
+        ide_type=ide_type,
+        workflow_id=args.get("workflow_id"),
+        host=args.get("host"),
+        user=args.get("user"),
+        workspace_path=args.get("workspace_path"),
+        model=args.get("model"),
+    )
+
+    return {
+        "connection": connection,
+        "message": f"IDE connected! Your {ide_type} is now linked to Agent Inspector.",
+        "dashboard_url": "http://localhost:7100",
+        "hint": "Call ide_heartbeat periodically to keep the connection alive, especially when actively developing.",
+    }
+
+
+@register_handler("ide_heartbeat")
+def handle_ide_heartbeat(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Send heartbeat to keep IDE connection alive."""
+    connection_id = args.get("connection_id")
+    if not connection_id:
+        return {"error": "connection_id is required"}
+
+    is_developing = args.get("is_developing", False)
+    workflow_id = args.get("workflow_id")
+
+    connection = store.update_ide_heartbeat(
+        connection_id=connection_id,
+        is_developing=is_developing,
+        workflow_id=workflow_id,
+    )
+
+    if not connection:
+        return {"error": f"Connection '{connection_id}' not found. Register a new connection."}
+
+    status_msg = "actively developing" if is_developing else "connected"
+    return {
+        "connection": connection,
+        "status": status_msg,
+        "message": f"Heartbeat received. IDE is {status_msg}.",
+    }
+
+
+@register_handler("disconnect_ide")
+def handle_disconnect_ide(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Disconnect an IDE from Agent Inspector."""
+    connection_id = args.get("connection_id")
+    if not connection_id:
+        return {"error": "connection_id is required"}
+
+    connection = store.disconnect_ide(connection_id)
+
+    if not connection:
+        return {"error": f"Connection '{connection_id}' not found"}
+
+    return {
+        "connection": connection,
+        "message": "IDE disconnected from Agent Inspector.",
+    }
+
+
+@register_handler("get_ide_connection_status")
+def handle_get_ide_connection_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get current IDE connection status."""
+    workflow_id = args.get("workflow_id")
+
+    status = store.get_ide_connection_status(workflow_id=workflow_id)
+
+    if status["is_connected"]:
+        ide = status["connected_ide"]
+        if status["is_developing"]:
+            message = f"🔥 Actively developing with {ide['ide_type']}!"
+        else:
+            message = f"✅ Connected via {ide['ide_type']} (last seen: {ide['last_seen_relative']})"
+    else:
+        message = "❌ No IDE connected. Set up MCP connection in your IDE to enable live development tracking."
+
+    return {
+        **status,
+        "message": message,
+    }
+
+
 # ==================== Helpers ====================
 
 def _convert_findings_to_objects(findings: list) -> list:

@@ -12,14 +12,16 @@ import {
   Lightbulb,
   BarChart3
 } from 'lucide-react';
-import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 
 import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
+import type { IDEConnectionStatus } from '@api/types/ide';
 import type { APIWorkflow } from '@api/types/workflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
+import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import { usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
 
@@ -83,6 +85,19 @@ function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefi
   return openCount > 0 ? openCount : undefined;
 }
 
+// Get dynamic analysis stat text (sessions progress or findings count)
+function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | undefined {
+  if (!stage) return undefined;
+  
+  // If we have sessions progress and status is active, show progress
+  if (stage.sessions_progress && stage.status === 'active') {
+    const { current, required } = stage.sessions_progress;
+    return `${current}/${required}`;
+  }
+  
+  return undefined;
+}
+
 // Convert API workflow to component workflow
 const toWorkflow = (api: APIWorkflow): Workflow => ({
   id: api.id,
@@ -122,6 +137,9 @@ function AppLayout() {
 
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
+  
+  // IDE connection state
+  const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
   // Derive selected agent from URL
   const selectedWorkflow = (() => {
@@ -156,6 +174,24 @@ function AppLayout() {
         console.error('Failed to fetch config:', error);
       });
   }, []);
+  
+  // Fetch IDE connection status
+  useEffect(() => {
+    const fetchIDE = async () => {
+      try {
+        const workflowIdForIDE = urlAgentId === 'unassigned' ? undefined : urlAgentId ?? undefined;
+        const status = await fetchIDEConnectionStatus(workflowIdForIDE);
+        setIDEConnectionStatus(status);
+      } catch {
+        // Silently fail - IDE connection is optional
+      }
+    };
+
+    fetchIDE();
+    // Poll IDE status every 5 seconds
+    const interval = setInterval(fetchIDE, 5000);
+    return () => clearInterval(interval);
+  }, [urlAgentId]);
 
   // Refresh workflows periodically (every 30 seconds)
   useEffect(() => {
@@ -215,8 +251,18 @@ function AppLayout() {
   const dynamicStatus = stageToSecurityStatus(data?.security_analysis?.dynamic);
   const allChecksGreen = areAllChecksGreen(data);
   
-  // Dev connection status - would come from actual MCP status, for now assume inactive
-  const devConnectionStatus: SecurityCheckStatus = 'inactive';
+  // Dev connection status - from actual IDE connection
+  // States:
+  // - 'running': Actively developing (pulsing green animation)
+  // - 'ok': Connected or was connected (solid green)
+  // - 'inactive': Never connected (gray)
+  const devConnectionStatus: SecurityCheckStatus = (() => {
+    if (!ideConnectionStatus) return 'inactive';
+    if (ideConnectionStatus.is_developing) return 'running'; // Actively developing shows as pulsing
+    if (ideConnectionStatus.is_connected) return 'ok'; // Currently connected shows as green
+    if (ideConnectionStatus.has_ever_connected) return 'ok'; // Was connected shows as green (idle)
+    return 'inactive';
+  })();
 
   return (
     <Shell>
@@ -315,6 +361,8 @@ function AppLayout() {
               <SecurityCheckItem
                 label="Dynamic Analysis"
                 status={dynamicStatus}
+                count={getOpenFindingsCount(data?.security_analysis?.dynamic)}
+                stat={getDynamicAnalysisStat(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent/${urlAgentId}/dynamic-analysis`}
@@ -331,7 +379,7 @@ function AppLayout() {
                 isLast
                 showConnectorAbove
                 icon={<Lock size={10} />}
-                lockedTooltip="Complete all security checks to unlock Production deployment. Enterprise feature."
+                lockedTooltip="Enterprise Edition • Production monitoring, alerting & compliance. Complete all security checks to unlock."
               />
             </NavGroup>
           )}
@@ -384,7 +432,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading }} />
+          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading, securityAnalysis: data?.security_analysis }} />
         </Content>
       </Main>
     </Shell>
@@ -403,8 +451,8 @@ function App() {
               <Route path="/" element={<WorkflowsHome />} />
               <Route path="/connect" element={<Connect />} />
               
-              {/* Agent-prefixed routes */}
-              <Route path="/agent/:agentId" element={<Portfolio />} />
+              {/* Agent-prefixed routes - redirect base path to overview */}
+              <Route path="/agent/:agentId" element={<Navigate to="overview" replace />} />
               
               {/* Developer section */}
               <Route path="/agent/:agentId/overview" element={<Overview />} />

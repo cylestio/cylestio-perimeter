@@ -905,6 +905,58 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error updating finding: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    # ==================== IDE Connection Status Endpoints ====================
+
+    @app.get("/api/ide/status")
+    async def api_ide_connection_status(workflow_id: Optional[str] = None):
+        """Get IDE connection status for the dashboard.
+
+        Args:
+            workflow_id: Optional filter by workflow being developed
+
+        Returns:
+            JSON with connection status, active connections, and history
+        """
+        try:
+            status = insights.store.get_ide_connection_status(workflow_id=workflow_id)
+            return JSONResponse(status)
+        except Exception as e:
+            logger.error(f"Error getting IDE connection status: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/ide/connections")
+    async def api_ide_connections(
+        workflow_id: Optional[str] = None,
+        ide_type: Optional[str] = None,
+        active_only: bool = True,
+        limit: int = 100,
+    ):
+        """Get IDE connections with filtering.
+
+        Args:
+            workflow_id: Filter by workflow
+            ide_type: Filter by IDE type (cursor, claude-code, vscode)
+            active_only: Only return active connections
+            limit: Maximum number of connections
+
+        Returns:
+            JSON with list of connections
+        """
+        try:
+            connections = insights.store.get_ide_connections(
+                workflow_id=workflow_id,
+                ide_type=ide_type,
+                active_only=active_only,
+                limit=limit,
+            )
+            return JSONResponse({
+                "connections": connections,
+                "total_count": len(connections),
+            })
+        except Exception as e:
+            logger.error(f"Error getting IDE connections: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/health")
     async def health():
         """Health check endpoint."""

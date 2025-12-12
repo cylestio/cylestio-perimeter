@@ -9,7 +9,7 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 **Dashboard:** `http://localhost:7100`
 **Proxy:** `http://localhost:4000`
 
-## Available MCP Tools (13 total)
+## Available MCP Tools (17 total)
 
 ### Analysis Tools
 | Tool | Description |
@@ -39,6 +39,47 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 |------|-------------|
 | `get_agents` | List agents (filter by workflow_id or "unlinked") |
 | `update_agent_info` | Link agents to workflows, set display names |
+
+### IDE Connection Tools
+| Tool | Description |
+|------|-------------|
+| `register_ide_connection` | Register your IDE (Cursor or Claude Code) as connected |
+| `ide_heartbeat` | Keep connection alive, signal active development |
+| `disconnect_ide` | Disconnect IDE from Agent Inspector |
+| `get_ide_connection_status` | Check current IDE connection status |
+
+## IDE CONNECTION (REQUIRED FIRST STEP)
+
+### Step 1: Know Your Model
+**You MUST identify what AI model you are.** Common values:
+- `claude-opus-4.5`, `claude-sonnet-4`, `claude-sonnet-3.5`
+- `gpt-4o`, `gpt-4-turbo`
+- Check your system prompt for "powered by X"
+
+### Step 2: Register with ALL Parameters
+```
+register_ide_connection(
+  ide_type="cursor",              // "cursor" or "claude-code"
+  workflow_id="{workflow_id}",    // from folder name
+  workspace_path="{full_path}",   // workspace path
+  model="{your_model_name}"       // e.g., "claude-opus-4.5"
+)
+```
+
+### Step 3: Save connection_id
+**SAVE the `connection_id` from the response!** You need it for heartbeats.
+
+### Step 4: ONE Heartbeat (Save Tokens!)
+Send **ONE** heartbeat at the start of work, NOT after every action:
+```
+ide_heartbeat(connection_id="{id}", is_developing=true)
+```
+
+⚠️ **Don't spam heartbeats** - one per task is enough!
+
+**Dashboard indicators:**
+- 🟢 **Green**: IDE connected (lasts 60s after heartbeat)
+- 🟢✨ **Pulsing green**: Actively developing
 
 ## AUTOMATIC WORKFLOW
 
@@ -153,9 +194,35 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 
 ## Key Rules
 
-1. **Auto-derive** workflow_id - don't ask user
-2. **Auto-link** unlinked agents via `update_agent_info`
-3. **Auto-correlate** when both static + dynamic data exist
-4. **Never hardcode** security patterns - always fetch from MCP
-5. **Same workflow_id** for static and dynamic = unified results
-6. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`
+1. **Register IDE ALWAYS** - Call `register_ide_connection` at the start of each session
+2. **Retry if failed** - If registration fails, retry on EVERY subsequent MCP call until successful
+3. **Send heartbeats** - Call `ide_heartbeat` before/after significant actions
+4. **Auto-derive** workflow_id - don't ask user
+5. **Auto-link** unlinked agents via `update_agent_info`
+6. **Auto-correlate** when both static + dynamic data exist
+7. **Never hardcode** security patterns - always fetch from MCP
+8. **Same workflow_id** for static and dynamic = unified results
+9. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`
+
+## IDE CONNECTION (Only When Using Agent Inspector)
+
+**Only connect when user asks for security analysis.** Don't connect proactively.
+
+### Lightweight Flow (3 calls max):
+```
+// 1. Register (idempotent - safe to repeat)
+register_ide_connection(
+  ide_type="cursor",
+  workflow_id="{folder_name}",
+  workspace_path="{path}",
+  model="claude-opus-4.5"  // or your model
+)
+
+// 2. ONE heartbeat at start
+ide_heartbeat(connection_id="{id}", is_developing=true)
+
+// 3. Do all your work (scans, fixes, etc.)
+// NO MORE HEARTBEATS NEEDED
+```
+
+**Skip `get_ide_connection_status`** - just register directly. Simpler.

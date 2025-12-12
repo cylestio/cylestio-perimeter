@@ -155,6 +155,28 @@ CREATE TABLE IF NOT EXISTS behavioral_analysis (
 
 CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_agent_id ON behavioral_analysis(agent_id);
 CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_session_id ON behavioral_analysis(analysis_session_id);
+
+CREATE TABLE IF NOT EXISTS ide_connections (
+    connection_id TEXT PRIMARY KEY,
+    ide_type TEXT NOT NULL,
+    workflow_id TEXT,
+    mcp_session_id TEXT,
+    host TEXT,
+    user TEXT,
+    workspace_path TEXT,
+    model TEXT,
+    connected_at REAL NOT NULL,
+    last_heartbeat REAL NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    is_developing INTEGER NOT NULL DEFAULT 0,
+    disconnected_at REAL,
+    metadata TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ide_connections_workflow_id ON ide_connections(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_ide_connections_is_active ON ide_connections(is_active);
+CREATE INDEX IF NOT EXISTS idx_ide_connections_mcp_session_id ON ide_connections(mcp_session_id);
+CREATE INDEX IF NOT EXISTS idx_ide_connections_last_heartbeat ON ide_connections(last_heartbeat);
 """
 
 
@@ -408,6 +430,16 @@ class TraceStore:
             )
             self.db.commit()
             logger.info("Migration: Added last_analyzed_session_count column to agents table")
+
+        # Migration: add model column to ide_connections if missing
+        cursor = self.db.execute("PRAGMA table_info(ide_connections)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'model' not in columns:
+            self.db.execute(
+                "ALTER TABLE ide_connections ADD COLUMN model TEXT"
+            )
+            self.db.commit()
+            logger.info("Migration: Added model column to ide_connections table")
 
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
@@ -1571,6 +1603,7 @@ class TraceStore:
     def get_security_checks(
         self,
         agent_id: Optional[str] = None,
+        workflow_id: Optional[str] = None,
         analysis_session_id: Optional[str] = None,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
@@ -1584,6 +1617,10 @@ class TraceStore:
             if agent_id:
                 query += " AND agent_id = ?"
                 params.append(agent_id)
+
+            if workflow_id:
+                query += " AND workflow_id = ?"
+                params.append(workflow_id)
 
             if analysis_session_id:
                 query += " AND analysis_session_id = ?"
@@ -1900,4 +1937,290 @@ class TraceStore:
             'outliers': json.loads(row['outliers']) if row['outliers'] else [],
             'centroid_distances': json.loads(row['centroid_distances']) if row['centroid_distances'] else [],
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+        }
+
+    # ==================== IDE Connection Methods ====================
+
+    def register_ide_connection(
+        self,
+        connection_id: str,
+        ide_type: str,
+        mcp_session_id: Optional[str] = None,
+        workflow_id: Optional[str] = None,
+        host: Optional[str] = None,
+        user: Optional[str] = None,
+        workspace_path: Optional[str] = None,
+        model: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Register a new IDE connection.
+
+        Args:
+            connection_id: Unique connection identifier
+            ide_type: Type of IDE (cursor, claude-code, vscode)
+            mcp_session_id: MCP session ID for this connection
+            workflow_id: Optional workflow/agent being developed
+            host: Hostname of the connected machine
+            user: Username on the connected machine
+            workspace_path: Path to the workspace being edited
+            model: AI model being used (e.g., claude-sonnet-4, gpt-4o)
+            metadata: Additional connection metadata
+
+        Returns:
+            Dict with connection details
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            connected_at = now.timestamp()
+
+            self.db.execute("""
+                INSERT OR REPLACE INTO ide_connections (
+                    connection_id, ide_type, workflow_id, mcp_session_id,
+                    host, user, workspace_path, model, connected_at, last_heartbeat,
+                    is_active, is_developing, disconnected_at, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                connection_id,
+                ide_type,
+                workflow_id,
+                mcp_session_id,
+                host,
+                user,
+                workspace_path,
+                model,
+                connected_at,
+                connected_at,  # last_heartbeat = connected_at initially
+                1,  # is_active
+                0,  # is_developing
+                None,  # disconnected_at
+                json.dumps(metadata) if metadata else None,
+            ))
+            self.db.commit()
+            logger.info(f"IDE connection registered: {ide_type} ({connection_id[:12]})")
+
+            return self.get_ide_connection(connection_id)
+
+    def get_ide_connection(self, connection_id: str) -> Optional[Dict[str, Any]]:
+        """Get an IDE connection by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM ide_connections WHERE connection_id = ?",
+                (connection_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_ide_connection(row)
+            return None
+
+    def get_ide_connections(
+        self,
+        workflow_id: Optional[str] = None,
+        ide_type: Optional[str] = None,
+        active_only: bool = True,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get IDE connections with optional filtering.
+
+        Args:
+            workflow_id: Filter by workflow/agent being developed
+            ide_type: Filter by IDE type (cursor, claude-code, vscode)
+            active_only: Only return active connections
+            limit: Maximum number of connections to return
+
+        Returns:
+            List of connection dicts
+        """
+        with self._lock:
+            query = "SELECT * FROM ide_connections WHERE 1=1"
+            params = []
+
+            if workflow_id:
+                query += " AND workflow_id = ?"
+                params.append(workflow_id)
+
+            if ide_type:
+                query += " AND ide_type = ?"
+                params.append(ide_type)
+
+            if active_only:
+                query += " AND is_active = 1"
+
+            query += " ORDER BY last_heartbeat DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
+
+    def update_ide_heartbeat(
+        self,
+        connection_id: str,
+        is_developing: bool = False,
+        workflow_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update heartbeat timestamp for an IDE connection.
+
+        Args:
+            connection_id: The connection ID
+            is_developing: Whether active development is happening
+            workflow_id: Update the workflow being developed
+
+        Returns:
+            Updated connection dict or None if not found
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+
+            # Build update query dynamically
+            updates = ["last_heartbeat = ?", "is_developing = ?"]
+            params = [now.timestamp(), 1 if is_developing else 0]
+
+            if workflow_id is not None:
+                updates.append("workflow_id = ?")
+                params.append(workflow_id)
+
+            params.append(connection_id)
+
+            self.db.execute(
+                f"UPDATE ide_connections SET {', '.join(updates)} WHERE connection_id = ?",  # nosec B608 - parameterized
+                params
+            )
+            self.db.commit()
+
+            return self.get_ide_connection(connection_id)
+
+    def disconnect_ide(self, connection_id: str) -> Optional[Dict[str, Any]]:
+        """Mark an IDE connection as disconnected.
+
+        Args:
+            connection_id: The connection ID to disconnect
+
+        Returns:
+            Updated connection dict or None if not found
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+
+            self.db.execute("""
+                UPDATE ide_connections
+                SET is_active = 0, is_developing = 0, disconnected_at = ?
+                WHERE connection_id = ?
+            """, (now.timestamp(), connection_id))
+            self.db.commit()
+            logger.info(f"IDE disconnected: {connection_id[:12]}")
+
+            return self.get_ide_connection(connection_id)
+
+    def get_ide_connection_status(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get overall IDE connection status for a workflow.
+
+        Args:
+            workflow_id: Optional workflow to check status for
+
+        Returns:
+            Dict with connection status summary including:
+            - is_connected: Currently has active heartbeat
+            - has_ever_connected: Has ever successfully connected (for green state)
+            - is_developing: Currently actively developing
+            - connected_ide: Current or most recent IDE info
+        """
+        with self._lock:
+            # First, mark stale connections as inactive (no heartbeat for 60 seconds)
+            cutoff_time = datetime.now(timezone.utc).timestamp() - 60
+            self.db.execute("""
+                UPDATE ide_connections
+                SET is_active = 0, is_developing = 0
+                WHERE is_active = 1 AND last_heartbeat < ?
+            """, (cutoff_time,))
+            self.db.commit()
+
+            # Get active connections (currently connected with recent heartbeat)
+            query = "SELECT * FROM ide_connections WHERE is_active = 1"
+            params = []
+            if workflow_id:
+                query += " AND workflow_id = ?"
+                params.append(workflow_id)
+            query += " ORDER BY last_heartbeat DESC"
+
+            cursor = self.db.execute(query, params)
+            active_connections = [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
+
+            # Get the most recent connection for this workflow (even if inactive)
+            # This is used to show "was connected" state
+            most_recent_query = "SELECT * FROM ide_connections WHERE 1=1"
+            most_recent_params = []
+            if workflow_id:
+                most_recent_query += " AND workflow_id = ?"
+                most_recent_params.append(workflow_id)
+            most_recent_query += " ORDER BY last_heartbeat DESC LIMIT 1"
+
+            cursor = self.db.execute(most_recent_query, most_recent_params)
+            most_recent_row = cursor.fetchone()
+            most_recent_connection = self._deserialize_ide_connection(most_recent_row) if most_recent_row else None
+
+            # Get recent connections (last 24 hours) for history
+            history_cutoff = datetime.now(timezone.utc).timestamp() - (24 * 60 * 60)
+            history_query = "SELECT * FROM ide_connections WHERE connected_at > ?"
+            history_params = [history_cutoff]
+            if workflow_id:
+                history_query += " AND workflow_id = ?"
+                history_params.append(workflow_id)
+            history_query += " ORDER BY connected_at DESC LIMIT 10"
+
+            cursor = self.db.execute(history_query, history_params)
+            recent_connections = [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
+
+            # Determine status
+            is_connected = len(active_connections) > 0
+            is_developing = any(c.get('is_developing') for c in active_connections)
+            has_ever_connected = most_recent_connection is not None
+            
+            # Use active connection if available, otherwise most recent for display
+            connected_ide = active_connections[0] if active_connections else most_recent_connection
+
+            return {
+                'is_connected': is_connected,
+                'is_developing': is_developing,
+                'has_ever_connected': has_ever_connected,
+                'connected_ide': connected_ide,
+                'active_connections': active_connections,
+                'recent_connections': recent_connections,
+                'connection_count': len(active_connections),
+            }
+
+    def _deserialize_ide_connection(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Deserialize an ide_connections row."""
+        connected_at = datetime.fromtimestamp(row['connected_at'], tz=timezone.utc)
+        last_heartbeat = datetime.fromtimestamp(row['last_heartbeat'], tz=timezone.utc)
+        now = datetime.now(timezone.utc)
+
+        # Calculate relative time for last heartbeat
+        delta = now - last_heartbeat
+        if delta.total_seconds() < 60:
+            last_seen_relative = "just now"
+        elif delta.total_seconds() < 3600:
+            mins = int(delta.total_seconds() / 60)
+            last_seen_relative = f"{mins}m ago"
+        elif delta.total_seconds() < 86400:
+            hours = int(delta.total_seconds() / 3600)
+            last_seen_relative = f"{hours}h ago"
+        else:
+            days = int(delta.total_seconds() / 86400)
+            last_seen_relative = f"{days}d ago"
+
+        return {
+            'connection_id': row['connection_id'],
+            'ide_type': row['ide_type'],
+            'workflow_id': row['workflow_id'],
+            'mcp_session_id': row['mcp_session_id'],
+            'host': row['host'],
+            'user': row['user'],
+            'workspace_path': row['workspace_path'],
+            'model': row['model'] if 'model' in row.keys() else None,
+            'connected_at': connected_at.isoformat(),
+            'last_heartbeat': last_heartbeat.isoformat(),
+            'last_seen_relative': last_seen_relative,
+            'is_active': bool(row['is_active']),
+            'is_developing': bool(row['is_developing']),
+            'disconnected_at': datetime.fromtimestamp(row['disconnected_at'], tz=timezone.utc).isoformat() if row['disconnected_at'] else None,
+            'metadata': json.loads(row['metadata']) if row['metadata'] else None,
         }

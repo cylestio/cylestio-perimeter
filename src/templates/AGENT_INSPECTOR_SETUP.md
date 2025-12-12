@@ -238,7 +238,7 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 > - Or press `Cmd+Shift+P` → 'Developer: Reload Window'
 > - Or restart Cursor
 > 
-> You should see 'agent-inspector' with 13 tools enabled."
+> You should see 'agent-inspector' with 17 tools enabled."
 
 **For Claude Code:**
 
@@ -246,18 +246,115 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 ---
 
-## STEP 9: RUN FIRST STATIC SCAN
+## STEP 9: REGISTER IDE CONNECTION (AUTOMATIC)
+
+⚠️ **CRITICAL: This step MUST succeed. If it fails, retry on EVERY subsequent MCP tool call.**
+
+### 9.1 Determine Your Model Name
+
+**You MUST know what AI model you are.** Check your system prompt or self-identify:
+
+| If you are... | Use model value |
+|---------------|-----------------|
+| Claude Opus 4.5 | `"claude-opus-4.5"` |
+| Claude Sonnet 4 | `"claude-sonnet-4"` |
+| Claude Sonnet 3.5 | `"claude-sonnet-3.5"` |
+| GPT-4o | `"gpt-4o"` |
+| GPT-4 Turbo | `"gpt-4-turbo"` |
+| Other | Use your actual model identifier |
+
+**If unsure, check:** Your system prompt often says "powered by X" or "You are X".
+
+### 9.2 Immediately Register After MCP Connect
+
+As soon as MCP tools are available, call `register_ide_connection` with ALL parameters:
+
+```
+register_ide_connection(
+  ide_type="cursor",           // REQUIRED: "cursor" or "claude-code"
+  workflow_id="my-agent",      // REQUIRED: from folder name
+  workspace_path="/path/to/project",  // REQUIRED: full workspace path
+  model="claude-opus-4.5"      // REQUIRED: your AI model name
+)
+```
+
+**Parameter values:**
+| Parameter | How to determine |
+|-----------|------------------|
+| `ide_type` | `"cursor"` if in Cursor IDE, `"claude-code"` if Claude Code CLI |
+| `workflow_id` | Agent project folder name (e.g., `"next-rooms"`, `"my-agent"`) |
+| `workspace_path` | Full path to the workspace you're editing |
+| `model` | Your AI model name (see table above) |
+
+### 9.3 Store the Connection ID
+
+**IMPORTANT: Store the returned `connection_id` in your context.** You need it for heartbeats.
+
+Example response:
+```json
+{
+  "connection": {
+    "connection_id": "ide_abc123def456",  // ← SAVE THIS!
+    ...
+  }
+}
+```
+
+### 9.4 If Registration Fails
+
+If `register_ide_connection` fails:
+
+1. **DO NOT GIVE UP** - Remember: `PENDING_IDE_REGISTRATION = true`
+2. **Retry on EVERY subsequent MCP call** - Before any other Agent Inspector tool, try again
+3. **Only stop retrying** when you get a successful `connection_id` back
+
+### 9.5 Heartbeat Strategy (MINIMAL - Save Tokens!)
+
+⚠️ **DO NOT send heartbeats after every action!** This wastes tokens and context.
+
+**Send heartbeats ONLY:**
+1. **Once at the START** of Agent Inspector work (after registration)
+2. **Once at the END** of a complete task (optional)
+
+That's it! The dashboard will show "connected" for 60 seconds after each heartbeat.
+
+**Example minimal flow:**
+```
+// User: "Scan my agent for security issues"
+register_ide_connection(...)  // Only if not already registered
+ide_heartbeat(connection_id, is_developing=true)  // ONE heartbeat at start
+// ... do all the scanning work ...
+// Done! No more heartbeats needed
+```
+
+---
+
+## ⚠️ RECONNECTION ON FUTURE SESSIONS (Lightweight)
+
+**Only register when user asks for Agent Inspector features.** Don't register proactively.
+
+### When user asks for security analysis:
+1. Call `register_ide_connection()` (idempotent - safe to call again)
+2. Send ONE `ide_heartbeat(is_developing=true)`
+3. Do the work
+4. Done - no more calls needed
+
+**Skip `get_ide_connection_status`** - just register directly. It's simpler and uses same tokens.
+
+---
+
+## STEP 10: RUN FIRST STATIC SCAN
 
 **If there's agent code in the project, run a security scan immediately.**
 
-### 9.1 Check for Code
+### 10.1 Check for Code
 
 Look for Python/JS/TS files in the agent project:
 ```bash
 ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER}/*.ts 2>/dev/null | head -5
 ```
 
-### 9.2 If Code Exists, Run Static Scan
+### 10.2 If Code Exists, Run Static Scan
 
 If MCP is connected, use the Agent Inspector tools to:
 1. Get security patterns: `get_security_patterns()`
@@ -273,17 +370,17 @@ If MCP not connected yet, tell user:
 
 ---
 
-## STEP 10: DISCOVER TOOLS & SHOW WELCOME
+## STEP 11: DISCOVER TOOLS & SHOW WELCOME
 
-### 10.1 Get Available Tools
+### 11.1 Get Available Tools
 
 Query the `agent-inspector` MCP server for available tools.
 
-### 10.2 Understand & Explain
+### 11.2 Understand & Explain
 
 **You're smart.** Read the tool names and descriptions. Figure out what's actually possible - don't assume features exist. Only mention capabilities you can verify from the tool list.
 
-### 10.3 Display Welcome Message
+### 11.3 Display Welcome Message
 
 ```
  ██████╗██╗   ██╗██╗     ███████╗███████╗████████╗██╗ ██████╗ 
@@ -328,10 +425,13 @@ The rules file ensures I'll use these tools when you ask about security - even i
 - [ ] Updated agent code with `base_url`
 - [ ] Started server OR told user how to start it
 - [ ] Told user to reload IDE
+- [ ] **Registered IDE connection** (or set PENDING_IDE_REGISTRATION reminder)
 - [ ] Ran first static scan (if code exists and MCP connected) OR told user to ask for scan after reload
 - [ ] Displayed welcome message with ONLY verified capabilities
 
 **ALL BOXES MUST BE CHECKED.**
+
+**REMEMBER:** If IDE connection registration failed, you MUST retry on every subsequent MCP call!
 
 ---
 

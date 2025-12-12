@@ -52,10 +52,14 @@ export const WithSetupInstructions: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText('Setup Instructions')).toBeInTheDocument();
+    // Check Quick Setup section
+    await expect(await canvas.findByText('Quick Setup (Recommended)')).toBeInTheDocument();
+    await expect(await canvas.findByText('One-Click Setup')).toBeInTheDocument();
+    // Check Manual Setup section
+    await expect(await canvas.findByText('Manual Setup (Alternative)')).toBeInTheDocument();
     await expect(await canvas.findByText('Start the Agent Inspector server')).toBeInTheDocument();
-    await expect(await canvas.findByText('Configure your IDE')).toBeInTheDocument();
-    await expect(await canvas.findByText('Start analyzing')).toBeInTheDocument();
+    await expect(await canvas.findByText('Configure MCP in your IDE')).toBeInTheDocument();
+    await expect(await canvas.findByText('Reload your IDE and start scanning')).toBeInTheDocument();
   },
 };
 
@@ -69,8 +73,8 @@ export const IDEList: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    // Only Cursor and Claude Code are supported
     await expect(await canvas.findByText('Cursor')).toBeInTheDocument();
-    await expect(await canvas.findByText('VS Code')).toBeInTheDocument();
-    await expect(await canvas.findByText('Claude Desktop')).toBeInTheDocument();
+    await expect(await canvas.findByText('Claude Code')).toBeInTheDocument();
   },
 };

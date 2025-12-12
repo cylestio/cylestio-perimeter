@@ -246,6 +246,92 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             },
             "required": ["agent_id"]
         }
+    },
+    # ==================== IDE Connection Tools ====================
+    {
+        "name": "register_ide_connection",
+        "description": "Register this IDE as connected to Agent Inspector. REQUIRED at start of every session. You MUST include your AI model name (e.g., 'claude-opus-4.5', 'gpt-4o'). Save the returned connection_id for heartbeats.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "ide_type": {
+                    "type": "string",
+                    "description": "Type of IDE you are running in. Use 'cursor' for Cursor IDE, 'claude-code' for Claude Code CLI.",
+                    "enum": ["cursor", "claude-code"]
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "The workflow/agent ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
+                },
+                "workspace_path": {
+                    "type": "string",
+                    "description": "Full path to the workspace/project being edited"
+                },
+                "model": {
+                    "type": "string",
+                    "description": "YOUR AI model name. Examples: 'claude-opus-4.5', 'claude-sonnet-4', 'gpt-4o', 'gpt-4-turbo'. Check your system prompt if unsure."
+                },
+                "host": {
+                    "type": "string",
+                    "description": "Hostname of the machine (optional)"
+                },
+                "user": {
+                    "type": "string",
+                    "description": "Username on the machine (optional)"
+                }
+            },
+            "required": ["ide_type", "workflow_id", "workspace_path", "model"]
+        }
+    },
+    {
+        "name": "ide_heartbeat",
+        "description": "Send ONE heartbeat at the START of Agent Inspector work. Do NOT call after every action - that wastes tokens. Connection stays active for 60 seconds.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "connection_id": {
+                    "type": "string",
+                    "description": "The connection_id from register_ide_connection"
+                },
+                "is_developing": {
+                    "type": "boolean",
+                    "description": "true when doing security work, false otherwise",
+                    "default": False
+                },
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Only if switching workflows"
+                }
+            },
+            "required": ["connection_id"]
+        }
+    },
+    {
+        "name": "disconnect_ide",
+        "description": "Disconnect this IDE from Agent Inspector. Call when ending a security analysis session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "connection_id": {
+                    "type": "string",
+                    "description": "Connection ID from register_ide_connection"
+                }
+            },
+            "required": ["connection_id"]
+        }
+    },
+    {
+        "name": "get_ide_connection_status",
+        "description": "OPTIONAL: Check IDE connection status. Usually you can skip this and just call register_ide_connection directly (it's idempotent).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Filter by workflow/agent ID"
+                }
+            }
+        }
     }
 ]
 

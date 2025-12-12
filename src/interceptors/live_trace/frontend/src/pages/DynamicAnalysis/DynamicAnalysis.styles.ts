@@ -64,3 +64,13 @@ export const StatValue = styled.span`
   font-weight: 600;
   color: ${({ theme }) => theme.colors.cyan};
 `;
+
+// Centered loading container
+export const LoaderContainer = styled.div<{ $size?: 'sm' | 'md' | 'lg' }>`
+  display: flex;
+  justify-content: center;
+  padding: ${({ theme, $size }) =>
+    $size === 'lg' ? theme.spacing[12] :
+    $size === 'sm' ? theme.spacing[4] :
+    theme.spacing[6]};
+`;

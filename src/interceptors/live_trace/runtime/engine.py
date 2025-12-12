@@ -151,8 +151,88 @@ class AnalysisEngine:
             static_status = "completed"
             static_findings = findings_data
 
-        # Dynamic Analysis status (not yet implemented, always pending)
+        # Dynamic Analysis status - based on session gathering progress
+        # Get all agents (system prompts) for this workflow to compute session progress
+        workflow_agents = self.store.get_all_agents(workflow_id=workflow_id)
+        
+        # Calculate aggregate session progress
+        total_current_sessions = sum(agent.total_sessions for agent in workflow_agents)
+        total_min_required = len(workflow_agents) * MIN_SESSIONS_FOR_RISK_ANALYSIS
+        agents_with_enough_sessions = sum(
+            1 for agent in workflow_agents 
+            if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
+        )
+        
+        # Check for DYNAMIC analysis sessions
+        dynamic_sessions = [s for s in analysis_sessions if s.get("session_type") == "DYNAMIC"]
+        dynamic_in_progress = any(s.get("status") == "IN_PROGRESS" for s in dynamic_sessions)
+        dynamic_completed = any(s.get("status") == "COMPLETED" for s in dynamic_sessions)
+        
+        # Determine dynamic status
         dynamic_status = "pending"
+        if dynamic_in_progress:
+            dynamic_status = "active"
+        elif dynamic_completed:
+            dynamic_status = "completed"
+        elif total_current_sessions > 0:
+            # Has sessions but no dynamic analysis yet - show as gathering/active
+            dynamic_status = "active"
+        
+        # Session progress info for dynamic analysis
+        dynamic_sessions_progress = {
+            "current": total_current_sessions,
+            "required": total_min_required,
+            "agents_ready": agents_with_enough_sessions,
+            "agents_total": len(workflow_agents),
+        } if workflow_agents else None
+
+        # Get dynamic analysis findings from security checks
+        # Security checks use status values: 'passed', 'warning', 'critical'
+        # Map to severity format expected by frontend: CRITICAL, HIGH, MEDIUM, LOW
+        dynamic_findings = None
+        if dynamic_completed:
+            try:
+                # Get the latest completed DYNAMIC session
+                completed_dynamic_sessions = [
+                    s for s in dynamic_sessions if s.get("status") == "COMPLETED"
+                ]
+                if completed_dynamic_sessions:
+                    # Get the most recent one
+                    latest_dynamic_session = max(
+                        completed_dynamic_sessions,
+                        key=lambda s: s.get("created_at", "")
+                    )
+                    latest_session_id = latest_dynamic_session.get("session_id")
+                    
+                    # Get security checks for this specific analysis session
+                    security_checks = self.store.get_security_checks(
+                        analysis_session_id=latest_session_id,
+                        limit=1000
+                    )
+                    
+                    # Count by status, mapping to severity
+                    critical_count = sum(1 for c in security_checks if c.get("status") == "critical")
+                    warning_count = sum(1 for c in security_checks if c.get("status") == "warning")
+                    passed_count = sum(1 for c in security_checks if c.get("status") == "passed")
+                    
+                    total_checks = critical_count + warning_count + passed_count
+                    
+                    if total_checks > 0:
+                        dynamic_findings = {
+                            "total": total_checks,
+                            "by_severity": {
+                                "CRITICAL": critical_count,
+                                "HIGH": warning_count,  # Map warning to HIGH for frontend
+                                "MEDIUM": 0,
+                                "LOW": 0,
+                            },
+                            "by_status": {
+                                "OPEN": critical_count + warning_count,  # Non-passed are "open"
+                                "FIXED": passed_count,  # Passed checks are "fixed"
+                            },
+                        }
+            except Exception as e:
+                logger.warning(f"Failed to get security checks for dynamic findings: {e}")
 
         # Recommendations status (based on AUTOFIX sessions)
         autofix_sessions = [s for s in analysis_sessions if s.get("session_type") == "AUTOFIX"]
@@ -172,7 +252,8 @@ class AnalysisEngine:
             },
             "dynamic": {
                 "status": dynamic_status,
-                "findings": None,
+                "findings": dynamic_findings,
+                "sessions_progress": dynamic_sessions_progress,
             },
             "recommendations": {
                 "status": recommendations_status,

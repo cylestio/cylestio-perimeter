@@ -8,3 +8,4 @@ export * from './navigation';
 export * from './overlays';
 export * from './data-display';
 export * from './layout';
+export * from './icons';
