@@ -8,11 +8,19 @@ export interface ReplayConfig {
   provider_type: 'openai' | 'anthropic';
 }
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+  input: number; // USD per 1M tokens
+  output: number; // USD per 1M tokens
+}
+
 export interface ModelsResponse {
   models: {
-    openai: string[];
-    anthropic: string[];
+    openai: ModelInfo[];
+    anthropic: ModelInfo[];
   };
+  last_updated?: string;
   error?: string;
 }
 

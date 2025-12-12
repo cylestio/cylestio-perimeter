@@ -129,7 +129,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
-        limit: int = 100,
+        limit: int = 10,
+        offset: int = 0,
     ):
         """Get sessions with filtering by workflow_id, agent_id, and/or status.
 
@@ -137,26 +138,35 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
-            limit: Maximum number of sessions to return (default 100).
+            limit: Maximum number of sessions to return (default 10).
+            offset: Number of sessions to skip for pagination (default 0).
 
         Returns:
             JSON response with sessions list and metadata.
         """
         try:
+            # Get total count for pagination (with same filters, but no limit/offset)
+            total_count = insights.store.count_sessions_filtered(
+                workflow_id=workflow_id,
+                agent_id=agent_id,
+                status=status,
+            )
             sessions = insights.store.get_sessions_filtered(
                 workflow_id=workflow_id,
                 agent_id=agent_id,
                 status=status,
                 limit=limit,
+                offset=offset,
             )
             return JSONResponse({
                 "sessions": sessions,
-                "total_count": len(sessions),
+                "total_count": total_count,
                 "filters": {
                     "workflow_id": workflow_id,
                     "agent_id": agent_id,
                     "status": status,
                     "limit": limit,
+                    "offset": offset,
                 },
             })
         except Exception as e:

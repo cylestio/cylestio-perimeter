@@ -1,23 +1,18 @@
 import { useState, useEffect, type FC } from 'react';
-import { X } from 'lucide-react';
 
 import { fetchReplayConfig, fetchModels, sendReplay } from '@api/endpoints/replay';
-import type { ReplayConfig, ReplayResponse, SessionEvent } from '@api/types';
+import type { ReplayConfig, ReplayResponse, TimelineEvent, ModelInfo } from '@api/types';
 
 import { Badge } from '@ui/core/Badge';
 import { Input } from '@ui/form/Input';
 import { TextArea } from '@ui/form/TextArea';
-import { Checkbox } from '@ui/form/Checkbox';
+import { RichSelect, type RichSelectOption } from '@ui/form/RichSelect';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { JsonEditor } from '@ui/form/JsonEditor';
 import { Section } from '@ui/layout/Section';
+import { Drawer } from '@ui/overlays/Drawer';
 
 import {
-  ReplayPanelOverlay,
-  ReplayPanelHeader,
-  ReplayPanelTitle,
-  ReplayPanelClose,
-  ReplayPanelContent,
   FormGroup,
   FormRow,
   FormLabel,
@@ -27,14 +22,59 @@ import {
   ResponseError,
   ResponseEmpty,
   ResponseEmptyIcon,
+  ReplayPanelContainer,
+  ProviderBadge,
+  ToggleToolsButton,
+  ApiKeyInfo,
+  ApiKeyActionButton,
+  ApiKeySaveButton,
+  ApiKeyHint,
+  ApiKeyFormRow,
+  ToolCallBlock,
+  ToolCallCode,
+  RawResponseToggle,
+  RawResponseCode,
+  ResponseContentItem,
+  ModelOptionContent,
+  ModelOptionName,
+  ModelOptionPrice,
+  ModelValueContent,
+  ModelValuePrice,
 } from './SessionDetail.styles';
+
+// Module-level API key storage (persists during app runtime, cleared on page reload)
+let memorySavedApiKey: string | null = null;
+
+const getSavedApiKey = (): string | null => memorySavedApiKey;
+const setSavedApiKey = (key: string | null): void => {
+  memorySavedApiKey = key;
+};
+
+const maskKey = (key: string): string => {
+  if (key.length <= 4) return '****';
+  return '****' + key.slice(-4);
+};
+
+// Format pricing for display
+const formatPrice = (price: number): string => {
+  if (price >= 1) return `$${price}`;
+  if (price >= 0.1) return `$${price.toFixed(1)}`;
+  return `$${price.toFixed(2)}`;
+};
+
+// Convert ModelInfo to RichSelectOption
+const modelToOption = (model: ModelInfo): RichSelectOption<ModelInfo> => ({
+  value: model.id,
+  label: model.name,
+  data: model,
+});
 
 interface ReplayPanelProps {
   isOpen: boolean;
   onClose: () => void;
   sessionId: string;
   eventId: string;
-  events: SessionEvent[];
+  events: TimelineEvent[];
 }
 
 export const ReplayPanel: FC<ReplayPanelProps> = ({
@@ -46,7 +86,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
 }) => {
   // Config state
   const [replayConfig, setReplayConfig] = useState<ReplayConfig | null>(null);
-  const [models, setModels] = useState<{ openai: string[]; anthropic: string[] }>({
+  const [models, setModels] = useState<{ openai: ModelInfo[]; anthropic: ModelInfo[] }>({
     openai: [],
     anthropic: [],
   });
@@ -54,7 +94,8 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
   // Form state
   const [provider, setProvider] = useState<'openai' | 'anthropic'>('openai');
   const [apiKey, setApiKey] = useState('');
-  const [useDefaultKey, setUseDefaultKey] = useState(true);
+  const [sessionApiKey, setSessionApiKey] = useState<string | null>(null);
+  const [isEditingKey, setIsEditingKey] = useState(false);
   const [model, setModel] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2048);
@@ -69,6 +110,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
   const [responseError, setResponseError] = useState<string | null>(null);
 
   // Load config and initialize form when panel opens with a new event
+  // Note: `events` intentionally excluded from deps to prevent form reset on polling
   useEffect(() => {
     if (!isOpen || !eventId) return;
 
@@ -95,8 +137,22 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         const eventProvider = (event.details?.['llm.vendor'] as string) || configData.provider_type || 'openai';
         setProvider(eventProvider as 'openai' | 'anthropic');
 
-        // Set model
-        setModel((requestData.model as string) || (event.details?.['llm.model'] as string) || '');
+        // Set model - try multiple sources with fallbacks
+        let modelStr = '';
+        const modelFromRequest = requestData.model;
+        const modelFromDetails = event.details?.['llm.model'] ?? event.details?.['llm.request.model'];
+
+        if (typeof modelFromRequest === 'string') {
+          modelStr = modelFromRequest;
+        } else if (modelFromRequest && typeof modelFromRequest === 'object') {
+          const obj = modelFromRequest as Record<string, unknown>;
+          modelStr = String(obj.id ?? obj.name ?? obj.model ?? '');
+        }
+
+        if (!modelStr && typeof modelFromDetails === 'string') {
+          modelStr = modelFromDetails;
+        }
+        setModel(modelStr);
 
         // Set temperature and max tokens
         setTemperature((requestData.temperature as number) ?? 0.7);
@@ -113,12 +169,16 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         const nonSystemMessages = messages.filter((m) => m.role !== 'system');
         setMessagesJson(JSON.stringify(nonSystemMessages, null, 2));
 
-        // Set tools
+        // Set tools JSON (but keep collapsed by default)
         setToolsJson(JSON.stringify(tools, null, 2));
-        setShowTools(tools.length > 0);
 
-        // Set API key preferences
-        setUseDefaultKey(configData.api_key_available);
+        // Load saved API key from memory
+        const savedKey = getSavedApiKey();
+        setSessionApiKey(savedKey);
+
+        // Start in edit mode if no key available at all
+        setIsEditingKey(!configData.api_key_available && !savedKey);
+        setApiKey('');
 
         // Clear previous response
         setResponse(null);
@@ -129,7 +189,8 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
     };
 
     loadData();
-  }, [isOpen, eventId, events]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, eventId]);
 
   const handleReplay = async () => {
     setSending(true);
@@ -167,8 +228,13 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         max_tokens: maxTokens,
       };
 
+      // Only include tools if there are any (empty array = no tools)
       if (tools.length > 0) {
         requestData.tools = tools;
+        // For OpenAI, set tool_choice to auto when tools are present
+        if (provider === 'openai') {
+          requestData.tool_choice = 'auto';
+        }
       }
 
       // For Anthropic, use 'system' field instead
@@ -181,7 +247,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         provider,
         base_url: replayConfig?.base_url,
         request_data: requestData as never,
-        api_key: !useDefaultKey && apiKey ? apiKey : undefined,
+        api_key: sessionApiKey || (apiKey.trim() ? apiKey : undefined),
       });
 
       setResponse(result);
@@ -192,54 +258,71 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
     }
   };
 
-  return (
-    <ReplayPanelOverlay $isOpen={isOpen}>
-      <ReplayPanelHeader>
-        <ReplayPanelTitle>Edit & Replay</ReplayPanelTitle>
-        <ReplayPanelClose onClick={onClose}>
-          <X size={20} />
-        </ReplayPanelClose>
-      </ReplayPanelHeader>
+  // Build model options for current provider
+  const modelOptions = (provider === 'openai' ? models.openai : models.anthropic).map(modelToOption);
 
-      <ReplayPanelContent>
+  return (
+    <Drawer
+      open={isOpen}
+      onClose={onClose}
+      title="Edit & Replay"
+      position="right"
+      size="xl"
+      showOverlay={true}
+      closeOnOverlayClick={true}
+      closeOnEsc={true}
+    >
+      <ReplayPanelContainer>
         {/* API Key Section */}
         <Section>
           <Section.Header>
             <Section.Title>
-              {provider === 'openai' ? 'OpenAI' : 'Anthropic'} API Key
+              <ProviderBadge $provider={provider}>
+                {provider === 'openai' ? 'OpenAI' : 'Anthropic'}
+              </ProviderBadge>
+              API Key
+              {sessionApiKey && <ApiKeyInfo>({maskKey(sessionApiKey)})</ApiKeyInfo>}
+              {!sessionApiKey && replayConfig?.api_key_available && (
+                <ApiKeyInfo>({replayConfig.api_key_masked})</ApiKeyInfo>
+              )}
             </Section.Title>
+            <ApiKeyActionButton type="button" onClick={() => setIsEditingKey(!isEditingKey)}>
+              {isEditingKey ? 'Cancel' : 'Edit'}
+            </ApiKeyActionButton>
           </Section.Header>
-          <Section.Content>
-            {replayConfig?.api_key_available ? (
-              <FormGroup>
-                <Checkbox
-                  checked={useDefaultKey}
-                  onChange={(checked) => setUseDefaultKey(checked)}
-                  label={`Use saved key (${replayConfig.api_key_masked})`}
-                />
-                {!useDefaultKey && (
-                  <Input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter API key"
-                  />
-                )}
-              </FormGroup>
-            ) : (
-              <FormGroup>
+          {/* Show form when: editing, OR no key exists anywhere */}
+          {(isEditingKey || (!replayConfig?.api_key_available && !sessionApiKey)) && (
+            <Section.Content>
+              <ApiKeyFormRow>
                 <Input
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="Enter API key"
+                  fullWidth
                 />
-                <div style={{ fontSize: '12px', color: 'var(--color-orange)' }}>
-                  No API key found in proxy config or environment
-                </div>
-              </FormGroup>
-            )}
-          </Section.Content>
+                <ApiKeySaveButton
+                  type="button"
+                  disabled={!apiKey.trim()}
+                  onClick={() => {
+                    setSavedApiKey(apiKey);
+                    setSessionApiKey(apiKey);
+                    setApiKey('');
+                    setIsEditingKey(false);
+                  }}
+                >
+                  Save
+                </ApiKeySaveButton>
+              </ApiKeyFormRow>
+              {!replayConfig?.api_key_available && !sessionApiKey && (
+                <ApiKeyHint>
+                  No API key found in config or environment.<br />
+                  Enter a key to use for replay requests.
+                  It will be saved until page reload.
+                </ApiKeyHint>
+              )}
+            </Section.Content>
+          )}
         </Section>
 
         {/* Request Editor */}
@@ -251,18 +334,34 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
             <FormGroup>
               <FormRow>
                 <FormGroup>
-                  <FormLabel>Model</FormLabel>
-                  <Input
+                  <RichSelect<ModelInfo>
+                    label="Model"
+                    options={modelOptions}
                     value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="e.g., gpt-4"
-                    list="models-list"
+                    onChange={(value) => setModel(value)}
+                    placeholder="Select a model"
+                    fullWidth
+                    renderOption={(option) => (
+                      <ModelOptionContent>
+                        <ModelOptionName>{option.label}</ModelOptionName>
+                        {option.data && (
+                          <ModelOptionPrice>
+                            {formatPrice(option.data.input)} / {formatPrice(option.data.output)}
+                          </ModelOptionPrice>
+                        )}
+                      </ModelOptionContent>
+                    )}
+                    renderValue={(option) => (
+                      <ModelValueContent>
+                        <span>{option.label}</span>
+                        {option.data && (
+                          <ModelValuePrice>
+                            {formatPrice(option.data.input)} / {formatPrice(option.data.output)}
+                          </ModelValuePrice>
+                        )}
+                      </ModelValueContent>
+                    )}
                   />
-                  <datalist id="models-list">
-                    {(provider === 'openai' ? models.openai : models.anthropic).map((m) => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
                 </FormGroup>
                 <FormGroup>
                   <FormLabel>Temperature</FormLabel>
@@ -304,21 +403,9 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                 placeholder="Click + Add Item to add a message"
               />
 
-              <button
-                type="button"
-                onClick={() => setShowTools(!showTools)}
-                style={{
-                  background: 'var(--color-surface-3)',
-                  border: '1px solid var(--color-border-medium)',
-                  borderRadius: '6px',
-                  padding: '8px 16px',
-                  color: 'var(--color-white-70)',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                }}
-              >
-                {showTools ? 'Hide Tools' : 'Show Tools'}
-              </button>
+              <ToggleToolsButton type="button" onClick={() => setShowTools(!showTools)}>
+                {showTools ? '▼ Hide Tools' : '▶ Show Tools'}
+              </ToggleToolsButton>
 
               {showTools && (
                 <JsonEditor
@@ -347,16 +434,11 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
         <Section>
           <Section.Header>
             <Section.Title>Response</Section.Title>
-            {response?.parsed?.usage && (
-              <Badge variant="info">
-                {response.parsed.usage.total_tokens} tokens
-              </Badge>
-            )}
           </Section.Header>
           <Section.Content>
             {!response && !responseError && !sending && (
               <ResponseEmpty>
-                <ResponseEmptyIcon>&#8635;</ResponseEmptyIcon>
+                <ResponseEmptyIcon>↻</ResponseEmptyIcon>
                 <div>Edit the request and click "Send Replay" to see the response</div>
               </ResponseEmpty>
             )}
@@ -373,15 +455,22 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
             {response && (
               <>
                 <ResponseMeta>
-                  <Badge variant="success">{response.parsed?.model}</Badge>
                   {response.parsed?.finish_reason && (
                     <Badge variant="info">{response.parsed.finish_reason}</Badge>
                   )}
-                  {response.elapsed_ms && (
+                  {response.parsed?.model && (
+                    <Badge variant="success">{response.parsed.model}</Badge>
+                  )}
+                  {response.elapsed_ms !== undefined && (
                     <Badge variant="low">
                       {response.elapsed_ms >= 1000
                         ? `${(response.elapsed_ms / 1000).toFixed(2)}s`
                         : `${Math.round(response.elapsed_ms)}ms`}
+                    </Badge>
+                  )}
+                  {response.parsed?.usage?.total_tokens !== undefined && (
+                    <Badge variant="info">
+                      {response.parsed.usage.total_tokens} tokens
                     </Badge>
                   )}
                   {response.cost?.total !== undefined && response.cost.total > 0 && (
@@ -392,69 +481,35 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                     </Badge>
                   )}
                 </ResponseMeta>
-
                 {response.parsed?.content?.map((item, idx) => (
-                  <div key={idx} style={{ marginTop: '12px' }}>
+                  <ResponseContentItem key={idx}>
                     {item.type === 'text' && (
                       <ResponseContent>{item.text}</ResponseContent>
                     )}
                     {item.type === 'tool_use' && (
-                      <div
-                        style={{
-                          background: 'var(--color-orange-soft)',
-                          border: '1px solid var(--color-orange)',
-                          borderRadius: '6px',
-                          padding: '12px',
-                        }}
-                      >
+                      <ToolCallBlock>
                         <Badge variant="high">{item.name}</Badge>
-                        <pre
-                          style={{
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: '11px',
-                            marginTop: '8px',
-                            whiteSpace: 'pre-wrap',
-                          }}
-                        >
+                        <ToolCallCode>
                           {typeof item.input === 'string'
                             ? item.input
                             : JSON.stringify(item.input, null, 2)}
-                        </pre>
-                      </div>
+                        </ToolCallCode>
+                      </ToolCallBlock>
                     )}
-                  </div>
+                  </ResponseContentItem>
                 ))}
 
-                <details style={{ marginTop: '16px' }}>
-                  <summary
-                    style={{
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      color: 'var(--color-white-50)',
-                    }}
-                  >
-                    Show raw response
-                  </summary>
-                  <pre
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '10px',
-                      marginTop: '8px',
-                      background: 'var(--color-surface)',
-                      padding: '12px',
-                      borderRadius: '4px',
-                      overflow: 'auto',
-                      maxHeight: '300px',
-                    }}
-                  >
+                <RawResponseToggle>
+                  <summary>Show raw response</summary>
+                  <RawResponseCode>
                     {JSON.stringify(response.raw_response, null, 2)}
-                  </pre>
-                </details>
+                  </RawResponseCode>
+                </RawResponseToggle>
               </>
             )}
           </Section.Content>
         </Section>
-      </ReplayPanelContent>
-    </ReplayPanelOverlay>
+      </ReplayPanelContainer>
+    </Drawer>
   );
 };

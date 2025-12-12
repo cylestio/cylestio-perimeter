@@ -14,15 +14,16 @@ import {
   FallbackTextarea,
 } from './JsonEditor.styles';
 
-// Custom theme matching the app's design system
+// Custom dark theme matching the app's design system
+// Colors from theme.ts
 const customTheme = {
-  displayName: 'Cylestio',
+  displayName: 'Cylestio Dark',
   fragments: {
-    edit: '#0891b2',
+    edit: '#00f0ff', // cyan
   },
   styles: {
     container: {
-      backgroundColor: '#ffffff',
+      backgroundColor: '#1a1a24', // surface3
       fontFamily: "'JetBrains Mono', 'SF Mono', Monaco, Consolas, monospace",
       fontSize: '12px',
       lineHeight: '1.5',
@@ -34,50 +35,50 @@ const customTheme = {
       paddingBottom: '2px',
     },
     dropZone: {
-      backgroundColor: '#dbeafe',
+      backgroundColor: 'rgba(0, 240, 255, 0.12)', // cyanSoft
     },
     property: {
-      color: '#1e293b',
+      color: 'rgba(255, 255, 255, 0.90)', // white90
       fontWeight: '500',
     },
     bracket: {
-      color: '#64748b',
+      color: 'rgba(255, 255, 255, 0.50)', // white50
       fontWeight: '600',
     },
     itemCount: {
-      color: '#94a3b8',
+      color: 'rgba(255, 255, 255, 0.30)', // white30
       fontStyle: 'italic',
       fontSize: '11px',
     },
-    string: '#059669',
-    number: '#0891b2',
-    boolean: '#7c3aed',
+    string: '#00ff88', // green
+    number: '#00f0ff', // cyan
+    boolean: '#a855f7', // purple
     null: {
-      color: '#94a3b8',
+      color: 'rgba(255, 255, 255, 0.30)', // white30
       fontStyle: 'italic',
     },
     input: {
-      color: '#1e293b',
-      backgroundColor: '#f8fafc',
-      border: '1px solid #e2e8f0',
-      borderRadius: '4px',
+      color: '#ffffff', // white
+      backgroundColor: '#22222e', // surface4
+      border: '1px solid rgba(255, 255, 255, 0.20)', // borderStrong
+      borderRadius: '6px',
       padding: '4px 8px',
       fontSize: '12px',
       outline: 'none',
     },
-    inputHighlight: '#dbeafe',
+    inputHighlight: 'rgba(0, 240, 255, 0.12)', // cyanSoft
     error: {
       fontSize: '11px',
-      color: '#dc2626',
+      color: '#ff4757', // red
       fontWeight: '500',
     },
-    iconCollection: '#64748b',
-    iconEdit: '#0891b2',
-    iconDelete: '#dc2626',
-    iconAdd: '#059669',
-    iconCopy: '#64748b',
-    iconOk: '#059669',
-    iconCancel: '#dc2626',
+    iconCollection: 'rgba(255, 255, 255, 0.50)', // white50
+    iconEdit: '#00f0ff', // cyan
+    iconDelete: '#ff4757', // red
+    iconAdd: '#00ff88', // green
+    iconCopy: 'rgba(255, 255, 255, 0.50)', // white50
+    iconOk: '#00ff88', // green
+    iconCancel: '#ff4757', // red
   },
 };
 

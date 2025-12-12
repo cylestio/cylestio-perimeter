@@ -123,7 +123,8 @@ export const WithSystemPromptColumn: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('System prompt')).toBeInTheDocument();
     // Multiple sessions can have the same system prompt, so use getAllByText
-    const agentCells = canvas.getAllByText('agent_xyz78');
+    // Component renders full agent_id, not agent_id_short
+    const agentCells = canvas.getAllByText('agent_xyz789');
     await expect(agentCells.length).toBeGreaterThan(0);
   },
 };

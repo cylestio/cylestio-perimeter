@@ -243,17 +243,8 @@ function AppLayout() {
     if (location.pathname === '/' && !hasData) {
       // No data → show Connect page
       navigate('/connect', { replace: true });
-    } else if (location.pathname === '/connect' && hasData) {
-      // Has data → redirect away from Connect page
-      if (workflows.length > 0) {
-        // Go to first agent
-        navigate(`/agent/${workflows[0].id}`, { replace: true });
-      } else {
-        // No agents but has system prompts → go to home
-        navigate('/', { replace: true });
-      }
     }
-  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, workflows, navigate]);
+  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, navigate]);
 
   // Security check states
   const staticStatus = stageToSecurityStatus(data?.security_analysis?.static);
