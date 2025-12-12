@@ -12,15 +12,18 @@ import type {
 // Re-export for convenience
 export type { AnalysisSession, AnalysisSessionsResponse } from '../types/findings';
 
-export interface FetchWorkflowFindingsParams {
+export interface FetchAgentFindingsParams {
   severity?: string;
   status?: string;
   limit?: number;
 }
 
-export const fetchWorkflowFindings = async (
-  workflowId: string,
-  params?: FetchWorkflowFindingsParams
+// Legacy type alias
+export type FetchWorkflowFindingsParams = FetchAgentFindingsParams;
+
+export const fetchAgentFindings = async (
+  agentId: string,
+  params?: FetchAgentFindingsParams
 ): Promise<WorkflowFindingsResponse> => {
   const queryParams = new URLSearchParams();
   if (params?.severity) queryParams.set('severity', params.severity);
@@ -28,11 +31,11 @@ export const fetchWorkflowFindings = async (
   if (params?.limit) queryParams.set('limit', String(params.limit));
 
   const queryString = queryParams.toString();
-  const url = `/api/workflow/${workflowId}/findings${queryString ? '?' + queryString : ''}`;
+  const url = `/api/agent/${agentId}/findings${queryString ? '?' + queryString : ''}`;
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch workflow findings: ${response.statusText}`);
+    throw new Error(`Failed to fetch agent findings: ${response.statusText}`);
   }
   const data = await response.json();
   if (data.error) {
@@ -41,10 +44,13 @@ export const fetchWorkflowFindings = async (
   return data;
 };
 
+// Legacy function alias
+export const fetchWorkflowFindings = fetchAgentFindings;
+
 export const fetchAnalysisSessions = async (
-  workflowId: string
+  agentId: string
 ): Promise<AnalysisSessionsResponse> => {
-  const response = await fetch(`/api/sessions/analysis?workflow_id=${workflowId}`);
+  const response = await fetch(`/api/sessions/analysis?agent_id=${agentId}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch analysis sessions: ${response.statusText}`);
   }
@@ -56,10 +62,10 @@ export const fetchAnalysisSessions = async (
 };
 
 // Security Checks Types
-export interface WorkflowSecurityCheck {
+export interface AgentSecurityCheck {
   check_id: string;
-  agent_id: string;
-  workflow_id?: string;
+  system_prompt_id: string;
+  agent_id?: string;
   analysis_session_id: string;
   category_id: string;
   check_type: string;
@@ -72,39 +78,54 @@ export interface WorkflowSecurityCheck {
   created_at: string;
 }
 
-export interface AgentChecksSummary {
+// Legacy type alias
+export type WorkflowSecurityCheck = AgentSecurityCheck;
+
+export interface SystemPromptChecksSummary {
   total: number;
   passed: number;
   warnings: number;
   critical: number;
 }
 
-export interface AgentSecurityData {
-  agent_id: string;
-  agent_name: string;
-  checks: WorkflowSecurityCheck[];
+// Legacy type alias
+export type AgentChecksSummary = SystemPromptChecksSummary;
+
+export interface SystemPromptSecurityData {
+  system_prompt_id: string;
+  system_prompt_name: string;
+  checks: AgentSecurityCheck[];
   latest_check_at?: string;
-  summary: AgentChecksSummary;
+  summary: SystemPromptChecksSummary;
 }
 
-export interface WorkflowSecurityChecksSummary {
+// Legacy type alias
+export type AgentSecurityData = SystemPromptSecurityData;
+
+export interface AgentSecurityChecksSummary {
   total_checks: number;
   passed: number;
   warnings: number;
   critical: number;
-  agents_analyzed: number;
+  system_prompts_analyzed: number;
 }
 
-export interface WorkflowSecurityChecksResponse {
-  workflow_id: string;
-  agents: AgentSecurityData[];
-  total_summary: WorkflowSecurityChecksSummary;
+// Legacy type alias
+export type WorkflowSecurityChecksSummary = AgentSecurityChecksSummary;
+
+export interface AgentSecurityChecksResponse {
+  agent_id: string;
+  system_prompts: SystemPromptSecurityData[];
+  total_summary: AgentSecurityChecksSummary;
 }
 
-export const fetchWorkflowSecurityChecks = async (
-  workflowId: string
-): Promise<WorkflowSecurityChecksResponse> => {
-  const response = await fetch(`/api/workflow/${workflowId}/security-checks`);
+// Legacy type alias
+export type WorkflowSecurityChecksResponse = AgentSecurityChecksResponse;
+
+export const fetchAgentSecurityChecks = async (
+  agentId: string
+): Promise<AgentSecurityChecksResponse> => {
+  const response = await fetch(`/api/agent/${agentId}/security-checks`);
   if (!response.ok) {
     throw new Error(`Failed to fetch security checks: ${response.statusText}`);
   }
@@ -112,8 +133,16 @@ export const fetchWorkflowSecurityChecks = async (
   if (data.error) {
     throw new Error(data.error);
   }
-  return data;
+  // Handle both old and new response format
+  return {
+    agent_id: data.agent_id,
+    system_prompts: data.system_prompts || data.agents || [],
+    total_summary: data.total_summary,
+  };
 };
+
+// Legacy function alias
+export const fetchWorkflowSecurityChecks = fetchAgentSecurityChecks;
 
 // ==================== Recommendations API ====================
 
@@ -125,7 +154,7 @@ export interface FetchRecommendationsParams {
 }
 
 export const fetchRecommendations = async (
-  workflowId: string,
+  agentId: string,
   params?: FetchRecommendationsParams
 ): Promise<RecommendationsResponse> => {
   const queryParams = new URLSearchParams();
@@ -135,7 +164,7 @@ export const fetchRecommendations = async (
   if (params?.limit) queryParams.set('limit', String(params.limit));
 
   const queryString = queryParams.toString();
-  const url = `/api/workflow/${workflowId}/recommendations${queryString ? '?' + queryString : ''}`;
+  const url = `/api/agent/${agentId}/recommendations${queryString ? '?' + queryString : ''}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -162,8 +191,8 @@ export const fetchRecommendationDetail = async (
   return data;
 };
 
-export const fetchGateStatus = async (workflowId: string): Promise<GateStatus> => {
-  const response = await fetch(`/api/workflow/${workflowId}/gate-status`);
+export const fetchGateStatus = async (agentId: string): Promise<GateStatus> => {
+  const response = await fetch(`/api/agent/${agentId}/gate-status`);
   if (!response.ok) {
     throw new Error(`Failed to fetch gate status: ${response.statusText}`);
   }
@@ -178,8 +207,8 @@ export const fetchGateStatus = async (workflowId: string): Promise<GateStatus> =
  * Fetch static analysis summary with categorized checks and gate status.
  * Returns findings grouped into 5 security categories.
  */
-export const fetchStaticSummary = async (workflowId: string): Promise<StaticAnalysisSummary> => {
-  const response = await fetch(`/api/workflow/${workflowId}/static-summary`);
+export const fetchStaticSummary = async (agentId: string): Promise<StaticAnalysisSummary> => {
+  const response = await fetch(`/api/agent/${agentId}/static-summary`);
   if (!response.ok) {
     throw new Error(`Failed to fetch static summary: ${response.statusText}`);
   }
@@ -242,12 +271,12 @@ export const fetchRecommendationAuditLog = async (
   return data;
 };
 
-export const fetchWorkflowAuditLog = async (
-  workflowId: string,
+export const fetchAgentAuditLog = async (
+  agentId: string,
   limit: number = 100
 ): Promise<AuditLogResponse> => {
   const response = await fetch(
-    `/api/workflow/${workflowId}/audit-log?limit=${limit}`
+    `/api/agent/${agentId}/audit-log?limit=${limit}`
   );
   if (!response.ok) {
     throw new Error(`Failed to fetch audit log: ${response.statusText}`);
@@ -259,11 +288,14 @@ export const fetchWorkflowAuditLog = async (
   return data;
 };
 
+// Legacy function alias
+export const fetchWorkflowAuditLog = fetchAgentAuditLog;
+
 // IDE Connection Status Types
 export interface IdeConnection {
   connection_id: string;
   ide_type: string;
-  workflow_id?: string;
+  agent_id?: string;
   host?: string;
   user?: string;
   workspace_path?: string;
@@ -283,14 +315,53 @@ export interface IdeConnectionStatus {
 }
 
 export const fetchIdeStatus = async (
-  workflowId?: string
+  agentId?: string
 ): Promise<IdeConnectionStatus> => {
-  const url = workflowId
-    ? `/api/ide/status?workflow_id=${workflowId}`
+  const url = agentId
+    ? `/api/ide/status?agent_id=${agentId}`
     : '/api/ide/status';
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch IDE status: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+// ==================== Behavioral Analysis API ====================
+
+export interface BehavioralAnalysisData {
+  system_prompt_id?: string;
+  stability_score: number;
+  predictability_score: number;
+  num_outliers: number;
+  total_sessions: number;
+  interpretation?: string;
+  outlier_sessions?: string[];
+}
+
+export interface AgentBehavioralAnalysisResponse {
+  agent_id: string;
+  has_data: boolean;
+  system_prompts_analyzed: number;
+  aggregate: {
+    stability_score: number;
+    predictability_score: number;
+    total_outliers: number;
+    total_sessions: number;
+  };
+  by_system_prompt: BehavioralAnalysisData[];
+}
+
+export const fetchAgentBehavioralAnalysis = async (
+  agentId: string
+): Promise<AgentBehavioralAnalysisResponse> => {
+  const response = await fetch(`/api/agent/${agentId}/behavioral-analysis`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch behavioral analysis: ${response.statusText}`);
   }
   const data = await response.json();
   if (data.error) {

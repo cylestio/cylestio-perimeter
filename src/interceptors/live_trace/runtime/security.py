@@ -49,7 +49,12 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
             evidence={'violations': violations},
             recommendations=[
                 f"Enforce {UNIVERSAL_BOUNDS['max_tokens_per_session']} token limit per session"
-            ]
+            ],
+            owasp_llm="LLM08",
+            owasp_llm_name="Excessive Agency",
+            soc2_controls=["CC6.1", "CC6.8"],
+            cwe="CWE-770",
+            cvss_score=7.5
         )
 
     max_tokens = max((s.total_tokens for s in sessions), default=0)
@@ -60,7 +65,11 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
         description="Validates that per-session token usage stays within the allowed range.",
         status="passed",
         value=f"{max_tokens:,} max tokens",
-        evidence={'max_tokens': max_tokens}
+        evidence={'max_tokens': max_tokens},
+        owasp_llm="LLM08",
+        owasp_llm_name="Excessive Agency",
+        soc2_controls=["CC6.1", "CC6.8"],
+        cwe="CWE-770"
     )
 
 
@@ -87,7 +96,12 @@ def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
             evidence={'violations': violations},
             recommendations=[
                 f"Enforce {UNIVERSAL_BOUNDS['max_tool_calls_per_session']} tool call limit with circuit breakers"
-            ]
+            ],
+            owasp_llm="LLM08",
+            owasp_llm_name="Excessive Agency",
+            soc2_controls=["CC6.1", "CC6.8"],
+            cwe="CWE-770",
+            cvss_score=7.5
         )
 
     max_calls = max((s.tool_uses for s in sessions), default=0)
@@ -98,7 +112,11 @@ def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
         description="Validates that tool invocations remain within expected limits per session.",
         status="passed",
         value=f"{max_calls} max calls",
-        evidence={'max_tool_calls': max_calls}
+        evidence={'max_tool_calls': max_calls},
+        owasp_llm="LLM08",
+        owasp_llm_name="Excessive Agency",
+        soc2_controls=["CC6.1", "CC6.8"],
+        cwe="CWE-770"
     )
 
 
@@ -114,7 +132,8 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
             description="Assesses how consistently the agent consumes its token quota across sessions.",
             status="passed",
             value="Insufficient data",
-            evidence={'reason': 'insufficient_data'}
+            evidence={'reason': 'insufficient_data'},
+            soc2_controls=["A1.2"]
         )
 
     mean_tokens = statistics.mean(tokens)
@@ -132,7 +151,9 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
             evidence={'coefficient_of_variation': round(token_cv, 2)},
             recommendations=[
                 "Implement internal token quotas to reduce variance"
-            ]
+            ],
+            soc2_controls=["A1.2"],
+            cvss_score=4.0
         )
 
     return AssessmentCheck(
@@ -142,7 +163,8 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
         description="Assesses how consistently the agent consumes its token quota across sessions.",
         status="passed",
         value=f"CV: {round(token_cv * 100)}%",
-        evidence={'coefficient_of_variation': round(token_cv, 2)}
+        evidence={'coefficient_of_variation': round(token_cv, 2)},
+        soc2_controls=["A1.2"]
     )
 
 
@@ -158,7 +180,8 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
             description="Tests whether tool usage stays balanced from session to session.",
             status="passed",
             value="Insufficient data",
-            evidence={'reason': 'insufficient_data'}
+            evidence={'reason': 'insufficient_data'},
+            soc2_controls=["A1.2"]
         )
 
     mean_tools = statistics.mean(tools)
@@ -176,7 +199,9 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
             evidence={'coefficient_of_variation': round(tool_cv, 2)},
             recommendations=[
                 "Implement internal tool usage quotas to reduce variance"
-            ]
+            ],
+            soc2_controls=["A1.2"],
+            cvss_score=4.0
         )
 
     return AssessmentCheck(
@@ -186,7 +211,8 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
         description="Tests whether tool usage stays balanced from session to session.",
         status="passed",
         value=f"CV: {round(tool_cv * 100)}%",
-        evidence={'coefficient_of_variation': round(tool_cv, 2)}
+        evidence={'coefficient_of_variation': round(tool_cv, 2)},
+        soc2_controls=["A1.2"]
     )
 
 
@@ -202,7 +228,8 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
             description="Session duration consistency across runs shows how stable and focused the agent remains.",
             status="passed",
             value="Insufficient data",
-            evidence={'reason': 'insufficient_data'}
+            evidence={'reason': 'insufficient_data'},
+            soc2_controls=["A1.2"]
         )
 
     mean_duration = statistics.mean(durations)
@@ -220,7 +247,9 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
             evidence={'coefficient_of_variation': round(duration_cv, 2)},
             recommendations=[
                 "Implement session duration limits to improve consistency"
-            ]
+            ],
+            soc2_controls=["A1.2"],
+            cvss_score=4.0
         )
 
     return AssessmentCheck(
@@ -230,7 +259,8 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
         description="Session duration consistency across runs shows how stable and focused the agent remains.",
         status="passed",
         value=f"CV: {round(duration_cv * 100)}%",
-        evidence={'coefficient_of_variation': round(duration_cv, 2)}
+        evidence={'coefficient_of_variation': round(duration_cv, 2)},
+        soc2_controls=["A1.2"]
     )
 
 
@@ -288,7 +318,11 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
             description="Ensures every LLM call pins a specific, versioned model for reproducibility.",
             status="passed",
             value="No models detected",
-            evidence={'reason': 'no_models_detected'}
+            evidence={'reason': 'no_models_detected'},
+            owasp_llm="LLM05",
+            owasp_llm_name="Supply Chain Vulnerabilities",
+            soc2_controls=["CC6.7"],
+            cwe="CWE-1104"
         )
 
     unpinned_models = []
@@ -311,7 +345,12 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
             evidence={'unpinned_models': unpinned_models},
             recommendations=[
                 f"Pin model versions: {', '.join(unpinned_models)}"
-            ]
+            ],
+            owasp_llm="LLM05",
+            owasp_llm_name="Supply Chain Vulnerabilities",
+            soc2_controls=["CC6.7"],
+            cwe="CWE-1104",
+            cvss_score=6.5
         )
 
     unique_models = len(set(all_models))
@@ -325,7 +364,11 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
         evidence={
             'models': list(set(all_models)),
             'all_pinned': True
-        }
+        },
+        owasp_llm="LLM05",
+        owasp_llm_name="Supply Chain Vulnerabilities",
+        soc2_controls=["CC6.7"],
+        cwe="CWE-1104"
     )
 
 
@@ -339,7 +382,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             description="Measures how completely each session exercises its available tools to ensure bugs and gaps are not missed.",
             status="passed",
             value="No sessions",
-            evidence={'reason': 'no_sessions'}
+            evidence={'reason': 'no_sessions'},
+            soc2_controls=["CC7.1"]
         )
 
     # Calculate per-session coverage rates
@@ -358,7 +402,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             description="Measures how completely each session exercises its available tools to ensure bugs and gaps are not missed.",
             status="passed",
             value="No tools available",
-            evidence={'reason': 'no_tools_available'}
+            evidence={'reason': 'no_tools_available'},
+            soc2_controls=["CC7.1"]
         )
 
     avg_coverage = statistics.mean(coverage_rates)
@@ -376,7 +421,8 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
                 'avg_coverage': round(avg_coverage, 3),
                 'sessions_analyzed': len(coverage_rates),
                 'threshold': 0.80
-            }
+            },
+            soc2_controls=["CC7.1"]
         )
 
     return AssessmentCheck(
@@ -393,7 +439,9 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
         },
         recommendations=[
             f"Improve tool coverage to reach 100% by adding scenarios that call each tool at least once (current: {round(avg_coverage * 100)}%)"
-        ]
+        ],
+        soc2_controls=["CC7.1"],
+        cvss_score=3.0
     )
 
 
@@ -414,7 +462,10 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
             description="Flags provisioned tools that are never exercised across sessions (increases attack surface and maintenance burden if not removed).",
             status="passed",
             value="No tools available",
-            evidence={'reason': 'no_tools_available'}
+            evidence={'reason': 'no_tools_available'},
+            owasp_llm="LLM08",
+            owasp_llm_name="Excessive Agency",
+            soc2_controls=["CC6.2"]
         )
 
     unused_tools = sorted(list(all_available_tools - all_used_tools))
@@ -431,7 +482,10 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
                 'total_available': len(all_available_tools),
                 'total_used': len(all_used_tools),
                 'unused_count': 0
-            }
+            },
+            owasp_llm="LLM08",
+            owasp_llm_name="Excessive Agency",
+            soc2_controls=["CC6.2"]
         )
 
     return AssessmentCheck(
@@ -449,7 +503,11 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
         recommendations=[
             f"Consider removing unused tools: {', '.join(unused_tools[:5])}" +
             (f" and {len(unused_tools) - 5} more" if len(unused_tools) > 5 else "")
-        ]
+        ],
+        owasp_llm="LLM08",
+        owasp_llm_name="Excessive Agency",
+        soc2_controls=["CC6.2"],
+        cvss_score=5.0
     )
 
 
@@ -519,7 +577,10 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
                 'stability_score': round(score, 3),
                 'threshold': 0.80,
                 'num_clusters': behavioral_result.num_clusters
-            }
+            },
+            owasp_llm="LLM08",
+            owasp_llm_name="Excessive Agency",
+            soc2_controls=["CC7.2"]
         )
 
     return AssessmentCheck(
@@ -535,7 +596,11 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
         },
         recommendations=[
             f"Improve system prompt and add guardrails (stability: {round(score * 100)}%)"
-        ]
+        ],
+        owasp_llm="LLM08",
+        owasp_llm_name="Excessive Agency",
+        soc2_controls=["CC7.2"],
+        cvss_score=7.0
     )
 
 
@@ -556,7 +621,10 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
                 'threshold': 0.20,
                 'num_outliers': behavioral_result.num_outliers,
                 'total_sessions': behavioral_result.total_sessions
-            }
+            },
+            owasp_llm="LLM08",
+            owasp_llm_name="Excessive Agency",
+            soc2_controls=["CC7.2"]
         )
 
     return AssessmentCheck(
@@ -569,7 +637,11 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
         evidence={'outlier_rate': round(outlier_rate, 3)},
         recommendations=[
             f"Reduce outlier rate by improving behavioral consistency ({outlier_rate:.1%})"
-        ]
+        ],
+        owasp_llm="LLM08",
+        owasp_llm_name="Excessive Agency",
+        soc2_controls=["CC7.2"],
+        cvss_score=7.0
     )
 
 
@@ -588,7 +660,8 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
             evidence={
                 'num_clusters': num_clusters,
                 'cluster_diversity': round(behavioral_result.cluster_diversity, 3)
-            }
+            },
+            soc2_controls=["CC7.2"]
         )
 
     return AssessmentCheck(
@@ -601,7 +674,9 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
         evidence={'num_clusters': 0},
         recommendations=[
             "Refactor agent logic to achieve behavioral clustering"
-        ]
+        ],
+        soc2_controls=["CC7.2"],
+        cvss_score=6.0
     )
 
 
@@ -618,7 +693,8 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
             description="Scores how predictable the agent's behavior remains across comparable sessions.",
             status="passed",
             value=f"{round(score * 100)}% score",
-            evidence={'predictability_score': round(score, 3)}
+            evidence={'predictability_score': round(score, 3)},
+            soc2_controls=["CC7.2"]
         )
 
     return AssessmentCheck(
@@ -631,7 +707,9 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
         evidence={'predictability_score': round(score, 3)},
         recommendations=[
             f"Improve consistency in agent responses (predictability: {round(score * 100)}%)"
-        ]
+        ],
+        soc2_controls=["CC7.2"],
+        cvss_score=4.0
     )
 
 
@@ -685,7 +763,8 @@ def _check_uncertainty_threshold(
                 'uncertainty': round(uncertainty, 3),
                 'threshold': 0.25,
                 'stability_score': behavioral_result.stability_score
-            }
+            },
+            soc2_controls=["CC7.2"]
         )
 
     return AssessmentCheck(
@@ -698,7 +777,9 @@ def _check_uncertainty_threshold(
         evidence={'uncertainty': round(uncertainty, 3)},
         recommendations=[
             f"Implement stricter guardrails (uncertainty: {round(uncertainty * 100)}%)"
-        ]
+        ],
+        soc2_controls=["CC7.2"],
+        cvss_score=4.0
     )
 
 
@@ -719,7 +800,11 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
             evidence={
                 'total_findings': 0,
                 'sessions_analyzed': pii_result.sessions_with_pii + pii_result.sessions_without_pii
-            }
+            },
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["PI1.1"],
+            cwe="CWE-359"
         )
 
     # Critical if high-confidence sensitive PII found
@@ -758,7 +843,12 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
                 "Implement PII redaction before sending to LLM",
                 "Review data handling policies for sensitive PII",
                 f"Found {len(high_conf_sensitive)} high-confidence sensitive PII items"
-            ]
+            ],
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["PI1.1"],
+            cwe="CWE-359",
+            cvss_score=8.5
         )
 
     # Warning if medium-confidence PII or many findings
@@ -791,7 +881,12 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
             recommendations=[
                 "Consider implementing PII detection and redaction",
                 "Review which PII types are necessary for agent operation"
-            ]
+            ],
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["PI1.1"],
+            cwe="CWE-359",
+            cvss_score=6.0
         )
 
     # Passed for only low-confidence findings
@@ -817,7 +912,11 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
                 }
                 for f in pii_result.detailed_findings[:20]  # Limit to 20 for evidence
             ]
-        }
+        },
+        owasp_llm="LLM06",
+        owasp_llm_name="Sensitive Information Disclosure",
+        soc2_controls=["PI1.1"],
+        cwe="CWE-359"
     )
 
 
@@ -836,7 +935,11 @@ def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentChe
             description="Checks whether system prompts contain PII that may be inadvertently shared.",
             status="passed",
             value="No PII in system prompts",
-            evidence={'system_prompt_findings': 0}
+            evidence={'system_prompt_findings': 0},
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["CC6.5"],
+            cwe="CWE-359"
         )
 
     # Any PII in system prompts is a warning (usually shouldn't have user PII there)
@@ -856,7 +959,12 @@ def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentChe
         recommendations=[
             "Review system prompts for inadvertent PII inclusion",
             "System prompts should typically not contain user-specific PII"
-        ]
+        ],
+        owasp_llm="LLM06",
+        owasp_llm_name="Sensitive Information Disclosure",
+        soc2_controls=["CC6.5"],
+        cwe="CWE-359",
+        cvss_score=5.5
     )
 
 
@@ -871,7 +979,11 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
             description="Measures the proportion of sessions that contain any PII.",
             status="passed",
             value="No sessions",
-            evidence={'reason': 'no_sessions'}
+            evidence={'reason': 'no_sessions'},
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["PI1.1"],
+            cwe="CWE-359"
         )
 
     exposure_rate = pii_result.sessions_with_pii / total_sessions if total_sessions > 0 else 0
@@ -888,7 +1000,11 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
                 'exposure_rate': 0.0,
                 'sessions_with_pii': 0,
                 'total_sessions': total_sessions
-            }
+            },
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["PI1.1"],
+            cwe="CWE-359"
         )
 
     # Warning if >50% of sessions contain PII
@@ -909,7 +1025,12 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
             recommendations=[
                 f"High PII exposure rate ({exposure_rate:.0%}) - consider PII minimization strategies",
                 "Review if all PII is necessary for agent operation"
-            ]
+            ],
+            owasp_llm="LLM06",
+            owasp_llm_name="Sensitive Information Disclosure",
+            soc2_controls=["PI1.1"],
+            cwe="CWE-359",
+            cvss_score=5.0
         )
 
     # Passed for low exposure rate
@@ -924,7 +1045,11 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
             'exposure_rate': round(exposure_rate, 3),
             'sessions_with_pii': pii_result.sessions_with_pii,
             'total_sessions': total_sessions
-        }
+        },
+        owasp_llm="LLM06",
+        owasp_llm_name="Sensitive Information Disclosure",
+        soc2_controls=["PI1.1"],
+        cwe="CWE-359"
     )
 
 

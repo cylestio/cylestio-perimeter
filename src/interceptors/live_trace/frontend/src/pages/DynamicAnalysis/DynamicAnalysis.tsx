@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
 import { AlertTriangle, FileSearch, Shield, X } from 'lucide-react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import {
   fetchAnalysisSessions,
-  fetchWorkflowSecurityChecks,
+  fetchAgentSecurityChecks,
+  fetchAgentBehavioralAnalysis,
   type AnalysisSession,
-  type AgentSecurityData,
-  type WorkflowSecurityChecksSummary,
+  type SystemPromptSecurityData,
+  type AgentSecurityChecksSummary,
+  type AgentBehavioralAnalysisResponse,
 } from '@api/endpoints/workflow';
 import type { SecurityAnalysis } from '@api/types/dashboard';
 
@@ -17,6 +19,7 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Section } from '@ui/layout/Section';
 
 import { AnalysisSessionsTable } from '@domain/analysis';
+import { BehavioralInsights } from '@domain/dynamic';
 
 import { GatheringData } from '@features/GatheringData';
 import { SecurityChecksExplorer } from '@features/SecurityChecksExplorer';
@@ -47,12 +50,14 @@ const MAX_SESSIONS_DISPLAYED = 5;
 
 export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const { agentId } = useParams<{ agentId: string }>();
+  const navigate = useNavigate();
   const { securityAnalysis } = useOutletContext<DynamicAnalysisContext>() || {};
 
   // State
-  const [agentsData, setAgentsData] = useState<AgentSecurityData[]>([]);
-  const [checksSummary, setChecksSummary] = useState<WorkflowSecurityChecksSummary | null>(null);
+  const [agentsData, setAgentsData] = useState<SystemPromptSecurityData[]>([]);
+  const [checksSummary, setChecksSummary] = useState<AgentSecurityChecksSummary | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [behavioralData, setBehavioralData] = useState<AgentBehavioralAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -69,8 +74,8 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
 
     setChecksLoading(true);
     try {
-      const data = await fetchWorkflowSecurityChecks(agentId);
-      setAgentsData(data.agents);
+      const data = await fetchAgentSecurityChecks(agentId);
+      setAgentsData(data.system_prompts);
       setChecksSummary(data.total_summary);
     } catch (err) {
       console.error('Failed to fetch security checks:', err);
@@ -98,15 +103,32 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     }
   }, [agentId]);
 
+  // Fetch behavioral analysis data
+  const fetchBehavioralData = useCallback(async () => {
+    if (!agentId) return;
+
+    try {
+      const data = await fetchAgentBehavioralAnalysis(agentId);
+      setBehavioralData(data);
+    } catch (err) {
+      console.error('Failed to fetch behavioral analysis:', err);
+    }
+  }, [agentId]);
+
   // Fetch data on mount
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      await Promise.all([fetchChecksData(), fetchSessionsData()]);
+      await Promise.all([fetchChecksData(), fetchSessionsData(), fetchBehavioralData()]);
       setLoading(false);
     };
     fetchAll();
-  }, [fetchChecksData, fetchSessionsData]);
+  }, [fetchChecksData, fetchSessionsData, fetchBehavioralData]);
+
+  // Handle viewing outlier session
+  const handleViewOutlier = useCallback((sessionId: string) => {
+    navigate(`/agent/${agentId}/session/${sessionId}`);
+  }, [navigate, agentId]);
 
   // Set breadcrumbs
   usePageMeta({
@@ -163,6 +185,25 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         </PageStats>
       </PageHeader>
 
+      {/* Behavioral Insights - Agent Inspector exclusive feature */}
+      {behavioralData?.has_data && (
+        <Section>
+          <Section.Content noPadding>
+            <BehavioralInsights
+              stability={behavioralData.aggregate.stability_score}
+              predictability={behavioralData.aggregate.predictability_score}
+              outlierCount={behavioralData.aggregate.total_outliers}
+              totalSessions={behavioralData.aggregate.total_sessions}
+              outlierSessions={behavioralData.by_system_prompt
+                .flatMap(sp => sp.outlier_sessions || [])
+                .slice(0, 5)}
+              interpretation={behavioralData.by_system_prompt[0]?.interpretation}
+              onViewOutlier={handleViewOutlier}
+            />
+          </Section.Content>
+        </Section>
+      )}
+
       {/* Session Progress - Show when gathering sessions */}
       {isGatheringSessions && sessionsProgress && (
         <Section>
@@ -205,8 +246,8 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
       <Section>
         <Section.Header>
           <Section.Title icon={<Shield size={16} />}>Latest Security Checks</Section.Title>
-          {checksSummary && checksSummary.agents_analyzed > 0 && (
-            <Badge variant="medium">{checksSummary.agents_analyzed} system prompts</Badge>
+          {checksSummary && checksSummary.system_prompts_analyzed > 0 && (
+            <Badge variant="medium">{checksSummary.system_prompts_analyzed} system prompts</Badge>
           )}
         </Section.Header>
         <Section.Content>

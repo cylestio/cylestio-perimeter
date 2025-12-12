@@ -31,12 +31,13 @@ logger = get_logger(__name__)
 STATIC_DIR = Path(__file__).parent / "static" / "dist"
 
 
-def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> FastAPI:
+def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2, analysis_runner=None) -> FastAPI:
     """Create the FastAPI application for the trace dashboard.
 
     Args:
         insights: InsightsEngine instance
         refresh_interval: Page refresh interval in seconds
+        analysis_runner: Optional AnalysisRunner instance for triggering analysis
 
     Returns:
         FastAPI application
@@ -75,19 +76,30 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # API endpoints for programmatic access
     @app.get("/api/dashboard")
-    async def api_dashboard(workflow_id: Optional[str] = None):
+    async def api_dashboard(agent_id: Optional[str] = None):
         """Get complete dashboard data as JSON, optionally filtered by workflow."""
         try:
-            data = await insights.get_dashboard_data(workflow_id=workflow_id)
+            data = await insights.get_dashboard_data(agent_id=agent_id)
             data["refresh_interval"] = refresh_interval
             return JSONResponse(data)
         except Exception as e:
             logger.error(f"Error getting dashboard data: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/agents")
+    async def api_agents_list():
+        """Get all agents with system prompt counts."""
+        try:
+            workflows = insights.store.get_workflows()
+            return JSONResponse({"agents": workflows})
+        except Exception as e:
+            logger.error(f"Error getting agents: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # Legacy endpoint for backward compatibility
     @app.get("/api/workflows")
     async def api_workflows():
-        """Get all workflows with agent counts."""
+        """Get all agents with system prompt counts (legacy endpoint, use /api/agents instead)."""
         try:
             workflows = insights.store.get_workflows()
             return JSONResponse({"workflows": workflows})
@@ -105,14 +117,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting stats: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/agents")
-    async def api_agents():
-        """Get all agents as JSON."""
+    @app.get("/api/system-prompts")
+    async def api_system_prompts():
+        """Get all system prompts as JSON."""
         try:
             data = await insights.get_dashboard_data()
             return JSONResponse(data["agents"])
         except Exception as e:
-            logger.error(f"Error getting agents: {e}")
+            logger.error(f"Error getting system prompts: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/sessions")
@@ -127,17 +139,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/sessions/list")
     async def api_sessions_list(
-        workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        system_prompt_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ):
-        """Get sessions with filtering by workflow_id, agent_id, and/or status.
+        """Get sessions with filtering by agent_id, system_prompt_id, and/or status.
 
         Args:
-            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
-            agent_id: Filter by agent ID.
+            agent_id: Filter by agent ID. Use "unassigned" for sessions without agent.
+            system_prompt_id: Filter by system prompt ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             limit: Maximum number of sessions to return (default 10).
             offset: Number of sessions to skip for pagination (default 0).
@@ -148,13 +160,13 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         try:
             # Get total count for pagination (with same filters, but no limit/offset)
             total_count = insights.store.count_sessions_filtered(
-                workflow_id=workflow_id,
                 agent_id=agent_id,
+                system_prompt_id=system_prompt_id,
                 status=status,
             )
             sessions = insights.store.get_sessions_filtered(
-                workflow_id=workflow_id,
                 agent_id=agent_id,
+                system_prompt_id=system_prompt_id,
                 status=status,
                 limit=limit,
                 offset=offset,
@@ -163,8 +175,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "sessions": sessions,
                 "total_count": total_count,
                 "filters": {
-                    "workflow_id": workflow_id,
                     "agent_id": agent_id,
+                    "system_prompt_id": system_prompt_id,
                     "status": status,
                     "limit": limit,
                     "offset": offset,
@@ -174,14 +186,25 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting filtered sessions: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/agent/{agent_id}")
-    async def api_agent(agent_id: str):
-        """Get agent details as JSON."""
+    @app.get("/api/system-prompt/{system_prompt_id}")
+    async def api_system_prompt(system_prompt_id: str):
+        """Get system prompt details as JSON."""
         try:
-            data = await insights.get_agent_data(agent_id)
+            data = await insights.get_agent_data(system_prompt_id)
             return JSONResponse(data)
         except Exception as e:
-            logger.error(f"Error getting agent data: {e}")
+            logger.error(f"Error getting system prompt data: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # Legacy endpoint for backward compatibility
+    @app.get("/api/agent/{system_prompt_id}")
+    async def api_agent(system_prompt_id: str):
+        """Get system prompt details as JSON (legacy endpoint, use /api/system-prompt/{id} instead)."""
+        try:
+            data = await insights.get_agent_data(system_prompt_id)
+            return JSONResponse(data)
+        except Exception as e:
+            logger.error(f"Error getting system prompt data: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/session/{session_id}")
@@ -513,32 +536,32 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # ==================== Findings API Endpoints ====================
 
-    @app.get("/api/workflow/{workflow_id}/findings")
-    async def api_get_workflow_findings(
-        workflow_id: str,
+    @app.get("/api/agent/{agent_id}/findings")
+    async def api_get_agent_findings(
+        agent_id: str,
         severity: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security findings for a workflow."""
+        """Get security findings for an agent."""
         try:
             findings = insights.store.get_findings(
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 severity=severity.upper() if severity else None,
                 status=status.upper() if status else None,
                 limit=limit,
             )
-            summary = insights.store.get_workflow_findings_summary(workflow_id)
+            summary = insights.store.get_workflow_findings_summary(agent_id)
             return JSONResponse({
                 "findings": findings,
                 "summary": summary,
             })
         except Exception as e:
-            logger.error(f"Error getting workflow findings: {e}")
+            logger.error(f"Error getting agent findings: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflow/{workflow_id}/static-summary")
-    async def api_get_static_summary(workflow_id: str):
+    @app.get("/api/agent/{agent_id}/static-summary")
+    async def api_get_static_summary(agent_id: str):
         """Get static analysis summary with categorized checks and gate status.
         
         Returns findings grouped into 5 security categories with pass/fail status,
@@ -578,11 +601,11 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
             
             # Get all findings for this workflow
-            findings = insights.store.get_findings(workflow_id=workflow_id, limit=1000)
+            findings = insights.store.get_findings(agent_id=agent_id, limit=1000)
             
             # Get latest STATIC analysis session
             sessions = insights.store.get_analysis_sessions(
-                workflow_id=workflow_id, limit=10
+                agent_id=agent_id, limit=10
             )
             static_sessions = [s for s in sessions if s.get("session_type") == "STATIC"]
             latest_session = static_sessions[0] if static_sessions else None
@@ -697,7 +720,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             gate_status = "BLOCKED" if has_critical_or_high else "UNBLOCKED"
             
             return JSONResponse({
-                "workflow_id": workflow_id,
+                "agent_id": agent_id,
                 "last_scan": last_scan,
                 "checks": checks,
                 "summary": {
@@ -714,17 +737,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting static summary: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflow/{workflow_id}/security-checks")
-    async def api_get_workflow_security_checks(
-        workflow_id: str,
+    @app.get("/api/agent/{agent_id}/security-checks")
+    async def api_get_agent_security_checks_grouped(
+        agent_id: str,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security checks grouped by agent for a workflow."""
+        """Get security checks grouped by system prompt for an agent."""
         try:
             # Get all agents in workflow
-            agents = insights.store.get_all_agents(workflow_id=workflow_id)
+            agents = insights.store.get_all_agents(agent_id=agent_id)
 
             # Build per-agent data
             agents_data = []
@@ -735,7 +758,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
             for agent in agents:
                 checks = insights.store.get_latest_security_checks_for_agent(
-                    agent.agent_id
+                    agent.system_prompt_id
                 )
 
                 # Apply filters
@@ -757,8 +780,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                         latest_check_at = max(timestamps)
 
                 agents_data.append({
-                    "agent_id": agent.agent_id,
-                    "agent_name": agent.id_short if hasattr(agent, 'id_short') else agent.agent_id[:12],
+                    "system_prompt_id": agent.system_prompt_id,
+                    "system_prompt_name": agent.id_short if hasattr(agent, 'id_short') else agent.system_prompt_id[:12],
                     "checks": checks[:limit],
                     "latest_check_at": latest_check_at,
                     "summary": {
@@ -774,22 +797,22 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 total_warnings += warnings
                 total_critical += critical
 
-            # Total summary across all agents
+            # Total summary across all system prompts
             total_summary = {
                 "total_checks": total_checks,
                 "passed": total_passed,
                 "warnings": total_warnings,
                 "critical": total_critical,
-                "agents_analyzed": len(agents),
+                "system_prompts_analyzed": len(agents),
             }
 
             return JSONResponse({
-                "workflow_id": workflow_id,
-                "agents": agents_data,
+                "agent_id": agent_id,
+                "system_prompts": agents_data,
                 "total_summary": total_summary,
             })
         except Exception as e:
-            logger.error(f"Error getting workflow security checks: {e}")
+            logger.error(f"Error getting agent security checks: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.post("/api/findings")
@@ -820,12 +843,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "valid_severities": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
                 }, status_code=400)
 
-            # Get session to extract workflow_id
+            # Get session to extract agent_id
             session = insights.store.get_analysis_session(session_id)
             if not session:
                 return JSONResponse({"error": "Session not found"}, status_code=404)
 
-            workflow_id = session["workflow_id"]
+            agent_id = session["agent_id"]
 
             # Optional fields
             description = body.get("description")
@@ -846,7 +869,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             finding = insights.store.store_finding(
                 finding_id=finding_id,
                 session_id=session_id,
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 file_path=file_path,
                 finding_type=finding_type,
                 severity=severity_enum.value,
@@ -865,17 +888,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # ==================== Security Checks API Endpoints ====================
 
-    @app.get("/api/agent/{agent_id}/security-checks")
-    async def api_get_agent_security_checks(
-        agent_id: str,
+    @app.get("/api/system-prompt/{system_prompt_id}/security-checks")
+    async def api_get_system_prompt_security_checks(
+        system_prompt_id: str,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security checks for an agent (from latest analysis)."""
+        """Get security checks for a system prompt (from latest analysis)."""
         try:
             # Get latest checks for the agent
-            checks = insights.store.get_latest_security_checks_for_agent(agent_id)
+            checks = insights.store.get_latest_security_checks_for_agent(system_prompt_id)
 
             # Apply filters
             if category_id:
@@ -887,10 +910,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             checks = checks[:limit]
 
             # Get summary
-            summary = insights.store.get_agent_security_summary(agent_id)
+            summary = insights.store.get_agent_security_summary(system_prompt_id)
 
             return JSONResponse({
-                "agent_id": agent_id,
+                "system_prompt_id": system_prompt_id,
                 "checks": checks,
                 "summary": summary,
             })
@@ -898,9 +921,87 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting security checks: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/system-prompt/{system_prompt_id}/behavioral-analysis")
+    async def api_get_behavioral_analysis(system_prompt_id: str):
+        """Get behavioral analysis data for a system prompt."""
+        try:
+            analysis = insights.store.get_latest_behavioral_analysis(system_prompt_id)
+            
+            if not analysis:
+                return JSONResponse({
+                    "system_prompt_id": system_prompt_id,
+                    "has_data": False,
+                    "message": "No behavioral analysis available yet",
+                })
+            
+            return JSONResponse({
+                "system_prompt_id": system_prompt_id,
+                "has_data": True,
+                "stability_score": analysis['stability_score'],
+                "predictability_score": analysis['predictability_score'],
+                "num_clusters": analysis['num_clusters'],
+                "num_outliers": analysis['num_outliers'],
+                "total_sessions": analysis['total_sessions'],
+                "interpretation": analysis['interpretation'],
+                "outlier_sessions": [o.get('session_id') for o in analysis.get('outliers', [])],
+                "created_at": analysis['created_at'],
+            })
+        except Exception as e:
+            logger.error(f"Error getting behavioral analysis: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/agent/{agent_id}/behavioral-analysis")
+    async def api_get_agent_behavioral_analysis(agent_id: str):
+        """Get behavioral analysis data for all system prompts in an agent."""
+        try:
+            # Get all system prompts in this agent
+            agents = insights.store.get_all_agents(agent_id=agent_id)
+            
+            analyses = []
+            for agent in agents:
+                analysis = insights.store.get_latest_behavioral_analysis(agent.system_prompt_id)
+                if analysis:
+                    analyses.append({
+                        "system_prompt_id": agent.system_prompt_id,
+                        "stability_score": analysis['stability_score'],
+                        "predictability_score": analysis['predictability_score'],
+                        "num_outliers": analysis['num_outliers'],
+                        "total_sessions": analysis['total_sessions'],
+                        "interpretation": analysis['interpretation'],
+                        "outlier_sessions": [o.get('session_id') for o in analysis.get('outliers', [])],
+                    })
+            
+            # Calculate aggregate if multiple system prompts
+            if analyses:
+                avg_stability = sum(a['stability_score'] for a in analyses) / len(analyses)
+                avg_predictability = sum(a['predictability_score'] for a in analyses) / len(analyses)
+                total_outliers = sum(a['num_outliers'] for a in analyses)
+                total_sessions = sum(a['total_sessions'] for a in analyses)
+            else:
+                avg_stability = 0
+                avg_predictability = 0
+                total_outliers = 0
+                total_sessions = 0
+            
+            return JSONResponse({
+                "agent_id": agent_id,
+                "has_data": len(analyses) > 0,
+                "system_prompts_analyzed": len(analyses),
+                "aggregate": {
+                    "stability_score": avg_stability,
+                    "predictability_score": avg_predictability,
+                    "total_outliers": total_outliers,
+                    "total_sessions": total_sessions,
+                },
+                "by_system_prompt": analyses,
+            })
+        except Exception as e:
+            logger.error(f"Error getting agent behavioral analysis: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/security-checks")
     async def api_get_security_checks(
-        agent_id: Optional[str] = None,
+        system_prompt_id: Optional[str] = None,
         analysis_session_id: Optional[str] = None,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
@@ -909,7 +1010,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Get security checks with optional filtering."""
         try:
             checks = insights.store.get_security_checks(
-                agent_id=agent_id,
+                system_prompt_id=system_prompt_id,
                 analysis_session_id=analysis_session_id,
                 category_id=category_id,
                 status=status.lower() if status else None,
@@ -925,14 +1026,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/sessions/analysis")
     async def api_get_analysis_sessions(
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
         """List analysis sessions."""
         try:
             sessions = insights.store.get_analysis_sessions(
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 status=status.upper() if status else None,
                 limit=limit,
             )
@@ -949,12 +1050,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Create a new analysis session for a workflow."""
         try:
             body = await request.json()
-            workflow_id = body.get("workflow_id")
+            agent_id = body.get("agent_id")
             session_type = body.get("session_type", "STATIC")
             workflow_name = body.get("workflow_name")
 
-            if not workflow_id:
-                return JSONResponse({"error": "workflow_id is required"}, status_code=400)
+            if not agent_id:
+                return JSONResponse({"error": "agent_id is required"}, status_code=400)
 
             # Validate session_type
             try:
@@ -968,7 +1069,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             session_id = generate_session_id()
             session = insights.store.create_analysis_session(
                 session_id=session_id,
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 session_type=session_type_enum.value,
                 workflow_name=workflow_name,
             )
@@ -1087,18 +1188,18 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # ==================== Recommendations API Endpoints ====================
 
-    @app.get("/api/workflow/{workflow_id}/recommendations")
-    async def api_get_workflow_recommendations(
-        workflow_id: str,
+    @app.get("/api/agent/{agent_id}/recommendations")
+    async def api_get_agent_recommendations(
+        agent_id: str,
         status: Optional[str] = None,
         severity: Optional[str] = None,
         blocking_only: bool = False,
         limit: int = 100,
     ):
-        """Get recommendations for a workflow."""
+        """Get recommendations for an agent."""
         try:
             recommendations = insights.store.get_recommendations(
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 status=status.upper() if status else None,
                 severity=severity.upper() if severity else None,
                 blocking_only=blocking_only,
@@ -1123,7 +1224,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 }
             })
         except Exception as e:
-            logger.error(f"Error getting workflow recommendations: {e}")
+            logger.error(f"Error getting agent recommendations: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/recommendations/{recommendation_id}")
@@ -1143,7 +1244,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "recommendation": rec,
                 "finding": finding,
                 "context": {
-                    "workflow_id": rec.get("workflow_id"),
+                    "agent_id": rec.get("agent_id"),
                     "related_files": rec.get("related_files", []),
                     "file_path": rec.get("file_path"),
                     "line_start": rec.get("line_start"),
@@ -1163,11 +1264,11 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting recommendation detail: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflow/{workflow_id}/gate-status")
-    async def api_get_gate_status(workflow_id: str):
+    @app.get("/api/agent/{agent_id}/gate-status")
+    async def api_get_gate_status(agent_id: str):
         """Get gate status for Production deployment."""
         try:
-            status = insights.store.get_gate_status(workflow_id)
+            status = insights.store.get_gate_status(agent_id)
 
             if status["gate_status"] == "BLOCKED":
                 message = f"🚫 Production BLOCKED - {status['blocking_count']} issue(s) must be resolved"
@@ -1241,18 +1342,18 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting recommendation audit log: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.post("/api/workflow/{workflow_id}/backfill-recommendations")
-    async def api_backfill_recommendations(workflow_id: str):
+    @app.post("/api/agent/{agent_id}/backfill-recommendations")
+    async def api_backfill_recommendations(agent_id: str):
         """Backfill recommendations from existing findings.
         
         Creates recommendations for findings that don't have them yet.
         Useful after upgrading to the new recommendation system.
         """
         try:
-            result = insights.store.backfill_recommendations_from_findings(workflow_id)
+            result = insights.store.backfill_recommendations_from_findings(agent_id)
             return JSONResponse({
                 "success": True,
-                "workflow_id": workflow_id,
+                "agent_id": agent_id,
                 **result,
                 "message": f"Created {result['created_count']} recommendations from {result['total_findings']} findings",
             })
@@ -1260,17 +1361,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error backfilling recommendations: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflow/{workflow_id}/audit-log")
-    async def api_get_workflow_audit_log(
-        workflow_id: str,
+    @app.get("/api/agent/{agent_id}/audit-log")
+    async def api_get_agent_audit_log(
+        agent_id: str,
         entity_type: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get audit log entries for a workflow's recommendations."""
+        """Get audit log entries for an agent's recommendations."""
         try:
             # First get all recommendation IDs for this workflow
             recommendations = insights.store.get_recommendations(
-                workflow_id=workflow_id, limit=1000
+                agent_id=agent_id, limit=1000
             )
             rec_ids = [r["recommendation_id"] for r in recommendations]
 
@@ -1299,17 +1400,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     # ==================== IDE Connection Status Endpoints ====================
 
     @app.get("/api/ide/status")
-    async def api_ide_connection_status(workflow_id: Optional[str] = None):
+    async def api_ide_connection_status(agent_id: Optional[str] = None):
         """Get IDE connection status for the dashboard.
 
         Args:
-            workflow_id: Optional filter by workflow being developed
+            agent_id: Optional filter by workflow being developed
 
         Returns:
             JSON with connection status, active connections, and history
         """
         try:
-            status = insights.store.get_ide_connection_status(workflow_id=workflow_id)
+            status = insights.store.get_ide_connection_status(agent_id=agent_id)
             return JSONResponse(status)
         except Exception as e:
             logger.error(f"Error getting IDE connection status: {e}")
@@ -1317,7 +1418,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/ide/connections")
     async def api_ide_connections(
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         ide_type: Optional[str] = None,
         active_only: bool = True,
         limit: int = 100,
@@ -1325,7 +1426,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Get IDE connections with filtering.
 
         Args:
-            workflow_id: Filter by workflow
+            agent_id: Filter by workflow
             ide_type: Filter by IDE type (cursor, claude-code, vscode)
             active_only: Only return active connections
             limit: Maximum number of connections
@@ -1335,7 +1436,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """
         try:
             connections = insights.store.get_ide_connections(
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 ide_type=ide_type,
                 active_only=active_only,
                 limit=limit,
