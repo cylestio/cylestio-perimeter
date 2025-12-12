@@ -37,6 +37,7 @@ const severityOrder: Record<FindingSeverity, number> = {
   HIGH: 1,
   MEDIUM: 2,
   LOW: 3,
+  INFO: 4,
 };
 
 const sortFindings = (findings: Finding[]): Finding[] => {

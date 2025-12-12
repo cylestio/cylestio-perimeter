@@ -1,0 +1,15 @@
+# Sample requirements with INTENTIONAL VULNERABILITIES for testing
+# DO NOT USE IN PRODUCTION
+
+openai>=1.0.0
+
+# =============================================================================
+# VULNERABILITY: SUPPLY_CVE (HIGH)
+# Vulnerable version of langchain with known CVE
+# =============================================================================
+# ❌ HIGH: This version has known vulnerabilities
+langchain==0.0.267
+
+# Other dependencies (not vulnerable)
+pydantic>=2.0.0
+requests>=2.31.0

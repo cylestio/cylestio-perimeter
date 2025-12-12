@@ -93,7 +93,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "store_finding",
-        "description": "Store a security finding discovered during analysis.",
+        "description": "Store a security finding discovered during analysis. Includes de-duplication by fingerprint.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -101,7 +101,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "file_path": {"type": "string"},
                 "finding_type": {
                     "type": "string",
-                    "description": "e.g., 'LLM01', 'PROMPT_INJECTION'"
+                    "description": "e.g., 'PROMPT_INJECT_DIRECT', 'SECRET_API_KEY', 'TOOL_DANGEROUS_UNRESTRICTED'"
                 },
                 "severity": {
                     "type": "string",
@@ -114,7 +114,54 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "code_snippet": {"type": "string"},
                 "owasp_mapping": {
                     "type": "array",
-                    "items": {"type": "string"}
+                    "items": {"type": "string"},
+                    "description": "OWASP LLM IDs, e.g., ['LLM01', 'LLM08']"
+                },
+                "cvss_score": {
+                    "type": "number",
+                    "description": "CVSS score 0.0-10.0"
+                },
+                "cvss_vector": {
+                    "type": "string",
+                    "description": "CVSS vector string, e.g., 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N'"
+                },
+                "cwe_mapping": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "CWE IDs, e.g., ['CWE-74', 'CWE-798']"
+                },
+                "mitre_atlas": {
+                    "type": "string",
+                    "description": "MITRE ATLAS technique ID, e.g., 'AML.T0051'"
+                },
+                "soc2_controls": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "SOC2 control IDs, e.g., ['CC6.1', 'CC6.6']"
+                },
+                "nist_csf": {
+                    "type": "string",
+                    "description": "NIST CSF reference, e.g., 'PR.DS-5'"
+                },
+                "fix_recommendation": {
+                    "type": "string",
+                    "description": "Suggested fix for this finding"
+                },
+                "ai_fixable": {
+                    "type": "boolean",
+                    "description": "Whether AI can fix this (default true)"
+                },
+                "function_name": {
+                    "type": "string",
+                    "description": "Function where finding was detected"
+                },
+                "class_name": {
+                    "type": "string",
+                    "description": "Class where finding was detected"
+                },
+                "data_flow": {
+                    "type": "string",
+                    "description": "Data flow description (source -> sink)"
                 }
             },
             "required": ["session_id", "file_path", "finding_type", "severity", "title"]
@@ -157,6 +204,150 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "notes": {"type": "string"}
             },
             "required": ["finding_id", "status"]
+        }
+    },
+    # ==================== Recommendation Tools ====================
+    {
+        "name": "get_recommendation_detail",
+        "description": "Get full recommendation details by ID (REC-XXX). PRIMARY ENTRY POINT for fixing issues. Returns finding, evidence, related files, correlation data, and mappings.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "recommendation_id": {
+                    "type": "string",
+                    "description": "Recommendation ID in REC-XXX format"
+                }
+            },
+            "required": ["recommendation_id"]
+        }
+    },
+    {
+        "name": "get_recommendations",
+        "description": "List recommendations for a workflow. Filter by status, severity, or blocking issues only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Filter by workflow ID"
+                },
+                "status": {
+                    "type": "string",
+                    "description": "PENDING, FIXING, FIXED, VERIFIED, REOPENED, DISMISSED, or IGNORED"
+                },
+                "severity": {
+                    "type": "string",
+                    "description": "CRITICAL, HIGH, MEDIUM, or LOW"
+                },
+                "blocking_only": {
+                    "type": "boolean",
+                    "description": "Only return gate-blocking issues (CRITICAL/HIGH, not resolved)"
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 100
+                }
+            }
+        }
+    },
+    {
+        "name": "start_fix",
+        "description": "Mark recommendation as FIXING. Call this BEFORE applying changes. Returns full context for the fix.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "recommendation_id": {
+                    "type": "string",
+                    "description": "Recommendation ID (REC-XXX)"
+                }
+            },
+            "required": ["recommendation_id"]
+        }
+    },
+    {
+        "name": "complete_fix",
+        "description": "Mark recommendation as FIXED. Call this AFTER applying changes. Triggers verification.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "recommendation_id": {
+                    "type": "string",
+                    "description": "Recommendation ID (REC-XXX)"
+                },
+                "fix_notes": {
+                    "type": "string",
+                    "description": "Explanation of what was fixed and why"
+                },
+                "files_modified": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of files that were modified"
+                },
+                "fix_commit": {
+                    "type": "string",
+                    "description": "Git commit hash if available"
+                }
+            },
+            "required": ["recommendation_id", "fix_notes", "files_modified"]
+        }
+    },
+    {
+        "name": "verify_fix",
+        "description": "Manually verify if a fix resolved the issue. Usually automatic, but can trigger manually.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "recommendation_id": {
+                    "type": "string",
+                    "description": "Recommendation ID (REC-XXX)"
+                },
+                "verification_result": {
+                    "type": "string",
+                    "description": "Description of verification outcome"
+                },
+                "success": {
+                    "type": "boolean",
+                    "description": "True if issue resolved, False if still present"
+                }
+            },
+            "required": ["recommendation_id", "verification_result", "success"]
+        }
+    },
+    {
+        "name": "dismiss_recommendation",
+        "description": "Dismiss or mark as false positive. Requires reason for audit trail.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "recommendation_id": {
+                    "type": "string",
+                    "description": "Recommendation ID (REC-XXX)"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "REQUIRED: Why this is being dismissed (for audit)"
+                },
+                "dismiss_type": {
+                    "type": "string",
+                    "description": "'DISMISSED' (risk accepted) or 'IGNORED' (false positive)",
+                    "enum": ["DISMISSED", "IGNORED"]
+                }
+            },
+            "required": ["recommendation_id", "reason"]
+        }
+    },
+    {
+        "name": "get_gate_status",
+        "description": "Check if Production deployment is blocked. Returns blocking issues count and details.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow ID to check"
+                }
+            },
+            "required": ["workflow_id"]
         }
     },
     # ==================== Workflow Lifecycle Tools ====================

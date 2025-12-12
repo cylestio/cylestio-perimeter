@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Calendar, Clock, FileSearch, Shield } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
-import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/workflow';
-import type { Finding, FindingsSummary } from '@api/types/findings';
+import { fetchStaticSummary } from '@api/endpoints/workflow';
+import type { StaticAnalysisSummary, StaticCheckCategory, Finding } from '@api/types/findings';
 
-import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/formatting';
-
-import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Section } from '@ui/layout/Section';
 
-import { FindingsTab } from '@domain/findings';
+import { FindingCard } from '@domain/findings';
+import { 
+  ScanStatusCard, 
+  SecurityCheckCard,
+  type CheckStatus,
+  type GateStatus,
+} from '@domain/security';
 
 import { usePageMeta } from '../../context';
 import {
@@ -24,13 +27,6 @@ import {
   PageStats,
   StatBadge,
   StatValue,
-  SessionList,
-  SessionCard,
-  SessionHeader,
-  SessionInfo,
-  SessionId,
-  SessionMeta,
-  SessionMetaItem,
   EmptyContent,
 } from './StaticAnalysis.styles';
 
@@ -38,61 +34,43 @@ export interface StaticAnalysisProps {
   className?: string;
 }
 
+/**
+ * StaticAnalysis page - Shows security scan results with categorized checks
+ * 
+ * Layout:
+ * 1. Scan Status Card - Last scan info, gate progress, severity summary
+ * 2. Security Checks Section - 5 categories with pass/fail status
+ * 3. Findings Detail Section - Individual findings with filters
+ */
 export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const { agentId } = useParams<{ agentId: string }>();
 
   // State
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
-  const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [staticSummary, setStaticSummary] = useState<StaticAnalysisSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [findingsLoading, setFindingsLoading] = useState(false);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch findings for this agent
-  const fetchFindingsData = useCallback(async () => {
+  // Fetch static summary for this workflow
+  const fetchData = useCallback(async () => {
     if (!agentId) return;
 
-    setFindingsLoading(true);
+    setLoading(true);
+    setError(null);
     try {
-      const data = await fetchWorkflowFindings(agentId);
-      setFindings(data.findings);
-      setFindingsSummary(data.summary);
+      const data = await fetchStaticSummary(agentId);
+      setStaticSummary(data);
     } catch (err) {
-      console.error('Failed to fetch findings:', err);
+      console.error('Failed to fetch static summary:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
-      setFindingsLoading(false);
-    }
-  }, [agentId]);
-
-  // Fetch analysis sessions for this agent (STATIC and AUTOFIX only)
-  const fetchSessionsData = useCallback(async () => {
-    if (!agentId) return;
-
-    setSessionsLoading(true);
-    try {
-      const data = await fetchAnalysisSessions(agentId);
-      // Filter to only STATIC and AUTOFIX sessions
-      const filteredSessions = (data.sessions || []).filter(
-        (session) => session.session_type === 'STATIC' || session.session_type === 'AUTOFIX'
-      );
-      setAnalysisSessions(filteredSessions);
-    } catch (err) {
-      console.error('Failed to fetch analysis sessions:', err);
-    } finally {
-      setSessionsLoading(false);
+      setLoading(false);
     }
   }, [agentId]);
 
   // Fetch data on mount
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      await Promise.all([fetchFindingsData(), fetchSessionsData()]);
-      setLoading(false);
-    };
-    fetchAll();
-  }, [fetchFindingsData, fetchSessionsData]);
+    fetchData();
+  }, [fetchData]);
 
   // Set breadcrumbs
   usePageMeta({
@@ -111,8 +89,54 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     );
   }
 
-  const openCount = findingsSummary?.open_count || 0;
-  const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
+  if (error) {
+    return (
+      <StaticAnalysisLayout className={className}>
+        <EmptyContent>
+          <p>Error loading static analysis data: {error}</p>
+          <button onClick={fetchData} style={{ marginTop: '16px' }}>
+            Retry
+          </button>
+        </EmptyContent>
+      </StaticAnalysisLayout>
+    );
+  }
+
+  // Calculate stats for display
+  const totalFindings = staticSummary?.summary?.total_findings || 0;
+  const checksCount = staticSummary?.checks?.length || 0;
+  const passedCount = staticSummary?.summary?.passed || 0;
+
+  // Build check statuses for gate progress
+  const checkStatuses: { status: CheckStatus }[] = (staticSummary?.checks || []).map((check) => ({
+    status: check.status as CheckStatus,
+  }));
+
+  const gateStatus: GateStatus = staticSummary?.summary?.gate_status || 'BLOCKED';
+
+  // Build severity counts
+  const severityCounts = {
+    CRITICAL: 0,
+    HIGH: 0,
+    MEDIUM: 0,
+    LOW: 0,
+  };
+  
+  (staticSummary?.checks || []).forEach((check) => {
+    (check.findings || []).forEach((finding) => {
+      if (finding.status === 'OPEN') {
+        const sev = finding.severity as keyof typeof severityCounts;
+        if (sev in severityCounts) {
+          severityCounts[sev]++;
+        }
+      }
+    });
+  });
+
+  // Render finding card for SecurityCheckCard
+  const renderFinding = (finding: Finding) => (
+    <FindingCard key={finding.finding_id} finding={finding} />
+  );
 
   return (
     <StaticAnalysisLayout className={className} data-testid="static-analysis">
@@ -124,98 +148,62 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
         </PageInfo>
         <PageStats>
           <StatBadge>
-            <FileSearch size={14} />
-            <StatValue>{analysisSessions.length}</StatValue> scans
+            <Shield size={14} />
+            <StatValue>{checksCount}</StatValue> checks
           </StatBadge>
-          {findingsSummary && (
-            <StatBadge>
-              <Shield size={14} />
-              <StatValue>{findingsSummary.total_findings}</StatValue> findings
-            </StatBadge>
-          )}
+          <StatBadge>
+            <StatValue>{totalFindings}</StatValue> findings
+          </StatBadge>
         </PageStats>
       </PageHeader>
 
-      {/* Analysis Sessions */}
+      {/* Scan Status Card */}
+      <ScanStatusCard
+        lastScan={staticSummary?.last_scan ? {
+          timestamp: staticSummary.last_scan.timestamp,
+          scannedBy: staticSummary.last_scan.scanned_by,
+          filesAnalyzed: staticSummary.last_scan.files_analyzed || undefined,
+          durationMs: staticSummary.last_scan.duration_ms || undefined,
+        } : null}
+        checks={checkStatuses}
+        gateStatus={gateStatus}
+        severityCounts={severityCounts}
+      />
+
+      {/* Security Checks Section */}
       <Section>
         <Section.Header>
-          <Section.Title>
-            Analysis Sessions ({analysisSessions.length})
+          <Section.Title icon={<Shield size={16} />}>
+            Security Checks ({passedCount}/{checksCount} passed)
           </Section.Title>
-          {inProgressCount > 0 && (
-            <Badge variant="medium">{inProgressCount} in progress</Badge>
-          )}
         </Section.Header>
         <Section.Content>
-          {sessionsLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
-              <OrbLoader size="md" />
-            </div>
-          ) : analysisSessions.length > 0 ? (
-            <SessionList>
-              {analysisSessions.map((session) => (
-                <SessionCard key={session.session_id}>
-                  <SessionHeader>
-                    <SessionInfo>
-                      <Badge variant={
-                        session.session_type === 'STATIC' ? 'info' :
-                        session.session_type === 'AUTOFIX' ? 'success' : 'medium'
-                      }>
-                        {session.session_type}
-                      </Badge>
-                      <SessionId>{session.session_id}</SessionId>
-                    </SessionInfo>
-                    <Badge variant={session.status === 'COMPLETED' ? 'success' : 'medium'}>
-                      {session.status === 'COMPLETED' ? 'Completed' : 'In Progress'}
-                    </Badge>
-                  </SessionHeader>
-                  <SessionMeta>
-                    <SessionMetaItem>
-                      <Calendar size={12} />
-                      Started {formatDateTime(session.created_at)}
-                    </SessionMetaItem>
-                    {session.completed_at && (
-                      <SessionMetaItem>
-                        <Clock size={12} />
-                        Duration: {formatDuration(getDurationMinutes(session.created_at, session.completed_at) || 0)}
-                      </SessionMetaItem>
-                    )}
-                    <SessionMetaItem>
-                      <Shield size={12} />
-                      {session.findings_count} findings
-                    </SessionMetaItem>
-                    {session.risk_score !== undefined && session.risk_score !== null && (
-                      <SessionMetaItem>
-                        Risk: {session.risk_score}/100
-                      </SessionMetaItem>
-                    )}
-                  </SessionMeta>
-                </SessionCard>
+          {staticSummary?.checks && staticSummary.checks.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {staticSummary.checks.map((check: StaticCheckCategory) => (
+                <SecurityCheckCard
+                  key={check.category_id}
+                  categoryId={check.category_id}
+                  name={check.name}
+                  status={check.status}
+                  owaspLlm={check.owasp_llm}
+                  cwe={check.cwe ? (Array.isArray(check.cwe) ? check.cwe : [check.cwe]) : undefined}
+                  soc2Controls={check.soc2_controls || undefined}
+                  findingsCount={check.findings_count}
+                  maxSeverity={check.max_severity}
+                  findings={check.findings}
+                  renderFinding={renderFinding}
+                />
               ))}
-            </SessionList>
+            </div>
           ) : (
             <EmptyContent>
-              <p>No static analysis sessions yet.</p>
+              <p>No security checks found.</p>
               <p style={{ fontSize: '12px' }}>
-                Run a security scan using the MCP tools to create analysis sessions.
+                Run a security scan using the MCP tools to analyze your agent.
               </p>
             </EmptyContent>
           )}
-        </Section.Content>
-      </Section>
-
-      {/* Security Findings */}
-      <Section>
-        <Section.Header>
-          <Section.Title icon={<Shield size={16} />}>Security Findings</Section.Title>
-          {openCount > 0 && <Badge variant="critical">{openCount} open</Badge>}
-        </Section.Header>
-        <Section.Content>
-          <FindingsTab
-            findings={findings}
-            summary={findingsSummary || undefined}
-            isLoading={findingsLoading}
-          />
         </Section.Content>
       </Section>
     </StaticAnalysisLayout>

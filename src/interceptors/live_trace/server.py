@@ -1,6 +1,7 @@
 """FastAPI server for the live trace dashboard."""
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -536,6 +537,183 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting workflow findings: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/workflow/{workflow_id}/static-summary")
+    async def api_get_static_summary(workflow_id: str):
+        """Get static analysis summary with categorized checks and gate status.
+        
+        Returns findings grouped into 5 security categories with pass/fail status,
+        framework mappings, and overall gate status.
+        """
+        try:
+            # Define check categories with their finding type prefixes
+            CATEGORIES = {
+                "PROMPT_SECURITY": {
+                    "name": "Prompt Security",
+                    "owasp_llm": "LLM01",
+                    "prefixes": ["PROMPT_"],
+                },
+                "TOOL_SECURITY": {
+                    "name": "Tool & Function Security",
+                    "owasp_llm": "LLM08",
+                    "prefixes": ["TOOL_"],
+                },
+                "DATA_SECURITY": {
+                    "name": "Data & Secrets",
+                    "owasp_llm": "LLM06",
+                    "prefixes": ["SECRET_", "DATA_"],
+                },
+                "SUPPLY_CHAIN": {
+                    "name": "Model & Supply Chain",
+                    "owasp_llm": "LLM05",
+                    "prefixes": ["MODEL_", "SUPPLY_", "API_"],
+                },
+                "BOUNDARIES": {
+                    "name": "Behavioral Boundaries",
+                    "owasp_llm": "LLM08/LLM09",
+                    "prefixes": ["BOUNDARY_"],
+                },
+            }
+            
+            # Severity ordering for max severity calculation
+            SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+            
+            # Get all findings for this workflow
+            findings = insights.store.get_findings(workflow_id=workflow_id, limit=1000)
+            
+            # Get latest STATIC analysis session
+            sessions = insights.store.get_analysis_sessions(
+                workflow_id=workflow_id, limit=10
+            )
+            static_sessions = [s for s in sessions if s.get("session_type") == "STATIC"]
+            latest_session = static_sessions[0] if static_sessions else None
+            
+            # Group findings by category
+            category_findings: dict = {cat_id: [] for cat_id in CATEGORIES}
+            uncategorized = []
+            
+            for finding in findings:
+                finding_type = finding.get("finding_type", "")
+                matched = False
+                for cat_id, cat_def in CATEGORIES.items():
+                    for prefix in cat_def["prefixes"]:
+                        if finding_type.startswith(prefix):
+                            category_findings[cat_id].append(finding)
+                            matched = True
+                            break
+                    if matched:
+                        break
+                if not matched:
+                    uncategorized.append(finding)
+            
+            # Build checks response
+            checks = []
+            total_passed = 0
+            total_failed = 0
+            total_info = 0
+            has_critical_or_high = False
+            
+            for cat_id, cat_def in CATEGORIES.items():
+                cat_findings = category_findings[cat_id]
+                findings_count = len(cat_findings)
+                
+                # Determine status: FAIL if any CRITICAL/HIGH open findings, INFO if MEDIUM/LOW, PASS if none
+                open_findings = [f for f in cat_findings if f.get("status") == "OPEN"]
+                critical_high = [f for f in open_findings if f.get("severity") in ["CRITICAL", "HIGH"]]
+                
+                if critical_high:
+                    status = "FAIL"
+                    total_failed += 1
+                    has_critical_or_high = True
+                elif open_findings:
+                    status = "INFO"
+                    total_info += 1
+                else:
+                    status = "PASS"
+                    total_passed += 1
+                
+                # Calculate max severity
+                max_severity = None
+                if open_findings:
+                    severities = [f.get("severity") for f in open_findings]
+                    max_severity = min(severities, key=lambda s: SEVERITY_ORDER.get(s, 99))
+                
+                # Collect unique framework mappings from findings
+                cwe_set = set()
+                soc2_set = set()
+                for f in cat_findings:
+                    if f.get("cwe_mapping"):
+                        cwe_set.update(f["cwe_mapping"] if isinstance(f["cwe_mapping"], list) else [])
+                    if f.get("soc2_controls"):
+                        soc2_set.update(f["soc2_controls"] if isinstance(f["soc2_controls"], list) else [])
+                
+                checks.append({
+                    "category_id": cat_id,
+                    "name": cat_def["name"],
+                    "status": status,
+                    "owasp_llm": cat_def["owasp_llm"],
+                    "cwe": list(cwe_set) if cwe_set else None,
+                    "soc2_controls": list(soc2_set) if soc2_set else None,
+                    "findings_count": findings_count,
+                    "max_severity": max_severity,
+                    "findings": cat_findings,
+                })
+            
+            # Build last_scan info
+            last_scan = None
+            if latest_session:
+                duration_ms = None
+                created_at = latest_session.get("created_at")
+                completed_at = latest_session.get("completed_at")
+                
+                # Handle both float (Unix timestamp) and string (ISO) formats
+                if isinstance(created_at, str):
+                    try:
+                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00')).timestamp()
+                    except (ValueError, AttributeError):
+                        created_at = None
+                if isinstance(completed_at, str):
+                    try:
+                        completed_at = datetime.fromisoformat(completed_at.replace('Z', '+00:00')).timestamp()
+                    except (ValueError, AttributeError):
+                        completed_at = None
+                
+                if completed_at and created_at:
+                    duration_ms = int((completed_at - created_at) * 1000)
+                
+                # Build timestamp string
+                timestamp_str = None
+                if created_at:
+                    timestamp_str = datetime.fromtimestamp(created_at, tz=timezone.utc).isoformat()
+
+                last_scan = {
+                    "timestamp": timestamp_str,
+                    "scanned_by": "AI Assistant",
+                    "files_analyzed": None,  # Could be added if tracked
+                    "duration_ms": duration_ms,
+                    "session_id": latest_session.get("session_id"),
+                }
+            
+            # Determine gate status
+            gate_status = "BLOCKED" if has_critical_or_high else "UNBLOCKED"
+            
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "last_scan": last_scan,
+                "checks": checks,
+                "summary": {
+                    "total_checks": len(CATEGORIES),
+                    "passed": total_passed,
+                    "failed": total_failed,
+                    "info": total_info,
+                    "gate_status": gate_status,
+                    "total_findings": len(findings),
+                    "uncategorized_findings": len(uncategorized),
+                },
+            })
+        except Exception as e:
+            logger.error(f"Error getting static summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/workflow/{workflow_id}/security-checks")
     async def api_get_workflow_security_checks(
         workflow_id: str,
@@ -903,6 +1081,173 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             return JSONResponse(finding)
         except Exception as e:
             logger.error(f"Error updating finding: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # ==================== IDE Connection Status Endpoints ====================
+
+    # ==================== Recommendations API Endpoints ====================
+
+    @app.get("/api/workflow/{workflow_id}/recommendations")
+    async def api_get_workflow_recommendations(
+        workflow_id: str,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        blocking_only: bool = False,
+        limit: int = 100,
+    ):
+        """Get recommendations for a workflow."""
+        try:
+            recommendations = insights.store.get_recommendations(
+                workflow_id=workflow_id,
+                status=status.upper() if status else None,
+                severity=severity.upper() if severity else None,
+                blocking_only=blocking_only,
+                limit=limit,
+            )
+
+            # Build summary
+            by_status = {}
+            by_severity = {}
+            for rec in recommendations:
+                s = rec.get("status", "UNKNOWN")
+                sev = rec.get("severity", "UNKNOWN")
+                by_status[s] = by_status.get(s, 0) + 1
+                by_severity[sev] = by_severity.get(sev, 0) + 1
+
+            return JSONResponse({
+                "recommendations": recommendations,
+                "total_count": len(recommendations),
+                "summary": {
+                    "by_status": by_status,
+                    "by_severity": by_severity,
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error getting workflow recommendations: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/recommendations/{recommendation_id}")
+    async def api_get_recommendation_detail(recommendation_id: str):
+        """Get full recommendation details by ID."""
+        try:
+            rec = insights.store.get_recommendation(recommendation_id)
+            if not rec:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            # Get source finding if available
+            finding = None
+            if rec.get("source_finding_id"):
+                finding = insights.store.get_finding(rec["source_finding_id"])
+
+            return JSONResponse({
+                "recommendation": rec,
+                "finding": finding,
+                "context": {
+                    "workflow_id": rec.get("workflow_id"),
+                    "related_files": rec.get("related_files", []),
+                    "file_path": rec.get("file_path"),
+                    "line_start": rec.get("line_start"),
+                    "line_end": rec.get("line_end"),
+                    "code_snippet": rec.get("code_snippet"),
+                },
+                "mappings": {
+                    "owasp_llm": rec.get("owasp_llm"),
+                    "cwe": rec.get("cwe"),
+                    "mitre_atlas": rec.get("mitre_atlas"),
+                    "soc2_controls": rec.get("soc2_controls", []),
+                    "nist_csf": rec.get("nist_csf"),
+                },
+                "fix_command": f"Fix security issue {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error getting recommendation detail: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/gate-status")
+    async def api_get_gate_status(workflow_id: str):
+        """Get gate status for Production deployment."""
+        try:
+            status = insights.store.get_gate_status(workflow_id)
+
+            if status["gate_status"] == "BLOCKED":
+                message = f"🚫 Production BLOCKED - {status['blocking_count']} issue(s) must be resolved"
+            else:
+                message = "✅ Production UNBLOCKED - all critical/high issues resolved"
+
+            return JSONResponse({
+                **status,
+                "message": message,
+            })
+        except Exception as e:
+            logger.error(f"Error getting gate status: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/dismiss")
+    async def api_dismiss_recommendation(recommendation_id: str, request: Request):
+        """Dismiss or ignore a recommendation."""
+        try:
+            body = await request.json()
+            reason = body.get("reason")
+            dismiss_type = body.get("dismiss_type", "DISMISSED")
+
+            if not reason:
+                return JSONResponse(
+                    {"error": "reason is required for audit trail"},
+                    status_code=400
+                )
+
+            rec = insights.store.dismiss_recommendation(
+                recommendation_id=recommendation_id,
+                reason=reason,
+                dismiss_type=dismiss_type,
+            )
+
+            if not rec:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            type_desc = "Risk accepted" if dismiss_type == "DISMISSED" else "False positive"
+            return JSONResponse({
+                "recommendation": rec,
+                "message": f"📝 {recommendation_id} marked as {dismiss_type}: {type_desc}",
+            })
+        except Exception as e:
+            logger.error(f"Error dismissing recommendation: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/audit-log")
+    async def api_get_workflow_audit_log(
+        workflow_id: str,
+        entity_type: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get audit log entries for a workflow's recommendations."""
+        try:
+            # First get all recommendation IDs for this workflow
+            recommendations = insights.store.get_recommendations(
+                workflow_id=workflow_id, limit=1000
+            )
+            rec_ids = [r["recommendation_id"] for r in recommendations]
+
+            # Get audit log entries for these recommendations
+            all_entries = []
+            for rec_id in rec_ids:
+                entries = insights.store.get_audit_log(
+                    entity_type=entity_type.upper() if entity_type else None,
+                    entity_id=rec_id,
+                    limit=limit,
+                )
+                all_entries.extend(entries)
+
+            # Sort by performed_at descending and limit
+            all_entries.sort(key=lambda x: x["performed_at"], reverse=True)
+            all_entries = all_entries[:limit]
+
+            return JSONResponse({
+                "audit_log": all_entries,
+                "total_count": len(all_entries),
+            })
+        except Exception as e:
+            logger.error(f"Error getting audit log: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     # ==================== IDE Connection Status Endpoints ====================
