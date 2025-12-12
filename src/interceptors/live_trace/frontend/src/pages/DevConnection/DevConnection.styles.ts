@@ -513,3 +513,21 @@ export const QuickSetupCode = styled.code`
   word-break: break-all;
   max-width: 100%;
 `;
+
+// Icon wrapper for consistent spacing
+export const TitleIcon = styled.span`
+  display: inline-flex;
+  margin-right: ${({ theme }) => theme.spacing[2]};
+`;
+
+// Inline connection details variant
+export const InlineConnectionDetails = styled(ConnectionDetails)`
+  margin-top: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: rgba(0, 0, 0, 0.2);
+`;
+
+// Step description with top margin for grouped descriptions
+export const StepDescriptionWithMargin = styled(StepDescription)`
+  margin-top: ${({ theme }) => theme.spacing[3]};
+`;

@@ -182,7 +182,7 @@ function AppLayout() {
         const workflowIdForIDE = urlAgentId === 'unassigned' ? undefined : urlAgentId ?? undefined;
         const status = await fetchIDEConnectionStatus(workflowIdForIDE);
         setIDEConnectionStatus(status);
-      } catch (error) {
+      } catch {
         // Silently fail - IDE connection is optional
       }
     };

@@ -31,6 +31,7 @@ import {
   PageStats,
   StatBadge,
   StatValue,
+  LoaderContainer,
 } from './DynamicAnalysis.styles';
 
 // Context from App layout
@@ -118,9 +119,9 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+      <LoaderContainer $size="lg">
         <OrbLoader size="lg" />
-      </div>
+      </LoaderContainer>
     );
   }
 
@@ -210,9 +211,9 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         </Section.Header>
         <Section.Content>
           {checksLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
+            <LoaderContainer $size="md">
               <OrbLoader size="md" />
-            </div>
+            </LoaderContainer>
           ) : (
             <SecurityChecksExplorer
               agents={agentsData}

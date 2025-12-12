@@ -19,6 +19,7 @@
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown |
 | `ui/data-display/` | Table, CodeBlock |
 | `ui/layout/` | Grid, Content, Main, PageHeader |
+| `ui/icons/` | CursorIcon, ClaudeCodeIcon |
 
 ### Domain Components (`@domain/*`) - AI Security Monitoring
 
@@ -551,6 +552,42 @@ interface CodeBlockProps {
   highlightLines?: number[];
   showLineNumbers?: boolean;
 }
+```
+
+---
+
+## Icons
+
+### CursorIcon
+
+Cursor IDE logo icon as an image component.
+
+```typescript
+interface CursorIconProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+  size?: number;  // Width and height in pixels (default: 24)
+}
+```
+
+**Usage:**
+```tsx
+<CursorIcon size={24} />
+<CursorIcon size={48} style={{ opacity: 0.8 }} />
+```
+
+### ClaudeCodeIcon
+
+Claude Code logo icon as an image component.
+
+```typescript
+interface ClaudeCodeIconProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+  size?: number;  // Width and height in pixels (default: 24)
+}
+```
+
+**Usage:**
+```tsx
+<ClaudeCodeIcon size={24} />
+<ClaudeCodeIcon size={32} />
 ```
 
 ---

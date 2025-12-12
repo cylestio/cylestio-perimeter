@@ -16,8 +16,6 @@ import {
   Cpu,
   Clock
 } from 'lucide-react';
-
-import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
 import { useParams } from 'react-router-dom';
 
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
@@ -25,6 +23,7 @@ import type { IDEConnectionStatus } from '@api/types/ide';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
+import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
 import { Section } from '@ui/layout/Section';
 
 import { usePageMeta } from '../../context';
@@ -55,7 +54,6 @@ import {
   CodeBlock,
   LiveIndicator,
   LiveDot,
-  ConnectionDetails,
   DetailItem,
   DetailLabel,
   DetailValue,
@@ -69,6 +67,9 @@ import {
   QuickSetupTitle,
   QuickSetupDescription,
   QuickSetupCode,
+  TitleIcon,
+  InlineConnectionDetails,
+  StepDescriptionWithMargin,
 } from './DevConnection.styles';
 
 export interface DevConnectionProps {
@@ -217,7 +218,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
       <PageHeader>
         <PageInfo>
           <PageTitle>
-            <Monitor size={24} style={{ marginRight: '8px' }} />
+            <TitleIcon><Monitor size={24} /></TitleIcon>
             IDE Connection
           </PageTitle>
           <PageSubtitle>Connect your development environment for AI-powered security scanning</PageSubtitle>
@@ -257,7 +258,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
           <StatusDescription>{getStatusDescription()}</StatusDescription>
           {/* Inline connection details when connected */}
           {hasEverConnected && connectedIDE && (
-            <ConnectionDetails style={{ marginTop: '12px', padding: '12px', background: 'rgba(0,0,0,0.2)' }}>
+            <InlineConnectionDetails>
               {connectedIDE.user && (
                 <DetailItem>
                   <DetailLabel><User size={10} />&nbsp;User</DetailLabel>
@@ -288,7 +289,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
                   <DetailValue>{connectedIDE.model}</DetailValue>
                 </DetailItem>
               )}
-            </ConnectionDetails>
+            </InlineConnectionDetails>
           )}
         </StatusContent>
         {showGreen ? (
@@ -416,9 +417,9 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
   }
 }`}
                 </CodeBlock>
-                <StepDescription style={{ marginTop: '12px' }}>
+                <StepDescriptionWithMargin>
                   <strong>For Claude Code:</strong> Add to <code>.mcp.json</code>:
-                </StepDescription>
+                </StepDescriptionWithMargin>
                 <CodeBlock>
 {`{
   "mcpServers": {

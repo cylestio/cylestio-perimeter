@@ -13,7 +13,6 @@ import {
   ItemLabel,
   ItemStat,
   ItemBadge,
-  LockIcon,
   EnterpriseBadge,
 } from './SecurityCheckItem.styles';
 
