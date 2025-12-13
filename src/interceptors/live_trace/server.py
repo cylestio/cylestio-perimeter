@@ -543,7 +543,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 status=status.upper() if status else None,
                 limit=limit,
             )
-            summary = insights.store.get_workflow_findings_summary(agent_workflow_id)
+            summary = insights.store.get_agent_workflow_findings_summary(agent_workflow_id)
             return JSONResponse({
                 "findings": findings,
                 "summary": summary,

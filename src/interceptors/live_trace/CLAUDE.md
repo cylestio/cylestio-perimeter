@@ -140,7 +140,7 @@ Key tools:
 - `get_security_patterns` - OWASP patterns for analysis
 - `create_analysis_session` / `complete_analysis_session` - Session lifecycle
 - `store_finding` / `get_findings` - Finding management
-- `get_workflow_state` - Workflow lifecycle status
+- `get_agent_workflow_state` - Workflow lifecycle status
 - `get_agents` / `update_agent_info` - Agent discovery
 
 ## Configuration

@@ -742,3 +742,54 @@ Same changes as test_anthropic.py.
 
 ### 9. Tests
 - All test files across providers, store, MCP, runtime, frontend
+
+---
+
+## 21. Additional Cleanup Items (Missed in Initial Pass)
+
+These are additional items that need to be updated to complete the terminology change:
+
+### server.py (lines 107-110)
+
+| Before | After |
+|--------|-------|
+| `workflows = insights.store.get_agent_workflows()` | `agent_workflows = insights.store.get_agent_workflows()` |
+| `return JSONResponse({"workflows": workflows})` | `return JSONResponse({"agentWorkflows": agent_workflows})` |
+| `logger.error(f"Error getting workflows: {e}")` | `logger.error(f"Error getting agent workflows: {e}")` |
+
+### test_mcp.py (line 315)
+
+| Before | After |
+|--------|-------|
+| `assert "workflow_id" in tool_result["error"]` | `assert "agent_workflow_id" in tool_result["error"]` |
+
+### engine.py (lines 81-82, 114, 121, 155-186)
+
+| Before | After |
+|--------|-------|
+| Docstring: "Optional workflow ID to filter by" | "Optional agent workflow ID to filter by" |
+| Docstring: "with no workflow" | "with no agent workflow" |
+| Docstring: "for the workflow" | "for the agent workflow" |
+| Comment: "for this workflow" | "for this agent workflow" |
+| Variable: `workflow_agents` | `agents_in_workflow` |
+
+### store.py (lines 1012-1074, 2147)
+
+| Before | After |
+|--------|-------|
+| Docstring: "List of workflow dicts" | "List of agent workflow dicts" |
+| Docstring: "Includes workflows from agents" | "Includes agent workflows from agents" |
+| Variable: `workflows = []` | `agent_workflows = []` |
+| Comment: "Get workflows with agent counts" | "Get agent workflows with agent counts" |
+| Variable: `workflows.append(...)` | `agent_workflows.append(...)` |
+| `return workflows` | `return agent_workflows` |
+| Comment: "for this workflow" (line 2147) | "for this agent workflow" |
+| SQL comment: "(for workflow names)" | "(for agent workflow names)" |
+
+### tools.py (lines 70, 208, 264)
+
+| Before | After |
+|--------|-------|
+| `"description": "Human-readable workflow/project name"` | `"description": "Human-readable agent workflow/project name"` |
+| `"description": "...linking to workflows or naming."` | `"description": "...linking to agent workflows or naming."` |
+| `"description": "The workflow/agent ID..."` | `"description": "The agent workflow ID..."` |
