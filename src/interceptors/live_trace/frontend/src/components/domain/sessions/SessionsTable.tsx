@@ -13,27 +13,27 @@ import { EmptyState } from '@ui/feedback/EmptyState';
 export interface SessionsTableProps {
   /** Sessions data to display */
   sessions: SessionListItem[];
-  /** Agent ID for generating links */
-  agentId: string;
+  /** Workflow ID for generating links */
+  workflowId: string;
   /** Loading state */
   loading?: boolean;
   /** Custom empty state message */
   emptyMessage?: string;
-  /** Whether to show the system prompt column */
+  /** Whether to show the agent column */
   showAgentColumn?: boolean;
   /** Optional header content - when provided, table renders with border container */
   header?: ReactNode;
 }
 
 // Column definitions
-const getColumns = (agentId: string, showAgentColumn: boolean): Column<SessionListItem>[] => {
+const getColumns = (workflowId: string, showAgentColumn: boolean): Column<SessionListItem>[] => {
   const columns: Column<SessionListItem>[] = [
     {
       key: 'id',
       header: 'Session ID',
       render: (session) => (
         <Link
-          to={`/agent/${agentId}/session/${session.id}`}
+          to={`/workflow/${workflowId}/session/${session.id}`}
           style={{
             color: 'var(--color-cyan)',
             textDecoration: 'none',
@@ -47,14 +47,14 @@ const getColumns = (agentId: string, showAgentColumn: boolean): Column<SessionLi
     },
   ];
 
-  // Optionally show system prompt column
+  // Optionally show agent column
   if (showAgentColumn) {
     columns.push({
       key: 'agent_id',
-      header: 'System prompt',
+      header: 'Agent',
       render: (session) => (
         <Link
-          to={`/agent/${agentId}/system-prompt/${session.agent_id}`}
+          to={`/workflow/${workflowId}/agent/${session.agent_id}`}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -145,13 +145,13 @@ const getColumns = (agentId: string, showAgentColumn: boolean): Column<SessionLi
 // Component
 export const SessionsTable: FC<SessionsTableProps> = ({
   sessions,
-  agentId,
+  workflowId,
   loading = false,
   emptyMessage = 'No sessions found',
   showAgentColumn = false,
   header,
 }) => {
-  const columns = getColumns(agentId, showAgentColumn);
+  const columns = getColumns(workflowId, showAgentColumn);
 
   return (
     <Table

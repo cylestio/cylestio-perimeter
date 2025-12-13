@@ -20,7 +20,7 @@ import { useParams } from 'react-router-dom';
 import { DevConnectionIcon } from '@constants/pageIcons';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import type { IDEConnectionStatus } from '@api/types/ide';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
@@ -108,20 +108,20 @@ const SETUP_INSTRUCTIONS_URL = 'https://www.cylestio.com/install';
 const SETUP_MESSAGE = `Install Agent Inspector from: ${SETUP_INSTRUCTIONS_URL}`;
 
 export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { workflowId } = useParams<{ workflowId: string }>();
   const [connectionStatus, setConnectionStatus] = useState<IDEConnectionStatus | null>(null);
   const [copied, setCopied] = useState(false);
 
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Dev Connection' })
-      : [{ label: 'Agents', href: '/' }, { label: 'Dev Connection' }],
+    breadcrumbs: workflowId
+      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Dev Connection' })
+      : [{ label: 'Workflows', href: '/' }, { label: 'Dev Connection' }],
   });
 
   // Fetch connection status
   const fetchStatus = useCallback(async () => {
     try {
-      const status = await fetchIDEConnectionStatus(agentId === 'unassigned' ? undefined : agentId);
+      const status = await fetchIDEConnectionStatus(workflowId === 'unassigned' ? undefined : workflowId);
       setConnectionStatus(status);
     } catch (err) {
       // Silently handle errors - connection status is optional
@@ -137,7 +137,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
         connection_count: 0,
       });
     }
-  }, [agentId]);
+  }, [workflowId]);
 
   // Initial fetch and polling
   useEffect(() => {

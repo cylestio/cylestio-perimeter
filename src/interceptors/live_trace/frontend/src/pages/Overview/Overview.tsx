@@ -18,7 +18,7 @@ import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration } from '@utils/formatting';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -84,7 +84,7 @@ const aggregateMetrics = (agents: APIAgent[]): AggregatedMetrics => {
 };
 
 export const Overview: FC<OverviewProps> = ({ className }) => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { workflowId } = useParams<{ workflowId: string }>();
 
   // State
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
@@ -94,12 +94,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   // Fetch data
   const fetchData = useCallback(async () => {
-    if (!agentId) return;
+    if (!workflowId) return;
 
     try {
       const [dashData, sessionsData] = await Promise.all([
-        fetchDashboard(agentId),
-        fetchSessions({ workflow_id: agentId, limit: 100 }),
+        fetchDashboard(workflowId),
+        fetchSessions({ workflow_id: workflowId, limit: 100 }),
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
@@ -109,7 +109,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     } finally {
       setLoading(false);
     }
-  }, [agentId]);
+  }, [workflowId]);
 
   useEffect(() => {
     fetchData();
@@ -117,9 +117,9 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   // Set breadcrumbs
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Overview' })
-      : [{ label: 'Agents', href: '/' }, { label: 'Overview' }],
+    breadcrumbs: workflowId
+      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Overview' })
+      : [{ label: 'Workflows', href: '/' }, { label: 'Overview' }],
   });
 
   if (loading) {
@@ -157,7 +157,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
       {/* Header */}
       <PageHeader
         title="Overview"
-        description={`Aggregated metrics for agent: ${agentId}`}
+        description={`Aggregated metrics for workflow: ${workflowId}`}
       />
 
       {/* Key Metrics Row */}
@@ -165,7 +165,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
         <StatCard
           icon={<Bot size={16} />}
           iconColor="cyan"
-          label="System Prompts"
+          label="Agents"
           value={agents.length}
           detail={`${metrics.activeAgents} active`}
           size="sm"
@@ -288,12 +288,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
               <Card.Content>
                 <ToolsList>
                   <ToolItem>
-                    <ToolName>Tools discovered across all system prompts</ToolName>
+                    <ToolName>Tools discovered across all agents</ToolName>
                     <ToolCount>{metrics.totalTools}</ToolCount>
                   </ToolItem>
                 </ToolsList>
                 <p style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '16px' }}>
-                  Detailed tool usage breakdown coming soon. Visit individual system prompts for more details.
+                  Detailed tool usage breakdown coming soon. Visit individual agents for more details.
                 </p>
               </Card.Content>
             </Card>

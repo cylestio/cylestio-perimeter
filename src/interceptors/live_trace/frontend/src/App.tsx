@@ -105,9 +105,9 @@ const toWorkflow = (api: APIWorkflow): Workflow => ({
   agentCount: api.agent_count,
 });
 
-// Extract agentId from URL pathname (e.g., /agent/abc123/system-prompt/xyz -> abc123)
-function getAgentIdFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/agent\/([^/]+)/);
+// Extract workflowId from URL pathname (e.g., /workflow/abc123/agent/xyz -> abc123)
+function getWorkflowIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/workflow\/([^/]+)/);
   return match ? match[1] : null;
 }
 
@@ -124,14 +124,14 @@ function AppLayout() {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // URL is source of truth for agent
-  const urlAgentId = getAgentIdFromPath(location.pathname);
+  // URL is source of truth for workflow
+  const urlWorkflowId = getWorkflowIdFromPath(location.pathname);
 
   // Detect if we're on the root page or in unassigned context
   const isRootPage = location.pathname === '/' || location.pathname === '/connect';
-  const isUnassignedContext = urlAgentId === 'unassigned';
+  const isUnassignedContext = urlWorkflowId === 'unassigned';
 
-  // Agent list state (for dropdown)
+  // Workflow list state (for dropdown)
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
 
@@ -141,13 +141,13 @@ function AppLayout() {
   // IDE connection state
   const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
-  // Derive selected agent from URL
+  // Derive selected workflow from URL
   const selectedWorkflow = (() => {
-    if (!urlAgentId) return null;
-    if (urlAgentId === 'unassigned') {
+    if (!urlWorkflowId) return null;
+    if (urlWorkflowId === 'unassigned') {
       return { id: 'unassigned', name: 'Unassigned', agentCount: 0 };
     }
-    return workflows.find(w => w.id === urlAgentId) ?? null;
+    return workflows.find(w => w.id === urlWorkflowId) ?? null;
   })();
 
   // Get breadcrumbs from page context
@@ -179,7 +179,7 @@ function AppLayout() {
   useEffect(() => {
     const fetchIDE = async () => {
       try {
-        const workflowIdForIDE = urlAgentId === 'unassigned' ? undefined : urlAgentId ?? undefined;
+        const workflowIdForIDE = urlWorkflowId === 'unassigned' ? undefined : urlWorkflowId ?? undefined;
         const status = await fetchIDEConnectionStatus(workflowIdForIDE);
         setIDEConnectionStatus(status);
       } catch {
@@ -191,7 +191,7 @@ function AppLayout() {
     // Poll IDE status every 5 seconds
     const interval = setInterval(fetchIDE, 5000);
     return () => clearInterval(interval);
-  }, [urlAgentId]);
+  }, [urlWorkflowId]);
 
   // Refresh workflows periodically (every 30 seconds)
   useEffect(() => {
@@ -207,19 +207,19 @@ function AppLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle agent selection - navigate to new URL
+  // Handle workflow selection - navigate to new URL
   const handleWorkflowSelect = useCallback((workflow: Workflow) => {
     if (workflow.id === null) {
-      // Unassigned agent - use 'unassigned' in URL
-      navigate('/agent/unassigned');
+      // Unassigned workflow - use 'unassigned' in URL
+      navigate('/workflow/unassigned');
     } else {
-      // Specific agent - go to agent overview
-      navigate(`/agent/${workflow.id}`);
+      // Specific workflow - go to workflow overview
+      navigate(`/workflow/${workflow.id}`);
     }
   }, [navigate]);
 
-  // Poll dashboard data filtered by URL agent
-  const workflowIdForFetch = urlAgentId === 'unassigned' ? 'unassigned' : urlAgentId ?? undefined;
+  // Poll dashboard data filtered by URL workflow
+  const workflowIdForFetch = urlWorkflowId === 'unassigned' ? 'unassigned' : urlWorkflowId ?? undefined;
   const fetchFn = useCallback(
     () => fetchDashboard(workflowIdForFetch),
     [workflowIdForFetch]
@@ -298,51 +298,51 @@ function AppLayout() {
           )}
 
           {/* ===== DEVELOPER SECTION ===== */}
-          {urlAgentId && !isRootPage && (
+          {urlWorkflowId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Developer' : undefined}>
               <NavItem
                 icon={<OverviewIcon size={18} />}
                 label="Overview"
-                active={location.pathname === `/agent/${urlAgentId}/overview`}
-                to={`/agent/${urlAgentId}/overview`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/overview`}
+                to={`/workflow/${urlWorkflowId}/overview`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
-                label="System prompts"
+                label="Agents"
                 icon={<SystemPromptsIcon size={18} />}
                 badge={agents.length > 0 ? agents.length : undefined}
-                active={location.pathname === `/agent/${urlAgentId}/system-prompts` || location.pathname === `/agent/${urlAgentId}`}
-                to={`/agent/${urlAgentId}/system-prompts`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/agents` || location.pathname === `/workflow/${urlWorkflowId}`}
+                to={`/workflow/${urlWorkflowId}/agents`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 icon={<SessionsIcon size={18} />}
                 label="Sessions"
                 badge={data?.sessions_count ? data.sessions_count : undefined}
-                active={location.pathname === `/agent/${urlAgentId}/sessions`}
-                to={`/agent/${urlAgentId}/sessions`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/sessions`}
+                to={`/workflow/${urlWorkflowId}/sessions`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 icon={<RecommendationsIcon size={18} />}
                 label="Recommendations"
-                active={location.pathname === `/agent/${urlAgentId}/recommendations`}
-                to={`/agent/${urlAgentId}/recommendations`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/recommendations`}
+                to={`/workflow/${urlWorkflowId}/recommendations`}
                 collapsed={sidebarCollapsed}
               />
             </NavGroup>
           )}
 
           {/* ===== SECURITY CHECKS SECTION (with Timeline) ===== */}
-          {urlAgentId && !isRootPage && (
+          {urlWorkflowId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Security Checks' : undefined}>
               <SecurityCheckItem
                 label="Dev"
                 status={devConnectionStatus}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
-                to={isUnassignedContext ? undefined : `/agent/${urlAgentId}/dev-connection`}
-                active={location.pathname === `/agent/${urlAgentId}/dev-connection`}
+                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/dev-connection`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/dev-connection`}
                 showConnectorBelow
                 isFirst
                 icon={<DevConnectionIcon size={10} />}
@@ -353,8 +353,8 @@ function AppLayout() {
                 count={getOpenFindingsCount(data?.security_analysis?.static)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
-                to={isUnassignedContext ? undefined : `/agent/${urlAgentId}/static-analysis`}
-                active={location.pathname === `/agent/${urlAgentId}/static-analysis`}
+                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/static-analysis`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/static-analysis`}
                 showConnectorAbove
                 showConnectorBelow
               />
@@ -365,8 +365,8 @@ function AppLayout() {
                 stat={getDynamicAnalysisStat(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
-                to={isUnassignedContext ? undefined : `/agent/${urlAgentId}/dynamic-analysis`}
-                active={location.pathname === `/agent/${urlAgentId}/dynamic-analysis`}
+                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/dynamic-analysis`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/dynamic-analysis`}
                 showConnectorAbove
                 showConnectorBelow
               />
@@ -385,20 +385,20 @@ function AppLayout() {
           )}
 
           {/* ===== REPORTS SECTION ===== */}
-          {urlAgentId && !isRootPage && (
+          {urlWorkflowId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Reports' : undefined}>
               <NavItem
                 icon={<ReportsIcon size={18} />}
                 label="Reports"
-                active={location.pathname === `/agent/${urlAgentId}/reports`}
-                to={`/agent/${urlAgentId}/reports`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/reports`}
+                to={`/workflow/${urlWorkflowId}/reports`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 icon={<AttackSurfaceIcon size={18} />}
                 label="Attack Surface"
-                active={location.pathname === `/agent/${urlAgentId}/attack-surface`}
-                to={`/agent/${urlAgentId}/attack-surface`}
+                active={location.pathname === `/workflow/${urlWorkflowId}/attack-surface`}
+                to={`/workflow/${urlWorkflowId}/attack-surface`}
                 collapsed={sidebarCollapsed}
               />
             </NavGroup>
@@ -447,32 +447,32 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
-              {/* Root routes - Agents landing page */}
+              {/* Root routes - Workflows landing page */}
               <Route path="/" element={<WorkflowsHome />} />
               <Route path="/connect" element={<Connect />} />
-              
-              {/* Agent-prefixed routes - redirect base path to overview */}
-              <Route path="/agent/:agentId" element={<Navigate to="overview" replace />} />
-              
+
+              {/* Workflow-prefixed routes - redirect base path to overview */}
+              <Route path="/workflow/:workflowId" element={<Navigate to="overview" replace />} />
+
               {/* Developer section */}
-              <Route path="/agent/:agentId/overview" element={<Overview />} />
-              <Route path="/agent/:agentId/system-prompts" element={<Portfolio />} />
-              <Route path="/agent/:agentId/sessions" element={<Sessions />} />
-              <Route path="/agent/:agentId/recommendations" element={<Recommendations />} />
-              
+              <Route path="/workflow/:workflowId/overview" element={<Overview />} />
+              <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
+              <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
+              <Route path="/workflow/:workflowId/recommendations" element={<Recommendations />} />
+
               {/* Security Checks section */}
-              <Route path="/agent/:agentId/dev-connection" element={<DevConnection />} />
-              <Route path="/agent/:agentId/static-analysis" element={<StaticAnalysis />} />
-              <Route path="/agent/:agentId/dynamic-analysis" element={<DynamicAnalysis />} />
-              
+              <Route path="/workflow/:workflowId/dev-connection" element={<DevConnection />} />
+              <Route path="/workflow/:workflowId/static-analysis" element={<StaticAnalysis />} />
+              <Route path="/workflow/:workflowId/dynamic-analysis" element={<DynamicAnalysis />} />
+
               {/* Reports section */}
-              <Route path="/agent/:agentId/reports" element={<Reports />} />
-              <Route path="/agent/:agentId/attack-surface" element={<AttackSurface />} />
-              
+              <Route path="/workflow/:workflowId/reports" element={<Reports />} />
+              <Route path="/workflow/:workflowId/attack-surface" element={<AttackSurface />} />
+
               {/* Detail pages */}
-              <Route path="/agent/:agentId/system-prompt/:systemPromptId" element={<AgentDetail />} />
-              <Route path="/agent/:agentId/system-prompt/:systemPromptId/report" element={<AgentReport />} />
-              <Route path="/agent/:agentId/session/:sessionId" element={<SessionDetail />} />
+              <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
+              <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
+              <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />
             </Route>
           </Routes>
         </BrowserRouter>
