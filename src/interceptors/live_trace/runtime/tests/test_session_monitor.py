@@ -54,8 +54,13 @@ class TestSessionMonitor:
         monitor.stop()
         assert monitor.is_running is False
 
-    def test_triggers_analysis_for_completed_agents(self):
-        """Test that monitor triggers analysis for agents with completed sessions."""
+    def test_marks_sessions_complete_for_agents(self):
+        """Test that monitor checks and completes sessions for agents.
+        
+        Note: The monitor no longer auto-triggers analysis - dynamic analysis 
+        is triggered manually via API/UI. This test verifies the monitor calls
+        the store to mark inactive sessions as complete.
+        """
         store = MockStore()
         store.completed_agent_ids = ["agent-1", "agent-2"]
         runner = MockAnalysisRunner()
@@ -69,9 +74,11 @@ class TestSessionMonitor:
 
         monitor.stop()
 
-        # Should have triggered both agents
-        assert "agent-1" in runner.triggered_agents
-        assert "agent-2" in runner.triggered_agents
+        # Should have called check_and_complete_sessions at least once
+        assert store.check_count >= 1
+        
+        # Analysis triggering is now manual, so runner should NOT be called
+        assert len(runner.triggered_agents) == 0
 
     def test_does_not_trigger_when_no_completed_sessions(self):
         """Test that monitor doesn't trigger when no sessions completed."""

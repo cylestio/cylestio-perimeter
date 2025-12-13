@@ -9,7 +9,7 @@ const mockFindings: Finding[] = [
   {
     finding_id: 'find_001',
     session_id: 'sess_001',
-    workflow_id: 'my-workflow',
+    agent_id: 'my-agent',
     file_path: 'src/handlers/auth.py',
     line_start: 42,
     finding_type: 'PROMPT_INJECTION',
@@ -25,7 +25,7 @@ const mockFindings: Finding[] = [
   {
     finding_id: 'find_002',
     session_id: 'sess_001',
-    workflow_id: 'my-workflow',
+    agent_id: 'my-agent',
     file_path: 'src/api/endpoints.py',
     line_start: 88,
     finding_type: 'EXCESSIVE_AGENCY',
@@ -41,7 +41,7 @@ const mockFindings: Finding[] = [
   {
     finding_id: 'find_003',
     session_id: 'sess_001',
-    workflow_id: 'my-workflow',
+    agent_id: 'my-agent',
     file_path: 'src/utils/logging.py',
     line_start: 15,
     finding_type: 'DATA_EXPOSURE',
@@ -56,7 +56,7 @@ const mockFindings: Finding[] = [
   {
     finding_id: 'find_004',
     session_id: 'sess_001',
-    workflow_id: 'my-workflow',
+    agent_id: 'my-agent',
     file_path: 'src/config.py',
     line_start: 5,
     finding_type: 'MISCONFIGURATION',
@@ -71,7 +71,7 @@ const mockFindings: Finding[] = [
 ];
 
 const mockSummary: FindingsSummary = {
-  workflow_id: 'my-workflow',
+  agent_id: 'my-agent',
   total_findings: 4,
   by_severity: {
     CRITICAL: 1,

@@ -26,7 +26,7 @@ const mockDashboardData = {
       id: 'agent_001',
       id_short: 'agent_001',
       name: 'Customer Support Bot',
-      workflow_id: 'test-agent',
+      agent_id: 'test-agent',
       total_sessions: 150,
       active_sessions: 3,
       total_errors: 5,
@@ -39,7 +39,7 @@ const mockDashboardData = {
       id: 'agent_002',
       id_short: 'agent_002',
       name: 'Code Assistant',
-      workflow_id: 'test-agent',
+      agent_id: 'test-agent',
       total_sessions: 75,
       active_sessions: 1,
       total_errors: 2,
@@ -57,7 +57,7 @@ const mockSessionsData = {
   sessions: [
     {
       session_id: 'sess_001',
-      agent_id: 'agent_001',
+      system_prompt_id: 'agent_001',
       agent_name: 'Customer Support Bot',
       start_time: new Date(Date.now() - 3600000).toISOString(),
       duration_minutes: 45,
@@ -67,7 +67,7 @@ const mockSessionsData = {
     },
     {
       session_id: 'sess_002',
-      agent_id: 'agent_002',
+      system_prompt_id: 'agent_002',
       agent_name: 'Code Assistant',
       start_time: new Date(Date.now() - 1800000).toISOString(),
       duration_minutes: 30,

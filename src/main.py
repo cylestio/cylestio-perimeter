@@ -176,11 +176,11 @@ def create_app(config: Settings) -> FastAPI:
         
         return config_data
 
-    # Workflow-scoped proxy route (must be before catch-all)
-    @fast_app.api_route("/workflow/{workflow_id}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
-    async def workflow_proxy_request(request: Request, workflow_id: str, path: str):
-        """Proxy requests with workflow context for grouping agents."""
-        request.state.workflow_id = workflow_id
+    # Agent-scoped proxy route (must be before catch-all)
+    @fast_app.api_route("/agent/{agent_id}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
+    async def agent_proxy_request(request: Request, agent_id: str, path: str):
+        """Proxy requests with agent context for grouping system prompts."""
+        request.state.agent_id = agent_id
         proxy_handler_to_use = getattr(request.app.state, 'proxy_handler', None) or proxy_handler
         if proxy_handler_to_use is None:
             raise RuntimeError("Proxy handler not initialized")

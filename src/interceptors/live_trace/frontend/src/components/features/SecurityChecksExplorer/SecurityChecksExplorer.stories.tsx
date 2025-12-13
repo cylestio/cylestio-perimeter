@@ -1,16 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 
-import type { AgentSecurityData, WorkflowSecurityCheck } from '@api/endpoints/workflow';
+import type { AgentSecurityCheck, SystemPromptSecurityData as AgentSecurityData } from '@api/endpoints/agent';
 
 import { SecurityChecksExplorer } from './SecurityChecksExplorer';
 
 // Mock data
-const mockChecks: WorkflowSecurityCheck[] = [
+const mockChecks: AgentSecurityCheck[] = [
   {
     check_id: 'check_001',
-    agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    system_prompt_id: 'agent_abc123',
+    agent_id: 'agent_001',
     analysis_session_id: 'session_001',
     category_id: 'RESOURCE_MANAGEMENT',
     check_type: 'session_duration',
@@ -21,8 +21,8 @@ const mockChecks: WorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_002',
-    agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    system_prompt_id: 'agent_abc123',
+    agent_id: 'agent_001',
     analysis_session_id: 'session_001',
     category_id: 'RESOURCE_MANAGEMENT',
     check_type: 'token_usage',
@@ -33,8 +33,8 @@ const mockChecks: WorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_003',
-    agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    system_prompt_id: 'agent_abc123',
+    agent_id: 'agent_001',
     analysis_session_id: 'session_001',
     category_id: 'ENVIRONMENT',
     check_type: 'model_pinning',
@@ -44,8 +44,8 @@ const mockChecks: WorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_004',
-    agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    system_prompt_id: 'agent_abc123',
+    agent_id: 'agent_001',
     analysis_session_id: 'session_001',
     category_id: 'BEHAVIORAL',
     check_type: 'stability_score',
@@ -56,8 +56,8 @@ const mockChecks: WorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_005',
-    agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    system_prompt_id: 'agent_abc123',
+    agent_id: 'agent_001',
     analysis_session_id: 'session_001',
     category_id: 'BEHAVIORAL',
     check_type: 'anomaly_detection',
@@ -69,8 +69,8 @@ const mockChecks: WorkflowSecurityCheck[] = [
 ];
 
 const mockAgent: AgentSecurityData = {
-  agent_id: 'agent_abc123def456',
-  agent_name: 'math-agent',
+  system_prompt_id: 'agent_abc123def456',
+  system_prompt_name: 'math-agent',
   checks: mockChecks,
   latest_check_at: new Date(Date.now() - 300 * 1000).toISOString(), // 5 minutes ago
   summary: {
@@ -82,14 +82,14 @@ const mockAgent: AgentSecurityData = {
 };
 
 const mockAgentWithManyChecks: AgentSecurityData = {
-  agent_id: 'agent_xyz789',
-  agent_name: 'assistant-v2',
+  system_prompt_id: 'agent_xyz789',
+  system_prompt_name: 'assistant-v2',
   checks: [
-    ...mockChecks.map((c, i) => ({ ...c, check_id: `check_1${i}`, agent_id: 'agent_xyz789' })),
+    ...mockChecks.map((c, i) => ({ ...c, check_id: `check_1${i}`, system_prompt_id: 'agent_xyz789' })),
     {
       check_id: 'check_106',
-      agent_id: 'agent_xyz789',
-      workflow_id: 'workflow_001',
+      system_prompt_id: 'agent_xyz789',
+      agent_id: 'agent_001',
       analysis_session_id: 'session_002',
       category_id: 'ENVIRONMENT',
       check_type: 'tool_authorization',
@@ -131,7 +131,7 @@ export const SingleAgent: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId('security-checks-explorer')).toBeInTheDocument();
-    // Shows agent_id not agent_name
+    // Shows system_prompt_id not agent_name
     await expect(canvas.getByText('agent_abc123def456')).toBeInTheDocument();
     await expect(canvas.getByText('3 passed')).toBeInTheDocument();
     await expect(canvas.getByText('1 warnings')).toBeInTheDocument();
@@ -198,8 +198,8 @@ export const Empty: Story = {
 export const AgentWithNoChecks: Story = {
   args: {
     agents: [{
-      agent_id: 'agent_empty',
-      agent_name: 'empty-agent',
+      system_prompt_id: 'agent_empty',
+      system_prompt_name: 'empty-agent',
       checks: [],
       summary: { total: 0, passed: 0, warnings: 0, critical: 0 },
     }],
@@ -215,8 +215,8 @@ export const AgentWithNoChecks: Story = {
 export const AllPassedChecks: Story = {
   args: {
     agents: [{
-      agent_id: 'agent_perfect',
-      agent_name: 'perfect-agent',
+      system_prompt_id: 'agent_perfect',
+      system_prompt_name: 'perfect-agent',
       checks: mockChecks.filter(c => c.status === 'passed').map((c, i) => ({
         ...c,
         check_id: `perfect_${i}`,

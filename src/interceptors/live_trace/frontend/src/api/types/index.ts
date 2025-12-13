@@ -1,8 +1,13 @@
-export * from './agent';
-export * from './config';
+// Common types for the Agent Inspector API
+
 export * from './dashboard';
-export * from './findings';
 export * from './ide';
-export * from './replay';
-export * from './session';
-export * from './workflows';
+
+// Agent types
+export {
+  type APIAgent,
+  type AgentsResponse,
+} from './agents';
+
+// Findings and analysis types
+export * from './findings';

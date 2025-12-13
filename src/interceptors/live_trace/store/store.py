@@ -17,8 +17,8 @@ logger = get_logger(__name__)
 SQL_SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
-    workflow_id TEXT,
+    system_prompt_id TEXT NOT NULL,
+    agent_id TEXT,
     created_at REAL NOT NULL,
     last_activity REAL NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -38,15 +38,15 @@ CREATE TABLE IF NOT EXISTS sessions (
     behavioral_features TEXT
 );
 
+CREATE INDEX IF NOT EXISTS idx_sessions_system_prompt_id ON sessions(system_prompt_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_workflow_id ON sessions(workflow_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_is_completed ON sessions(is_completed);
 CREATE INDEX IF NOT EXISTS idx_sessions_is_active ON sessions(is_active);
 CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
 
 CREATE TABLE IF NOT EXISTS agents (
-    agent_id TEXT PRIMARY KEY,
-    workflow_id TEXT,
+    system_prompt_id TEXT PRIMARY KEY,
+    agent_id TEXT,
     display_name TEXT,
     description TEXT,
     first_seen REAL NOT NULL,
@@ -68,14 +68,14 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
-CREATE INDEX IF NOT EXISTS idx_agents_workflow_id ON agents(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_agents_agent_id ON agents(agent_id);
 
 CREATE TABLE IF NOT EXISTS analysis_sessions (
     session_id TEXT PRIMARY KEY,
-    workflow_id TEXT NOT NULL,
-    workflow_name TEXT,
-    agent_id TEXT,
-    scope TEXT DEFAULT 'WORKFLOW',
+    agent_id TEXT NOT NULL,
+    agent_name TEXT,
+    system_prompt_id TEXT,
+    scope TEXT DEFAULT 'AGENT',
     session_type TEXT NOT NULL,
     status TEXT NOT NULL,
     created_at REAL NOT NULL,
@@ -86,13 +86,13 @@ CREATE TABLE IF NOT EXISTS analysis_sessions (
     completed_sessions_at_analysis INTEGER
 );
 
-CREATE INDEX IF NOT EXISTS idx_analysis_sessions_workflow_id ON analysis_sessions(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_sessions_agent_id ON analysis_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_analysis_sessions_status ON analysis_sessions(status);
 
 CREATE TABLE IF NOT EXISTS findings (
     finding_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    workflow_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
     line_start INTEGER,
     line_end INTEGER,
@@ -109,14 +109,14 @@ CREATE TABLE IF NOT EXISTS findings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_findings_session_id ON findings(session_id);
-CREATE INDEX IF NOT EXISTS idx_findings_workflow_id ON findings(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_findings_agent_id ON findings(agent_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
 
 CREATE TABLE IF NOT EXISTS security_checks (
     check_id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
-    workflow_id TEXT,
+    system_prompt_id TEXT NOT NULL,
+    agent_id TEXT,
     analysis_session_id TEXT NOT NULL,
     category_id TEXT NOT NULL,
     check_type TEXT NOT NULL,
@@ -130,14 +130,14 @@ CREATE TABLE IF NOT EXISTS security_checks (
     FOREIGN KEY (analysis_session_id) REFERENCES analysis_sessions(session_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_security_checks_agent_id ON security_checks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_security_checks_system_prompt_id ON security_checks(system_prompt_id);
 CREATE INDEX IF NOT EXISTS idx_security_checks_analysis_session_id ON security_checks(analysis_session_id);
 CREATE INDEX IF NOT EXISTS idx_security_checks_status ON security_checks(status);
 CREATE INDEX IF NOT EXISTS idx_security_checks_category_id ON security_checks(category_id);
 
 CREATE TABLE IF NOT EXISTS behavioral_analysis (
     id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
+    system_prompt_id TEXT NOT NULL,
     analysis_session_id TEXT NOT NULL,
     stability_score REAL NOT NULL,
     predictability_score REAL NOT NULL,
@@ -153,13 +153,13 @@ CREATE TABLE IF NOT EXISTS behavioral_analysis (
     FOREIGN KEY (analysis_session_id) REFERENCES analysis_sessions(session_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_agent_id ON behavioral_analysis(agent_id);
+CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_system_prompt_id ON behavioral_analysis(system_prompt_id);
 CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_session_id ON behavioral_analysis(analysis_session_id);
 
 CREATE TABLE IF NOT EXISTS ide_connections (
     connection_id TEXT PRIMARY KEY,
     ide_type TEXT NOT NULL,
-    workflow_id TEXT,
+    agent_id TEXT,
     mcp_session_id TEXT,
     host TEXT,
     user TEXT,
@@ -173,14 +173,14 @@ CREATE TABLE IF NOT EXISTS ide_connections (
     metadata TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_ide_connections_workflow_id ON ide_connections(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_ide_connections_agent_id ON ide_connections(agent_id);
 CREATE INDEX IF NOT EXISTS idx_ide_connections_is_active ON ide_connections(is_active);
 CREATE INDEX IF NOT EXISTS idx_ide_connections_mcp_session_id ON ide_connections(mcp_session_id);
 CREATE INDEX IF NOT EXISTS idx_ide_connections_last_heartbeat ON ide_connections(last_heartbeat);
 
 CREATE TABLE IF NOT EXISTS recommendations (
     recommendation_id TEXT PRIMARY KEY,
-    workflow_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
     
     -- Source
     source_type TEXT NOT NULL,           -- 'STATIC' or 'DYNAMIC'
@@ -252,7 +252,7 @@ CREATE TABLE IF NOT EXISTS recommendations (
     FOREIGN KEY (source_finding_id) REFERENCES findings(finding_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_recommendations_workflow_id ON recommendations(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_agent_id ON recommendations(agent_id);
 CREATE INDEX IF NOT EXISTS idx_recommendations_status ON recommendations(status);
 CREATE INDEX IF NOT EXISTS idx_recommendations_severity ON recommendations(severity);
 CREATE INDEX IF NOT EXISTS idx_recommendations_fingerprint ON recommendations(fingerprint);
@@ -279,10 +279,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at)
 class SessionData:
     """Container for session-specific data."""
 
-    def __init__(self, session_id: str, agent_id: str, workflow_id: Optional[str] = None):
+    def __init__(self, session_id: str, system_prompt_id: str, agent_id: Optional[str] = None):
         self.session_id = session_id
+        self.system_prompt_id = system_prompt_id
         self.agent_id = agent_id
-        self.workflow_id = workflow_id
         self.events = deque(maxlen=1000)  # Last 1000 events per session
         self.created_at = datetime.now(timezone.utc)
         self.last_activity = self.created_at
@@ -393,9 +393,9 @@ class SessionData:
 class AgentData:
     """Container for agent-specific data."""
 
-    def __init__(self, agent_id: str, workflow_id: Optional[str] = None):
+    def __init__(self, system_prompt_id: str, agent_id: Optional[str] = None):
+        self.system_prompt_id = system_prompt_id
         self.agent_id = agent_id
-        self.workflow_id = workflow_id
         self.display_name: Optional[str] = None  # Human-friendly name set via MCP
         self.description: Optional[str] = None   # Description of what the agent does
         self.sessions = set()
@@ -572,7 +572,7 @@ class TraceStore:
             self.db.execute("""
                 CREATE TABLE recommendations (
                     recommendation_id TEXT PRIMARY KEY,
-                    workflow_id TEXT NOT NULL,
+                    agent_id TEXT NOT NULL,
                     source_type TEXT NOT NULL,
                     source_check_id TEXT NOT NULL,
                     source_finding_id TEXT,
@@ -619,7 +619,7 @@ class TraceStore:
                     FOREIGN KEY (source_finding_id) REFERENCES findings(finding_id)
                 )
             """)
-            self.db.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_workflow_id ON recommendations(workflow_id)")
+            self.db.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_agent_id ON recommendations(agent_id)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_status ON recommendations(status)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_severity ON recommendations(severity)")
             self.db.execute("CREATE INDEX IF NOT EXISTS idx_recommendations_fingerprint ON recommendations(fingerprint)")
@@ -670,8 +670,8 @@ class TraceStore:
         """Convert SessionData to dict for SQLite storage."""
         return {
             'session_id': session.session_id,
+            'system_prompt_id': session.system_prompt_id,
             'agent_id': session.agent_id,
-            'workflow_id': session.workflow_id,
             'created_at': session.created_at.timestamp(),
             'last_activity': session.last_activity.timestamp(),
             'is_active': 1 if session.is_active else 0,
@@ -693,7 +693,7 @@ class TraceStore:
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
         """Convert SQLite row back to SessionData object."""
-        session = SessionData(row['session_id'], row['agent_id'], row['workflow_id'])
+        session = SessionData(row['session_id'], row['system_prompt_id'], row['agent_id'])
         session.created_at = datetime.fromtimestamp(row['created_at'], tz=timezone.utc)
         session.last_activity = datetime.fromtimestamp(row['last_activity'], tz=timezone.utc)
         session.is_active = bool(row['is_active'])
@@ -720,8 +720,8 @@ class TraceStore:
     def _serialize_agent(self, agent: AgentData) -> Dict[str, Any]:
         """Convert AgentData to dict for SQLite storage."""
         return {
+            'system_prompt_id': agent.system_prompt_id,
             'agent_id': agent.agent_id,
-            'workflow_id': agent.workflow_id,
             'display_name': agent.display_name,
             'description': agent.description,
             'first_seen': agent.first_seen.timestamp(),
@@ -744,7 +744,7 @@ class TraceStore:
 
     def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
         """Convert SQLite row back to AgentData object."""
-        agent = AgentData(row['agent_id'], row['workflow_id'])
+        agent = AgentData(row['system_prompt_id'], row['agent_id'])
         # Handle new columns that may not exist in older databases
         agent.display_name = row['display_name'] if 'display_name' in row.keys() else None
         agent.description = row['description'] if 'description' in row.keys() else None
@@ -773,7 +773,7 @@ class TraceStore:
         data = self._serialize_session(session)
         self.db.execute("""
             INSERT OR REPLACE INTO sessions VALUES (
-                :session_id, :agent_id, :workflow_id, :created_at, :last_activity,
+                :session_id, :system_prompt_id, :agent_id, :created_at, :last_activity,
                 :is_active, :is_completed, :completed_at,
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
@@ -788,7 +788,7 @@ class TraceStore:
         data = self._serialize_agent(agent)
         self.db.execute("""
             INSERT OR REPLACE INTO agents VALUES (
-                :agent_id, :workflow_id, :display_name, :description,
+                :system_prompt_id, :agent_id, :display_name, :description,
                 :first_seen, :last_seen,
                 :total_sessions, :total_messages, :total_tokens,
                 :total_tools, :total_errors, :total_response_time_ms, :response_count,
@@ -798,23 +798,23 @@ class TraceStore:
         """, data)
         self.db.commit()
 
-    def add_event(self, event: BaseEvent, session_id: Optional[str] = None, agent_id: Optional[str] = None):
+    def add_event(self, event: BaseEvent, session_id: Optional[str] = None, system_prompt_id: Optional[str] = None):
         """Add an event to the store."""
         with self._lock:
             # Use event's session_id if not provided
             effective_session_id = session_id or event.session_id
 
-            # Extract agent_id from event attributes if not provided
-            if not agent_id and hasattr(event, 'attributes'):
-                agent_id = event.attributes.get('agent.id', 'unknown')
+            # Extract system_prompt_id from event attributes if not provided
+            if not system_prompt_id and hasattr(event, 'attributes'):
+                system_prompt_id = event.attributes.get('agent.id', 'unknown')
 
-            if not agent_id:
-                agent_id = 'unknown'
+            if not system_prompt_id:
+                system_prompt_id = 'unknown'
 
-            # Extract workflow_id from event attributes
-            workflow_id = None
+            # Extract agent_id from event attributes
+            agent_id = None
             if hasattr(event, 'attributes'):
-                workflow_id = event.attributes.get('workflow.id')
+                agent_id = event.attributes.get('agent.project_id')
 
             # Add to global event stream (kept in memory as circular buffer)
             self.events.append(event)
@@ -825,18 +825,18 @@ class TraceStore:
                 # Load existing session or create new one
                 session = self.get_session(effective_session_id)
                 if not session:
-                    session = SessionData(effective_session_id, agent_id, workflow_id)
-                elif workflow_id and not session.workflow_id:
-                    # Update workflow_id if not set (allows late binding)
-                    session.workflow_id = workflow_id
+                    session = SessionData(effective_session_id, system_prompt_id, agent_id)
+                elif agent_id and not session.agent_id:
+                    # Update agent_id if not set (allows late binding)
+                    session.agent_id = agent_id
 
                 # Load existing agent or create new one
-                agent = self.get_agent(agent_id)
+                agent = self.get_agent(system_prompt_id)
                 if not agent:
-                    agent = AgentData(agent_id, workflow_id)
-                elif workflow_id and not agent.workflow_id:
-                    # Update workflow_id if not set (allows late binding)
-                    agent.workflow_id = workflow_id
+                    agent = AgentData(system_prompt_id, agent_id)
+                elif agent_id and not agent.agent_id:
+                    # Update agent_id if not set (allows late binding)
+                    agent.agent_id = agent_id
 
                 # Add session to agent if not already tracked
                 if effective_session_id not in agent.sessions:
@@ -961,24 +961,24 @@ class TraceStore:
                 return self._deserialize_session(row)
             return None
 
-    def get_agent(self, agent_id: str) -> Optional[AgentData]:
+    def get_agent(self, system_prompt_id: str) -> Optional[AgentData]:
         """Get agent data by ID from SQLite."""
         with self._lock:
             cursor = self.db.execute(
-                "SELECT * FROM agents WHERE agent_id = ?",
-                (agent_id,)
+                "SELECT * FROM agents WHERE system_prompt_id = ?",
+                (system_prompt_id,)
             )
             row = cursor.fetchone()
             if row:
                 return self._deserialize_agent(row)
             return None
 
-    def get_agent_sessions(self, agent_id: str) -> List[SessionData]:
+    def get_agent_sessions(self, system_prompt_id: str) -> List[SessionData]:
         """Get all sessions for a specific agent from SQLite."""
         with self._lock:
             cursor = self.db.execute(
-                "SELECT * FROM sessions WHERE agent_id = ? ORDER BY created_at DESC",
-                (agent_id,)
+                "SELECT * FROM sessions WHERE system_prompt_id = ? ORDER BY created_at DESC",
+                (system_prompt_id,)
             )
             return [self._deserialize_session(row) for row in cursor.fetchall()]
 
@@ -990,15 +990,15 @@ class TraceStore:
 
     def _build_sessions_filter_query(
         self,
-        workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        system_prompt_id: Optional[str] = None,
         status: Optional[str] = None,
     ) -> Tuple[str, List[Any]]:
         """Build WHERE clause for session filtering.
 
         Args:
-            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
-            agent_id: Filter by agent ID.
+            agent_id: Filter by agent ID. Use "unassigned" for sessions without an assigned agent.
+            system_prompt_id: Filter by system prompt ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
 
         Returns:
@@ -1007,16 +1007,16 @@ class TraceStore:
         where_clause = " WHERE 1=1"
         params: List[Any] = []
 
-        if workflow_id is not None:
-            if workflow_id == "unassigned":
-                where_clause += " AND workflow_id IS NULL"
-            else:
-                where_clause += " AND workflow_id = ?"
-                params.append(workflow_id)
-
         if agent_id is not None:
-            where_clause += " AND agent_id = ?"
-            params.append(agent_id)
+            if agent_id == "unassigned":
+                where_clause += " AND agent_id IS NULL"
+            else:
+                where_clause += " AND agent_id = ?"
+                params.append(agent_id)
+
+        if system_prompt_id is not None:
+            where_clause += " AND system_prompt_id = ?"
+            params.append(system_prompt_id)
 
         if status is not None:
             status_upper = status.upper()
@@ -1031,8 +1031,8 @@ class TraceStore:
 
     def count_sessions_filtered(
         self,
-        workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        system_prompt_id: Optional[str] = None,
         status: Optional[str] = None,
     ) -> int:
         """Count sessions with optional filtering.
@@ -1040,8 +1040,8 @@ class TraceStore:
         More efficient than get_sessions_filtered when only count is needed.
 
         Args:
-            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
-            agent_id: Filter by agent ID.
+            agent_id: Filter by agent ID. Use "unassigned" for sessions without an assigned agent.
+            system_prompt_id: Filter by system prompt ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
 
         Returns:
@@ -1049,8 +1049,8 @@ class TraceStore:
         """
         with self._lock:
             where_clause, params = self._build_sessions_filter_query(
-                workflow_id=workflow_id,
                 agent_id=agent_id,
+                system_prompt_id=system_prompt_id,
                 status=status,
             )
             query = f"SELECT COUNT(*) FROM sessions{where_clause}"  # nosec B608 - parameterized
@@ -1059,17 +1059,17 @@ class TraceStore:
 
     def get_sessions_filtered(
         self,
-        workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
+        system_prompt_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Get sessions with optional filtering by workflow_id, agent_id, and status.
+        """Get sessions with optional filtering by agent_id, system_prompt_id, and status.
 
         Args:
-            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
-            agent_id: Filter by agent ID.
+            agent_id: Filter by agent ID. Use "unassigned" for sessions without an assigned agent.
+            system_prompt_id: Filter by system prompt ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             limit: Maximum number of sessions to return.
             offset: Number of sessions to skip (for pagination).
@@ -1079,8 +1079,8 @@ class TraceStore:
         """
         with self._lock:
             where_clause, params = self._build_sessions_filter_query(
-                workflow_id=workflow_id,
                 agent_id=agent_id,
+                system_prompt_id=system_prompt_id,
                 status=status,
             )
             query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ? OFFSET ?"  # nosec B608 - parameterized
@@ -1130,9 +1130,9 @@ class TraceStore:
                 sessions.append({
                     "id": row['session_id'],
                     "id_short": row['session_id'][:12],
+                    "system_prompt_id": row['system_prompt_id'],
+                    "system_prompt_id_short": row['system_prompt_id'][:12] if row['system_prompt_id'] else None,
                     "agent_id": row['agent_id'],
-                    "agent_id_short": row['agent_id'][:12] if row['agent_id'] else None,
-                    "workflow_id": row['workflow_id'],
                     "created_at": created_at.isoformat(),
                     "last_activity": last_activity.isoformat(),
                     "last_activity_relative": last_activity_relative,
@@ -1149,41 +1149,41 @@ class TraceStore:
 
             return sessions
 
-    def get_all_agents(self, workflow_id: Optional[str] = None) -> List[AgentData]:
-        """Get all agents from SQLite, optionally filtered by workflow.
+    def get_all_agents(self, agent_id: Optional[str] = None) -> List[AgentData]:
+        """Get all system prompts from SQLite, optionally filtered by agent.
 
         Args:
-            workflow_id: Optional workflow ID to filter by.
-                        Use "unassigned" to get agents with no workflow.
+            agent_id: Optional agent ID to filter by.
+                        Use "unassigned" to get system prompts with no assigned agent.
         """
         with self._lock:
-            if workflow_id is None:
+            if agent_id is None:
                 cursor = self.db.execute("SELECT * FROM agents ORDER BY first_seen DESC")
-            elif workflow_id == "unassigned":
+            elif agent_id == "unassigned":
                 cursor = self.db.execute(
-                    "SELECT * FROM agents WHERE workflow_id IS NULL ORDER BY first_seen DESC"
+                    "SELECT * FROM agents WHERE agent_id IS NULL ORDER BY first_seen DESC"
                 )
             else:
                 cursor = self.db.execute(
-                    "SELECT * FROM agents WHERE workflow_id = ? ORDER BY first_seen DESC",
-                    (workflow_id,)
+                    "SELECT * FROM agents WHERE agent_id = ? ORDER BY first_seen DESC",
+                    (agent_id,)
                 )
             return [self._deserialize_agent(row) for row in cursor.fetchall()]
 
     def update_agent_info(
         self,
-        agent_id: str,
+        system_prompt_id: str,
         display_name: Optional[str] = None,
         description: Optional[str] = None,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Update agent display name, description, and/or workflow_id.
+        """Update agent display name, description, and/or agent_id.
         
         Args:
-            agent_id: The agent ID to update
+            system_prompt_id: The agent ID to update
             display_name: Human-friendly name for the agent
-            description: Description of what the agent does
-            workflow_id: Link this agent to a workflow for correlation
+            description: Description of what the system prompt does
+            agent_id: Link this system prompt to an agent for correlation
             
         Returns:
             Updated agent info dict, or None if agent not found
@@ -1191,7 +1191,7 @@ class TraceStore:
         with self._lock:
             # Check agent exists
             cursor = self.db.execute(
-                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+                "SELECT * FROM agents WHERE system_prompt_id = ?", (system_prompt_id,)
             )
             row = cursor.fetchone()
             if not row:
@@ -1206,97 +1206,99 @@ class TraceStore:
             if description is not None:
                 updates.append("description = ?")
                 params.append(description)
-            if workflow_id is not None:
-                updates.append("workflow_id = ?")
-                params.append(workflow_id)
+            if agent_id is not None:
+                updates.append("agent_id = ?")
+                params.append(agent_id)
 
             if updates:
-                params.append(agent_id)
+                params.append(system_prompt_id)
                 self.db.execute(
-                    f"UPDATE agents SET {', '.join(updates)} WHERE agent_id = ?",  # nosec B608 - parameterized
+                    f"UPDATE agents SET {', '.join(updates)} WHERE system_prompt_id = ?",  # nosec B608 - parameterized
                     params
                 )
                 self.db.commit()
 
             # Return updated agent info
             cursor = self.db.execute(
-                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+                "SELECT * FROM agents WHERE system_prompt_id = ?", (system_prompt_id,)
             )
             row = cursor.fetchone()
             return {
+                'system_prompt_id': row['system_prompt_id'],
                 'agent_id': row['agent_id'],
-                'workflow_id': row['workflow_id'],
                 'display_name': row['display_name'] if 'display_name' in row.keys() else None,
                 'description': row['description'] if 'description' in row.keys() else None,
             }
 
-    def get_workflows(self) -> List[Dict[str, Any]]:
-        """Get all unique workflows with their agent counts.
+    def get_agents_list(self) -> List[Dict[str, Any]]:
+        """Get all unique agents (projects) with their system prompt counts.
 
         Returns:
-            List of workflow dicts with id, name, agent_count, and session_count.
-            Includes workflows from agents and sessions tables.
-            Includes "Unassigned" for agents without a workflow.
+            List of agent dicts with id, name, system_prompt_count, and session_count.
+            Includes agents from system prompts and sessions tables.
+            Includes "Unassigned" for system prompts without an assigned agent.
         """
         with self._lock:
-            workflows = []
+            agents_list = []
 
-            # Get workflows with agent counts and session counts
+            # Get agents with system prompt counts and session counts
+            # Note: DB table 'agents' stores system prompts
             cursor = self.db.execute("""
                 SELECT
-                    workflow_id,
-                    COALESCE(MAX(workflow_name), workflow_id) as name,
-                    SUM(agent_count) as agent_count,
+                    agent_id,
+                    COALESCE(MAX(agent_name), agent_id) as name,
+                    SUM(system_prompt_count) as system_prompt_count,
                     SUM(session_count) as session_count
                 FROM (
-                    -- Workflows from agents
-                    SELECT workflow_id, NULL as workflow_name, COUNT(*) as agent_count, 0 as session_count
+                    -- System prompts from agents table
+                    SELECT agent_id, NULL as agent_name, COUNT(*) as system_prompt_count, 0 as session_count
                     FROM agents
-                    WHERE workflow_id IS NOT NULL
-                    GROUP BY workflow_id
+                    WHERE agent_id IS NOT NULL
+                    GROUP BY agent_id
 
                     UNION ALL
 
-                    -- Workflows from sessions (actual agent sessions)
-                    SELECT workflow_id, NULL as workflow_name, 0 as agent_count, COUNT(*) as session_count
+                    -- From runtime sessions
+                    SELECT agent_id, NULL as agent_name, 0 as system_prompt_count, COUNT(*) as session_count
                     FROM sessions
-                    WHERE workflow_id IS NOT NULL
-                    GROUP BY workflow_id
+                    WHERE agent_id IS NOT NULL
+                    GROUP BY agent_id
 
                     UNION ALL
 
-                    -- Workflows from analysis_sessions (for workflow names)
-                    SELECT workflow_id, workflow_name, 0 as agent_count, 0 as session_count
+                    -- From analysis_sessions (for agent names)
+                    SELECT agent_id, agent_name, 0 as system_prompt_count, 0 as session_count
                     FROM analysis_sessions
-                    WHERE workflow_id IS NOT NULL
-                    GROUP BY workflow_id
+                    WHERE agent_id IS NOT NULL
+                    GROUP BY agent_id
                 )
-                GROUP BY workflow_id
-                ORDER BY workflow_id
+                GROUP BY agent_id
+                ORDER BY agent_id
             """)
 
             for row in cursor.fetchall():
-                workflows.append({
-                    "id": row["workflow_id"],
+                agents_list.append({
+                    "id": row["agent_id"],
                     "name": row["name"],
-                    "agent_count": row["agent_count"],
+                    "system_prompt_count": row["system_prompt_count"],
                     "session_count": row["session_count"]
                 })
 
-            # Get count of unassigned agents
+            # Get count of unassigned system prompts
             cursor = self.db.execute(
-                "SELECT COUNT(*) as count FROM agents WHERE workflow_id IS NULL"
+                "SELECT COUNT(*) as count FROM agents WHERE agent_id IS NULL"
             )
             unassigned_count = cursor.fetchone()["count"]
 
             if unassigned_count > 0:
-                workflows.append({
+                agents_list.append({
                     "id": None,
                     "name": "Unassigned",
-                    "agent_count": unassigned_count
+                    "system_prompt_count": unassigned_count
                 })
 
-            return workflows
+            return agents_list
+
 
     def get_global_stats(self) -> Dict[str, Any]:
         """Get global statistics from SQLite."""
@@ -1368,19 +1370,19 @@ class TraceStore:
             sessions_to_complete = [self._deserialize_session(row) for row in cursor.fetchall()]
 
             # Track unique agent IDs that had sessions completed
-            completed_agent_ids: Set[str] = set()
+            completed_system_prompt_ids: Set[str] = set()
 
             # Mark each session as completed and save
             for session in sessions_to_complete:
                 session.mark_completed()
                 self._save_session(session)
-                completed_agent_ids.add(session.agent_id)
+                completed_system_prompt_ids.add(session.system_prompt_id)
 
             newly_completed = len(sessions_to_complete)
             if newly_completed > 0:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
 
-            return list(completed_agent_ids)
+            return list(completed_system_prompt_ids)
 
     # Analysis Session and Finding Methods
 
@@ -1388,8 +1390,8 @@ class TraceStore:
         """Convert SQLite row to analysis session dict."""
         return {
             'session_id': row['session_id'],
-            'workflow_id': row['workflow_id'],
-            'workflow_name': row['workflow_name'],
+            'agent_id': row['agent_id'],
+            'agent_name': row['agent_name'],
             'session_type': row['session_type'],
             'status': row['status'],
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
@@ -1410,7 +1412,7 @@ class TraceStore:
         result = {
             'finding_id': row['finding_id'],
             'session_id': row['session_id'],
-            'workflow_id': row['workflow_id'],
+            'agent_id': row['agent_id'],
             'file_path': row['file_path'],
             'line_start': row['line_start'],
             'line_end': row['line_end'],
@@ -1443,29 +1445,29 @@ class TraceStore:
     def create_analysis_session(
         self,
         session_id: str,
-        workflow_id: str,
+        agent_id: str,
         session_type: str,
-        workflow_name: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_name: Optional[str] = None,
+        system_prompt_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a new analysis session for a workflow/codebase."""
+        """Create a new analysis session for an agent/codebase."""
         with self._lock:
             now = datetime.now(timezone.utc)
             created_at = now.timestamp()
 
             self.db.execute("""
                 INSERT INTO analysis_sessions (
-                    session_id, workflow_id, workflow_name, agent_id, session_type, status,
+                    session_id, agent_id, agent_name, system_prompt_id, session_type, status,
                     created_at, findings_count
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (session_id, workflow_id, workflow_name, agent_id, session_type, 'IN_PROGRESS', created_at, 0))
+            """, (session_id, agent_id, agent_name, system_prompt_id, session_type, 'IN_PROGRESS', created_at, 0))
             self.db.commit()
 
             return {
                 'session_id': session_id,
-                'workflow_id': workflow_id,
-                'workflow_name': workflow_name,
                 'agent_id': agent_id,
+                'agent_name': agent_name,
+                'system_prompt_id': system_prompt_id,
                 'session_type': session_type,
                 'status': 'IN_PROGRESS',
                 'created_at': now.isoformat(),
@@ -1509,7 +1511,7 @@ class TraceStore:
 
     def get_analysis_sessions(
         self,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
@@ -1518,9 +1520,9 @@ class TraceStore:
             query = "SELECT * FROM analysis_sessions WHERE 1=1"
             params = []
 
-            if workflow_id:
-                query += " AND workflow_id = ?"
-                params.append(workflow_id)
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
 
             if status:
                 query += " AND status = ?"
@@ -1536,7 +1538,7 @@ class TraceStore:
         self,
         finding_id: str,
         session_id: str,
-        workflow_id: str,
+        agent_id: str,
         file_path: str,
         finding_type: str,
         severity: str,
@@ -1560,12 +1562,12 @@ class TraceStore:
         class_name: Optional[str] = None,
         data_flow: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Store a security finding for a workflow.
+        """Store a security finding for an agent.
         
         Args:
             finding_id: Unique finding ID
             session_id: Analysis session ID
-            workflow_id: Workflow ID
+            agent_id: Agent ID
             file_path: Path to the file with the finding
             finding_type: Type of finding (e.g., 'PROMPT_INJECT_DIRECT')
             severity: CRITICAL, HIGH, MEDIUM, or LOW
@@ -1612,8 +1614,8 @@ class TraceStore:
             # Check for existing finding with same fingerprint
             cursor = self.db.execute("""
                 SELECT finding_id FROM findings 
-                WHERE workflow_id = ? AND fingerprint = ? AND status = 'OPEN'
-            """, (workflow_id, fingerprint))
+                WHERE agent_id = ? AND fingerprint = ? AND status = 'OPEN'
+            """, (agent_id, fingerprint))
             existing = cursor.fetchone()
             
             if existing:
@@ -1626,7 +1628,7 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT INTO findings (
-                    finding_id, session_id, workflow_id, file_path, line_start, line_end,
+                    finding_id, session_id, agent_id, file_path, line_start, line_end,
                     finding_type, severity, title, description, evidence, owasp_mapping,
                     status, created_at, updated_at,
                     cvss_score, cvss_vector, cwe_mapping, mitre_atlas, soc2_controls,
@@ -1634,7 +1636,7 @@ class TraceStore:
                     function_name, class_name, data_flow, fingerprint
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                finding_id, session_id, workflow_id, file_path, line_start, line_end,
+                finding_id, session_id, agent_id, file_path, line_start, line_end,
                 finding_type, severity, title, description, evidence_json, owasp_mapping_json,
                 'OPEN', created_at, updated_at,
                 cvss_score, cvss_vector, cwe_mapping_json, mitre_atlas, soc2_controls_json,
@@ -1654,7 +1656,7 @@ class TraceStore:
             finding_result = {
                 'finding_id': finding_id,
                 'session_id': session_id,
-                'workflow_id': workflow_id,
+                'agent_id': agent_id,
                 'file_path': file_path,
                 'line_start': line_start,
                 'line_end': line_end,
@@ -1686,7 +1688,7 @@ class TraceStore:
             code_snippet_str = evidence.get('code_snippet', '') if evidence else None
             self._create_recommendation_from_finding(
                 finding_id=finding_id,
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 finding_type=finding_type,
                 severity=severity,
                 title=title,
@@ -1714,7 +1716,7 @@ class TraceStore:
     def _create_recommendation_from_finding(
         self,
         finding_id: str,
-        workflow_id: str,
+        agent_id: str,
         finding_type: str,
         severity: str,
         title: str,
@@ -1739,13 +1741,13 @@ class TraceStore:
         """Auto-create a recommendation from a finding.
         
         Called internally by store_finding to ensure every finding
-        has a corresponding recommendation for the fix workflow.
+        has a corresponding recommendation for the fix flow.
         
         Note: This method assumes _lock is already held by caller.
         """
         try:
             now = datetime.now(timezone.utc)
-            recommendation_id = self._generate_recommendation_id(workflow_id)
+            recommendation_id = self._generate_recommendation_id(agent_id)
             
             # Determine fix complexity based on finding type
             fix_complexity = 'LOW'
@@ -1756,7 +1758,7 @@ class TraceStore:
             
             self.db.execute("""
                 INSERT INTO recommendations (
-                    recommendation_id, workflow_id, source_type, source_check_id,
+                    recommendation_id, agent_id, source_type, source_check_id,
                     source_finding_id, severity, cvss_score, cvss_vector,
                     owasp_llm, cwe, mitre_atlas, soc2_controls, nist_csf,
                     title, description, fix_hints, fix_complexity,
@@ -1766,7 +1768,7 @@ class TraceStore:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 recommendation_id,
-                workflow_id,
+                agent_id,
                 'STATIC',  # Findings from store_finding are static analysis
                 finding_type,  # Use finding_type as source_check_id
                 finding_id,
@@ -1828,7 +1830,7 @@ class TraceStore:
 
     def get_findings(
         self,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         session_id: Optional[str] = None,
         severity: Optional[str] = None,
         status: Optional[str] = None,
@@ -1839,9 +1841,9 @@ class TraceStore:
             query = "SELECT * FROM findings WHERE 1=1"
             params = []
 
-            if workflow_id:
-                query += " AND workflow_id = ?"
-                params.append(workflow_id)
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
 
             if session_id:
                 query += " AND session_id = ?"
@@ -1902,16 +1904,16 @@ class TraceStore:
             # Return the updated finding
             return self.get_finding(finding_id)
 
-    def get_workflow_findings_summary(self, workflow_id: str) -> Dict[str, Any]:
-        """Get a summary of findings for a workflow."""
+    def get_agent_findings_summary(self, agent_id: str) -> Dict[str, Any]:
+        """Get a summary of findings for an agent (project)."""
         with self._lock:
             # Count by severity
             cursor = self.db.execute("""
                 SELECT severity, COUNT(*) as count
                 FROM findings
-                WHERE workflow_id = ? AND status = 'OPEN'
+                WHERE agent_id = ? AND status = 'OPEN'
                 GROUP BY severity
-            """, (workflow_id,))
+            """, (agent_id,))
 
             severity_counts = {row['severity']: row['count'] for row in cursor.fetchall()}
 
@@ -1919,9 +1921,9 @@ class TraceStore:
             cursor = self.db.execute("""
                 SELECT status, COUNT(*) as count
                 FROM findings
-                WHERE workflow_id = ?
+                WHERE agent_id = ?
                 GROUP BY status
-            """, (workflow_id,))
+            """, (agent_id,))
 
             status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
 
@@ -1929,13 +1931,13 @@ class TraceStore:
             cursor = self.db.execute("""
                 SELECT COUNT(*) as total
                 FROM findings
-                WHERE workflow_id = ?
-            """, (workflow_id,))
+                WHERE agent_id = ?
+            """, (agent_id,))
 
             total = cursor.fetchone()['total']
 
             return {
-                'workflow_id': workflow_id,
+                'agent_id': agent_id,
                 'total_findings': total,
                 'by_severity': severity_counts,
                 'by_status': status_counts,
@@ -1945,44 +1947,44 @@ class TraceStore:
     # Security Checks Methods (persisted security assessment results)
     # =========================================================================
 
-    def get_completed_session_count(self, agent_id: str) -> int:
+    def get_completed_session_count(self, system_prompt_id: str) -> int:
         """Get the count of completed sessions for an agent.
 
         Used by the scheduler to determine if analysis should run.
         """
         with self._lock:
             cursor = self.db.execute(
-                "SELECT COUNT(*) as count FROM sessions WHERE agent_id = ? AND is_completed = 1",
-                (agent_id,)
+                "SELECT COUNT(*) as count FROM sessions WHERE system_prompt_id = ? AND is_completed = 1",
+                (system_prompt_id,)
             )
             row = cursor.fetchone()
             return row['count'] if row else 0
 
-    def get_agent_last_analyzed_count(self, agent_id: str) -> int:
+    def get_agent_last_analyzed_count(self, system_prompt_id: str) -> int:
         """Get the completed session count at time of last analysis.
 
         Used by the scheduler to determine if new analysis should run.
         """
         with self._lock:
             cursor = self.db.execute(
-                "SELECT last_analyzed_session_count FROM agents WHERE agent_id = ?",
-                (agent_id,)
+                "SELECT last_analyzed_session_count FROM agents WHERE system_prompt_id = ?",
+                (system_prompt_id,)
             )
             row = cursor.fetchone()
             return row['last_analyzed_session_count'] if row else 0
 
-    def update_agent_last_analyzed(self, agent_id: str, session_count: int) -> None:
+    def update_agent_last_analyzed(self, system_prompt_id: str, session_count: int) -> None:
         """Update the last analyzed session count for an agent.
 
         Called by the scheduler after analysis completes.
         """
         with self._lock:
             self.db.execute(
-                "UPDATE agents SET last_analyzed_session_count = ? WHERE agent_id = ?",
-                (session_count, agent_id)
+                "UPDATE agents SET last_analyzed_session_count = ? WHERE system_prompt_id = ?",
+                (session_count, system_prompt_id)
             )
             self.db.commit()
-            logger.debug(f"Updated last_analyzed_session_count for {agent_id}: {session_count}")
+            logger.debug(f"Updated last_analyzed_session_count for {system_prompt_id}: {session_count}")
 
     def get_agents_needing_analysis(self, min_sessions: int = 5) -> List[str]:
         """Get agent IDs that need analysis.
@@ -1995,15 +1997,15 @@ class TraceStore:
         """
         with self._lock:
             cursor = self.db.execute("""
-                SELECT a.agent_id
+                SELECT a.system_prompt_id
                 FROM agents a
                 WHERE (
                     SELECT COUNT(*) FROM sessions s
-                    WHERE s.agent_id = a.agent_id AND s.is_completed = 1
+                    WHERE s.system_prompt_id = a.system_prompt_id AND s.is_completed = 1
                 ) >= ?
                 AND (
                     SELECT COUNT(*) FROM sessions s
-                    WHERE s.agent_id = a.agent_id AND s.is_completed = 1
+                    WHERE s.system_prompt_id = a.system_prompt_id AND s.is_completed = 1
                 ) > COALESCE(a.last_analyzed_session_count, 0)
             """, (min_sessions,))
             return [row[0] for row in cursor.fetchall()]
@@ -2011,7 +2013,7 @@ class TraceStore:
     def store_security_check(
         self,
         check_id: str,
-        agent_id: str,
+        system_prompt_id: str,
         analysis_session_id: str,
         category_id: str,
         check_type: str,
@@ -2021,7 +2023,7 @@ class TraceStore:
         value: Optional[str] = None,
         evidence: Optional[Dict[str, Any]] = None,
         recommendations: Optional[List[str]] = None,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Store a security check result."""
         with self._lock:
@@ -2030,14 +2032,14 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT INTO security_checks (
-                    check_id, agent_id, workflow_id, analysis_session_id,
+                    check_id, system_prompt_id, agent_id, analysis_session_id,
                     category_id, check_type, status, title, description,
                     value, evidence, recommendations, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 check_id,
+                system_prompt_id,
                 agent_id,
-                workflow_id,
                 analysis_session_id,
                 category_id,
                 check_type,
@@ -2067,8 +2069,8 @@ class TraceStore:
 
     def get_security_checks(
         self,
+        system_prompt_id: Optional[str] = None,
         agent_id: Optional[str] = None,
-        workflow_id: Optional[str] = None,
         analysis_session_id: Optional[str] = None,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
@@ -2079,13 +2081,13 @@ class TraceStore:
             query = "SELECT * FROM security_checks WHERE 1=1"
             params = []
 
+            if system_prompt_id:
+                query += " AND system_prompt_id = ?"
+                params.append(system_prompt_id)
+
             if agent_id:
                 query += " AND agent_id = ?"
                 params.append(agent_id)
-
-            if workflow_id:
-                query += " AND workflow_id = ?"
-                params.append(workflow_id)
 
             if analysis_session_id:
                 query += " AND analysis_session_id = ?"
@@ -2105,41 +2107,41 @@ class TraceStore:
             cursor = self.db.execute(query, params)
             return [self._deserialize_security_check(row) for row in cursor.fetchall()]
 
-    def get_latest_security_checks_for_agent(self, agent_id: str) -> List[Dict[str, Any]]:
+    def get_latest_security_checks_for_agent(self, system_prompt_id: str) -> List[Dict[str, Any]]:
         """Get the most recent security checks for an agent (from latest analysis session)."""
         with self._lock:
             # Find the latest analysis session for this agent
             cursor = self.db.execute("""
                 SELECT DISTINCT analysis_session_id
                 FROM security_checks
-                WHERE agent_id = ?
+                WHERE system_prompt_id = ?
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (agent_id,))
+            """, (system_prompt_id,))
             row = cursor.fetchone()
             if not row:
                 return []
 
             analysis_session_id = row['analysis_session_id']
             return self.get_security_checks(
-                agent_id=agent_id,
+                system_prompt_id=system_prompt_id,
                 analysis_session_id=analysis_session_id
             )
 
     def persist_security_checks(
         self,
-        agent_id: str,
+        system_prompt_id: str,
         security_report: Any,
         analysis_session_id: str,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> int:
         """Persist all security checks from a security report.
 
         Args:
-            agent_id: The agent being analyzed
+            system_prompt_id: The agent being analyzed
             security_report: SecurityReport containing assessment checks
             analysis_session_id: The analysis session ID for grouping
-            workflow_id: Optional workflow ID
+            agent_id: Optional agent ID
 
         Returns:
             Number of checks persisted
@@ -2147,7 +2149,7 @@ class TraceStore:
         import uuid
         count = 0
 
-        logger.debug(f"[PERSIST] persist_security_checks called for agent {agent_id}")
+        logger.debug(f"[PERSIST] persist_security_checks called for agent {system_prompt_id}")
         logger.debug(f"[PERSIST] security_report type: {type(security_report)}")
 
         # Handle both SecurityReport object and dict
@@ -2159,7 +2161,7 @@ class TraceStore:
             logger.debug(f"[PERSIST] categories from dict.get: {categories}")
 
         if not categories:
-            logger.warning(f"[PERSIST] No categories found for agent {agent_id}, returning 0")
+            logger.warning(f"[PERSIST] No categories found for agent {system_prompt_id}, returning 0")
             return 0
 
         # Handle dict (Dict[str, AssessmentCategory]) vs list
@@ -2193,7 +2195,7 @@ class TraceStore:
 
                 self.store_security_check(
                     check_id=f"{analysis_session_id}_{check_id}",
-                    agent_id=agent_id,
+                    system_prompt_id=system_prompt_id,
                     analysis_session_id=analysis_session_id,
                     category_id=category_id,
                     check_type=check_type,
@@ -2203,7 +2205,7 @@ class TraceStore:
                     value=str(value) if value is not None else None,
                     evidence=evidence if isinstance(evidence, dict) else None,
                     recommendations=recommendations if isinstance(recommendations, list) else None,
-                    workflow_id=workflow_id,
+                    agent_id=agent_id,
                 )
                 count += 1
 
@@ -2213,8 +2215,8 @@ class TraceStore:
         """Convert a security_checks row to a dictionary."""
         return {
             'check_id': row['check_id'],
+            'system_prompt_id': row['system_prompt_id'],
             'agent_id': row['agent_id'],
-            'workflow_id': row['workflow_id'],
             'analysis_session_id': row['analysis_session_id'],
             'category_id': row['category_id'],
             'check_type': row['check_type'],
@@ -2227,37 +2229,37 @@ class TraceStore:
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
         }
 
-    def get_agent_security_summary(self, agent_id: str) -> Dict[str, Any]:
+    def get_agent_security_summary(self, system_prompt_id: str) -> Dict[str, Any]:
         """Get a summary of security checks for an agent."""
         with self._lock:
             # Count by status
             cursor = self.db.execute("""
                 SELECT status, COUNT(*) as count
                 FROM security_checks
-                WHERE agent_id = ?
+                WHERE system_prompt_id = ?
                 GROUP BY status
-            """, (agent_id,))
+            """, (system_prompt_id,))
             status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
 
             # Count by category
             cursor = self.db.execute("""
                 SELECT category_id, COUNT(*) as count
                 FROM security_checks
-                WHERE agent_id = ?
+                WHERE system_prompt_id = ?
                 GROUP BY category_id
-            """, (agent_id,))
+            """, (system_prompt_id,))
             category_counts = {row['category_id']: row['count'] for row in cursor.fetchall()}
 
             # Get total count
             cursor = self.db.execute("""
                 SELECT COUNT(*) as total
                 FROM security_checks
-                WHERE agent_id = ?
-            """, (agent_id,))
+                WHERE system_prompt_id = ?
+            """, (system_prompt_id,))
             total = cursor.fetchone()['total']
 
             return {
-                'agent_id': agent_id,
+                'system_prompt_id': system_prompt_id,
                 'total_checks': total,
                 'by_status': status_counts,
                 'by_category': category_counts,
@@ -2267,14 +2269,14 @@ class TraceStore:
 
     def store_behavioral_analysis(
         self,
-        agent_id: str,
+        system_prompt_id: str,
         analysis_session_id: str,
         behavioral_result: Any,
     ) -> Dict[str, Any]:
         """Store behavioral analysis results.
 
         Args:
-            agent_id: The agent being analyzed
+            system_prompt_id: The agent being analyzed
             analysis_session_id: The analysis session ID
             behavioral_result: BehavioralAnalysisResult object or dict
 
@@ -2324,7 +2326,7 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT OR REPLACE INTO behavioral_analysis (
-                    id, agent_id, analysis_session_id,
+                    id, system_prompt_id, analysis_session_id,
                     stability_score, predictability_score, cluster_diversity,
                     num_clusters, num_outliers, total_sessions,
                     interpretation, clusters, outliers, centroid_distances,
@@ -2332,7 +2334,7 @@ class TraceStore:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 record_id,
-                agent_id,
+                system_prompt_id,
                 analysis_session_id,
                 stability_score,
                 predictability_score,
@@ -2350,7 +2352,7 @@ class TraceStore:
 
             return {
                 'id': record_id,
-                'agent_id': agent_id,
+                'system_prompt_id': system_prompt_id,
                 'analysis_session_id': analysis_session_id,
                 'stability_score': stability_score,
                 'predictability_score': predictability_score,
@@ -2362,11 +2364,11 @@ class TraceStore:
                 'created_at': now.isoformat(),
             }
 
-    def get_latest_behavioral_analysis(self, agent_id: str) -> Optional[Dict[str, Any]]:
+    def get_latest_behavioral_analysis(self, system_prompt_id: str) -> Optional[Dict[str, Any]]:
         """Get the most recent behavioral analysis for an agent.
 
         Args:
-            agent_id: The agent ID
+            system_prompt_id: The agent ID
 
         Returns:
             Dict with behavioral analysis data or None if not found
@@ -2374,10 +2376,10 @@ class TraceStore:
         with self._lock:
             cursor = self.db.execute("""
                 SELECT * FROM behavioral_analysis
-                WHERE agent_id = ?
+                WHERE system_prompt_id = ?
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (agent_id,))
+            """, (system_prompt_id,))
             row = cursor.fetchone()
 
             if not row:
@@ -2389,7 +2391,7 @@ class TraceStore:
         """Deserialize a behavioral_analysis row."""
         return {
             'id': row['id'],
-            'agent_id': row['agent_id'],
+            'system_prompt_id': row['system_prompt_id'],
             'analysis_session_id': row['analysis_session_id'],
             'stability_score': row['stability_score'],
             'predictability_score': row['predictability_score'],
@@ -2411,7 +2413,7 @@ class TraceStore:
         connection_id: str,
         ide_type: str,
         mcp_session_id: Optional[str] = None,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         host: Optional[str] = None,
         user: Optional[str] = None,
         workspace_path: Optional[str] = None,
@@ -2424,7 +2426,7 @@ class TraceStore:
             connection_id: Unique connection identifier
             ide_type: Type of IDE (cursor, claude-code, vscode)
             mcp_session_id: MCP session ID for this connection
-            workflow_id: Optional workflow/agent being developed
+            agent_id: Optional agent (project) being developed
             host: Hostname of the connected machine
             user: Username on the connected machine
             workspace_path: Path to the workspace being edited
@@ -2440,14 +2442,14 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT OR REPLACE INTO ide_connections (
-                    connection_id, ide_type, workflow_id, mcp_session_id,
+                    connection_id, ide_type, agent_id, mcp_session_id,
                     host, user, workspace_path, model, connected_at, last_heartbeat,
                     is_active, is_developing, disconnected_at, metadata
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 connection_id,
                 ide_type,
-                workflow_id,
+                agent_id,
                 mcp_session_id,
                 host,
                 user,
@@ -2479,7 +2481,7 @@ class TraceStore:
 
     def get_ide_connections(
         self,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         ide_type: Optional[str] = None,
         active_only: bool = True,
         limit: int = 100,
@@ -2487,7 +2489,7 @@ class TraceStore:
         """Get IDE connections with optional filtering.
 
         Args:
-            workflow_id: Filter by workflow/agent being developed
+            agent_id: Filter by agent (project) being developed
             ide_type: Filter by IDE type (cursor, claude-code, vscode)
             active_only: Only return active connections
             limit: Maximum number of connections to return
@@ -2499,9 +2501,9 @@ class TraceStore:
             query = "SELECT * FROM ide_connections WHERE 1=1"
             params = []
 
-            if workflow_id:
-                query += " AND workflow_id = ?"
-                params.append(workflow_id)
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
 
             if ide_type:
                 query += " AND ide_type = ?"
@@ -2520,14 +2522,14 @@ class TraceStore:
         self,
         connection_id: str,
         is_developing: bool = False,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Update heartbeat timestamp for an IDE connection.
 
         Args:
             connection_id: The connection ID
             is_developing: Whether active development is happening
-            workflow_id: Update the workflow being developed
+            agent_id: Update the agent being developed
 
         Returns:
             Updated connection dict or None if not found
@@ -2539,9 +2541,9 @@ class TraceStore:
             updates = ["last_heartbeat = ?", "is_developing = ?"]
             params = [now.timestamp(), 1 if is_developing else 0]
 
-            if workflow_id is not None:
-                updates.append("workflow_id = ?")
-                params.append(workflow_id)
+            if agent_id is not None:
+                updates.append("agent_id = ?")
+                params.append(agent_id)
 
             params.append(connection_id)
 
@@ -2575,11 +2577,11 @@ class TraceStore:
 
             return self.get_ide_connection(connection_id)
 
-    def get_ide_connection_status(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
-        """Get overall IDE connection status for a workflow.
+    def get_ide_connection_status(self, agent_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get overall IDE connection status for an agent.
 
         Args:
-            workflow_id: Optional workflow to check status for
+            agent_id: Optional agent to check status for
 
         Returns:
             Dict with connection status summary including:
@@ -2601,21 +2603,21 @@ class TraceStore:
             # Get active connections (currently connected with recent heartbeat)
             query = "SELECT * FROM ide_connections WHERE is_active = 1"
             params = []
-            if workflow_id:
-                query += " AND workflow_id = ?"
-                params.append(workflow_id)
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
             query += " ORDER BY last_heartbeat DESC"
 
             cursor = self.db.execute(query, params)
             active_connections = [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
 
-            # Get the most recent connection for this workflow (even if inactive)
+            # Get the most recent connection for this agent (even if inactive)
             # This is used to show "was connected" state
             most_recent_query = "SELECT * FROM ide_connections WHERE 1=1"
             most_recent_params = []
-            if workflow_id:
-                most_recent_query += " AND workflow_id = ?"
-                most_recent_params.append(workflow_id)
+            if agent_id:
+                most_recent_query += " AND agent_id = ?"
+                most_recent_params.append(agent_id)
             most_recent_query += " ORDER BY last_heartbeat DESC LIMIT 1"
 
             cursor = self.db.execute(most_recent_query, most_recent_params)
@@ -2626,9 +2628,9 @@ class TraceStore:
             history_cutoff = datetime.now(timezone.utc).timestamp() - (24 * 60 * 60)
             history_query = "SELECT * FROM ide_connections WHERE connected_at > ?"
             history_params = [history_cutoff]
-            if workflow_id:
-                history_query += " AND workflow_id = ?"
-                history_params.append(workflow_id)
+            if agent_id:
+                history_query += " AND agent_id = ?"
+                history_params.append(agent_id)
             history_query += " ORDER BY connected_at DESC LIMIT 10"
 
             cursor = self.db.execute(history_query, history_params)
@@ -2675,7 +2677,7 @@ class TraceStore:
         return {
             'connection_id': row['connection_id'],
             'ide_type': row['ide_type'],
-            'workflow_id': row['workflow_id'],
+            'agent_id': row['agent_id'],
             'mcp_session_id': row['mcp_session_id'],
             'host': row['host'],
             'user': row['user'],
@@ -2692,19 +2694,19 @@ class TraceStore:
 
     # ==================== Recommendation Methods ====================
 
-    def _generate_recommendation_id(self, workflow_id: str) -> str:
-        """Generate a sequential REC-XXX ID for a workflow."""
+    def _generate_recommendation_id(self, agent_id: str) -> str:
+        """Generate a sequential REC-XXX ID for an agent."""
         with self._lock:
             cursor = self.db.execute(
-                "SELECT COUNT(*) FROM recommendations WHERE workflow_id = ?",
-                (workflow_id,)
+                "SELECT COUNT(*) FROM recommendations WHERE agent_id = ?",
+                (agent_id,)
             )
             count = cursor.fetchone()[0]
             return f"REC-{count + 1:03d}"
 
     def create_recommendation(
         self,
-        workflow_id: str,
+        agent_id: str,
         source_type: str,
         source_check_id: str,
         severity: str,
@@ -2736,7 +2738,7 @@ class TraceStore:
         """Create a new recommendation.
 
         Args:
-            workflow_id: Workflow this recommendation belongs to
+            agent_id: Agent this recommendation belongs to
             source_type: 'STATIC' or 'DYNAMIC'
             source_check_id: Check category (e.g., 'PROMPT_SECURITY', 'RESOURCE_001')
             severity: CRITICAL, HIGH, MEDIUM, or LOW
@@ -2748,11 +2750,11 @@ class TraceStore:
         """
         with self._lock:
             now = datetime.now(timezone.utc)
-            recommendation_id = self._generate_recommendation_id(workflow_id)
+            recommendation_id = self._generate_recommendation_id(agent_id)
 
             self.db.execute("""
                 INSERT INTO recommendations (
-                    recommendation_id, workflow_id, source_type, source_check_id,
+                    recommendation_id, agent_id, source_type, source_check_id,
                     source_finding_id, severity, cvss_score, cvss_vector,
                     owasp_llm, cwe, mitre_atlas, soc2_controls, nist_csf,
                     title, description, impact, fix_hints, fix_complexity,
@@ -2763,7 +2765,7 @@ class TraceStore:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 recommendation_id,
-                workflow_id,
+                agent_id,
                 source_type,
                 source_check_id,
                 source_finding_id,
@@ -2822,7 +2824,7 @@ class TraceStore:
 
     def get_recommendations(
         self,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
         status: Optional[str] = None,
         severity: Optional[str] = None,
         blocking_only: bool = False,
@@ -2832,7 +2834,7 @@ class TraceStore:
         """Get recommendations with optional filtering.
 
         Args:
-            workflow_id: Filter by workflow
+            agent_id: Filter by agent
             status: Filter by status (PENDING, FIXING, FIXED, VERIFIED, etc.)
             severity: Filter by severity (CRITICAL, HIGH, MEDIUM, LOW)
             blocking_only: Only return gate-blocking issues (CRITICAL/HIGH, not resolved)
@@ -2846,9 +2848,9 @@ class TraceStore:
             query = "SELECT * FROM recommendations WHERE 1=1"
             params = []
 
-            if workflow_id:
-                query += " AND workflow_id = ?"
-                params.append(workflow_id)
+            if agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
 
             if status:
                 query += " AND status = ?"
@@ -3087,21 +3089,21 @@ class TraceStore:
 
             return self.get_recommendation(recommendation_id)
 
-    def get_gate_status(self, workflow_id: str) -> Dict[str, Any]:
-        """Get the gate status for a workflow.
+    def get_gate_status(self, agent_id: str) -> Dict[str, Any]:
+        """Get the gate status for an agent.
 
         Production is blocked if there are any CRITICAL or HIGH severity
         recommendations that are not VERIFIED, DISMISSED, or IGNORED.
 
         Args:
-            workflow_id: The workflow to check
+            agent_id: The agent to check
 
         Returns:
             Dict with gate_status, blocking_count, and blocking_items
         """
         with self._lock:
             blocking = self.get_recommendations(
-                workflow_id=workflow_id,
+                agent_id=agent_id,
                 blocking_only=True,
             )
 
@@ -3122,7 +3124,7 @@ class TraceStore:
         return {
             'recommendation_id': row['recommendation_id'],
             'id': row['recommendation_id'],  # Alias for convenience
-            'workflow_id': row['workflow_id'],
+            'agent_id': row['agent_id'],
             'source_type': row['source_type'],
             'source_check_id': row['source_check_id'],
             'source_finding_id': row['source_finding_id'],
@@ -3265,24 +3267,24 @@ class TraceStore:
 
     def backfill_recommendations_from_findings(
         self,
-        workflow_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create recommendations for findings that don't have them.
 
         This is useful for backfilling after adding the auto-recommendation feature.
 
         Args:
-            workflow_id: Optional workflow to limit backfill to
+            agent_id: Optional agent to limit backfill to
 
         Returns:
             Dict with created_count and skipped_count
         """
         with self._lock:
             # Get all findings
-            findings = self.get_findings(workflow_id=workflow_id, limit=10000)
+            findings = self.get_findings(agent_id=agent_id, limit=10000)
 
             # Get existing recommendations to check for duplicates
-            existing_recs = self.get_recommendations(workflow_id=workflow_id, limit=10000)
+            existing_recs = self.get_recommendations(agent_id=agent_id, limit=10000)
             existing_finding_ids = {r.get('source_finding_id') for r in existing_recs if r.get('source_finding_id')}
 
             created_count = 0
@@ -3309,7 +3311,7 @@ class TraceStore:
                 try:
                     self._create_recommendation_from_finding(
                         finding_id=finding_id,
-                        workflow_id=finding['workflow_id'],
+                        agent_id=finding['agent_id'],
                         finding_type=finding['finding_type'],
                         severity=finding['severity'],
                         title=finding['title'],

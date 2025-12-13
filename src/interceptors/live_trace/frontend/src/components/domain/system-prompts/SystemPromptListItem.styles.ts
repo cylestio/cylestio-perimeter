@@ -1,11 +1,11 @@
 import styled, { css } from 'styled-components';
 
-interface AgentListItemContainerProps {
+interface SystemPromptListItemContainerProps {
   $active: boolean;
   $collapsed: boolean;
 }
 
-export const AgentListItemContainer = styled.div<AgentListItemContainerProps>`
+export const SystemPromptListItemContainer = styled.div<SystemPromptListItemContainerProps>`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[3]};
@@ -35,7 +35,7 @@ export const AgentListItemContainer = styled.div<AgentListItemContainerProps>`
     `}
 `;
 
-export const AgentInfo = styled.div`
+export const SystemPromptInfo = styled.div`
   flex: 1;
   min-width: 0;
   display: flex;
@@ -43,7 +43,7 @@ export const AgentInfo = styled.div`
   gap: 2px;
 `;
 
-export const AgentName = styled.span`
+export const SystemPromptName = styled.span`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -55,10 +55,10 @@ export const AgentName = styled.span`
   text-overflow: ellipsis;
 `;
 
-type AgentStatus = 'evaluating' | 'ok' | 'requires_action';
+type SystemPromptStatus = 'evaluating' | 'ok' | 'requires_action';
 
 interface StatusIconProps {
-  $status: AgentStatus;
+  $status: SystemPromptStatus;
 }
 
 export const StatusIcon = styled.span<StatusIconProps>`
@@ -80,7 +80,7 @@ export const StatusIcon = styled.span<StatusIconProps>`
   }
 `;
 
-export const AgentMeta = styled.span`
+export const SystemPromptMeta = styled.span`
   font-size: ${({ theme }) => theme.typography.textXs};
   color: ${({ theme }) => theme.colors.white50};
   white-space: nowrap;

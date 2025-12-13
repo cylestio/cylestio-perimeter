@@ -64,8 +64,8 @@ export const Sessions: FC = () => {
       setError(null);
       const offset = (currentPage - 1) * PAGE_SIZE;
       const data = await fetchSessions({
-        workflow_id: agentId,
-        agent_id: selectedSystemPrompt || undefined,
+        agent_id: agentId,
+        system_prompt_id: selectedSystemPrompt || undefined,
         limit: PAGE_SIZE,
         offset,
       });

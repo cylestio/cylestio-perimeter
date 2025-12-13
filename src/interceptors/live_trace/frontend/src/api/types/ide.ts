@@ -5,7 +5,7 @@
 export interface IDEConnection {
   connection_id: string;
   ide_type: 'cursor' | 'claude-code';
-  workflow_id: string | null;
+  agent_id: string | null;
   mcp_session_id: string | null;
   host: string | null;
   user: string | null;

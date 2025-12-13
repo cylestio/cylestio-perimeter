@@ -1,4 +1,4 @@
-"""Tests for InsightsEngine workflow filtering."""
+"""Tests for InsightsEngine agent filtering."""
 import pytest
 
 from ...store import TraceStore
@@ -6,8 +6,8 @@ from ...store.store import AgentData
 from ..engine import InsightsEngine
 
 
-class TestInsightsWorkflowFiltering:
-    """Tests for workflow filtering in insights engine."""
+class TestInsightsAgentFiltering:
+    """Tests for agent filtering in insights engine."""
 
     @pytest.fixture
     def store(self):
@@ -19,49 +19,49 @@ class TestInsightsWorkflowFiltering:
         """Create an InsightsEngine instance."""
         return InsightsEngine(store, {})
 
-    def _create_agent(self, store, agent_id: str, workflow_id: str = None):
-        """Helper to create an agent directly in the database."""
-        agent = AgentData(agent_id, workflow_id)
+    def _create_system_prompt(self, store, system_prompt_id: str, agent_id: str = None):
+        """Helper to create a system prompt directly in the database."""
+        agent = AgentData(system_prompt_id, agent_id)
         store._save_agent(agent)
 
     @pytest.mark.asyncio
-    async def test_get_dashboard_data_filters_by_workflow(self, insights, store):
-        """Test dashboard data filtered by workflow_id."""
-        # Create agents with different workflows
-        self._create_agent(store, "agent1", "workflow-a")
-        self._create_agent(store, "agent2", "workflow-a")
-        self._create_agent(store, "agent3", "workflow-b")
+    async def test_get_dashboard_data_filters_by_agent(self, insights, store):
+        """Test dashboard data filtered by agent_id."""
+        # Create system prompts with different agents
+        self._create_system_prompt(store, "sp1", "agent-a")
+        self._create_system_prompt(store, "sp2", "agent-a")
+        self._create_system_prompt(store, "sp3", "agent-b")
 
-        # Get data filtered by workflow-a
-        data = await insights.get_dashboard_data(workflow_id="workflow-a")
+        # Get data filtered by agent-a
+        data = await insights.get_dashboard_data(agent_id="agent-a")
 
         assert len(data["agents"]) == 2
-        assert data["workflow_id"] == "workflow-a"
+        assert data["agent_id"] == "agent-a"
 
     @pytest.mark.asyncio
     async def test_get_dashboard_data_unassigned_filter(self, insights, store):
-        """Test dashboard data filtered to unassigned workflows."""
-        # Create agents with and without workflow
-        self._create_agent(store, "agent1", "workflow-a")
-        self._create_agent(store, "agent2", None)  # Unassigned
-        self._create_agent(store, "agent3", None)  # Unassigned
+        """Test dashboard data filtered to unassigned agent."""
+        # Create system prompts with and without agent
+        self._create_system_prompt(store, "sp1", "agent-a")
+        self._create_system_prompt(store, "sp2", None)  # Unassigned
+        self._create_system_prompt(store, "sp3", None)  # Unassigned
 
         # Get data filtered by unassigned
-        data = await insights.get_dashboard_data(workflow_id="unassigned")
+        data = await insights.get_dashboard_data(agent_id="unassigned")
 
         assert len(data["agents"]) == 2
-        assert data["workflow_id"] == "unassigned"
+        assert data["agent_id"] == "unassigned"
 
     @pytest.mark.asyncio
     async def test_get_dashboard_data_no_filter(self, insights, store):
-        """Test dashboard data with no workflow filter returns all."""
-        # Create agents with different workflows
-        self._create_agent(store, "agent1", "workflow-a")
-        self._create_agent(store, "agent2", "workflow-b")
-        self._create_agent(store, "agent3", None)
+        """Test dashboard data with no agent filter returns all."""
+        # Create system prompts with different agents
+        self._create_system_prompt(store, "sp1", "agent-a")
+        self._create_system_prompt(store, "sp2", "agent-b")
+        self._create_system_prompt(store, "sp3", None)
 
         # Get all data (no filter)
         data = await insights.get_dashboard_data()
 
         assert len(data["agents"]) == 3
-        assert data["workflow_id"] is None
+        assert data["agent_id"] is None

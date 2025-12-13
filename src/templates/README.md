@@ -2,6 +2,11 @@
 
 Integration templates for AI coding assistants (Claude Code & Cursor).
 
+## Terminology
+
+- **Agent**: A project/codebase being analyzed (what you're developing)
+- **System Prompt**: An individual LLM agent instance identified by its system prompt hash
+
 ## Quick Start
 
 ### 1. Start Agent Inspector
@@ -57,11 +62,11 @@ Then restart Cursor and approve the MCP server when prompted.
 | `update_finding_status` | Mark FIXED/IGNORED |
 | `get_owasp_control` | OWASP control details |
 | `get_fix_template` | Remediation templates |
-| `get_workflow_state` | Check static/dynamic data exists |
+| `get_agent_state` | Check static/dynamic data exists |
 | `get_tool_usage_summary` | Runtime tool usage patterns |
-| `get_workflow_correlation` | Correlate static ↔ dynamic |
-| `get_agents` | List agents |
-| `update_agent_info` | Link/name agents |
+| `get_agent_correlation` | Correlate static ↔ dynamic |
+| `get_system_prompts` | List system prompts |
+| `update_system_prompt_info` | Link/name system prompts |
 
 ---
 
@@ -78,16 +83,16 @@ Configure your agent to use the proxy:
 
 ```python
 from openai import OpenAI
-client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
+client = OpenAI(base_url="http://localhost:4000/agent/my-project")
 
 # or Anthropic
 from anthropic import Anthropic
-client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
+client = Anthropic(base_url="http://localhost:4000/agent/my-project")
 ```
 
 ### View Results
 
-Open the dashboard: `http://localhost:7100/workflow/{workflow_id}`
+Open the dashboard: `http://localhost:7100/agent/{agent_id}`
 
 ---
 

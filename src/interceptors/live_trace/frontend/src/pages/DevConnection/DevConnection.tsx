@@ -203,7 +203,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
     if (hasEverConnected && connectedIDE) {
       return 'IDE setup complete. Ready for security analysis when you need it.';
     }
-    return 'Connect your IDE to enable AI-powered security scanning in your development workflow';
+    return 'Connect your IDE to enable AI-powered security scanning in your development process';
   };
 
   const getBadgeText = () => {

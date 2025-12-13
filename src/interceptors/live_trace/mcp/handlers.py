@@ -1,4 +1,9 @@
-"""MCP tool handlers with registry pattern."""
+"""MCP tool handlers with registry pattern.
+
+Terminology:
+- Agent: Project/grouping level (contains multiple system prompts)
+- System Prompt: Individual LLM agent instance (identified by system prompt hash)
+"""
 from typing import Any, Callable, Dict
 
 from src.kb.loader import get_kb_loader
@@ -85,13 +90,13 @@ def handle_get_fix_template(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 
 @register_handler("create_analysis_session")
 def handle_create_analysis_session(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Create a new analysis session for a workflow/codebase."""
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    """Create a new analysis session for an agent/codebase."""
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
 
     session_type = args.get("session_type", "STATIC")
-    workflow_name = args.get("workflow_name")
+    agent_name = args.get("agent_name")
 
     try:
         session_type_enum = SessionType(session_type.upper())
@@ -101,9 +106,9 @@ def handle_create_analysis_session(args: Dict[str, Any], store: Any) -> Dict[str
     session_id = generate_session_id()
     session = store.create_analysis_session(
         session_id=session_id,
-        workflow_id=workflow_id,
+        agent_id=agent_id,
         session_type=session_type_enum.value,
-        workflow_name=workflow_name,
+        agent_name=agent_name,
     )
     return {"session": session}
 
@@ -155,7 +160,7 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     finding = store.store_finding(
         finding_id=finding_id,
         session_id=session_id,
-        workflow_id=session["workflow_id"],
+        agent_id=session["agent_id"],
         file_path=args.get("file_path"),
         finding_type=args.get("finding_type"),
         severity=severity_enum.value,
@@ -185,7 +190,7 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 def handle_get_findings(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get stored findings with optional filtering."""
     findings = store.get_findings(
-        workflow_id=args.get("workflow_id"),
+        agent_id=args.get("agent_id"),
         session_id=args.get("session_id"),
         severity=args.get("severity", "").upper() if args.get("severity") else None,
         status=args.get("status", "").upper() if args.get("status") else None,
@@ -207,27 +212,82 @@ def handle_update_finding_status(args: Dict[str, Any], store: Any) -> Dict[str, 
     return {"finding": finding}
 
 
-# ==================== Workflow Lifecycle Tools ====================
+# ==================== Dynamic Analysis Tools ====================
 
-@register_handler("get_workflow_state")
-def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Get the current lifecycle state of a workflow.
+@register_handler("trigger_dynamic_analysis")
+def handle_trigger_dynamic_analysis(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Manually trigger dynamic analysis for an agent.
+    
+    Note: Dynamic analysis runs automatically when sessions complete.
+    Use this to manually re-run if needed.
+    """
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
+    
+    # Check if there are any completed sessions
+    sessions = store.get_sessions(agent_id=agent_id, status="COMPLETED")
+    if not sessions:
+        return {
+            "status": "no_sessions",
+            "message": f"No completed sessions found for agent '{agent_id}'. Run some sessions first.",
+            "agent_id": agent_id,
+        }
+    
+    return {
+        "status": "triggered",
+        "message": f"Dynamic analysis will run automatically for agent '{agent_id}' when sessions complete.",
+        "agent_id": agent_id,
+        "completed_sessions": len(sessions),
+    }
+
+
+@register_handler("get_dynamic_analysis_status")
+def handle_get_dynamic_analysis_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get the current status of dynamic analysis for an agent."""
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
+    
+    # Get session counts
+    sessions = store.get_sessions(agent_id=agent_id)
+    completed = [s for s in sessions if s.status == "COMPLETED"]
+    active = [s for s in sessions if s.status == "ACTIVE"]
+    
+    # Get security checks
+    security_checks = store.get_security_checks_by_agent(agent_id)
+    
+    return {
+        "agent_id": agent_id,
+        "total_sessions": len(sessions),
+        "completed_sessions": len(completed),
+        "active_sessions": len(active),
+        "security_checks_count": len(security_checks),
+        "status": "ready" if len(completed) > 0 else "waiting_for_sessions",
+    }
+
+
+# ==================== Agent Lifecycle Tools ====================
+
+@register_handler("get_agent_state")
+def handle_get_agent_state(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get the current lifecycle state of an agent.
     
     Returns state, available data, and recommended next steps.
     """
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
 
     # Get static analysis data
-    static_sessions = store.get_analysis_sessions(workflow_id=workflow_id)
-    findings = store.get_findings(workflow_id=workflow_id)
+    static_sessions = store.get_analysis_sessions(agent_id=agent_id)
+    findings = store.get_findings(agent_id=agent_id)
     
-    # Get dynamic data (agents running through proxy)
-    dynamic_agents = store.get_all_agents(workflow_id=workflow_id)
+    # Get dynamic data (system prompts running through proxy)
+    dynamic_system_prompts = store.get_all_agents(agent_id=agent_id)
     
     has_static = len(static_sessions) > 0
-    has_dynamic = len(dynamic_agents) > 0
+    has_dynamic = len(dynamic_system_prompts) > 0
     open_findings = [f for f in findings if f.get("status") == "OPEN"]
     
     # Determine state and provide context-aware recommendations
@@ -237,7 +297,7 @@ def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any
     elif has_static and not has_dynamic:
         state = "STATIC_ONLY"
         if open_findings:
-            recommendation = f"Static analysis found {len(open_findings)} open findings. To validate these findings with runtime behavior, configure your agent to use base_url='http://localhost:4000/workflow/{workflow_id}' and run test scenarios."
+            recommendation = f"Static analysis found {len(open_findings)} open findings. To validate these findings with runtime behavior, configure your agent to use base_url='http://localhost:4000/agent/{agent_id}' and run test scenarios."
         else:
             recommendation = "Static analysis complete with no open findings. Run dynamic tests to validate runtime behavior."
     elif has_dynamic and not has_static:
@@ -245,51 +305,51 @@ def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any
         recommendation = "Dynamic runtime data captured. Run static analysis now to identify code-level security issues and correlate with observed runtime behavior."
     else:
         state = "COMPLETE"
-        recommendation = f"Both static and dynamic data available! Use get_workflow_correlation to see which of your {len(open_findings)} findings are validated by runtime tests."
+        recommendation = f"Both static and dynamic data available! Use get_agent_correlation to see which of your {len(open_findings)} findings are validated by runtime tests."
 
     return {
-        "workflow_id": workflow_id,
+        "agent_id": agent_id,
         "state": state,
         "has_static_analysis": has_static,
         "has_dynamic_sessions": has_dynamic,
         "static_sessions_count": len(static_sessions),
-        "dynamic_agents_count": len(dynamic_agents),
+        "dynamic_system_prompts_count": len(dynamic_system_prompts),
         "findings_count": len(findings),
         "open_findings_count": len(open_findings),
         "recommendation": recommendation,
-        "dashboard_url": f"http://localhost:7100/workflow/{workflow_id}",
+        "dashboard_url": f"http://localhost:7100/agent/{agent_id}",
     }
 
 
 @register_handler("get_tool_usage_summary")
 def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get tool usage patterns from dynamic sessions."""
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
 
-    agents = store.get_all_agents(workflow_id=workflow_id)
-    if not agents:
+    system_prompts = store.get_all_agents(agent_id=agent_id)
+    if not system_prompts:
         return {
-            "workflow_id": workflow_id,
+            "agent_id": agent_id,
             "message": "No dynamic sessions found. Run your agent through the proxy to capture tool usage.",
-            "setup_hint": f"Configure agent: base_url='http://localhost:4000/workflow/{workflow_id}'",
+            "setup_hint": f"Configure agent: base_url='http://localhost:4000/agent/{agent_id}'",
             "tool_usage": {},
             "total_sessions": 0,
         }
 
-    # Aggregate tool usage across all agents
+    # Aggregate tool usage across all system prompts
     tool_usage = {}
     available_tools = set()
     used_tools = set()
     total_sessions = 0
 
-    for agent in agents:
-        total_sessions += agent.total_sessions
-        available_tools.update(agent.available_tools)
-        used_tools.update(agent.used_tools)
+    for sp in system_prompts:
+        total_sessions += sp.total_sessions
+        available_tools.update(sp.available_tools)
+        used_tools.update(sp.used_tools)
 
-        for tool_name, count in agent.tool_usage_details.items():
+        for tool_name, count in sp.tool_usage_details.items():
             if tool_name not in tool_usage:
                 tool_usage[tool_name] = {"count": 0}
             tool_usage[tool_name]["count"] += count
@@ -301,7 +361,7 @@ def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str,
     unused_tools = list(available_tools - used_tools)
 
     return {
-        "workflow_id": workflow_id,
+        "agent_id": agent_id,
         "total_sessions": total_sessions,
         "tool_usage": sorted_usage,
         "tools_defined": len(available_tools),
@@ -311,37 +371,37 @@ def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str,
     }
 
 
-@register_handler("get_workflow_correlation")
-def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+@register_handler("get_agent_correlation")
+def handle_get_agent_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Correlate static findings with dynamic runtime observations.
     
     Computed on-the-fly by matching tool references in findings
     with actual tool usage from dynamic sessions.
     """
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
 
     # Get static findings
-    findings = store.get_findings(workflow_id=workflow_id)
-    static_sessions = store.get_analysis_sessions(workflow_id=workflow_id)
+    findings = store.get_findings(agent_id=agent_id)
+    static_sessions = store.get_analysis_sessions(agent_id=agent_id)
     
     # Get dynamic data
-    agents = store.get_all_agents(workflow_id=workflow_id)
+    system_prompts = store.get_all_agents(agent_id=agent_id)
     
     if not static_sessions:
         return {
-            "workflow_id": workflow_id,
+            "agent_id": agent_id,
             "error": "No static analysis data. Run a security scan first.",
             "hint": "Use get_security_patterns and create_analysis_session to begin.",
         }
     
-    if not agents:
+    if not system_prompts:
         return {
-            "workflow_id": workflow_id,
+            "agent_id": agent_id,
             "message": "Static analysis exists but no dynamic data yet.",
             "findings_count": len(findings),
-            "hint": f"Run your agent with base_url='http://localhost:4000/workflow/{workflow_id}' to capture runtime data.",
+            "hint": f"Run your agent with base_url='http://localhost:4000/agent/{agent_id}' to capture runtime data.",
             "correlations": [],
         }
 
@@ -349,10 +409,10 @@ def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[st
     dynamic_tools_used = set()
     tool_call_counts = {}
     total_sessions = 0
-    for agent in agents:
-        dynamic_tools_used.update(agent.used_tools)
-        total_sessions += agent.total_sessions
-        for tool_name, count in agent.tool_usage_details.items():
+    for sp in system_prompts:
+        dynamic_tools_used.update(sp.used_tools)
+        total_sessions += sp.total_sessions
+        for tool_name, count in sp.tool_usage_details.items():
             tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + count
 
     # Return raw data for the coding agent to analyze
@@ -370,9 +430,9 @@ def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[st
     ]
 
     return {
-        "workflow_id": workflow_id,
+        "agent_id": agent_id,
         "has_static_data": len(findings) > 0,
-        "has_dynamic_data": len(agents) > 0,
+        "has_dynamic_data": len(system_prompts) > 0,
         "static_findings": findings_summary,
         "static_findings_count": len(findings),
         "dynamic_tools_used": list(dynamic_tools_used),
@@ -382,80 +442,97 @@ def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[st
     }
 
 
-# ==================== Agent Discovery Tools ====================
+# ==================== System Prompt Discovery Tools ====================
 
-@register_handler("get_agents")
-def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """List all agents discovered during dynamic sessions."""
-    workflow_id = args.get("workflow_id")
+@register_handler("get_system_prompts")
+def handle_get_system_prompts(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """List all system prompts discovered during dynamic sessions."""
+    agent_id = args.get("agent_id")
     include_stats = args.get("include_stats", True)
     
     # Handle special "unlinked" filter
-    if workflow_id == "unlinked":
-        agents = store.get_all_agents(workflow_id=None)
-        # Filter to only agents with no workflow_id
-        agents = [a for a in agents if not a.workflow_id]
-    elif workflow_id:
-        agents = store.get_all_agents(workflow_id=workflow_id)
+    if agent_id == "unlinked":
+        system_prompts = store.get_all_agents(agent_id=None)
+        # Filter to only system prompts with no agent_id
+        system_prompts = [sp for sp in system_prompts if not sp.agent_id]
+    elif agent_id:
+        system_prompts = store.get_all_agents(agent_id=agent_id)
     else:
-        agents = store.get_all_agents()
+        system_prompts = store.get_all_agents()
     
     result = []
-    for agent in agents:
-        agent_info = {
-            "agent_id": agent.agent_id,
-            "agent_id_short": agent.agent_id[:12] if len(agent.agent_id) > 12 else agent.agent_id,
-            "workflow_id": agent.workflow_id,
-            "display_name": getattr(agent, 'display_name', None),
-            "description": getattr(agent, 'description', None),
+    for sp in system_prompts:
+        sp_info = {
+            "system_prompt_id": sp.system_prompt_id,
+            "system_prompt_id_short": sp.system_prompt_id[:12] if len(sp.system_prompt_id) > 12 else sp.system_prompt_id,
+            "agent_id": sp.agent_id,
+            "display_name": getattr(sp, 'display_name', None),
+            "description": getattr(sp, 'description', None),
         }
         
         if include_stats:
-            agent_info.update({
-                "total_sessions": agent.total_sessions,
-                "total_messages": agent.total_messages,
-                "total_tokens": agent.total_tokens,
-                "tools_available": len(agent.available_tools),
-                "tools_used": len(agent.used_tools),
-                "first_seen": agent.first_seen.isoformat(),
-                "last_seen": agent.last_seen.isoformat(),
+            sp_info.update({
+                "total_sessions": sp.total_sessions,
+                "total_messages": sp.total_messages,
+                "total_tokens": sp.total_tokens,
+                "tools_available": len(sp.available_tools),
+                "tools_used": len(sp.used_tools),
+                "first_seen": sp.first_seen.isoformat(),
+                "last_seen": sp.last_seen.isoformat(),
             })
         
-        result.append(agent_info)
+        result.append(sp_info)
     
     return {
-        "agents": result,
+        "system_prompts": result,
         "total_count": len(result),
-        "filter": workflow_id if workflow_id else "all",
+        "filter": agent_id if agent_id else "all",
     }
 
 
-@register_handler("update_agent_info")
-def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Update an agent's display name, description, or link to workflow."""
-    agent_id = args.get("agent_id")
-    if not agent_id:
-        return {"error": "agent_id is required"}
+# Legacy handler name for backward compatibility
+@register_handler("get_agents")
+def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Legacy handler - redirects to get_system_prompts."""
+    return handle_get_system_prompts(args, store)
+
+
+@register_handler("update_system_prompt_info")
+def handle_update_system_prompt_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Update a system prompt's display name, description, or link to agent."""
+    system_prompt_id = args.get("system_prompt_id")
+    if not system_prompt_id:
+        return {"error": "system_prompt_id is required"}
     
     display_name = args.get("display_name")
     description = args.get("description")
-    workflow_id = args.get("workflow_id")
+    agent_id = args.get("agent_id")
     
     # Check at least one field to update
-    if not any([display_name, description, workflow_id]):
-        return {"error": "Provide at least one of: display_name, description, workflow_id"}
+    if not any([display_name, description, agent_id]):
+        return {"error": "Provide at least one of: display_name, description, agent_id"}
     
     result = store.update_agent_info(
-        agent_id=agent_id,
+        system_prompt_id=system_prompt_id,
         display_name=display_name,
         description=description,
-        workflow_id=workflow_id,
+        agent_id=agent_id,
     )
     
     if not result:
-        return {"error": f"Agent '{agent_id}' not found"}
+        return {"error": f"System prompt '{system_prompt_id}' not found"}
     
-    return {"agent": result, "message": "Agent updated successfully"}
+    return {"system_prompt": result, "message": "System prompt updated successfully"}
+
+
+# Legacy handler name for backward compatibility
+@register_handler("update_agent_info")
+def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Legacy handler - redirects to update_system_prompt_info."""
+    # Map old parameter names to new ones
+    if "agent_id" in args and "system_prompt_id" not in args:
+        args["system_prompt_id"] = args.pop("agent_id")
+    return handle_update_system_prompt_info(args, store)
 
 
 # ==================== IDE Connection Tools ====================
@@ -477,7 +554,7 @@ def handle_register_ide_connection(args: Dict[str, Any], store: Any) -> Dict[str
     connection = store.register_ide_connection(
         connection_id=connection_id,
         ide_type=ide_type,
-        workflow_id=args.get("workflow_id"),
+        agent_id=args.get("agent_id"),
         host=args.get("host"),
         user=args.get("user"),
         workspace_path=args.get("workspace_path"),
@@ -500,12 +577,12 @@ def handle_ide_heartbeat(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         return {"error": "connection_id is required"}
 
     is_developing = args.get("is_developing", False)
-    workflow_id = args.get("workflow_id")
+    agent_id = args.get("agent_id")
 
     connection = store.update_ide_heartbeat(
         connection_id=connection_id,
         is_developing=is_developing,
-        workflow_id=workflow_id,
+        agent_id=agent_id,
     )
 
     if not connection:
@@ -540,9 +617,9 @@ def handle_disconnect_ide(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 @register_handler("get_ide_connection_status")
 def handle_get_ide_connection_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get current IDE connection status."""
-    workflow_id = args.get("workflow_id")
+    agent_id = args.get("agent_id")
 
-    status = store.get_ide_connection_status(workflow_id=workflow_id)
+    status = store.get_ide_connection_status(agent_id=agent_id)
 
     if status["is_connected"]:
         ide = status["connected_ide"]
@@ -582,14 +659,14 @@ def handle_get_recommendation_detail(args: Dict[str, Any], store: Any) -> Dict[s
         finding = store.get_finding(rec["source_finding_id"])
 
     # Get related context
-    workflow_id = rec.get("workflow_id")
+    agent_id = rec.get("agent_id")
     
     # Build comprehensive response for AI
     return {
         "recommendation": rec,
         "finding": finding,
         "context": {
-            "workflow_id": workflow_id,
+            "agent_id": agent_id,
             "related_files": rec.get("related_files", []),
             "file_path": rec.get("file_path"),
             "line_start": rec.get("line_start"),
@@ -618,9 +695,9 @@ def handle_get_recommendation_detail(args: Dict[str, Any], store: Any) -> Dict[s
 
 @register_handler("get_recommendations")
 def handle_get_recommendations(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """List recommendations for a workflow with optional filtering."""
+    """List recommendations for an agent with optional filtering."""
     recommendations = store.get_recommendations(
-        workflow_id=args.get("workflow_id"),
+        agent_id=args.get("agent_id"),
         status=args.get("status"),
         severity=args.get("severity"),
         blocking_only=args.get("blocking_only", False),
@@ -757,11 +834,11 @@ def handle_dismiss_recommendation(args: Dict[str, Any], store: Any) -> Dict[str,
 @register_handler("get_gate_status")
 def handle_get_gate_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Check if Production deployment is blocked."""
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_id = args.get("agent_id")
+    if not agent_id:
+        return {"error": "agent_id is required"}
 
-    status = store.get_gate_status(workflow_id)
+    status = store.get_gate_status(agent_id)
     
     if status["gate_status"] == "BLOCKED":
         message = f"🚫 Production BLOCKED - {status['blocking_count']} issue(s) must be resolved"

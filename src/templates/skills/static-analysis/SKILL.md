@@ -5,6 +5,11 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 
 # Static Security Analysis
 
+## Terminology
+
+- **Agent**: A project/codebase being analyzed (what you're developing)
+- **System Prompt**: An individual LLM agent instance identified by its system prompt hash
+
 ## When to Activate
 - User asks for "security scan" or "security review"
 - User mentions "OWASP" or "vulnerability check"
@@ -15,19 +20,19 @@ description: Analyze AI agent code for security vulnerabilities using Agent Insp
 - Agent Inspector running: `uvx cylestio-perimeter run --config path/to/config.yaml`
 - MCP connection to `http://localhost:7100/mcp`
 
-## Workflow
+## Process
 
-### 1. Derive workflow_id
+### 1. Derive agent_id
 Auto-derive from (priority order):
 1. Git remote: `github.com/org/my-agent.git` → `my-agent`
 2. Package name: pyproject.toml or package.json
 3. Folder name: `/projects/my-bot` → `my-bot`
 
-**Do NOT ask user for workflow_id - derive it automatically.**
+**Do NOT ask user for agent_id - derive it automatically.**
 
 ### 2. Check Current State
 ```
-get_workflow_state(workflow_id)
+get_agent_state(agent_id)
 ```
 
 This tells you:
@@ -36,14 +41,14 @@ This tells you:
 - `DYNAMIC_ONLY` → Dynamic data exists! Run static, then correlate
 - `COMPLETE` → Both exist, run correlation after analysis
 
-### 3. Discover & Link Agents (if dynamic data exists)
+### 3. Discover & Link System Prompts (if dynamic data exists)
 If state is `DYNAMIC_ONLY` or `COMPLETE`:
 ```
-get_agents("unlinked")
+get_system_prompts("unlinked")
 ```
-Link any unlinked agents:
+Link any unlinked system prompts:
 ```
-update_agent_info(agent_id, workflow_id="the-workflow-id")
+update_system_prompt_info(system_prompt_id, agent_id="the-agent-id")
 ```
 
 ### 4. Get Security Patterns
@@ -54,7 +59,7 @@ get_security_patterns()
 
 ### 5. Create Analysis Session
 ```
-create_analysis_session(workflow_id, "STATIC", workflow_name="My Project")
+create_analysis_session(agent_id, "STATIC", agent_name="My Project")
 ```
 
 ### 6. Analyze Code & Store Findings
@@ -81,19 +86,19 @@ complete_analysis_session(session_id)
 ### 8. Correlate (if dynamic data exists)
 If state was `DYNAMIC_ONLY` or `COMPLETE`:
 ```
-get_workflow_correlation(workflow_id)
-get_tool_usage_summary(workflow_id)
+get_agent_correlation(agent_id)
+get_tool_usage_summary(agent_id)
 ```
 
 Report which findings are:
 - **VALIDATED**: Tool was called during dynamic testing
 - **UNEXERCISED**: Tool never called - needs test coverage
 
-### 9. Name Agents (optional)
-If agents exist, give them meaningful names based on code analysis:
+### 9. Name System Prompts (optional)
+If system prompts exist, give them meaningful names based on code analysis:
 ```
-update_agent_info(
-  agent_id="agent-xyz",
+update_system_prompt_info(
+  system_prompt_id="sp-xyz",
   display_name="Customer Support Bot",
   description="Handles booking and billing inquiries"
 )
@@ -104,7 +109,7 @@ update_agent_info(
 ```markdown
 ## Static Analysis Complete
 
-**Workflow:** my-project
+**Agent:** my-project
 **State:** {state}
 **Findings:** X total (Y open)
 
@@ -119,7 +124,7 @@ update_agent_info(
 | delete_user | ⚠️ VALIDATED (called 12x) |
 | bulk_update | ✅ UNEXERCISED |
 
-**Dashboard:** http://localhost:7100/workflow/my-project
+**Dashboard:** http://localhost:7100/agent/my-project
 
 ### Next Steps:
 - Fix CRITICAL findings immediately
@@ -131,14 +136,14 @@ update_agent_info(
 
 | Tool | When to Use |
 |------|-------------|
-| `get_workflow_state` | First - check what data exists |
-| `get_agents("unlinked")` | Find agents needing linking |
-| `update_agent_info` | Link agents + give names |
+| `get_agent_state` | First - check what data exists |
+| `get_system_prompts("unlinked")` | Find system prompts needing linking |
+| `update_system_prompt_info` | Link system prompts + give names |
 | `get_security_patterns` | Get patterns to check |
 | `create_analysis_session` | Start scan |
 | `store_finding` | Record each issue |
 | `complete_analysis_session` | Finalize |
-| `get_workflow_correlation` | Match static ↔ dynamic |
+| `get_agent_correlation` | Match static ↔ dynamic |
 | `get_tool_usage_summary` | See runtime behavior |
 
 ## Setting Up Dynamic Analysis
@@ -148,10 +153,10 @@ After static analysis, if no dynamic data exists, tell user:
 > To validate these findings with runtime behavior, configure your agent:
 >
 > ```python
-> client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
+> client = OpenAI(base_url="http://localhost:4000/agent/my-project")
 > # or
-> client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
+> client = Anthropic(base_url="http://localhost:4000/agent/my-project")
 > ```
 >
 > Then run your agent through test scenarios. View unified results at:
-> http://localhost:7100/workflow/my-project
+> http://localhost:7100/agent/my-project

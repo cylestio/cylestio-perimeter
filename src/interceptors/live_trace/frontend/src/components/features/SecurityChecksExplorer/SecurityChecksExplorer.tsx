@@ -3,7 +3,7 @@ import { useState, useMemo, type FC } from 'react';
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, ExternalLink, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import type { AgentSecurityData, WorkflowSecurityCheck } from '@api/endpoints/workflow';
+import type { AgentSecurityCheck, SystemPromptSecurityData as AgentSecurityData } from '@api/endpoints/agent';
 
 import { TimeAgo } from '@ui/core';
 
@@ -90,7 +90,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   // Group checks by category for current agent
   const checksByCategory = useMemo(() => {
     if (!currentAgent) return {};
-    const grouped: Record<string, WorkflowSecurityCheck[]> = {};
+    const grouped: Record<string, AgentSecurityCheck[]> = {};
     currentAgent.checks.forEach((check) => {
       if (!grouped[check.category_id]) {
         grouped[check.category_id] = [];
@@ -131,8 +131,8 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
     <ExplorerContainer className={className} data-testid="security-checks-explorer">
       <ExplorerHeader>
         <AgentInfo>
-          <AgentLink as={Link} to={`/agent/${agentId}/system-prompt/${currentAgent.agent_id}`}>
-            {currentAgent.agent_id}
+          <AgentLink as={Link} to={`/agent/${agentId}/system-prompt/${currentAgent.system_prompt_id}`}>
+            {currentAgent.system_prompt_id}
             <ExternalLink size={12} />
           </AgentLink>
           {hasMultipleAgents && (

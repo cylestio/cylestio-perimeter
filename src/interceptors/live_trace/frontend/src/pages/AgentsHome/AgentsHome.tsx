@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Folder, Bot } from 'lucide-react';
 
 import type { APIAgent } from '@api/types/dashboard';
-import type { APIWorkflow } from '@api/types/workflows';
+import type { APIAgent as APIAgentType } from '@api/types/agents';
 import { fetchDashboard } from '@api/endpoints/dashboard';
-import { fetchWorkflows } from '@api/endpoints/dashboard';
+import { fetchAgents } from '@api/endpoints/dashboard';
 import { formatAgentName } from '@utils/formatting';
 
 import { Badge } from '@ui/core/Badge';
@@ -14,7 +14,7 @@ import { Table, type Column } from '@ui/data-display/Table';
 import { Skeleton } from '@ui/feedback/Skeleton';
 import { Stack } from '@ui/layout/Grid';
 
-import { WorkflowCard } from '@domain/workflows';
+import { AgentCard } from '@domain/agents';
 
 import { usePageMeta } from '../../context';
 import {
@@ -26,13 +26,13 @@ import {
   SectionHeader,
   SectionTitle,
   SectionBadge,
-  WorkflowsGrid,
+  AgentsGrid,
   UnassignedSection,
-  EmptyWorkflows,
+  EmptyAgents,
   EmptyIcon,
   EmptyTitle,
   EmptyDescription,
-} from './WorkflowsHome.styles';
+} from './AgentsHome.styles';
 
 // Table row type for unassigned agents
 interface AgentRow {
@@ -106,10 +106,10 @@ const agentColumns: Column<AgentRow>[] = [
   },
 ];
 
-export const WorkflowsHome: FC = () => {
+export const AgentsHome: FC = () => {
   const navigate = useNavigate();
-  const [workflows, setWorkflows] = useState<APIWorkflow[]>([]);
-  const [unassignedAgents, setUnassignedAgents] = useState<APIAgent[]>([]);
+  const [agents, setAgents] = useState<APIAgentType[]>([]);
+  const [unassignedSystemPrompts, setUnassignedSystemPrompts] = useState<APIAgent[]>([]);
   const [loading, setLoading] = useState(true);
 
   usePageMeta({
@@ -118,14 +118,14 @@ export const WorkflowsHome: FC = () => {
 
   const loadData = useCallback(async () => {
     try {
-      const [workflowsRes, unassignedRes] = await Promise.all([
-        fetchWorkflows(),
+      const [agentsRes, unassignedRes] = await Promise.all([
+        fetchAgents(),
         fetchDashboard('unassigned'),
       ]);
-      setWorkflows(workflowsRes.workflows.filter(w => w.id !== null));
-      setUnassignedAgents(unassignedRes.agents);
+      setAgents(agentsRes.agents.filter(a => a.id !== null));
+      setUnassignedSystemPrompts(unassignedRes.agents);
     } catch (error) {
-      console.error('Failed to load workflows data:', error);
+      console.error('Failed to load agents data:', error);
     } finally {
       setLoading(false);
     }
@@ -138,16 +138,16 @@ export const WorkflowsHome: FC = () => {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  const handleWorkflowClick = (agentId: string) => {
+  const handleAgentClick = (agentId: string) => {
     navigate(`/agent/${agentId}`);
   };
 
-  const handleAgentClick = (agent: AgentRow) => {
-    navigate(`/agent/unassigned/system-prompt/${agent.id}`);
+  const handleSystemPromptClick = (systemPrompt: AgentRow) => {
+    navigate(`/agent/unassigned/system-prompt/${systemPrompt.id}`);
   };
 
-  const hasWorkflows = workflows.length > 0;
-  const hasUnassignedAgents = unassignedAgents.length > 0;
+  const hasAgents = agents.length > 0;
+  const hasUnassignedSystemPrompts = unassignedSystemPrompts.length > 0;
 
   return (
     <PageContainer>
@@ -170,30 +170,30 @@ export const WorkflowsHome: FC = () => {
             <SectionTitle>
               <Folder size={18} />
               Agents
-              {hasWorkflows && <SectionBadge>{workflows.length}</SectionBadge>}
+              {hasAgents && <SectionBadge>{agents.length}</SectionBadge>}
             </SectionTitle>
           </SectionHeader>
 
-          <WorkflowsGrid>
+          <AgentsGrid>
             {loading ? (
               <>
                 <Skeleton variant="rect" height={180} />
                 <Skeleton variant="rect" height={180} />
                 <Skeleton variant="rect" height={180} />
               </>
-            ) : hasWorkflows ? (
-              workflows.map((workflow) => (
-                <WorkflowCard
-                  key={workflow.id}
-                  id={workflow.id!}
-                  name={workflow.name}
-                  agentCount={workflow.agent_count}
-                  sessionCount={workflow.session_count}
-                  onClick={() => handleWorkflowClick(workflow.id!)}
+            ) : hasAgents ? (
+              agents.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  id={agent.id!}
+                  name={agent.name}
+                  agentCount={agent.system_prompt_count ?? agent.system_prompt_count ?? 0}
+                  sessionCount={agent.session_count}
+                  onClick={() => handleAgentClick(agent.id!)}
                 />
               ))
             ) : (
-              <EmptyWorkflows>
+              <EmptyAgents>
                 <EmptyIcon>
                   <Folder size={24} />
                 </EmptyIcon>
@@ -202,26 +202,26 @@ export const WorkflowsHome: FC = () => {
                   Connect a system prompt with an agent ID to create your first agent.
                   Go to the Connect page for instructions.
                 </EmptyDescription>
-              </EmptyWorkflows>
+              </EmptyAgents>
             )}
-          </WorkflowsGrid>
+          </AgentsGrid>
         </div>
 
         {/* Unassigned System Prompts Section - only show if there are any */}
-        {(hasUnassignedAgents || loading) && (
+        {(hasUnassignedSystemPrompts || loading) && (
           <UnassignedSection>
             <Table
               header={
                 <SectionTitle>
                   <Bot size={18} />
                   Unassigned System Prompts
-                  {hasUnassignedAgents && <SectionBadge>{unassignedAgents.length}</SectionBadge>}
+                  {hasUnassignedSystemPrompts && <SectionBadge>{unassignedSystemPrompts.length}</SectionBadge>}
                 </SectionTitle>
               }
               columns={agentColumns}
-              data={unassignedAgents.map(toAgentRow)}
+              data={unassignedSystemPrompts.map(toAgentRow)}
               loading={loading}
-              onRowClick={handleAgentClick}
+              onRowClick={handleSystemPromptClick}
               keyExtractor={(row) => row.id}
               emptyState={
                 <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-white-50)' }}>

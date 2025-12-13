@@ -7,7 +7,7 @@ description: Trace, debug, and analyze AI agents by running them through Agent I
 
 When the user is building, running, or debugging an AI agent that uses OpenAI or Anthropic APIs, use Agent Inspector to capture and analyze all LLM interactions at runtime.
 
-**Relationship to Static Analysis:** Dynamic analysis complements static analysis by observing actual agent behavior. Use the **same workflow_id** for both static and dynamic analysis to get unified results in the dashboard.
+**Relationship to Static Analysis:** Dynamic analysis complements static analysis by observing actual agent behavior. Use the **same agent_id** for both static and dynamic analysis to get unified results in the dashboard.
 
 ## When to Use Dynamic Analysis
 
@@ -16,7 +16,7 @@ When the user is building, running, or debugging an AI agent that uses OpenAI or
 - User is debugging agent behavior or unexpected responses
 - User wants to understand what prompts are being sent to the LLM
 - User wants to analyze token usage, latency, or costs
-- User is testing agent workflows or multi-turn conversations
+- User is testing agent behavior or multi-turn conversations
 - User mentions "tracing", "debugging", "inspecting", or "monitoring" agents
 - User is troubleshooting why an agent isn't working correctly
 - User wants to see the actual API requests/responses
@@ -47,26 +47,26 @@ See `examples/configs/` for sample configurations (e.g., `anthropic-live-trace.y
 
 The proxy server starts on **port 4000** and the live trace dashboard opens at **http://localhost:7100**.
 
-### Step 2: Configure the Agent's base_url with Workflow ID
+### Step 2: Configure the Agent's base_url with Agent ID
 
-**IMPORTANT:** Use the workflow_id URL pattern to group traces with your static analysis results.
+**IMPORTANT:** Use the agent_id URL pattern to group traces with your static analysis results.
 
 The base_url format is:
 ```
-http://localhost:4000/workflow/<workflow-id>
+http://localhost:4000/agent/<agent-id>
 ```
 
-Choose a consistent `workflow_id` for your project (e.g., `my-agent-v1`, `customer-service-bot`). Use the **same workflow_id** you used in static analysis to get unified results.
+Choose a consistent `agent_id` for your project (e.g., `my-agent-v1`, `customer-service-bot`). Use the **same agent_id** you used in static analysis to get unified results.
 
 **OpenAI:**
 ```python
 import os
 from openai import OpenAI
 
-WORKFLOW_ID = "my-agent-v1"  # Same ID used in static analysis
+AGENT_ID = "my-agent-v1"  # Same ID used in static analysis
 
 client = OpenAI(
-    base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}",
+    base_url=f"http://localhost:4000/agent/{AGENT_ID}",
     api_key=os.getenv("OPENAI_API_KEY")
 )
 ```
@@ -76,10 +76,10 @@ client = OpenAI(
 import os
 from anthropic import Anthropic
 
-WORKFLOW_ID = "my-agent-v1"  # Same ID used in static analysis
+AGENT_ID = "my-agent-v1"  # Same ID used in static analysis
 
 client = Anthropic(
-    base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}",
+    base_url=f"http://localhost:4000/agent/{AGENT_ID}",
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 ```
@@ -112,7 +112,7 @@ cylestio-perimeter run --base-url https://api.anthropic.com --type anthropic
 
 ## Complete Agent Example
 
-When helping users implement agents, include Agent Inspector support with workflow_id:
+When helping users implement agents, include Agent Inspector support with agent_id:
 
 ```python
 #!/usr/bin/env python3
@@ -121,14 +121,14 @@ When helping users implement agents, include Agent Inspector support with workfl
 import os
 from openai import OpenAI
 
-# Define workflow ID - use the same ID across static and dynamic analysis
-WORKFLOW_ID = "my-agent-v1"
+# Define agent ID - use the same ID across static and dynamic analysis
+AGENT_ID = "my-agent-v1"
 
 def create_client(use_perimeter: bool = True):
     """Create OpenAI client, optionally routing through Agent Inspector."""
     if use_perimeter:
         return OpenAI(
-            base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}",
+            base_url=f"http://localhost:4000/agent/{AGENT_ID}",
             api_key=os.getenv("OPENAI_API_KEY")
         )
     return OpenAI()
@@ -136,7 +136,7 @@ def create_client(use_perimeter: bool = True):
 def main():
     client = create_client(use_perimeter=True)
 
-    print(f"Agent running - view traces at http://localhost:7100/workflow/{WORKFLOW_ID}")
+    print(f"Agent running - view traces at http://localhost:7100/agent/{AGENT_ID}")
 
     messages = [{"role": "user", "content": "Hello!"}]
 
@@ -184,15 +184,15 @@ cylestio-perimeter run --config config.yaml --port 3001
 
 Then update agent's base_url:
 ```python
-WORKFLOW_ID = "my-agent-v1"
-client = OpenAI(base_url=f"http://localhost:3001/workflow/{WORKFLOW_ID}", ...)
+AGENT_ID = "my-agent-v1"
+client = OpenAI(base_url=f"http://localhost:3001/agent/{AGENT_ID}", ...)
 ```
 
 ### Traces not appearing in dashboard
 
-1. Verify the agent is configured with the workflow URL pattern
+1. Verify the agent is configured with the agent URL pattern
 2. Check the terminal where Agent Inspector is running for errors
-3. Navigate to `http://localhost:7100/workflow/{workflow_id}` to see your traces
+3. Navigate to `http://localhost:7100/agent/{agent_id}` to see your traces
 
 ### Agent works without inspector but fails with it
 
@@ -205,11 +205,11 @@ client = OpenAI(base_url=f"http://localhost:3001/workflow/{WORKFLOW_ID}", ...)
 Instead of hardcoding base_url, use environment variables:
 
 ```bash
-# Set workflow ID and base URL together
-export WORKFLOW_ID="my-agent-v1"
-export OPENAI_BASE_URL="http://localhost:4000/workflow/${WORKFLOW_ID}"
+# Set agent ID and base URL together
+export AGENT_ID="my-agent-v1"
+export OPENAI_BASE_URL="http://localhost:4000/agent/${AGENT_ID}"
 # Or for Anthropic
-export ANTHROPIC_BASE_URL="http://localhost:4000/workflow/${WORKFLOW_ID}"
+export ANTHROPIC_BASE_URL="http://localhost:4000/agent/${AGENT_ID}"
 ```
 
 Then in code:
@@ -225,23 +225,23 @@ client = Anthropic(base_url=base_url) if base_url else Anthropic()
 
 ## What the Dashboard Shows
 
-The workflow dashboard at `http://localhost:4000/workflow/{workflow_id}` provides:
+The agent dashboard at `http://localhost:7100/agent/{agent_id}` provides:
 
 - **Real-time request/response capture** - See exactly what's sent to the LLM
 - **Session timeline** - Track multi-turn conversations
 - **Risk analytics** - PII detection, behavioral analysis, resource usage
-- **Static + Dynamic unified view** - Combined results when same workflow_id is used
+- **Static + Dynamic unified view** - Combined results when same agent_id is used
 - **Agent health badges** - Quick status overview
 - **Request timing** - Latency and performance metrics
 
-## Workflow Summary
+## Summary
 
-1. **Choose a workflow_id** for your project (e.g., `my-agent-v1`)
+1. **Choose a agent_id** for your project (e.g., `my-agent-v1`)
 2. **Start Agent Inspector** in one terminal: `cylestio-perimeter run --config config.yaml`
-3. **Configure agent** with `base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}"`
+3. **Configure agent** with `base_url=f"http://localhost:4000/agent/{AGENT_ID}"`
 4. **Run your agent** in another terminal
-5. **View traces** at `http://localhost:7100/workflow/{workflow_id}`
-6. **Run static analysis** with the same workflow_id for unified results
+5. **View traces** at `http://localhost:7100/agent/{agent_id}`
+6. **Run static analysis** with the same agent_id for unified results
 
 ## Default Ports
 
@@ -254,43 +254,43 @@ The workflow dashboard at `http://localhost:4000/workflow/{workflow_id}` provide
 
 After dynamic sessions are captured, use MCP tools to analyze and correlate:
 
-### Check Workflow State
+### Check Agent State
 ```
-get_workflow_state(workflow_id)
+get_agent_state(agent_id)
 ```
 Returns: `DYNAMIC_ONLY` if only dynamic data exists.
 
 ### View Tool Usage Patterns
 ```
-get_tool_usage_summary(workflow_id)
+get_tool_usage_summary(agent_id)
 ```
 Shows which tools were called, how often, and coverage metrics.
 
 ### Discover & Name Agents
 ```
-get_agents(workflow_id)
-get_agents("unlinked")  # Find agents not linked to any workflow
+get_system_prompts(agent_id)
+get_system_prompts("unlinked")  # Find system prompts not linked to any agent
 ```
 
 Give agents meaningful names:
 ```
-update_agent_info(agent_id, display_name="Customer Support Bot", description="Handles inquiries")
+update_system_prompt_info(agent_id, display_name="Customer Support Bot", description="Handles inquiries")
 ```
 
 ### Link Unlinked Agents
-If agents were run without a workflow_id in the URL:
+If agents were run without a agent_id in the URL:
 ```
-update_agent_info(agent_id, workflow_id="my-agent-v1")
+update_system_prompt_info(agent_id, agent_id="my-agent-v1")
 ```
 
 ## Correlation: Dynamic → Static Flow
 
 When user has dynamic data and then asks for security analysis:
 
-1. **Check state**: `get_workflow_state(workflow_id)` → `DYNAMIC_ONLY`
-2. **Link any unlinked agents**: `get_agents("unlinked")` → `update_agent_info(...)`
+1. **Check state**: `get_agent_state(agent_id)` → `DYNAMIC_ONLY`
+2. **Link any unlinked agents**: `get_system_prompts("unlinked")` → `update_system_prompt_info(...)`
 3. **Run static analysis** (see static-analysis skill)
-4. **Correlate**: `get_workflow_correlation(workflow_id)`
+4. **Correlate**: `get_agent_correlation(agent_id)`
 
 The correlation shows:
 - **VALIDATED**: Static findings where the tool was exercised at runtime
@@ -306,33 +306,33 @@ The correlation shows:
 Recommendation: Add test scenarios for UNEXERCISED tools.
 ```
 
-## Complete Workflow: Both Static + Dynamic
+## Complete Analysis: Both Static + Dynamic
 
-For full security coverage, use the same workflow_id for both:
+For full security coverage, use the same agent_id for both:
 
 1. **Static Analysis** (via MCP tools):
    ```
-   create_analysis_session(workflow_id="my-agent-v1", session_type="STATIC")
+   create_analysis_session(agent_id="my-agent-v1", session_type="STATIC")
    ```
 
 2. **Dynamic Analysis** (via proxy):
    ```python
-   base_url = "http://localhost:4000/workflow/my-agent-v1"
+   base_url = "http://localhost:4000/agent/my-agent-v1"
    ```
 
 3. **Correlate**:
    ```
-   get_workflow_correlation(workflow_id="my-agent-v1")
+   get_agent_correlation(agent_id="my-agent-v1")
    ```
 
-Both appear unified in the dashboard at `http://localhost:7100/workflow/my-agent-v1`
+Both appear unified in the dashboard at `http://localhost:7100/agent/my-agent-v1`
 
 ## MCP Tools for Dynamic Analysis
 
 | Tool | Purpose |
 |------|---------|
-| `get_workflow_state` | Check what data exists for workflow |
+| `get_agent_state` | Check what data exists for agent |
 | `get_tool_usage_summary` | View runtime tool usage patterns |
-| `get_agents` | List agents (filter: workflow_id, "unlinked") |
-| `update_agent_info` | Name agents, link to workflows |
-| `get_workflow_correlation` | Correlate static ↔ dynamic |
+| `get_system_prompts` | List agents (filter: agent_id, "unlinked") |
+| `update_system_prompt_info` | Name system prompts, link to agents |
+| `get_agent_correlation` | Correlate static ↔ dynamic |

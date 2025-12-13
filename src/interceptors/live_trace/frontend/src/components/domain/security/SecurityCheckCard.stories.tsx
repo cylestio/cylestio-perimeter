@@ -18,7 +18,7 @@ const mockFindings = [
   {
     finding_id: 'F-001',
     session_id: 'S-001',
-    workflow_id: 'W-001',
+    agent_id: 'W-001',
     file_path: 'src/agent.py',
     line_start: 42,
     finding_type: 'PROMPT_INJECT_DIRECT',
@@ -34,7 +34,7 @@ const mockFindings = [
   {
     finding_id: 'F-002',
     session_id: 'S-001',
-    workflow_id: 'W-001',
+    agent_id: 'W-001',
     file_path: 'src/handlers.py',
     line_start: 87,
     finding_type: 'PROMPT_SYSTEM_LEAK',

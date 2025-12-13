@@ -34,15 +34,15 @@ import {
   StatusSpinner,
   StyledCard,
   FooterButton,
-  WorkflowToggle,
+  AgentToggle,
   ToggleOption,
-  WorkflowNote,
-  WorkflowInputGroup,
-  WorkflowInput,
+  AgentNote,
+  AgentInputGroup,
+  AgentInput,
 } from './Connect.styles';
 
 type ConnectionStatus = 'loading' | 'waiting' | 'connected';
-type UrlMode = 'standard' | 'workflow';
+type UrlMode = 'standard' | 'agent';
 
 export const Connect: FC = () => {
   const navigate = useNavigate();
@@ -56,7 +56,7 @@ export const Connect: FC = () => {
   const [agentCount, setAgentCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [urlMode, setUrlMode] = useState<UrlMode>('standard');
-  const [workflowId, setWorkflowId] = useState('my-project');
+  const [agentId, setAgentId] = useState('my-project');
 
   const checkAgentStatus = useCallback(async () => {
     try {
@@ -92,8 +92,8 @@ export const Connect: FC = () => {
     ? `http://localhost:${config.proxy_port}`
     : 'http://localhost:4000';
 
-  const proxyUrl = urlMode === 'workflow'
-    ? `${baseUrl}/agent/${workflowId}`
+  const proxyUrl = urlMode === 'agent'
+    ? `${baseUrl}/agent/${agentId}`
     : baseUrl;
 
   const handleCopy = async () => {
@@ -126,7 +126,7 @@ export const Connect: FC = () => {
           ) : (
             <>
               {/* URL Mode Toggle */}
-              <WorkflowToggle>
+              <AgentToggle>
                 <ToggleOption
                   $active={urlMode === 'standard'}
                   onClick={() => setUrlMode('standard')}
@@ -134,27 +134,27 @@ export const Connect: FC = () => {
                   Standard
                 </ToggleOption>
                 <ToggleOption
-                  $active={urlMode === 'workflow'}
-                  onClick={() => setUrlMode('workflow')}
+                  $active={urlMode === 'agent'}
+                  onClick={() => setUrlMode('agent')}
                 >
                   With Agent
                 </ToggleOption>
-              </WorkflowToggle>
+              </AgentToggle>
 
               <UrlSection>
                 <Text size="sm" color="muted">
                   Set your <Code>base_url</Code> to:
                 </Text>
 
-                {urlMode === 'workflow' && (
-                  <WorkflowInputGroup>
-                    <WorkflowInput
+                {urlMode === 'agent' && (
+                  <AgentInputGroup>
+                    <AgentInput
                       type="text"
-                      value={workflowId}
-                      onChange={(e) => setWorkflowId(e.target.value)}
+                      value={agentId}
+                      onChange={(e) => setAgentId(e.target.value)}
                       placeholder="my-project"
                     />
-                  </WorkflowInputGroup>
+                  </AgentInputGroup>
                 )}
 
                 <UrlBox>
@@ -171,14 +171,14 @@ export const Connect: FC = () => {
                   </Button>
                 </UrlBox>
 
-                {urlMode === 'workflow' && (
-                  <WorkflowNote>
+                {urlMode === 'agent' && (
+                  <AgentNote>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
                     <span>
                       Use an agent ID to group system prompts and link static analysis findings to your project.
-                      The same agent_id should be used in MCP tools when running security scans.
+                      The same system_prompt_id should be used in MCP tools when running security scans.
                     </span>
-                  </WorkflowNote>
+                  </AgentNote>
                 )}
               </UrlSection>
 

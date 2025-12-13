@@ -76,11 +76,13 @@ class LLMMiddleware(BaseHTTPMiddleware):
         response_events = []
         if request_data.session_id and response_body:
             try:
+                # Note: agent_id refers to the LLM instance (system_prompt_id)
+                # project_agent_id refers to the project/agent grouping
                 request_metadata = {
                     'cylestio_trace_id': getattr(request_data.request.state, 'cylestio_trace_id', None),
                     'agent_id': getattr(request_data.request.state, 'agent_id', 'unknown'),
                     'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown'),
-                    'workflow_id': getattr(request_data.request.state, 'workflow_id', None)
+                    'project_agent_id': getattr(request_data.request.state, 'agent_id', None),
                 }
                 
                 response_events = self.provider.extract_response_events(

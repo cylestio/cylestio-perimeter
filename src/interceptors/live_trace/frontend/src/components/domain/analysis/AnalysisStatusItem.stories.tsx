@@ -423,18 +423,18 @@ export const WithNavigation: Story = {
     label: 'Static Analysis',
     status: 'ok',
     stat: 'All passed',
-    to: '/workflow/test-workflow/static-analysis',
+    to: '/agent/test-agent/static-analysis',
   },
   parameters: {
     router: {
-      initialEntries: ['/workflow/test-workflow'],
+      initialEntries: ['/agent/test-agent'],
     },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const link = canvas.getByRole('link');
     await expect(link).toBeInTheDocument();
-    await expect(link).toHaveAttribute('href', '/workflow/test-workflow/static-analysis');
+    await expect(link).toHaveAttribute('href', '/agent/test-agent/static-analysis');
   },
 };
 
@@ -443,12 +443,12 @@ export const WithNavigationActive: Story = {
     label: 'Static Analysis',
     status: 'ok',
     stat: 'All passed',
-    to: '/workflow/test-workflow/static-analysis',
+    to: '/agent/test-agent/static-analysis',
     active: true,
   },
   parameters: {
     router: {
-      initialEntries: ['/workflow/test-workflow/static-analysis'],
+      initialEntries: ['/agent/test-agent/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -463,7 +463,7 @@ export const NavigationDisabled: Story = {
   args: {
     label: 'Static Analysis',
     status: 'inactive',
-    to: '/workflow/test-workflow/static-analysis',
+    to: '/agent/test-agent/static-analysis',
     disabled: true,
   },
   play: async ({ canvasElement }) => {
@@ -478,7 +478,7 @@ export const NavigationCollapsed: Story = {
   args: {
     label: 'Static Analysis',
     status: 'ok',
-    to: '/workflow/test-workflow/static-analysis',
+    to: '/agent/test-agent/static-analysis',
     collapsed: true,
   },
   decorators: [

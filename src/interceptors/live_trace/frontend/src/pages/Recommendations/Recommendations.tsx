@@ -18,7 +18,7 @@ import {
   dismissRecommendation,
   fetchRecommendationAuditLog,
   type AuditLogEntry,
-} from '@api/endpoints/workflow';
+} from '@api/endpoints/agent';
 import type { 
   Recommendation, 
   RecommendationStatus,

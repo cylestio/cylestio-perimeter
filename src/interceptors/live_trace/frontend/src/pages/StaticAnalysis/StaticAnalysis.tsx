@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FC } from 'react';
 import { Shield } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
-import { fetchStaticSummary } from '@api/endpoints/workflow';
+import { fetchStaticSummary } from '@api/endpoints/agent';
 import type { StaticAnalysisSummary, StaticCheckCategory, Finding } from '@api/types/findings';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -50,7 +50,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch static summary for this workflow
+  // Fetch static summary for this agent
   const fetchData = useCallback(async () => {
     if (!agentId) return;
 

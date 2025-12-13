@@ -30,10 +30,10 @@ export interface AnalysisSessionsTableProps {
   maxRows?: number;
 }
 
-// Get agent name - prefer agent_id, fallback to extracting from session_id
+// Get agent name - prefer system_prompt_id, fallback to extracting from session_id
 const getAgentName = (session: AnalysisSession): string | null => {
-  if (session.agent_id) {
-    return session.agent_id.length > 20 ? session.agent_id.slice(0, 20) : session.agent_id;
+  if (session.system_prompt_id) {
+    return session.system_prompt_id.length > 20 ? session.system_prompt_id.slice(0, 20) : session.system_prompt_id;
   }
   const extracted = extractAgentFromSessionId(session.session_id);
   if (extracted) {
@@ -42,9 +42,9 @@ const getAgentName = (session: AnalysisSession): string | null => {
   return null;
 };
 
-// Get agent ID for linking - prefer agent_id, fallback to extracted
+// Get agent ID for linking - prefer system_prompt_id, fallback to extracted
 const getAgentId = (session: AnalysisSession): string | null => {
-  return session.agent_id || extractAgentFromSessionId(session.session_id);
+  return session.system_prompt_id || extractAgentFromSessionId(session.session_id);
 };
 
 export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
@@ -74,7 +74,7 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       ),
     },
     {
-      key: 'agent_id',
+      key: 'system_prompt_id',
       header: 'System prompt',
       width: '180px',
       render: (session) => {

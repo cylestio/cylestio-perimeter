@@ -167,8 +167,8 @@ Query parameters for `/api/security-checks`:
 ```sql
 CREATE TABLE security_checks (
     check_id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
-    workflow_id TEXT,
+    system_prompt_id TEXT NOT NULL,
+    agent_id TEXT,
     analysis_session_id TEXT NOT NULL,
     category_id TEXT NOT NULL,
     check_type TEXT NOT NULL,

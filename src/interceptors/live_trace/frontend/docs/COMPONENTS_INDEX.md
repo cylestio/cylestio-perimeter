@@ -27,7 +27,7 @@
 |----------|------------|
 | `domain/layout/` | Shell, Sidebar, TopBar, UserMenu, Logo |
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
-| `domain/workflows/` | WorkflowSelector |
+| `domain/agents/` | AgentSelector |
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
 | `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
@@ -923,37 +923,37 @@ interface FindingsSummary {
 
 ---
 
-## Workflows Components
+## Agent Selector Components
 
-### WorkflowSelector
+### AgentSelector
 
-Dropdown selector for filtering by workflow/project. Shows "All Workflows" option plus individual workflows with agent counts.
+Dropdown selector for filtering by agent/project. Shows "All Agents" option plus individual agents with system prompt counts.
 
 ```typescript
-interface Workflow {
+interface Agent {
   id: string | null;  // null = "Unassigned"
   name: string;
-  agentCount: number;
+  systemPromptCount: number;
 }
 
-interface WorkflowSelectorProps {
-  workflows: Workflow[];
-  selectedWorkflow: Workflow | null;  // null = show all
-  onSelect: (workflow: Workflow | null) => void;
-  label?: string;      // Default: "Workflow"
+interface AgentSelectorProps {
+  agents: Agent[];
+  selectedAgent: Agent | null;  // null = show all
+  onSelect: (agent: Agent | null) => void;
+  label?: string;      // Default: "Agent"
   collapsed?: boolean; // Show icon only
 }
 ```
 
 **Usage:**
 ```tsx
-<WorkflowSelector
-  workflows={[
-    { id: 'ecommerce', name: 'E-Commerce Agents', agentCount: 5 },
-    { id: null, name: 'Unassigned', agentCount: 2 },
+<AgentSelector
+  agents={[
+    { id: 'ecommerce', name: 'E-Commerce Agents', systemPromptCount: 5 },
+    { id: null, name: 'Unassigned', systemPromptCount: 2 },
   ]}
-  selectedWorkflow={selectedWorkflow}
-  onSelect={setSelectedWorkflow}
+  selectedAgent={selectedAgent}
+  onSelect={setSelectedAgent}
 />
 ```
 
@@ -996,8 +996,8 @@ interface AnalysisStatusItemProps {
   label="Static Analysis"
   status="ok"
   collapsed={sidebarCollapsed}
-  to={`/workflow/${workflowId}/static-analysis`}
-  active={location.pathname === `/workflow/${workflowId}/static-analysis`}
+  to={`/agent/${agentId}/static-analysis`}
+  active={location.pathname === `/agent/${agentId}/static-analysis`}
 />
 
 // Dynamic scan with warnings
@@ -1025,7 +1025,7 @@ interface AnalysisStatusItemProps {
   collapsed={sidebarCollapsed}
 />
 
-// Disabled (e.g., for unassigned workflows)
+// Disabled (e.g., for unassigned agents)
 <AnalysisStatusItem
   label="Static Analysis"
   status="inactive"
@@ -1124,7 +1124,7 @@ Reusable data table for displaying session lists with status, metrics, and navig
 ```typescript
 interface SessionsTableProps {
   sessions: SessionListItem[];  // Session data from API
-  workflowId: string;           // For generating session links
+  agentId: string;           // For generating session links
   loading?: boolean;            // Show loading state
   emptyMessage?: string;        // Custom empty state message
   showAgentColumn?: boolean;    // Show agent ID column (default: false)
@@ -1136,7 +1136,7 @@ interface SessionListItem {
   id_short: string;
   agent_id: string;
   agent_id_short: string | null;
-  workflow_id: string | null;
+  agent_id: string | null;
   created_at: string;
   last_activity: string;
   last_activity_relative: string;
@@ -1168,14 +1168,14 @@ interface SessionListItem {
 // Basic usage
 <SessionsTable
   sessions={sessions}
-  workflowId={workflowId}
+  agentId={agentId}
   emptyMessage="No sessions found."
 />
 
-// With agent column (for workflow-level views)
+// With system prompt column (for agent-level views)
 <SessionsTable
   sessions={sessions}
-  workflowId={workflowId}
+  agentId={agentId}
   showAgentColumn
   loading={isLoading}
 />

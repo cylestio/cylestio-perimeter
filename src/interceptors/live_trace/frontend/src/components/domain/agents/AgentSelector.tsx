@@ -1,9 +1,12 @@
 import type { FC } from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
-import { Avatar } from '@ui/core/Avatar';
+
+import { ChevronDown, Check, Folder, FolderOpen } from 'lucide-react';
+
+import { Badge } from '@ui/core/Badge';
 import { Label } from '@ui/core/Label';
 import { Text } from '@ui/core/Text';
+
 import {
   AgentSelectorContainer,
   AgentSelectBox,
@@ -11,21 +14,19 @@ import {
   DropdownIcon,
   AgentDropdown,
   AgentOption,
+  AgentIcon,
 } from './AgentSelector.styles';
 
 // Types
-export type AgentStatus = 'online' | 'offline' | 'error';
-
 export interface Agent {
-  id: string;
+  id: string | null; // null = "Unassigned"
   name: string;
-  initials: string;
-  status: AgentStatus;
+  agentCount: number;
 }
 
 export interface AgentSelectorProps {
   agents: Agent[];
-  selectedAgent: Agent;
+  selectedAgent: Agent | null;
   onSelect: (agent: Agent) => void;
   label?: string;
   collapsed?: boolean;
@@ -36,11 +37,14 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
   agents,
   selectedAgent,
   onSelect,
-  label = 'Active Agent',
+  label = 'Agent',
   collapsed = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Display agent defaults to first agent if none selected
+  const displayAgent = selectedAgent ?? agents[0];
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -67,16 +71,21 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
     }
   };
 
+  const isSelected = (agent: Agent) => {
+    return selectedAgent?.id === agent.id;
+  };
+
+  // Don't render if no agents
+  if (agents.length === 0) {
+    return null;
+  }
+
   if (collapsed) {
     return (
       <AgentSelectorContainer ref={containerRef} $collapsed>
-        <Avatar
-          initials={selectedAgent.initials}
-          status={selectedAgent.status}
-          variant="gradient"
-          size="md"
-          title={selectedAgent.name}
-        />
+        <AgentIcon title={displayAgent?.name ?? 'Agent'}>
+          <Folder size={20} />
+        </AgentIcon>
       </AgentSelectorContainer>
     );
   }
@@ -94,17 +103,17 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <Avatar
-          initials={selectedAgent.initials}
-          status={selectedAgent.status}
-          variant="gradient"
-          size="md"
-        />
+        <AgentIcon>
+          {isOpen ? <FolderOpen size={18} /> : <Folder size={18} />}
+        </AgentIcon>
         <AgentInfo>
           <Text size="sm" truncate>
-            {selectedAgent.name}
+            {displayAgent?.name ?? 'Select agent'}
           </Text>
         </AgentInfo>
+        <Badge variant="info" size="sm">
+          {displayAgent?.agentCount ?? 0}
+        </Badge>
         <DropdownIcon $open={isOpen}>
           <ChevronDown size={16} />
         </DropdownIcon>
@@ -114,22 +123,23 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
         <AgentDropdown role="listbox">
           {agents.map((agent) => (
             <AgentOption
-              key={agent.id}
+              key={agent.id ?? 'unassigned'}
               onClick={() => handleSelect(agent)}
               role="option"
-              aria-selected={agent.id === selectedAgent.id}
-              $selected={agent.id === selectedAgent.id}
+              aria-selected={isSelected(agent)}
+              $selected={isSelected(agent)}
+              $isAll={false}
             >
-              <Avatar
-                initials={agent.initials}
-                status={agent.status}
-                variant="gradient"
-                size="sm"
-              />
+              <AgentIcon $small>
+                <Folder size={14} />
+              </AgentIcon>
               <Text size="sm" truncate>
                 {agent.name}
               </Text>
-              {agent.id === selectedAgent.id && <Check size={14} />}
+              <Badge variant={agent.id === null ? 'medium' : 'info'} size="sm">
+                {agent.agentCount}
+              </Badge>
+              {isSelected(agent) && <Check size={14} />}
             </AgentOption>
           ))}
         </AgentDropdown>

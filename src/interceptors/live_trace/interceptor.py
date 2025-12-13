@@ -231,7 +231,11 @@ class LiveTraceInterceptor(BaseInterceptor):
             import uvicorn
 
             # Create the FastAPI app
-            app = create_trace_server(self.insights, self.refresh_interval)
+            app = create_trace_server(
+                self.insights,
+                self.refresh_interval,
+                analysis_runner=self.analysis_runner,
+            )
 
             # Run the server
             uvicorn.run(

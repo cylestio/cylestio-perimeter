@@ -18,9 +18,9 @@ import { ThemeProvider } from 'styled-components';
 import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { IDEConnectionStatus } from '@api/types/ide';
-import type { APIWorkflow } from '@api/types/workflows';
+import type { APIAgent as APIAgentType } from '@api/types/agents';
 import { fetchConfig } from '@api/endpoints/config';
-import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
+import { fetchDashboard, fetchAgents } from '@api/endpoints/dashboard';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import { usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
@@ -34,13 +34,13 @@ import { Sidebar } from '@domain/layout/Sidebar';
 import { TopBar } from '@domain/layout/TopBar';
 import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
-import { WorkflowSelector, type Workflow } from '@domain/workflows';
+import { AgentSelector, type Agent } from '@domain/agents';
 import { SecurityCheckItem, type SecurityCheckStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
 import { 
-  AgentDetail, 
-  AgentReport, 
+  SystemPromptDetail, 
+  SystemPromptReport, 
   AttackSurface,
   Connect, 
   DevConnection,
@@ -52,7 +52,8 @@ import {
   SessionDetail, 
   Sessions, 
   StaticAnalysis,
-  WorkflowsHome 
+  AgentsHome,
+  AgentDetail,
 } from '@pages/index';
 
 // Convert backend stage status to SecurityCheckStatus
@@ -119,11 +120,11 @@ function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | unde
   return undefined;
 }
 
-// Convert API workflow to component workflow
-const toWorkflow = (api: APIWorkflow): Workflow => ({
+// Convert API agent to component Agent type
+const toAgent = (api: APIAgentType): Agent => ({
   id: api.id,
   name: api.name,
-  agentCount: api.agent_count,
+  agentCount: api.system_prompt_count ?? api.system_prompt_count ?? 0,
 });
 
 // Extract agentId from URL pathname (e.g., /agent/abc123/system-prompt/xyz -> abc123)
@@ -153,8 +154,8 @@ function AppLayout() {
   const isUnassignedContext = urlAgentId === 'unassigned';
 
   // Agent list state (for dropdown)
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentsLoaded, setAgentsLoaded] = useState(false);
 
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -163,27 +164,27 @@ function AppLayout() {
   const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
   // Derive selected agent from URL
-  const selectedWorkflow = (() => {
+  const selectedAgent = (() => {
     if (!urlAgentId) return null;
     if (urlAgentId === 'unassigned') {
       return { id: 'unassigned', name: 'Unassigned', agentCount: 0 };
     }
-    return workflows.find(w => w.id === urlAgentId) ?? null;
+    return agents.find(a => a.id === urlAgentId) ?? null;
   })();
 
   // Get breadcrumbs from page context
   const { breadcrumbs, hide: hideTopBar } = usePageMetaValue();
 
-  // Fetch workflows on mount
+  // Fetch agents on mount
   useEffect(() => {
-    fetchWorkflows()
+    fetchAgents()
       .then((response) => {
-        setWorkflows(response.workflows.map(toWorkflow));
-        setWorkflowsLoaded(true);
+        setAgents(response.agents.map(toAgent));
+        setAgentsLoaded(true);
       })
       .catch((error) => {
-        console.error('Failed to fetch workflows:', error);
-        setWorkflowsLoaded(true); // Mark as loaded even on error to unblock redirect
+        console.error('Failed to fetch agents:', error);
+        setAgentsLoaded(true); // Mark as loaded even on error to unblock redirect
       });
   }, []);
 
@@ -200,8 +201,8 @@ function AppLayout() {
   useEffect(() => {
     const fetchIDE = async () => {
       try {
-        const workflowIdForIDE = urlAgentId === 'unassigned' ? undefined : urlAgentId ?? undefined;
-        const status = await fetchIDEConnectionStatus(workflowIdForIDE);
+        const agentIdForIDE = urlAgentId === 'unassigned' ? undefined : urlAgentId ?? undefined;
+        const status = await fetchIDEConnectionStatus(agentIdForIDE);
         setIDEConnectionStatus(status);
       } catch {
         // Silently fail - IDE connection is optional
@@ -214,12 +215,12 @@ function AppLayout() {
     return () => clearInterval(interval);
   }, [urlAgentId]);
 
-  // Refresh workflows periodically (every 30 seconds)
+  // Refresh agents periodically (every 30 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchWorkflows()
+      fetchAgents()
         .then((response) => {
-          setWorkflows(response.workflows.map(toWorkflow));
+          setAgents(response.agents.map(toAgent));
         })
         .catch(() => {
           // Silently ignore refresh errors
@@ -229,43 +230,43 @@ function AppLayout() {
   }, []);
 
   // Handle agent selection - navigate to new URL
-  const handleWorkflowSelect = useCallback((workflow: Workflow) => {
-    if (workflow.id === null) {
+  const handleAgentSelect = useCallback((agent: Agent) => {
+    if (agent.id === null) {
       // Unassigned agent - use 'unassigned' in URL
       navigate('/agent/unassigned');
     } else {
       // Specific agent - go to agent overview
-      navigate(`/agent/${workflow.id}`);
+      navigate(`/agent/${agent.id}`);
     }
   }, [navigate]);
 
   // Poll dashboard data filtered by URL agent
-  const workflowIdForFetch = urlAgentId === 'unassigned' ? 'unassigned' : urlAgentId ?? undefined;
+  const agentIdForFetch = urlAgentId === 'unassigned' ? 'unassigned' : urlAgentId ?? undefined;
   const fetchFn = useCallback(
-    () => fetchDashboard(workflowIdForFetch),
-    [workflowIdForFetch]
+    () => fetchDashboard(agentIdForFetch),
+    [agentIdForFetch]
   );
   const { data, loading } = usePolling<DashboardResponse>(fetchFn, {
     interval: 2000,
     enabled: true,
   });
 
-  const agents = data?.agents ?? [];
+  const systemPrompts = data?.agents ?? [];
   const dashboardLoaded = !loading && data !== null;
 
-  // Derive if we have any data (workflows or agents)
-  const hasData = workflows.length > 0 || agents.length > 0;
+  // Derive if we have any data (agents or system prompts)
+  const hasData = agents.length > 0 || systemPrompts.length > 0;
 
   // Redirect logic based on data availability
   useEffect(() => {
     // Only act when both data sources have loaded
-    if (!workflowsLoaded || !dashboardLoaded) return;
+    if (!agentsLoaded || !dashboardLoaded) return;
 
     if (location.pathname === '/' && !hasData) {
       // No data → show Connect page
       navigate('/connect', { replace: true });
     }
-  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, navigate]);
+  }, [location.pathname, agentsLoaded, dashboardLoaded, hasData, navigate]);
 
   // Security check states
   const staticStatus = stageToSecurityStatus(data?.security_analysis?.static);
@@ -296,12 +297,12 @@ function AppLayout() {
           <Logo />
         </Sidebar.Header>
         
-        {/* Workflow Selector - only show if there are workflows and NOT on root page */}
-        {workflows.length > 0 && !isRootPage && (
-          <WorkflowSelector
-            workflows={workflows}
-            selectedWorkflow={selectedWorkflow}
-            onSelect={handleWorkflowSelect}
+        {/* Agent Selector - only show if there are agents and NOT on root page */}
+        {agents.length > 0 && !isRootPage && (
+          <AgentSelector
+            agents={agents}
+            selectedAgent={selectedAgent}
+            onSelect={handleAgentSelect}
             collapsed={sidebarCollapsed}
           />
         )}
@@ -331,7 +332,7 @@ function AppLayout() {
               <NavItem
                 label="System prompts"
                 icon={<LayoutDashboard size={18} />}
-                badge={agents.length > 0 ? agents.length : undefined}
+                badge={systemPrompts.length > 0 ? systemPrompts.length : undefined}
                 active={location.pathname === `/agent/${urlAgentId}/system-prompts` || location.pathname === `/agent/${urlAgentId}`}
                 to={`/agent/${urlAgentId}/system-prompts`}
                 collapsed={sidebarCollapsed}
@@ -455,7 +456,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading, securityAnalysis: data?.security_analysis }} />
+          <Outlet context={{ agents: systemPrompts, sessionsCount: data?.sessions_count ?? 0, loading, securityAnalysis: data?.security_analysis }} />
         </Content>
       </Main>
     </Shell>
@@ -471,7 +472,7 @@ function App() {
           <Routes>
             <Route element={<AppLayout />}>
               {/* Root routes - Agents landing page */}
-              <Route path="/" element={<WorkflowsHome />} />
+              <Route path="/" element={<AgentsHome />} />
               <Route path="/connect" element={<Connect />} />
               
               {/* Agent-prefixed routes - redirect base path to overview */}
@@ -479,6 +480,7 @@ function App() {
               
               {/* Developer section */}
               <Route path="/agent/:agentId/overview" element={<Overview />} />
+              <Route path="/agent/:agentId/detail" element={<AgentDetail />} />
               <Route path="/agent/:agentId/system-prompts" element={<Portfolio />} />
               <Route path="/agent/:agentId/sessions" element={<Sessions />} />
               <Route path="/agent/:agentId/recommendations" element={<Recommendations />} />
@@ -493,8 +495,8 @@ function App() {
               <Route path="/agent/:agentId/attack-surface" element={<AttackSurface />} />
               
               {/* Detail pages */}
-              <Route path="/agent/:agentId/system-prompt/:systemPromptId" element={<AgentDetail />} />
-              <Route path="/agent/:agentId/system-prompt/:systemPromptId/report" element={<AgentReport />} />
+              <Route path="/agent/:agentId/system-prompt/:systemPromptId" element={<SystemPromptDetail />} />
+              <Route path="/agent/:agentId/system-prompt/:systemPromptId/report" element={<SystemPromptReport />} />
               <Route path="/agent/:agentId/session/:sessionId" element={<SessionDetail />} />
             </Route>
           </Routes>

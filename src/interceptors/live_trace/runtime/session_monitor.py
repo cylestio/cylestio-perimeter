@@ -111,49 +111,28 @@ class SessionMonitor:
         logger.info("Session monitor stopped")
 
     def check_pending_on_startup(self) -> None:
-        """Check for agents needing analysis on startup.
-
-        This handles the case where sessions completed before server restart
-        and analysis was never triggered.
+        """Check for pending sessions on startup (logging only).
+        
+        Note: With manual triggering model, we don't auto-run analysis.
+        This just logs if there are pending sessions that need analysis.
         """
-        try:
-            def run_check():
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(self._analysis_runner.check_pending_on_startup())
-                    finally:
-                        loop.close()
-                except Exception as e:
-                    logger.error(f"Error in startup analysis check: {e}")
-
-            thread = threading.Thread(
-                target=run_check,
-                daemon=True,
-                name="StartupAnalysisCheck"
-            )
-            thread.start()
-            logger.info("Startup analysis check initiated")
-        except Exception as e:
-            logger.error(f"Failed to start startup analysis check: {e}")
+        # No auto-analysis on startup - users trigger manually via UI/API
+        logger.info("Session monitor started - dynamic analysis is triggered manually via UI/API")
 
     def _run_checker(self) -> None:
-        """Main loop: check for completed sessions, trigger analysis."""
+        """Main loop: check for completed sessions.
+        
+        Note: Dynamic analysis is now triggered manually via API/UI, not automatically
+        on session completion. This loop only marks inactive sessions as complete.
+        """
         logger.info("Session monitor thread started")
 
         while not self._stop_event.is_set():
             try:
                 # Check for sessions that should be marked as completed
                 # Returns list of agent IDs that had sessions completed
-                completed_agent_ids = self._store.check_and_complete_sessions(self._timeout)
-
-                # Trigger analysis for each agent that had sessions complete
-                for agent_id in completed_agent_ids:
-                    try:
-                        self._analysis_runner.trigger(agent_id)
-                    except Exception as e:
-                        logger.error(f"Error triggering analysis for agent {agent_id}: {e}")
+                # Note: We no longer auto-trigger analysis here - it's manual now
+                self._store.check_and_complete_sessions(self._timeout)
             except Exception as e:
                 logger.error(f"Error in session monitor: {e}")
 

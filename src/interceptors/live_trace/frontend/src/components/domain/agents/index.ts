@@ -1,11 +1,8 @@
-export { AgentCard } from './AgentCard';
-export type { AgentCardProps, RiskStatus } from './AgentCard';
+// Agent components - for selecting and displaying top-level Agents
+// An "Agent" represents a project grouping that contains System Prompts
 
-export { AgentListItem } from './AgentListItem';
-export type { AgentListItemProps } from './AgentListItem';
+export { AgentCard } from './AgentCard';
+export type { AgentCardProps } from './AgentCard';
 
 export { AgentSelector } from './AgentSelector';
 export type { AgentSelectorProps, Agent } from './AgentSelector';
-
-export { ModeIndicators } from './ModeIndicators';
-export type { ModeIndicatorsProps } from './ModeIndicators';

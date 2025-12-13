@@ -11,7 +11,7 @@ import {
   type SystemPromptSecurityData,
   type AgentSecurityChecksSummary,
   type AgentBehavioralAnalysisResponse,
-} from '@api/endpoints/workflow';
+} from '@api/endpoints/agent';
 import type { SecurityAnalysis } from '@api/types/dashboard';
 
 import { Badge } from '@ui/core/Badge';

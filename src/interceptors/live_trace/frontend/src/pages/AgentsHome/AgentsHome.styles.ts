@@ -56,7 +56,7 @@ export const SectionBadge = styled.span`
   color: ${({ theme }) => theme.colors.white50};
 `;
 
-export const WorkflowsGrid = styled.div`
+export const AgentsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: ${({ theme }) => theme.spacing[4]};
@@ -68,7 +68,7 @@ export const UnassignedSection = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
 `;
 
-export const EmptyWorkflows = styled.div`
+export const EmptyAgents = styled.div`
   grid-column: 1 / -1;
   text-align: center;
   padding: ${({ theme }) => theme.spacing[12]} ${({ theme }) => theme.spacing[6]};

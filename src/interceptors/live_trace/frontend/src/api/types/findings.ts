@@ -20,7 +20,7 @@ export interface FindingEvidence {
 export interface Finding {
   finding_id: string;
   session_id: string;
-  workflow_id: string;
+  agent_id: string;
   file_path: string;
   line_start?: number;
   line_end?: number;
@@ -50,10 +50,10 @@ export interface Finding {
   fingerprint?: string;
 }
 
-// Recommendation for fix workflow
+// Recommendation for fixing security issues
 export interface Recommendation {
   recommendation_id: string;  // REC-XXX format
-  workflow_id: string;
+  agent_id: string;
   source_type: 'STATIC' | 'DYNAMIC';
   source_check_id: string;
   source_finding_id?: string;
@@ -145,7 +145,7 @@ export interface StaticCheckCategory {
 
 // Static analysis summary response
 export interface StaticAnalysisSummary {
-  workflow_id: string;
+  agent_id: string;
   last_scan?: {
     timestamp: string;
     scanned_by?: string;
@@ -167,9 +167,9 @@ export interface StaticAnalysisSummary {
 
 export interface AnalysisSession {
   session_id: string;
-  workflow_id: string;
-  workflow_name?: string;
-  agent_id?: string;
+  agent_id: string;
+  agent_name?: string;
+  system_prompt_id?: string;
   session_type: SessionType;
   status: SessionStatus;
   created_at: string; // ISO date string
@@ -179,7 +179,7 @@ export interface AnalysisSession {
 }
 
 export interface FindingsSummary {
-  workflow_id: string;
+  agent_id: string;
   total_findings: number;
   by_severity: Record<string, number>;
   by_status: Record<string, number>;
@@ -190,7 +190,7 @@ export interface FindingsSummary {
 }
 
 // API Response Types
-export interface WorkflowFindingsResponse {
+export interface AgentFindingsResponse {
   findings: Finding[];
   summary: FindingsSummary;
 }

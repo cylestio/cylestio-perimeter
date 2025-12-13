@@ -181,7 +181,7 @@ function computeAvgLatency(events: SessionEvent[]): number {
 // const MOCK_BEHAVIORAL_INSIGHTS = {
 //   status: 'cluster' as 'cluster' | 'outlier',
 //   cluster: {
-//     name: 'Standard Workflow',
+//     name: 'Standard Agent',
 //     size: 45,
 //     percentage: 67,
 //     avgDuration: 4.2,

@@ -34,6 +34,13 @@ export const AgentSelectBox = styled.div`
   border-radius: ${({ theme }) => theme.radii.md};
   cursor: pointer;
   transition: all ${({ theme }) => theme.transitions.fast};
+  min-width: 0; /* Allow content to shrink */
+
+  /* Prevent badge and chevron from shrinking */
+  > span:last-of-type,
+  > div:last-child {
+    flex-shrink: 0;
+  }
 
   &:hover {
     border-color: ${({ theme }) => theme.colors.borderStrong};
@@ -49,6 +56,28 @@ export const AgentSelectBox = styled.div`
 export const AgentInfo = styled.div`
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+
+  /* Ensure text truncates */
+  > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+`;
+
+export const AgentIcon = styled.span<{ $small?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.cyan};
+
+  ${({ $small }) =>
+    $small &&
+    css`
+      color: ${({ theme }) => theme.colors.white30};
+    `}
 `;
 
 export const DropdownIcon = styled.span<{ $open: boolean }>`
@@ -70,9 +99,11 @@ export const AgentDropdown = styled.div`
   margin-top: ${({ theme }) => theme.spacing[1]};
   z-index: ${({ theme }) => theme.zIndex.dropdown};
   box-shadow: ${({ theme }) => theme.shadows.lg};
+  max-height: 300px;
+  overflow-y: auto;
 `;
 
-export const AgentOption = styled.div<{ $selected: boolean }>`
+export const AgentOption = styled.div<{ $selected: boolean; $isAll?: boolean }>`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[3]};
@@ -80,11 +111,29 @@ export const AgentOption = styled.div<{ $selected: boolean }>`
   border-radius: ${({ theme }) => theme.radii.md};
   cursor: pointer;
   transition: background ${({ theme }) => theme.transitions.fast};
+  min-width: 0; /* Allow flex items to shrink */
+
+  /* Text truncation */
+  > span:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   ${({ $selected, theme }) =>
     $selected &&
     css`
       background: ${theme.colors.white04};
+    `}
+
+  ${({ $isAll, theme }) =>
+    $isAll &&
+    css`
+      border-bottom: 1px solid ${theme.colors.borderSubtle};
+      margin-bottom: ${theme.spacing[1]};
+      padding-bottom: ${theme.spacing[3]};
     `}
 
   &:hover {
@@ -94,5 +143,6 @@ export const AgentOption = styled.div<{ $selected: boolean }>`
   svg:last-child {
     margin-left: auto;
     color: ${({ theme }) => theme.colors.cyan};
+    flex-shrink: 0;
   }
 `;

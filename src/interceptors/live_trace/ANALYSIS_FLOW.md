@@ -189,8 +189,7 @@ Stores analysis run metadata.
 | Column | Type | Description |
 |--------|------|-------------|
 | session_id | TEXT PK | Unique analysis session ID |
-| agent_id | TEXT | Agent being analyzed |
-| workflow_id | TEXT | Workflow identifier |
+| agent_id | TEXT | Agent (project) being analyzed |
 | session_type | TEXT | "DYNAMIC" for runtime analysis |
 | status | TEXT | "pending", "completed" |
 | findings_count | INTEGER | Number of security checks |

@@ -272,7 +272,7 @@ As soon as MCP tools are available, call `register_ide_connection` with ALL para
 ```
 register_ide_connection(
   ide_type="cursor",           // REQUIRED: "cursor" or "claude-code"
-  workflow_id="my-agent",      // REQUIRED: from folder name
+  agent_id="my-agent",      // REQUIRED: from folder name
   workspace_path="/path/to/project",  // REQUIRED: full workspace path
   model="claude-opus-4.5"      // REQUIRED: your AI model name
 )
@@ -282,7 +282,7 @@ register_ide_connection(
 | Parameter | How to determine |
 |-----------|------------------|
 | `ide_type` | `"cursor"` if in Cursor IDE, `"claude-code"` if Claude Code CLI |
-| `workflow_id` | Agent project folder name (e.g., `"next-rooms"`, `"my-agent"`) |
+| `agent_id` | Agent project folder name (e.g., `"next-rooms"`, `"my-agent"`) |
 | `workspace_path` | Full path to the workspace you're editing |
 | `model` | Your AI model name (see table above) |
 
@@ -358,12 +358,12 @@ ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER
 
 If MCP is connected, use the Agent Inspector tools to:
 1. Get security patterns: `get_security_patterns()`
-2. Create analysis session: `create_analysis_session(workflow_id, "STATIC")`
+2. Create analysis session: `create_analysis_session(agent_id, "STATIC")`
 3. Analyze the code files for each pattern
 4. Store any findings: `store_finding(...)`
 5. Complete the session: `complete_analysis_session(session_id)`
 
-**Derive workflow_id from folder name** (e.g., `next-rooms`).
+**Derive agent_id from folder name** (e.g., `next-rooms`).
 
 If MCP not connected yet, tell user:
 > "Reload Cursor, then ask me to 'run a security scan' and I'll analyze your agent code."

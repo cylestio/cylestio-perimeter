@@ -1,34 +1,48 @@
-import type { BreadcrumbItem } from '@ui/navigation/Breadcrumb';
-
-export type { BreadcrumbItem };
+export interface BreadcrumbItem {
+  label: string;
+  to?: string;
+  href?: string;
+}
 
 /**
- * Builds breadcrumbs with agent context.
- * Always starts with Agents, then adds agent name (or Unassigned), then page-specific items.
+ * Build breadcrumbs for agent pages
+ * @param agentId - The agent ID (or null/undefined for unassigned)
+ * @param additionalCrumbs - Additional breadcrumb items to append after the agent
  */
-export function buildAgentBreadcrumbs(
+export const buildAgentBreadcrumbs = (
   agentId: string | null | undefined,
-  ...pageItems: BreadcrumbItem[]
-): BreadcrumbItem[] {
-  const id = agentId || 'unassigned';
-
-  return [
-    { label: 'Agents', href: '/' },
-    ...(id !== 'unassigned'
-      ? [{ label: id, href: `/agent/${id}` }]
-      : [{ label: 'Unassigned', href: '/agent/unassigned' }]),
-    ...pageItems,
+  ...additionalCrumbs: BreadcrumbItem[]
+): BreadcrumbItem[] => {
+  const crumbs: BreadcrumbItem[] = [
+    { label: 'Agents', to: '/' },
   ];
-}
+  
+  if (agentId && agentId !== 'unassigned') {
+    crumbs.push({
+      label: agentId,
+      to: `/agent/${agentId}`,
+    });
+  } else {
+    crumbs.push({
+      label: 'Unassigned',
+      to: '/agent/unassigned',
+    });
+  }
+  
+  // Append any additional breadcrumb items
+  crumbs.push(...additionalCrumbs);
+  
+  return crumbs;
+};
 
 /**
- * Builds an agent-prefixed link path.
- * Ensures agentId is never undefined/null in the URL.
+ * Generate link to agent page with optional path suffix
+ * @param agentId - The agent ID (or null/undefined for unassigned)
+ * @param path - Optional additional path to append (e.g., '/system-prompt/xyz')
  */
-export function agentLink(agentId: string | null | undefined, path: string): string {
-  return `/agent/${agentId || 'unassigned'}${path}`;
-}
-
-// Legacy aliases for backwards compatibility during migration
-export const buildWorkflowBreadcrumbs = buildAgentBreadcrumbs;
-export const workflowLink = agentLink;
+export const agentLink = (agentId: string | null | undefined, path?: string): string => {
+  const basePath = agentId && agentId !== 'unassigned' 
+    ? `/agent/${agentId}` 
+    : '/agent/unassigned';
+  return path ? `${basePath}${path}` : basePath;
+};

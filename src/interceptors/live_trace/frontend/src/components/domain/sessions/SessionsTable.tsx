@@ -50,11 +50,11 @@ const getColumns = (agentId: string, showAgentColumn: boolean): Column<SessionLi
   // Optionally show system prompt column
   if (showAgentColumn) {
     columns.push({
-      key: 'agent_id',
+      key: 'system_prompt_id',
       header: 'System prompt',
       render: (session) => (
         <Link
-          to={`/agent/${agentId}/system-prompt/${session.agent_id}`}
+          to={`/agent/${agentId}/system-prompt/${session.system_prompt_id}`}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -65,8 +65,8 @@ const getColumns = (agentId: string, showAgentColumn: boolean): Column<SessionLi
             fontSize: '12px',
           }}
         >
-          <Avatar name={session.agent_id} size="sm" />
-          {session.agent_id}
+          <Avatar name={session.system_prompt_id} size="sm" />
+          {session.system_prompt_id}
         </Link>
       ),
     });

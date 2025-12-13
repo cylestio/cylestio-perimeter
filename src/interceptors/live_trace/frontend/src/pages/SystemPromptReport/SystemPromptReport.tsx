@@ -1,8 +1,8 @@
 import { useState, useCallback, type FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
-import { fetchAgent } from '@api/endpoints/agent';
-import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
+import { fetchSystemPrompt } from '@api/endpoints/agent';
+import type { AgentResponse as SystemPromptResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
 import {
@@ -87,7 +87,7 @@ import {
   WaitingContent,
   WaitingTitle,
   WaitingDescription,
-} from './AgentReport.styles';
+} from './SystemPromptReport.styles';
 import {
   RiskHeroCard,
   RiskHeroHeader,
@@ -101,7 +101,7 @@ import {
   EvaluationCounter,
   EvaluationDescription,
   ActiveSessionsNote,
-} from '../AgentDetail/AgentDetail.styles';
+} from '../SystemPromptDetail/SystemPromptDetail.styles';
 
 // Helper to get category icon
 const getCategoryIcon = (categoryId: string): string => {
@@ -128,16 +128,16 @@ const getCategorySeverity = (
   return 'ok';
 };
 
-export const AgentReport: FC = () => {
+export const SystemPromptReport: FC = () => {
   const { agentId, systemPromptId } = useParams<{ agentId: string; systemPromptId: string }>();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
     if (!systemPromptId) return Promise.reject(new Error('No system prompt ID'));
-    return fetchAgent(systemPromptId);
+    return fetchSystemPrompt(systemPromptId);
   }, [systemPromptId]);
 
-  const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
+  const { data, error, loading } = usePolling<SystemPromptResponse>(fetchFn, {
     interval: 2000,
     enabled: !!systemPromptId,
   });
@@ -171,7 +171,7 @@ export const AgentReport: FC = () => {
     return <EmptyState title="Failed to load report" description={error || 'System prompt not found'} />;
   }
 
-  const agent = data.agent;
+  const systemPrompt = data.agent;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
 
@@ -189,10 +189,10 @@ export const AgentReport: FC = () => {
         <InfoCard
           title="System Prompt Identity"
           primaryLabel="ID"
-          primaryValue={agent.id}
+          primaryValue={systemPrompt.id}
           stats={[
-            { label: 'FIRST SEEN', badge: <TimeAgo timestamp={agent.first_seen} /> },
-            { label: 'LAST SEEN', badge: <TimeAgo timestamp={agent.last_seen} /> },
+            { label: 'FIRST SEEN', badge: <TimeAgo timestamp={systemPrompt.first_seen} /> },
+            { label: 'LAST SEEN', badge: <TimeAgo timestamp={systemPrompt.last_seen} /> },
           ]}
         />
 
@@ -231,19 +231,19 @@ export const AgentReport: FC = () => {
         <MetricGrid>
           <MetricCard>
             <MetricLabel>Sessions</MetricLabel>
-            <MetricValue>{agent.total_sessions}</MetricValue>
+            <MetricValue>{systemPrompt.total_sessions}</MetricValue>
           </MetricCard>
           <MetricCard>
             <MetricLabel>Messages</MetricLabel>
-            <MetricValue>{formatCompactNumber(agent.total_messages)}</MetricValue>
+            <MetricValue>{formatCompactNumber(systemPrompt.total_messages)}</MetricValue>
           </MetricCard>
           <MetricCard>
             <MetricLabel>Tokens</MetricLabel>
-            <MetricValue>{formatCompactNumber(agent.total_tokens)}</MetricValue>
+            <MetricValue>{formatCompactNumber(systemPrompt.total_tokens)}</MetricValue>
           </MetricCard>
           <MetricCard>
             <MetricLabel>Tools</MetricLabel>
-            <MetricValue>{agent.total_tools}</MetricValue>
+            <MetricValue>{systemPrompt.total_tools}</MetricValue>
           </MetricCard>
         </MetricGrid>
       </ReportSidebar>
@@ -382,31 +382,31 @@ export const AgentReport: FC = () => {
 
                   {/* Tools Section for Environment */}
                   {categoryId === 'ENVIRONMENT' &&
-                    agent.available_tools &&
-                    agent.available_tools.length > 0 && (
+                    systemPrompt.available_tools &&
+                    systemPrompt.available_tools.length > 0 && (
                       <ToolsSection>
-                        <SectionLabel>TOOLS ({agent.available_tools.length})</SectionLabel>
+                        <SectionLabel>TOOLS ({systemPrompt.available_tools.length})</SectionLabel>
                         <ToolsList>
                           {(() => {
-                            const usedTools = agent.available_tools
+                            const usedTools = systemPrompt.available_tools
                               .filter(
-                                (tool) => (agent.tool_usage_details?.[tool] || 0) > 0
+                                (tool) => (systemPrompt.tool_usage_details?.[tool] || 0) > 0
                               )
                               .sort((a, b) => {
-                                const countA = agent.tool_usage_details?.[a] || 0;
-                                const countB = agent.tool_usage_details?.[b] || 0;
+                                const countA = systemPrompt.tool_usage_details?.[a] || 0;
+                                const countB = systemPrompt.tool_usage_details?.[b] || 0;
                                 return countB - countA;
                               });
 
-                            const unusedTools = agent.available_tools
+                            const unusedTools = systemPrompt.available_tools
                               .filter(
-                                (tool) => (agent.tool_usage_details?.[tool] || 0) === 0
+                                (tool) => (systemPrompt.tool_usage_details?.[tool] || 0) === 0
                               )
                               .sort();
 
                             return [...usedTools, ...unusedTools];
                           })().map((tool) => {
-                            const usageCount = agent.tool_usage_details?.[tool] || 0;
+                            const usageCount = systemPrompt.tool_usage_details?.[tool] || 0;
                             const isUsed = usageCount > 0;
 
                             return (

@@ -9,8 +9,8 @@ import { AnalysisSessionsTable } from './AnalysisSessionsTable';
 const mockSessions: AnalysisSession[] = [
   {
     session_id: 'analysis_ant-math-agent-v8_20251211_085832',
-    workflow_id: 'workflow_001',
-    workflow_name: 'math-workflow',
+    agent_id: 'agent_001',
+    agent_name: 'math-agent',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
@@ -19,9 +19,9 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-assistant-v2_20251211_085500',
-    workflow_id: 'workflow_001',
-    workflow_name: 'math-workflow',
-    agent_id: 'agent_xyz789',
+    agent_id: 'agent_001',
+    agent_name: 'math-agent',
+    system_prompt_id: 'agent_xyz789',
     session_type: 'DYNAMIC',
     status: 'IN_PROGRESS',
     created_at: new Date(Date.now() - 300000).toISOString(), // 5 min ago
@@ -29,8 +29,8 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-code-agent_20251211_080000',
-    workflow_id: 'workflow_001',
-    workflow_name: 'math-workflow',
+    agent_id: 'agent_001',
+    agent_name: 'math-agent',
     session_type: 'STATIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
@@ -39,7 +39,7 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-longname-agent-with-extra-chars_20251210_120000',
-    workflow_id: 'workflow_001',
+    agent_id: 'agent_001',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
@@ -48,7 +48,7 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_no-agent-field_20251209_100000',
-    workflow_id: 'workflow_001',
+    agent_id: 'agent_001',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
@@ -57,7 +57,7 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-fifth-agent_20251208_090000',
-    workflow_id: 'workflow_001',
+    agent_id: 'agent_001',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
@@ -166,7 +166,7 @@ export const InProgressSession: Story = {
 
 export const AgentExtractedFromSessionId: Story = {
   args: {
-    sessions: [mockSessions[0]], // Session without explicit agent_id, but has session_id
+    sessions: [mockSessions[0]], // Session without explicit system_prompt_id, but has session_id
     agentId: 'agent_001',
   },
   play: async ({ canvasElement }) => {

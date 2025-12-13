@@ -102,7 +102,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     try {
       const [dashData, sessionsData] = await Promise.all([
         fetchDashboard(agentId),
-        fetchSessions({ workflow_id: agentId, limit: 100 }),
+        fetchSessions({ agent_id: agentId, limit: 100 }),
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);

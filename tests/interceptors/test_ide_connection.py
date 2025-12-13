@@ -50,7 +50,7 @@ class TestTraceStoreIDEConnection:
         connection = store.register_ide_connection(
             connection_id="ide_full123",
             ide_type="claude-code",
-            workflow_id="test-agent",
+            agent_id="test-agent",
             host="test-host",
             user="test-user",
             workspace_path="/path/to/workspace",
@@ -60,7 +60,7 @@ class TestTraceStoreIDEConnection:
         
         assert connection["connection_id"] == "ide_full123"
         assert connection["ide_type"] == "claude-code"
-        assert connection["workflow_id"] == "test-agent"
+        assert connection["agent_id"] == "test-agent"
         assert connection["host"] == "test-host"
         assert connection["user"] == "test-user"
         assert connection["workspace_path"] == "/path/to/workspace"
@@ -73,7 +73,7 @@ class TestTraceStoreIDEConnection:
         store.register_ide_connection(
             connection_id="ide_get123",
             ide_type="cursor",
-            workflow_id="my-agent",
+            agent_id="my-agent",
         )
         
         # Retrieve it
@@ -82,32 +82,32 @@ class TestTraceStoreIDEConnection:
         assert connection is not None
         assert connection["connection_id"] == "ide_get123"
         assert connection["ide_type"] == "cursor"
-        assert connection["workflow_id"] == "my-agent"
+        assert connection["agent_id"] == "my-agent"
 
     def test_get_ide_connection_not_found(self, store):
         """Test retrieving a non-existent IDE connection."""
         connection = store.get_ide_connection("nonexistent")
         assert connection is None
 
-    def test_get_ide_connections_filter_by_workflow(self, store):
-        """Test filtering IDE connections by workflow."""
-        # Register connections for different workflows
+    def test_get_ide_connections_filter_by_agent(self, store):
+        """Test filtering IDE connections by agent."""
+        # Register connections for different agents
         store.register_ide_connection(
-            connection_id="ide_workflow1",
+            connection_id="ide_agent1",
             ide_type="cursor",
-            workflow_id="agent-a",
+            agent_id="agent-a",
         )
         store.register_ide_connection(
-            connection_id="ide_workflow2",
+            connection_id="ide_agent2",
             ide_type="cursor",
-            workflow_id="agent-b",
+            agent_id="agent-b",
         )
         
-        # Filter by workflow
-        connections = store.get_ide_connections(workflow_id="agent-a")
+        # Filter by agent
+        connections = store.get_ide_connections(agent_id="agent-a")
         
         assert len(connections) == 1
-        assert connections[0]["connection_id"] == "ide_workflow1"
+        assert connections[0]["connection_id"] == "ide_agent1"
 
     def test_get_ide_connections_filter_by_ide_type(self, store):
         """Test filtering IDE connections by IDE type."""
@@ -143,23 +143,23 @@ class TestTraceStoreIDEConnection:
         assert connection is not None
         assert connection["is_developing"] is True
 
-    def test_update_ide_heartbeat_with_workflow(self, store):
-        """Test updating IDE heartbeat with workflow change."""
+    def test_update_ide_heartbeat_with_agent(self, store):
+        """Test updating IDE heartbeat with agent change."""
         store.register_ide_connection(
             connection_id="ide_heartbeat2",
             ide_type="cursor",
-            workflow_id="agent-a",
+            agent_id="agent-a",
         )
         
-        # Update heartbeat with new workflow
+        # Update heartbeat with new agent
         connection = store.update_ide_heartbeat(
             connection_id="ide_heartbeat2",
             is_developing=False,
-            workflow_id="agent-b",
+            agent_id="agent-b",
         )
         
         assert connection is not None
-        assert connection["workflow_id"] == "agent-b"
+        assert connection["agent_id"] == "agent-b"
 
     def test_update_ide_heartbeat_not_found(self, store):
         """Test updating heartbeat for non-existent connection."""
@@ -191,7 +191,7 @@ class TestTraceStoreIDEConnection:
 
     def test_get_ide_connection_status_not_connected(self, store):
         """Test getting status when no IDE is connected."""
-        status = store.get_ide_connection_status(workflow_id="nonexistent")
+        status = store.get_ide_connection_status(agent_id="nonexistent")
         
         assert status["is_connected"] is False
         assert status["is_developing"] is False
@@ -201,11 +201,11 @@ class TestTraceStoreIDEConnection:
         store.register_ide_connection(
             connection_id="ide_status1",
             ide_type="cursor",
-            workflow_id="my-agent",
+            agent_id="my-agent",
             model="claude-opus-4.5",
         )
         
-        status = store.get_ide_connection_status(workflow_id="my-agent")
+        status = store.get_ide_connection_status(agent_id="my-agent")
         
         assert status["is_connected"] is True
         assert status["has_ever_connected"] is True
@@ -218,14 +218,14 @@ class TestTraceStoreIDEConnection:
         store.register_ide_connection(
             connection_id="ide_status2",
             ide_type="cursor",
-            workflow_id="my-agent",
+            agent_id="my-agent",
         )
         store.update_ide_heartbeat(
             connection_id="ide_status2",
             is_developing=True,
         )
         
-        status = store.get_ide_connection_status(workflow_id="my-agent")
+        status = store.get_ide_connection_status(agent_id="my-agent")
         
         assert status["is_connected"] is True
         assert status["is_developing"] is True
@@ -235,13 +235,13 @@ class TestTraceStoreIDEConnection:
         store.register_ide_connection(
             connection_id="ide_status3",
             ide_type="cursor",
-            workflow_id="my-agent",
+            agent_id="my-agent",
         )
         
         # Disconnect
         store.disconnect_ide("ide_status3")
         
-        status = store.get_ide_connection_status(workflow_id="my-agent")
+        status = store.get_ide_connection_status(agent_id="my-agent")
         
         # Should not be currently connected, but has_ever_connected should be true
         assert status["is_connected"] is False
@@ -260,20 +260,20 @@ class TestTraceStoreIDEConnection:
         connection = store.get_ide_connection("ide_model1")
         assert connection["model"] == "gpt-4o"
 
-    def test_multiple_connections_same_workflow(self, store):
-        """Test multiple connections for the same workflow."""
+    def test_multiple_connections_same_agent(self, store):
+        """Test multiple connections for the same agent."""
         store.register_ide_connection(
             connection_id="ide_multi1",
             ide_type="cursor",
-            workflow_id="shared-agent",
+            agent_id="shared-agent",
         )
         store.register_ide_connection(
             connection_id="ide_multi2",
             ide_type="claude-code",
-            workflow_id="shared-agent",
+            agent_id="shared-agent",
         )
         
-        connections = store.get_ide_connections(workflow_id="shared-agent")
+        connections = store.get_ide_connections(agent_id="shared-agent")
         
         assert len(connections) == 2
 
@@ -292,13 +292,13 @@ class TestMCPIDEHandlers:
         mock_store.register_ide_connection.return_value = {
             "connection_id": "ide_test123",
             "ide_type": "cursor",
-            "workflow_id": "my-agent",
+            "agent_id": "my-agent",
             "is_active": True,
             "is_developing": False,
         }
         
         result = handle_register_ide_connection(
-            {"ide_type": "cursor", "workflow_id": "my-agent"},
+            {"ide_type": "cursor", "agent_id": "my-agent"},
             mock_store,
         )
         
@@ -339,7 +339,7 @@ class TestMCPIDEHandlers:
             {
                 "ide_type": "cursor",
                 "model": "claude-opus-4.5",
-                "workflow_id": "test",
+                "agent_id": "test",
                 "workspace_path": "/path",
             },
             mock_store,
@@ -432,7 +432,7 @@ class TestMCPIDEHandlers:
         }
         
         result = handle_get_ide_connection_status(
-            {"workflow_id": "my-agent"},
+            {"agent_id": "my-agent"},
             mock_store,
         )
         
@@ -452,7 +452,7 @@ class TestMCPIDEHandlers:
         }
         
         result = handle_get_ide_connection_status(
-            {"workflow_id": "my-agent"},
+            {"agent_id": "my-agent"},
             mock_store,
         )
         
@@ -469,7 +469,7 @@ class TestMCPIDEHandlers:
         }
         
         result = handle_get_ide_connection_status(
-            {"workflow_id": "my-agent"},
+            {"agent_id": "my-agent"},
             mock_store,
         )
         
@@ -499,7 +499,7 @@ class TestIDEConnectionIntegration:
         result = handle_register_ide_connection(
             {
                 "ide_type": "cursor",
-                "workflow_id": "test-agent",
+                "agent_id": "test-agent",
                 "workspace_path": "/path/to/project",
                 "model": "claude-opus-4.5",
             },
@@ -510,7 +510,7 @@ class TestIDEConnectionIntegration:
         
         # 2. Check status - should be connected
         status = handle_get_ide_connection_status(
-            {"workflow_id": "test-agent"},
+            {"agent_id": "test-agent"},
             store,
         )
         assert status["is_connected"] is True
@@ -525,7 +525,7 @@ class TestIDEConnectionIntegration:
         
         # 4. Check status - should be developing
         status = handle_get_ide_connection_status(
-            {"workflow_id": "test-agent"},
+            {"agent_id": "test-agent"},
             store,
         )
         assert status["is_developing"] is True
@@ -546,7 +546,7 @@ class TestIDEConnectionIntegration:
         
         # 7. Check status - not connected but has_ever_connected
         status = handle_get_ide_connection_status(
-            {"workflow_id": "test-agent"},
+            {"agent_id": "test-agent"},
             store,
         )
         assert status["is_connected"] is False
@@ -556,7 +556,7 @@ class TestIDEConnectionIntegration:
         """Test reconnecting after disconnect."""
         # First connection
         result1 = handle_register_ide_connection(
-            {"ide_type": "cursor", "workflow_id": "test-agent"},
+            {"ide_type": "cursor", "agent_id": "test-agent"},
             store,
         )
         connection_id1 = result1["connection"]["connection_id"]
@@ -566,7 +566,7 @@ class TestIDEConnectionIntegration:
         
         # New connection
         result2 = handle_register_ide_connection(
-            {"ide_type": "cursor", "workflow_id": "test-agent"},
+            {"ide_type": "cursor", "agent_id": "test-agent"},
             store,
         )
         connection_id2 = result2["connection"]["connection_id"]
@@ -576,7 +576,7 @@ class TestIDEConnectionIntegration:
         
         # Status should show connected
         status = handle_get_ide_connection_status(
-            {"workflow_id": "test-agent"},
+            {"agent_id": "test-agent"},
             store,
         )
         assert status["is_connected"] is True
@@ -586,7 +586,7 @@ class TestIDEConnectionIntegration:
         result = handle_register_ide_connection(
             {
                 "ide_type": "claude-code",
-                "workflow_id": "test-agent",
+                "agent_id": "test-agent",
                 "model": "claude-sonnet-4",
             },
             store,

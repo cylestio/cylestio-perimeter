@@ -1,4 +1,9 @@
-"""MCP tool definitions following the Model Context Protocol specification."""
+"""MCP tool definitions following the Model Context Protocol specification.
+
+Terminology:
+- Agent: Project/grouping level (contains multiple system prompts)
+- System Prompt: Individual LLM agent instance (identified by system prompt hash)
+"""
 from typing import Any, Dict, List
 
 # MCP Tool Definitions - JSON Schema format
@@ -52,25 +57,25 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "create_analysis_session",
-        "description": "Create a new analysis session to group security findings for a workflow/codebase. Call this before storing findings.",
+        "description": "Create a new analysis session to group security findings for an agent/codebase. Call this before storing findings.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Workflow/project identifier for the codebase being analyzed"
+                    "description": "Agent/project identifier for the codebase being analyzed"
                 },
                 "session_type": {
                     "type": "string",
                     "default": "STATIC",
                     "description": "STATIC, DYNAMIC, or AUTOFIX"
                 },
-                "workflow_name": {
+                "agent_name": {
                     "type": "string",
-                    "description": "Human-readable workflow/project name"
+                    "description": "Human-readable agent/project name"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_id"]
         }
     },
     {
@@ -173,9 +178,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Filter by workflow/project identifier"
+                    "description": "Filter by agent/project identifier"
                 },
                 "session_id": {"type": "string"},
                 "severity": {"type": "string"},
@@ -223,13 +228,13 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_recommendations",
-        "description": "List recommendations for a workflow. Filter by status, severity, or blocking issues only.",
+        "description": "List recommendations for an agent. Filter by status, severity, or blocking issues only.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Filter by workflow ID"
+                    "description": "Filter by agent ID"
                 },
                 "status": {
                     "type": "string",
@@ -342,27 +347,61 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Workflow ID to check"
+                    "description": "Agent ID to check"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_id"]
         }
     },
-    # ==================== Workflow Lifecycle Tools ====================
+    # ==================== Dynamic Analysis Tools ====================
     {
-        "name": "get_workflow_state",
-        "description": "Get the current lifecycle state of a workflow. Shows what analysis exists (static, dynamic, or both) and recommends next steps. Use this first to understand what data is available.",
+        "name": "trigger_dynamic_analysis",
+        "description": "Manually trigger dynamic analysis for an agent. Runs behavioral and security analysis on completed sessions that haven't been analyzed yet. Use this after running the agent multiple times to see security check results.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Workflow/project identifier"
+                    "description": "Agent identifier to analyze"
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "If true, re-analyze even if no new sessions since last analysis (default: false)",
+                    "default": False
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_id"]
+        }
+    },
+    {
+        "name": "get_dynamic_analysis_status",
+        "description": "Get the current status of dynamic analysis for an agent. Shows pending sessions count, latest analysis info, and whether analysis is currently running.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "description": "Agent identifier"
+                }
+            },
+            "required": ["agent_id"]
+        }
+    },
+    # ==================== Agent Lifecycle Tools ====================
+    {
+        "name": "get_agent_state",
+        "description": "Get the current lifecycle state of an agent. Shows what analysis exists (static, dynamic, or both) and recommends next steps. Use this first to understand what data is available.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "description": "Agent/project identifier"
+                }
+            },
+            "required": ["agent_id"]
         }
     },
     {
@@ -371,38 +410,38 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Workflow/project identifier"
+                    "description": "Agent/project identifier"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_id"]
         }
     },
     {
-        "name": "get_workflow_correlation",
+        "name": "get_agent_correlation",
         "description": "Correlate static findings with dynamic runtime observations. Shows which findings are VALIDATED (tool exercised at runtime) or UNEXERCISED (never called in tests). Only meaningful when both static and dynamic data exist.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Workflow/project identifier"
+                    "description": "Agent/project identifier"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_id"]
         }
     },
-    # ==================== Agent Discovery Tools ====================
+    # ==================== System Prompt Discovery Tools ====================
     {
-        "name": "get_agents",
-        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to workflows or naming.",
+        "name": "get_system_prompts",
+        "description": "List all system prompts discovered during dynamic sessions. Use to find system prompts that need linking to agents or naming.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Filter by workflow. Use 'unlinked' to get agents with no workflow_id."
+                    "description": "Filter by agent. Use 'unlinked' to get system prompts with no agent_id."
                 },
                 "include_stats": {
                     "type": "boolean",
@@ -413,14 +452,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
-        "name": "update_agent_info",
-        "description": "Update an agent's display name, description, or link to a workflow. Use after discovering agents to give them meaningful names or to link dynamic agents to workflows for correlation.",
+        "name": "update_system_prompt_info",
+        "description": "Update a system prompt's display name, description, or link to an agent. Use after discovering system prompts to give them meaningful names or to link them to agents for correlation.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "system_prompt_id": {
                     "type": "string",
-                    "description": "The agent ID from dynamic sessions"
+                    "description": "The system prompt ID from dynamic sessions"
                 },
                 "display_name": {
                     "type": "string",
@@ -428,14 +467,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 },
                 "description": {
                     "type": "string",
-                    "description": "Brief description of what the agent does"
+                    "description": "Brief description of what the system prompt does"
                 },
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Link this agent to a workflow for correlation with static analysis"
+                    "description": "Link this system prompt to an agent for correlation with static analysis"
                 }
             },
-            "required": ["agent_id"]
+            "required": ["system_prompt_id"]
         }
     },
     # ==================== IDE Connection Tools ====================
@@ -450,9 +489,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "Type of IDE you are running in. Use 'cursor' for Cursor IDE, 'claude-code' for Claude Code CLI.",
                     "enum": ["cursor", "claude-code"]
                 },
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "The workflow/agent ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
+                    "description": "The agent ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
                 },
                 "workspace_path": {
                     "type": "string",
@@ -471,7 +510,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "Username on the machine (optional)"
                 }
             },
-            "required": ["ide_type", "workflow_id", "workspace_path", "model"]
+            "required": ["ide_type", "agent_id", "workspace_path", "model"]
         }
     },
     {
@@ -489,9 +528,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "true when doing security work, false otherwise",
                     "default": False
                 },
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Only if switching workflows"
+                    "description": "Only if switching agents"
                 }
             },
             "required": ["connection_id"]
@@ -517,9 +556,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_id": {
                     "type": "string",
-                    "description": "Filter by workflow/agent ID"
+                    "description": "Filter by agent ID"
                 }
             }
         }

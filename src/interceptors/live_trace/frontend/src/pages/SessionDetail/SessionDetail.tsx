@@ -80,8 +80,8 @@ export const SessionDetail: FC = () => {
   usePageMeta({
     breadcrumbs: buildAgentBreadcrumbs(
       agentId,
-      ...(data?.session.agent_id
-        ? [{ label: `System prompt ${data.session.agent_id.substring(0, 12)}...`, href: agentLink(agentId, `/system-prompt/${data.session.agent_id}`) }]
+      ...(data?.session.system_prompt_id
+        ? [{ label: `System prompt ${data.session.system_prompt_id.substring(0, 12)}...`, href: agentLink(agentId, `/system-prompt/${data.session.system_prompt_id}`) }]
         : []),
       { label: 'Session' },
       { label: sessionId?.substring(0, 12) + '...' || '' }
@@ -122,7 +122,7 @@ export const SessionDetail: FC = () => {
         {/* Sidebar with real data from API */}
         <SessionSidebarInfo
           sessionId={session.id}
-          agentId={session.agent_id}
+          agentId={session.system_prompt_id}
           isActive={session.is_active}
           totalTokens={session.total_tokens}
           messageCount={session.message_count}

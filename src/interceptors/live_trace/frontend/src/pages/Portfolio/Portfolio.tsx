@@ -16,7 +16,7 @@ import { Skeleton } from '@ui/feedback/Skeleton';
 import { StatsRow, TwoColumn, Stack } from '@ui/layout/Grid';
 
 import { SessionItem } from '@domain/activity';
-import { AgentCard } from '@domain/agents';
+import { SystemPromptCard } from '@domain/system-prompts';
 import { StatCard } from '@domain/metrics/StatCard';
 
 import { usePageMeta } from '../../context';
@@ -29,24 +29,24 @@ interface PortfolioContext {
   loading: boolean;
 }
 
-// Transform API agent to AgentCard props
-const transformAgent = (agent: APIAgent) => ({
-  id: agent.id,
-  name: formatAgentName(agent.id),
-  totalSessions: agent.total_sessions,
-  totalErrors: agent.total_errors,
-  totalTools: agent.total_tools,
-  lastSeen: agent.last_seen_relative,
-  riskStatus: agent.risk_status,
-  currentSessions: agent.current_sessions,
-  minSessionsRequired: agent.min_sessions_required,
-  hasCriticalFinding: agent.analysis_summary?.action_required ?? false,
+// Transform API system prompt to SystemPromptCard props
+const transformSystemPrompt = (sp: APIAgent) => ({
+  id: sp.id,
+  name: formatAgentName(sp.id),
+  totalSessions: sp.total_sessions,
+  totalErrors: sp.total_errors,
+  totalTools: sp.total_tools,
+  lastSeen: sp.last_seen_relative,
+  riskStatus: sp.risk_status,
+  currentSessions: sp.current_sessions,
+  minSessionsRequired: sp.min_sessions_required,
+  hasCriticalFinding: sp.analysis_summary?.action_required ?? false,
   // Behavioral metrics (when evaluation complete)
-  stability: agent.analysis_summary?.behavioral?.stability,
-  predictability: agent.analysis_summary?.behavioral?.predictability,
-  confidence: agent.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
-  failedChecks: agent.analysis_summary?.failed_checks ?? 0,
-  warnings: agent.analysis_summary?.warnings ?? 0,
+  stability: sp.analysis_summary?.behavioral?.stability,
+  predictability: sp.analysis_summary?.behavioral?.predictability,
+  confidence: sp.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
+  failedChecks: sp.analysis_summary?.failed_checks ?? 0,
+  warnings: sp.analysis_summary?.warnings ?? 0,
 });
 
 // Helper to map API session status to SessionItem status
@@ -68,7 +68,7 @@ export const Portfolio: FC = () => {
   const loadSessions = useCallback(async () => {
     try {
       const data = await fetchSessions({
-        workflow_id: agentId || undefined,
+        agent_id: agentId || undefined,
         limit: 10,
       });
       setSessions(data.sessions);
@@ -171,13 +171,13 @@ export const Portfolio: FC = () => {
                   description="Connect your first system prompt to get started. Go to the Connect page for instructions."
                 />
               ) : (
-                agents.map((agent) => (
-                  <AgentCard
-                    key={agent.id}
-                    {...transformAgent(agent)}
+                agents.map((sp) => (
+                  <SystemPromptCard
+                    key={sp.id}
+                    {...transformSystemPrompt(sp)}
                     onClick={() => {
-                      const currentAgentId = agentId || agent.workflow_id || 'unassigned';
-                      navigate(`/agent/${currentAgentId}/system-prompt/${agent.id}`);
+                      const currentAgentId = agentId || sp.agent_id || 'unassigned';
+                      navigate(`/agent/${currentAgentId}/system-prompt/${sp.id}`);
                     }}
                   />
                 ))
@@ -208,14 +208,14 @@ export const Portfolio: FC = () => {
                 ) : (
                   <SessionsList>
                     {sessions.map((session) => {
-                      // Use session's workflow_id if available, or get from URL, or from agent
-                      const agent = agents.find(a => a.id === session.agent_id);
-                      const sessionAgentId = session.workflow_id || agentId || agent?.workflow_id || 'unassigned';
+                      // Use session's agent_id if available, or get from URL, or from agent
+                      const agent = agents.find(a => a.id === session.system_prompt_id);
+                      const sessionAgentId = session.agent_id || agentId || agent?.agent_id || 'unassigned';
                       return (
                         <SessionItem
                           key={session.id}
-                          agentId={session.agent_id}
-                          agentName={formatAgentName(session.agent_id)}
+                          agentId={session.system_prompt_id}
+                          agentName={formatAgentName(session.system_prompt_id)}
                           sessionId={session.id.slice(0, 8)}
                           status={getSessionStatus(session)}
                           isActive={session.is_active}

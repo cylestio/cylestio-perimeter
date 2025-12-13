@@ -18,14 +18,14 @@ class TestAnalysisSessionMethods:
         """Test creating an analysis session."""
         session = store.create_analysis_session(
             session_id="sess_test123",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             session_type="STATIC",
-            workflow_name="Test Workflow"
+            agent_name="Test Agent"
         )
 
         assert session['session_id'] == "sess_test123"
-        assert session['workflow_id'] == "workflow_test"
-        assert session['workflow_name'] == "Test Workflow"
+        assert session['agent_id'] == "agent_test"
+        assert session['agent_name'] == "Test Agent"
         assert session['session_type'] == "STATIC"
         assert session['status'] == "IN_PROGRESS"
         assert session['findings_count'] == 0
@@ -38,7 +38,7 @@ class TestAnalysisSessionMethods:
         # Create session
         store.create_analysis_session(
             session_id="sess_get123",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             session_type="STATIC"
         )
 
@@ -46,7 +46,7 @@ class TestAnalysisSessionMethods:
         session = store.get_analysis_session("sess_get123")
         assert session is not None
         assert session['session_id'] == "sess_get123"
-        assert session['workflow_id'] == "workflow_test"
+        assert session['agent_id'] == "agent_test"
 
     def test_get_nonexistent_session(self, store):
         """Test retrieving a nonexistent session returns None."""
@@ -58,7 +58,7 @@ class TestAnalysisSessionMethods:
         # Create session
         store.create_analysis_session(
             session_id="sess_complete123",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             session_type="STATIC"
         )
 
@@ -76,27 +76,27 @@ class TestAnalysisSessionMethods:
     def test_get_analysis_sessions_all(self, store):
         """Test getting all analysis sessions."""
         # Create multiple sessions
-        store.create_analysis_session("sess1", "workflow1", "STATIC")
-        store.create_analysis_session("sess2", "workflow1", "DYNAMIC")
-        store.create_analysis_session("sess3", "workflow2", "STATIC")
+        store.create_analysis_session("sess1", "agent1", "STATIC")
+        store.create_analysis_session("sess2", "agent1", "DYNAMIC")
+        store.create_analysis_session("sess3", "agent2", "STATIC")
 
         sessions = store.get_analysis_sessions()
         assert len(sessions) == 3
 
-    def test_get_analysis_sessions_by_workflow(self, store):
-        """Test filtering sessions by workflow_id."""
-        store.create_analysis_session("sess1", "workflow1", "STATIC")
-        store.create_analysis_session("sess2", "workflow1", "DYNAMIC")
-        store.create_analysis_session("sess3", "workflow2", "STATIC")
+    def test_get_analysis_sessions_by_agent(self, store):
+        """Test filtering sessions by agent_id."""
+        store.create_analysis_session("sess1", "agent1", "STATIC")
+        store.create_analysis_session("sess2", "agent1", "DYNAMIC")
+        store.create_analysis_session("sess3", "agent2", "STATIC")
 
-        sessions = store.get_analysis_sessions(workflow_id="workflow1")
+        sessions = store.get_analysis_sessions(agent_id="agent1")
         assert len(sessions) == 2
-        assert all(s['workflow_id'] == "workflow1" for s in sessions)
+        assert all(s['agent_id'] == "agent1" for s in sessions)
 
     def test_get_analysis_sessions_by_status(self, store):
         """Test filtering sessions by status."""
-        store.create_analysis_session("sess1", "workflow1", "STATIC")
-        store.create_analysis_session("sess2", "workflow1", "STATIC")
+        store.create_analysis_session("sess1", "agent1", "STATIC")
+        store.create_analysis_session("sess2", "agent1", "STATIC")
         store.complete_analysis_session("sess2")
 
         sessions = store.get_analysis_sessions(status="IN_PROGRESS")
@@ -110,7 +110,7 @@ class TestAnalysisSessionMethods:
     def test_get_analysis_sessions_limit(self, store):
         """Test limiting the number of sessions returned."""
         for i in range(10):
-            store.create_analysis_session(f"sess{i}", "workflow1", "STATIC")
+            store.create_analysis_session(f"sess{i}", "agent1", "STATIC")
 
         sessions = store.get_analysis_sessions(limit=5)
         assert len(sessions) == 5
@@ -126,7 +126,7 @@ class TestFindingMethods:
         # Create a session for findings
         store.create_analysis_session(
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             session_type="STATIC"
         )
         return store
@@ -136,7 +136,7 @@ class TestFindingMethods:
         finding = store.store_finding(
             finding_id="find_test123",
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/path/to/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -150,7 +150,7 @@ class TestFindingMethods:
 
         assert finding['finding_id'] == "find_test123"
         assert finding['session_id'] == "sess_findings"
-        assert finding['workflow_id'] == "workflow_test"
+        assert finding['agent_id'] == "agent_test"
         assert finding['file_path'] == "/path/to/file.py"
         assert finding['finding_type'] == "LLM01"
         assert finding['severity'] == "HIGH"
@@ -171,7 +171,7 @@ class TestFindingMethods:
         store.store_finding(
             finding_id="find1",
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -186,7 +186,7 @@ class TestFindingMethods:
         store.store_finding(
             finding_id="find2",
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/file.py",
             finding_type="LLM02",
             severity="MEDIUM",
@@ -202,7 +202,7 @@ class TestFindingMethods:
         store.store_finding(
             finding_id="find_get123",
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -221,9 +221,9 @@ class TestFindingMethods:
 
     def test_get_findings_all(self, store):
         """Test getting all findings."""
-        store.store_finding("find1", "sess_findings", "workflow_test", "/f1.py", "LLM01", "HIGH", "F1")
-        store.store_finding("find2", "sess_findings", "workflow_test", "/f2.py", "LLM02", "MEDIUM", "F2")
-        store.store_finding("find3", "sess_findings", "workflow_test", "/f3.py", "LLM03", "LOW", "F3")
+        store.store_finding("find1", "sess_findings", "agent_test", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess_findings", "agent_test", "/f2.py", "LLM02", "MEDIUM", "F2")
+        store.store_finding("find3", "sess_findings", "agent_test", "/f3.py", "LLM03", "LOW", "F3")
 
         findings = store.get_findings()
         assert len(findings) == 3
@@ -231,32 +231,32 @@ class TestFindingMethods:
     def test_get_findings_by_session(self, store):
         """Test filtering findings by session_id."""
         # Create another session
-        store.create_analysis_session("sess2", "workflow_test", "STATIC")
+        store.create_analysis_session("sess2", "agent_test", "STATIC")
 
-        store.store_finding("find1", "sess_findings", "workflow_test", "/f1.py", "LLM01", "HIGH", "F1")
-        store.store_finding("find2", "sess2", "workflow_test", "/f2.py", "LLM02", "MEDIUM", "F2")
+        store.store_finding("find1", "sess_findings", "agent_test", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess2", "agent_test", "/f2.py", "LLM02", "MEDIUM", "F2")
 
         findings = store.get_findings(session_id="sess_findings")
         assert len(findings) == 1
         assert findings[0]['session_id'] == "sess_findings"
 
-    def test_get_findings_by_workflow(self, store):
-        """Test filtering findings by workflow_id."""
-        # Create another session with different workflow
-        store.create_analysis_session("sess2", "workflow2", "STATIC")
+    def test_get_findings_by_agent(self, store):
+        """Test filtering findings by agent_id."""
+        # Create another session with different agent
+        store.create_analysis_session("sess2", "agent2", "STATIC")
 
-        store.store_finding("find1", "sess_findings", "workflow_test", "/f1.py", "LLM01", "HIGH", "F1")
-        store.store_finding("find2", "sess2", "workflow2", "/f2.py", "LLM02", "MEDIUM", "F2")
+        store.store_finding("find1", "sess_findings", "agent_test", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess2", "agent2", "/f2.py", "LLM02", "MEDIUM", "F2")
 
-        findings = store.get_findings(workflow_id="workflow_test")
+        findings = store.get_findings(agent_id="agent_test")
         assert len(findings) == 1
-        assert findings[0]['workflow_id'] == "workflow_test"
+        assert findings[0]['agent_id'] == "agent_test"
 
     def test_get_findings_by_severity(self, store):
         """Test filtering findings by severity."""
-        store.store_finding("find1", "sess_findings", "workflow_test", "/f1.py", "LLM01", "HIGH", "F1")
-        store.store_finding("find2", "sess_findings", "workflow_test", "/f2.py", "LLM02", "MEDIUM", "F2")
-        store.store_finding("find3", "sess_findings", "workflow_test", "/f3.py", "LLM03", "HIGH", "F3")
+        store.store_finding("find1", "sess_findings", "agent_test", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess_findings", "agent_test", "/f2.py", "LLM02", "MEDIUM", "F2")
+        store.store_finding("find3", "sess_findings", "agent_test", "/f3.py", "LLM03", "HIGH", "F3")
 
         findings = store.get_findings(severity="HIGH")
         assert len(findings) == 2
@@ -264,8 +264,8 @@ class TestFindingMethods:
 
     def test_get_findings_by_status(self, store):
         """Test filtering findings by status."""
-        store.store_finding("find1", "sess_findings", "workflow_test", "/f1.py", "LLM01", "HIGH", "F1")
-        store.store_finding("find2", "sess_findings", "workflow_test", "/f2.py", "LLM02", "MEDIUM", "F2")
+        store.store_finding("find1", "sess_findings", "agent_test", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess_findings", "agent_test", "/f2.py", "LLM02", "MEDIUM", "F2")
 
         # Update one finding to FIXED
         store.update_finding_status("find2", "FIXED")
@@ -281,7 +281,8 @@ class TestFindingMethods:
     def test_get_findings_limit(self, store):
         """Test limiting the number of findings returned."""
         for i in range(10):
-            store.store_finding(f"find{i}", "sess_findings", "workflow_test", "/f.py", "LLM01", "HIGH", f"F{i}")
+            # Use unique file paths to avoid fingerprint deduplication
+            store.store_finding(f"find{i}", "sess_findings", "agent_test", f"/f{i}.py", "LLM01", "HIGH", f"F{i}")
 
         findings = store.get_findings(limit=5)
         assert len(findings) == 5
@@ -291,7 +292,7 @@ class TestFindingMethods:
         store.store_finding(
             finding_id="find_update",
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -308,7 +309,7 @@ class TestFindingMethods:
         store.store_finding(
             finding_id="find_notes",
             session_id="sess_findings",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -322,19 +323,19 @@ class TestFindingMethods:
         assert "Original description" in updated['description']
         assert "Update: Not a real issue" in updated['description']
 
-    def test_get_workflow_findings_summary(self, store):
-        """Test getting findings summary for a workflow."""
+    def test_get_agent_findings_summary(self, store):
+        """Test getting findings summary for an agent."""
         # Create findings with different severities and statuses
-        store.store_finding("f1", "sess_findings", "workflow_test", "/f1.py", "LLM01", "CRITICAL", "F1")
-        store.store_finding("f2", "sess_findings", "workflow_test", "/f2.py", "LLM02", "HIGH", "F2")
-        store.store_finding("f3", "sess_findings", "workflow_test", "/f3.py", "LLM03", "HIGH", "F3")
-        store.store_finding("f4", "sess_findings", "workflow_test", "/f4.py", "LLM04", "MEDIUM", "F4")
+        store.store_finding("f1", "sess_findings", "agent_test", "/f1.py", "LLM01", "CRITICAL", "F1")
+        store.store_finding("f2", "sess_findings", "agent_test", "/f2.py", "LLM02", "HIGH", "F2")
+        store.store_finding("f3", "sess_findings", "agent_test", "/f3.py", "LLM03", "HIGH", "F3")
+        store.store_finding("f4", "sess_findings", "agent_test", "/f4.py", "LLM04", "MEDIUM", "F4")
 
         # Update one to FIXED
         store.update_finding_status("f4", "FIXED")
 
-        summary = store.get_workflow_findings_summary("workflow_test")
-        assert summary['workflow_id'] == "workflow_test"
+        summary = store.get_agent_findings_summary("agent_test")
+        assert summary['agent_id'] == "agent_test"
         assert summary['total_findings'] == 4
         assert summary['by_severity']['CRITICAL'] == 1
         assert summary['by_severity']['HIGH'] == 2
@@ -361,7 +362,7 @@ class TestForeignKeyConstraints:
             store.store_finding(
                 finding_id="find_orphan",
                 session_id="nonexistent_session",
-                workflow_id="workflow_test",
+                agent_id="agent_test",
                 file_path="/file.py",
                 finding_type="LLM01",
                 severity="HIGH",
@@ -371,13 +372,13 @@ class TestForeignKeyConstraints:
     def test_foreign_key_allows_valid_finding(self, store):
         """Test that foreign key allows storing finding with valid session."""
         # Create session first
-        store.create_analysis_session("sess_valid", "workflow_test", "STATIC")
+        store.create_analysis_session("sess_valid", "agent_test", "STATIC")
 
         # This should succeed
         finding = store.store_finding(
             finding_id="find_valid",
             session_id="sess_valid",
-            workflow_id="workflow_test",
+            agent_id="agent_test",
             file_path="/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -397,12 +398,12 @@ class TestStorageModesCompatibility:
         store = TraceStore(storage_mode="sqlite", db_path=db_path)
 
         # Test create session
-        session = store.create_analysis_session("sess1", "workflow1", "STATIC")
+        session = store.create_analysis_session("sess1", "agent1", "STATIC")
         assert session is not None
 
         # Test create finding
         finding = store.store_finding(
-            "find1", "sess1", "workflow1", "/file.py", "LLM01", "HIGH", "Test"
+            "find1", "sess1", "agent1", "/file.py", "LLM01", "HIGH", "Test"
         )
         assert finding is not None
 
@@ -416,12 +417,12 @@ class TestStorageModesCompatibility:
         store = TraceStore(storage_mode="memory")
 
         # Test create session
-        session = store.create_analysis_session("sess1", "workflow1", "STATIC")
+        session = store.create_analysis_session("sess1", "agent1", "STATIC")
         assert session is not None
 
         # Test create finding
         finding = store.store_finding(
-            "find1", "sess1", "workflow1", "/file.py", "LLM01", "HIGH", "Test"
+            "find1", "sess1", "agent1", "/file.py", "LLM01", "HIGH", "Test"
         )
         assert finding is not None
 
@@ -444,12 +445,12 @@ class TestThreadSafety:
         import threading
 
         # Create session first
-        store.create_analysis_session("sess1", "workflow1", "STATIC")
+        store.create_analysis_session("sess1", "agent1", "STATIC")
 
-        # Create findings concurrently
+        # Create findings concurrently with unique file paths to avoid fingerprint deduplication
         def create_finding(i):
             store.store_finding(
-                f"find{i}", "sess1", "workflow1", "/file.py", "LLM01", "HIGH", f"Finding {i}"
+                f"find{i}", "sess1", "agent1", f"/file{i}.py", "LLM01", "HIGH", f"Finding {i}"
             )
 
         threads = [threading.Thread(target=create_finding, args=(i,)) for i in range(10)]
@@ -467,148 +468,148 @@ class TestThreadSafety:
         assert session['findings_count'] == 10
 
 
-class TestWorkflowIdMethods:
-    """Tests for workflow_id functionality."""
+class TestAgentIdMethods:
+    """Tests for agent_id functionality."""
 
     @pytest.fixture
     def store(self):
         """Create an in-memory store for testing."""
         return TraceStore(storage_mode="memory")
 
-    def _create_agent(self, store, agent_id: str, workflow_id: str = None):
+    def _create_agent(self, store, system_prompt_id: str, agent_id: str = None):
         """Helper to create an agent directly in the database."""
         from .store import AgentData
-        agent = AgentData(agent_id, workflow_id)
+        agent = AgentData(system_prompt_id, agent_id)
         store._save_agent(agent)
 
-    # --- get_workflows() tests ---
+    # --- get_agents_list() tests ---
 
-    def test_get_workflows_empty(self, store):
-        """Test get_workflows returns empty list when no agents."""
-        workflows = store.get_workflows()
-        assert workflows == []
+    def test_get_agents_list_empty(self, store):
+        """Test get_agents_list returns empty list when no system prompts."""
+        agents_data = store.get_agents_list()
+        assert agents_data == []
 
-    def test_get_workflows_with_workflows(self, store):
-        """Test get_workflows returns distinct workflows with counts."""
-        # Create agents with different workflows
-        self._create_agent(store, "agent1", "workflow-a")
-        self._create_agent(store, "agent2", "workflow-a")
-        self._create_agent(store, "agent3", "workflow-b")
+    def test_get_agents_list_with_agents(self, store):
+        """Test get_agents_list returns distinct agents with counts."""
+        # Create system prompts with different agents
+        self._create_agent(store, "agent1", "agent-a")
+        self._create_agent(store, "agent2", "agent-a")
+        self._create_agent(store, "agent3", "agent-b")
 
-        workflows = store.get_workflows()
+        agents_data = store.get_agents_list()
 
-        # Should have 2 workflows
-        assert len(workflows) == 2
+        # Should have 2 agents
+        assert len(agents_data) == 2
 
-        # Find workflow-a and workflow-b
-        workflow_a = next((w for w in workflows if w['id'] == 'workflow-a'), None)
-        workflow_b = next((w for w in workflows if w['id'] == 'workflow-b'), None)
+        # Find agent-a and agent-b
+        agent_a = next((a for a in agents_data if a['id'] == 'agent-a'), None)
+        agent_b = next((a for a in agents_data if a['id'] == 'agent-b'), None)
 
-        assert workflow_a is not None
-        assert workflow_a['agent_count'] == 2
+        assert agent_a is not None
+        assert agent_a['system_prompt_count'] == 2
 
-        assert workflow_b is not None
-        assert workflow_b['agent_count'] == 1
+        assert agent_b is not None
+        assert agent_b['system_prompt_count'] == 1
 
-    def test_get_workflows_includes_unassigned(self, store):
-        """Test get_workflows includes 'Unassigned' for NULL workflow_id."""
-        # Create agents with and without workflow
-        self._create_agent(store, "agent1", "workflow-a")
+    def test_get_agents_list_includes_unassigned(self, store):
+        """Test get_agents_list includes 'Unassigned' for NULL agent_id."""
+        # Create system prompts with and without agent
+        self._create_agent(store, "agent1", "agent-a")
         self._create_agent(store, "agent2", None)  # Unassigned
         self._create_agent(store, "agent3", None)  # Unassigned
 
-        workflows = store.get_workflows()
+        agents_data = store.get_agents_list()
 
-        # Should have 2 entries: workflow-a and Unassigned
-        assert len(workflows) == 2
+        # Should have 2 entries: agent-a and Unassigned
+        assert len(agents_data) == 2
 
         # Find unassigned
-        unassigned = next((w for w in workflows if w['id'] is None), None)
+        unassigned = next((a for a in agents_data if a['id'] is None), None)
         assert unassigned is not None
         assert unassigned['name'] == "Unassigned"
-        assert unassigned['agent_count'] == 2
+        assert unassigned['system_prompt_count'] == 2
 
     # --- get_all_agents() filtering tests ---
 
-    def test_get_all_agents_filter_by_workflow(self, store):
-        """Test filtering agents by specific workflow_id."""
-        self._create_agent(store, "agent1", "workflow-a")
-        self._create_agent(store, "agent2", "workflow-a")
-        self._create_agent(store, "agent3", "workflow-b")
+    def test_get_all_agents_filter_by_agent(self, store):
+        """Test filtering system prompts by specific agent_id."""
+        self._create_agent(store, "agent1", "agent-a")
+        self._create_agent(store, "agent2", "agent-a")
+        self._create_agent(store, "agent3", "agent-b")
 
-        agents = store.get_all_agents(workflow_id="workflow-a")
+        agents = store.get_all_agents(agent_id="agent-a")
 
         assert len(agents) == 2
-        assert all(a.workflow_id == "workflow-a" for a in agents)
+        assert all(a.agent_id == "agent-a" for a in agents)
 
     def test_get_all_agents_filter_unassigned(self, store):
-        """Test filtering agents with 'unassigned' returns NULL workflow agents."""
-        self._create_agent(store, "agent1", "workflow-a")
+        """Test filtering system prompts with 'unassigned' returns system prompts with no agent."""
+        self._create_agent(store, "agent1", "agent-a")
         self._create_agent(store, "agent2", None)
         self._create_agent(store, "agent3", None)
 
-        agents = store.get_all_agents(workflow_id="unassigned")
+        agents = store.get_all_agents(agent_id="unassigned")
 
         assert len(agents) == 2
-        assert all(a.workflow_id is None for a in agents)
+        assert all(a.agent_id is None for a in agents)
 
     def test_get_all_agents_no_filter(self, store):
         """Test get_all_agents with no filter returns all agents."""
-        self._create_agent(store, "agent1", "workflow-a")
-        self._create_agent(store, "agent2", "workflow-b")
+        self._create_agent(store, "agent1", "agent-a")
+        self._create_agent(store, "agent2", "agent-b")
         self._create_agent(store, "agent3", None)
 
         agents = store.get_all_agents()
 
         assert len(agents) == 3
 
-    # --- create_analysis_session (workflow_id is now required) ---
+    # --- create_analysis_session (agent_id is now required) ---
 
-    def test_create_analysis_session_with_workflow_name(self, store):
-        """Test creating analysis session with workflow_name."""
+    def test_create_analysis_session_with_agent_name(self, store):
+        """Test creating analysis session with agent_name."""
         session = store.create_analysis_session(
             session_id="sess_wf123",
-            workflow_id="my-workflow",
+            agent_id="my-agent",
             session_type="STATIC",
-            workflow_name="My Workflow"
+            agent_name="My Agent"
         )
 
         assert session['session_id'] == "sess_wf123"
-        assert session['workflow_id'] == "my-workflow"
-        assert session['workflow_name'] == "My Workflow"
+        assert session['agent_id'] == "my-agent"
+        assert session['agent_name'] == "My Agent"
 
         # Verify it persists
         retrieved = store.get_analysis_session("sess_wf123")
-        assert retrieved['workflow_id'] == "my-workflow"
-        assert retrieved['workflow_name'] == "My Workflow"
+        assert retrieved['agent_id'] == "my-agent"
+        assert retrieved['agent_name'] == "My Agent"
 
-    def test_create_analysis_session_without_workflow_name(self, store):
-        """Test creating analysis session without workflow_name."""
+    def test_create_analysis_session_without_agent_name(self, store):
+        """Test creating analysis session without agent_name."""
         session = store.create_analysis_session(
             session_id="sess_nowfname",
-            workflow_id="my-workflow",
+            agent_id="my-agent",
             session_type="STATIC"
         )
 
         assert session['session_id'] == "sess_nowfname"
-        assert session['workflow_id'] == "my-workflow"
-        assert session.get('workflow_name') is None
+        assert session['agent_id'] == "my-agent"
+        assert session.get('agent_name') is None
 
-    # --- store_finding (workflow_id is now required) ---
+    # --- store_finding (agent_id is now required) ---
 
-    def test_store_finding_with_workflow_id(self, store):
-        """Test storing finding with workflow_id."""
-        # Create session with workflow
+    def test_store_finding_with_agent_id(self, store):
+        """Test storing finding with agent_id."""
+        # Create session with agent
         store.create_analysis_session(
             session_id="sess_wf_find",
-            workflow_id="finding-workflow",
+            agent_id="finding-agent",
             session_type="STATIC"
         )
 
         finding = store.store_finding(
             finding_id="find_wf123",
             session_id="sess_wf_find",
-            workflow_id="finding-workflow",
+            agent_id="finding-agent",
             file_path="/path/to/file.py",
             finding_type="LLM01",
             severity="HIGH",
@@ -616,25 +617,25 @@ class TestWorkflowIdMethods:
         )
 
         assert finding['finding_id'] == "find_wf123"
-        assert finding['workflow_id'] == "finding-workflow"
+        assert finding['agent_id'] == "finding-agent"
 
         # Verify it persists
         retrieved = store.get_finding("find_wf123")
-        assert retrieved['workflow_id'] == "finding-workflow"
+        assert retrieved['agent_id'] == "finding-agent"
 
-    def test_get_findings_filter_by_workflow(self, store):
-        """Test filtering findings by workflow_id."""
-        # Create sessions for different workflows
-        store.create_analysis_session("sess1", "workflow-a", "STATIC")
-        store.create_analysis_session("sess2", "workflow-b", "STATIC")
+    def test_get_findings_filter_by_agent(self, store):
+        """Test filtering findings by agent_id."""
+        # Create sessions for different agents
+        store.create_analysis_session("sess1", "agent-a", "STATIC")
+        store.create_analysis_session("sess2", "agent-b", "STATIC")
 
-        store.store_finding("find1", "sess1", "workflow-a", "/f1.py", "LLM01", "HIGH", "F1")
-        store.store_finding("find2", "sess1", "workflow-a", "/f2.py", "LLM02", "HIGH", "F2")
-        store.store_finding("find3", "sess2", "workflow-b", "/f3.py", "LLM03", "HIGH", "F3")
+        store.store_finding("find1", "sess1", "agent-a", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess1", "agent-a", "/f2.py", "LLM02", "HIGH", "F2")
+        store.store_finding("find3", "sess2", "agent-b", "/f3.py", "LLM03", "HIGH", "F3")
 
-        findings = store.get_findings(workflow_id="workflow-a")
+        findings = store.get_findings(agent_id="agent-a")
         assert len(findings) == 2
-        assert all(f['workflow_id'] == "workflow-a" for f in findings)
+        assert all(f['agent_id'] == "agent-a" for f in findings)
 
 
 class TestSecurityChecksMethods:
@@ -647,14 +648,14 @@ class TestSecurityChecksMethods:
 
     def _create_analysis_session(self, store, session_id):
         """Helper to create analysis session (required for FK)."""
-        store.create_analysis_session(session_id, "test-workflow", "DYNAMIC")
+        store.create_analysis_session(session_id, "test-agent", "DYNAMIC")
 
     def test_store_security_check(self, store):
         """Test storing a security check."""
         self._create_analysis_session(store, "analysis_001")
         check = store.store_security_check(
             check_id="check_001",
-            agent_id="agent-123",
+            system_prompt_id="agent-123",
             analysis_session_id="analysis_001",
             category_id="RESOURCE_MANAGEMENT",
             check_type="RESOURCE_001_TOKEN_BOUNDS",
@@ -667,7 +668,7 @@ class TestSecurityChecksMethods:
         )
 
         assert check['check_id'] == "check_001"
-        assert check['agent_id'] == "agent-123"
+        assert check['system_prompt_id'] == "agent-123"
         assert check['category_id'] == "RESOURCE_MANAGEMENT"
         assert check['status'] == "passed"
         assert check['evidence']['tokens_used'] == 1500
@@ -677,7 +678,7 @@ class TestSecurityChecksMethods:
         self._create_analysis_session(store, "analysis_001")
         store.store_security_check(
             check_id="check_002",
-            agent_id="agent-123",
+            system_prompt_id="agent-123",
             analysis_session_id="analysis_001",
             category_id="BEHAVIORAL",
             check_type="BEHAV_001",
@@ -695,16 +696,16 @@ class TestSecurityChecksMethods:
         assert check is None
 
     def test_get_security_checks_by_agent(self, store):
-        """Test filtering security checks by agent_id."""
+        """Test filtering security checks by system_prompt_id."""
         self._create_analysis_session(store, "sess1")
         self._create_analysis_session(store, "sess2")
         store.store_security_check("check_a1", "agent-a", "sess1", "CAT1", "TYPE1", "passed", "C1")
         store.store_security_check("check_a2", "agent-a", "sess1", "CAT2", "TYPE2", "warning", "C2")
         store.store_security_check("check_b1", "agent-b", "sess2", "CAT1", "TYPE1", "passed", "C3")
 
-        checks = store.get_security_checks(agent_id="agent-a")
+        checks = store.get_security_checks(system_prompt_id="agent-a")
         assert len(checks) == 2
-        assert all(c['agent_id'] == "agent-a" for c in checks)
+        assert all(c['system_prompt_id'] == "agent-a" for c in checks)
 
     def test_get_security_checks_by_status(self, store):
         """Test filtering security checks by status."""
@@ -755,7 +756,7 @@ class TestSecurityChecksMethods:
 
         summary = store.get_agent_security_summary("agent-123")
 
-        assert summary['agent_id'] == "agent-123"
+        assert summary['system_prompt_id'] == "agent-123"
         assert summary['total_checks'] == 3
         assert summary['by_status']['passed'] == 1
         assert summary['by_status']['warning'] == 1
@@ -841,15 +842,15 @@ class TestSecurityChecksMethods:
         security_report = MockSecurityReport(categories=[category1])
 
         count = store.persist_security_checks(
-            agent_id="test-agent",
+            system_prompt_id="test-agent",
             security_report=security_report,
             analysis_session_id="analysis_session_123",
-            workflow_id="test-workflow",
+            agent_id="test-agent",
         )
 
         assert count == 2
 
         # Verify checks were stored
-        checks = store.get_security_checks(agent_id="test-agent")
+        checks = store.get_security_checks(system_prompt_id="test-agent")
         assert len(checks) == 2
         assert checks[0]['category_id'] == "RESOURCE_MANAGEMENT"

@@ -32,7 +32,7 @@ export interface AnalysisStatusItemProps {
   isRecommendation?: boolean;
   /** Whether this item is currently active/selected */
   active?: boolean;
-  /** Whether this item is disabled (e.g., not applicable for unassigned workflows) */
+  /** Whether this item is disabled (e.g., not applicable for unassigned agents) */
   disabled?: boolean;
   /** React Router navigation path */
   to?: string;

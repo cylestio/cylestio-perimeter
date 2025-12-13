@@ -112,7 +112,7 @@ Key tables (see `store.py` for full schema):
 ## API Endpoints
 
 ### Core Data
-- `GET /api/dashboard` - Dashboard data (optionally filter by `workflow_id`)
+- `GET /api/dashboard` - Dashboard data (optionally filter by `agent_id`)
 - `GET /api/agent/{id}` - Agent details with risk analysis
 - `GET /api/session/{id}` - Session timeline with events
 - `GET /api/sessions/list` - Paginated sessions with filters
@@ -120,7 +120,7 @@ Key tables (see `store.py` for full schema):
 ### Security Analysis
 - `GET /api/agent/{id}/security-checks` - Latest security checks
 - `GET /api/security-checks` - Query with filters
-- `GET /api/workflow/{id}/security-checks` - Grouped by agent
+- `GET /api/agent/{id}/security-checks` - Grouped by system prompt
 
 ### MCP
 - `POST /mcp` - MCP protocol endpoint (SSE)
@@ -140,8 +140,8 @@ Key tools:
 - `get_security_patterns` - OWASP patterns for analysis
 - `create_analysis_session` / `complete_analysis_session` - Session lifecycle
 - `store_finding` / `get_findings` - Finding management
-- `get_workflow_state` - Workflow lifecycle status
-- `get_agents` / `update_agent_info` - Agent discovery
+- `get_agent_state` - Agent lifecycle status
+- `get_system_prompts` / `update_system_prompt_info` - System prompt discovery
 
 ## Configuration
 

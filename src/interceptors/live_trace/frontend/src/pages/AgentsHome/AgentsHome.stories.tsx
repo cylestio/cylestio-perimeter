@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 
-import { WorkflowsHome } from './WorkflowsHome';
+import { AgentsHome } from './AgentsHome';
 
-const meta: Meta<typeof WorkflowsHome> = {
-  title: 'Pages/WorkflowsHome',
-  component: WorkflowsHome,
+const meta: Meta<typeof AgentsHome> = {
+  title: 'Pages/AgentsHome',
+  component: AgentsHome,
   tags: ['autodocs'],
   parameters: {
     layout: 'fullscreen',
@@ -15,22 +15,22 @@ const meta: Meta<typeof WorkflowsHome> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof WorkflowsHome>;
+type Story = StoryObj<typeof AgentsHome>;
 
-// Mock fetch for workflows and dashboard
-const createMockFetch = (workflows: unknown[], unassignedAgents: unknown[]) => {
+// Mock fetch for agents and dashboard
+const createMockFetch = (agents: unknown[], unassignedSystemPrompts: unknown[]) => {
   return (url: string) => {
-    if (url === '/api/workflows') {
+    if (url === '/api/agents') {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ workflows }),
+        json: () => Promise.resolve({ agents }),
       });
     }
     if (url.includes('/api/dashboard')) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
-          agents: unassignedAgents,
+          agents: unassignedSystemPrompts,
           sessions_count: 0,
           latest_session: null,
           last_updated: new Date().toISOString(),
@@ -42,8 +42,8 @@ const createMockFetch = (workflows: unknown[], unassignedAgents: unknown[]) => {
   };
 };
 
-// Generate mock workflows
-const generateWorkflows = (count: number) => {
+// Generate mock agents
+const generateAgents = (count: number) => {
   const names = [
     'E-Commerce Platform',
     'Customer Support',
@@ -60,19 +60,19 @@ const generateWorkflows = (count: number) => {
   ];
 
   return Array.from({ length: count }, (_, i) => ({
-    id: `workflow-${i + 1}`,
+    id: `agent-${i + 1}`,
     name: names[i % names.length],
-    agent_count: Math.floor(Math.random() * 10) + 1,
+    system_prompt_count: Math.floor(Math.random() * 10) + 1,
     session_count: Math.floor(Math.random() * 50) + 1,
   }));
 };
 
-// Generate mock unassigned agents
-const generateUnassignedAgents = (count: number) => {
+// Generate mock unassigned system prompts
+const generateUnassignedSystemPrompts = (count: number) => {
   return Array.from({ length: count }, (_, i) => ({
     id: `agent-unassigned-${i + 1}`,
     id_short: `una${i + 1}`,
-    workflow_id: null,
+    agent_id: null,
     total_sessions: Math.floor(Math.random() * 20) + 1,
     active_sessions: Math.random() > 0.7 ? 1 : 0,
     completed_sessions: Math.floor(Math.random() * 15),
@@ -105,31 +105,31 @@ export const Empty: Story = {
   },
 };
 
-export const WithTwelveWorkflows: Story = {
+export const WithTwelveAgents: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with 12 workflows
-      window.fetch = createMockFetch(generateWorkflows(12), []) as typeof fetch;
+      // Mock fetch with 12 agents
+      window.fetch = createMockFetch(generateAgents(12), []) as typeof fetch;
       return <Story />;
     },
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Wait for loading to finish and verify workflow cards appear
+    // Wait for loading to finish and verify agent cards appear
     await expect(await canvas.findByText('E-Commerce Platform')).toBeInTheDocument();
-    // Should have 12 workflow cards
-    const cards = canvasElement.querySelectorAll('[data-testid="workflow-card"]');
+    // Should have 12 agent cards
+    const cards = canvasElement.querySelectorAll('[data-testid="agent-card"]');
     await expect(cards.length).toBe(12);
   },
 };
 
-export const WithUnassignedAgents: Story = {
+export const WithUnassignedSystemPrompts: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with some workflows and unassigned agents
+      // Mock fetch with some agents and unassigned system prompts
       window.fetch = createMockFetch(
-        generateWorkflows(3),
-        generateUnassignedAgents(5)
+        generateAgents(3),
+        generateUnassignedSystemPrompts(5)
       ) as typeof fetch;
       return <Story />;
     },
@@ -142,17 +142,17 @@ export const WithUnassignedAgents: Story = {
   },
 };
 
-export const OnlyUnassignedAgents: Story = {
+export const OnlyUnassignedSystemPrompts: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with no workflows but some unassigned agents
-      window.fetch = createMockFetch([], generateUnassignedAgents(3)) as typeof fetch;
+      // Mock fetch with no agents but some unassigned system prompts
+      window.fetch = createMockFetch([], generateUnassignedSystemPrompts(3)) as typeof fetch;
       return <Story />;
     },
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Should show empty workflows and unassigned section
+    // Should show empty agents and unassigned section
     await expect(await canvas.findByText('No agents yet')).toBeInTheDocument();
     await expect(canvas.getByText('Unassigned System Prompts')).toBeInTheDocument();
   },

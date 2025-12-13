@@ -17,21 +17,21 @@ description: Apply security fixes to AI agent code using Agent Inspector MCP too
 - MCP connection to `http://localhost:7100/mcp`
 - Existing finding ID or known vulnerability type
 
-## Workflow
+## Process
 
 ### 1. Get Findings to Fix
 ```
-get_findings(workflow_id, status="OPEN")
+get_findings(agent_id, status="OPEN")
 ```
 Prioritize by severity: CRITICAL > HIGH > MEDIUM > LOW.
 
 ### 2. Check Correlation (if dynamic data exists)
 ```
-get_workflow_state(workflow_id)
+get_agent_state(agent_id)
 ```
 If `COMPLETE`, check correlation:
 ```
-get_workflow_correlation(workflow_id)
+get_agent_correlation(agent_id)
 ```
 Prioritize **VALIDATED** findings (tools actively used at runtime) over **UNEXERCISED** ones.
 
@@ -60,7 +60,7 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 ```
 
 ### 7. Recommend Validation
-Based on workflow state:
+Based on agent state:
 - **If dynamic data exists**: "Re-run your agent through the proxy to validate the fix works at runtime."
 - **If no dynamic data**: "Test your agent to confirm the fix."
 - **Multiple findings remaining**: "1 fixed, 2 remaining. Continue?"
@@ -70,13 +70,13 @@ Based on workflow state:
 ```
 User: "Fix the security issues in my agent"
 
-1. get_workflow_state(workflow_id="my-agent")
+1. get_agent_state(agent_id="my-agent")
    → state: COMPLETE
 
-2. get_findings(workflow_id="my-agent", status="OPEN")
+2. get_findings(agent_id="my-agent", status="OPEN")
    → 3 findings: CRITICAL delete_without_confirm, HIGH pii_exposure, MEDIUM rate_limit
 
-3. get_workflow_correlation(workflow_id="my-agent")
+3. get_agent_correlation(agent_id="my-agent")
    → delete_without_confirm: VALIDATED (called 12x)
    → pii_exposure: VALIDATED (called 8x)
    → rate_limit: UNEXERCISED
@@ -97,15 +97,15 @@ User: "Fix the security issues in my agent"
 **Core Tools:**
 | Tool | Purpose |
 |------|---------|
-| `get_findings` | Get findings to fix (filter: workflow_id, status="OPEN") |
+| `get_findings` | Get findings to fix (filter: agent_id, status="OPEN") |
 | `get_fix_template` | Get remediation guidance (finding_type) |
 | `update_finding_status` | Mark as FIXED (finding_id, status, notes) |
 
 **Context Tools:**
 | Tool | Purpose |
 |------|---------|
-| `get_workflow_state` | Check what data exists |
-| `get_workflow_correlation` | See if finding was validated at runtime |
+| `get_agent_state` | Check what data exists |
+| `get_agent_correlation` | See if finding was validated at runtime |
 
 ## Prioritization Matrix
 

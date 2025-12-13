@@ -150,19 +150,19 @@ export const FooterButton = styled(Button)`
   }
 `;
 
-// ============ Workflow Section ============
-export const WorkflowSection = styled.div`
+// ============ Agent Section ============
+export const AgentSection = styled.div`
   width: 100%;
   margin-bottom: ${({ theme }) => theme.spacing[6]};
 `;
 
-export const WorkflowCard = styled(Card)`
+export const AgentCard = styled(Card)`
   width: 100%;
   border-radius: ${({ theme }) => theme.radii.xl};
   text-align: left;
 `;
 
-export const WorkflowToggle = styled.div`
+export const AgentToggle = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing[2]};
   margin-bottom: ${({ theme }) => theme.spacing[4]};
@@ -196,7 +196,7 @@ export const ToggleOption = styled.button<{ $active: boolean }>`
   `}
 `;
 
-export const WorkflowNote = styled.div`
+export const AgentNote = styled.div`
   display: flex;
   align-items: flex-start;
   gap: ${({ theme }) => theme.spacing[2]};
@@ -210,13 +210,13 @@ export const WorkflowNote = styled.div`
   line-height: 1.5;
 `;
 
-export const WorkflowInputGroup = styled.div`
+export const AgentInputGroup = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing[2]};
   margin-top: ${({ theme }) => theme.spacing[2]};
 `;
 
-export const WorkflowInput = styled.input`
+export const AgentInput = styled.input`
   flex: 1;
   padding: ${({ theme }) => theme.spacing[3]};
   background: ${({ theme }) => theme.colors.void};

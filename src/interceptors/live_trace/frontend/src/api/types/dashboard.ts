@@ -17,7 +17,7 @@ export interface AnalysisSummary {
 export interface APIAgent {
   id: string;
   id_short: string;
-  workflow_id: string | null;
+  agent_id: string | null;
   total_sessions: number;
   active_sessions: number;
   completed_sessions: number;
@@ -38,8 +38,8 @@ export interface APIAgent {
 export interface APISession {
   id: string;
   id_short: string;
-  agent_id: string;
-  agent_id_short: string;
+  system_prompt_id: string;
+  system_prompt_id_short: string;
   created_at: string;
   last_activity: string;
   last_activity_relative: string;
@@ -56,7 +56,7 @@ export interface APISession {
 
 export interface LatestSession {
   id: string;
-  agent_id: string;
+  system_prompt_id: string;
   message_count: number;
   duration_minutes: number;
   is_active: boolean;

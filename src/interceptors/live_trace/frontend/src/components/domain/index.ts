@@ -13,25 +13,25 @@ export * from './visualization';
 export * from './dynamic';
 
 // System prompt components (for selecting and displaying system prompts within an agent)
-// Previously called "agents" - keeping that folder name for now
 export {
-  AgentCard as SystemPromptCard,
-  type AgentCardProps as SystemPromptCardProps,
-  AgentListItem as SystemPromptListItem,
-  type AgentListItemProps as SystemPromptListItemProps,
-  AgentSelector as SystemPromptSelector,
-  type AgentSelectorProps as SystemPromptSelectorProps,
-  type Agent as SystemPrompt,
+  SystemPromptCard,
+  type SystemPromptCardProps,
+  type SystemPromptRiskStatus,
+  SystemPromptListItem,
+  type SystemPromptListItemProps,
+  SystemPromptSelector,
+  type SystemPromptSelectorProps,
+  type SystemPrompt,
   ModeIndicators,
   type ModeIndicatorsProps,
-} from './agents';
+} from './system-prompts';
 
-// Agent selector (for selecting top-level agents)
-// Previously called "workflows" - these are now the primary agent components
+// Agent components (for selecting and displaying top-level Agents)
+// An "Agent" represents a project grouping that contains System Prompts
 export {
-  WorkflowSelector as AgentSelector,
-  type WorkflowSelectorProps as AgentSelectorProps,
-  type Workflow as Agent,
-  WorkflowCard as AgentCard,
-  type WorkflowCardProps as AgentCardProps,
-} from './workflows';
+  AgentSelector,
+  type AgentSelectorProps,
+  type Agent,
+  AgentCard,
+  type AgentCardProps,
+} from './agents';
