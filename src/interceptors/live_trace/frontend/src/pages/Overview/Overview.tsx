@@ -14,13 +14,16 @@ import {
 } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
+import { fetchAgent } from '@api/endpoints/agent';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
+import type { AgentResponse, ToolAnalytics } from '@api/types/agent';
 import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
-import { formatDuration } from '@utils/formatting';
+import { formatDuration, formatLatency, formatTokens, formatCost, formatThroughput } from '@utils/formatting';
 
+import { EmptyState } from '@ui/feedback/EmptyState';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Card } from '@ui/core/Card';
 import { Page } from '@ui/layout/Page';
@@ -28,21 +31,12 @@ import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 import { StatsRow } from '@ui/layout/Grid';
 
+import { LineChart, BarChart } from '@domain/charts';
 import { StatCard } from '@domain/metrics/StatCard';
 
 import { usePageMeta } from '../../context';
 import {
-  MetricsGrid,
-  MetricCard,
-  MetricIcon,
-  MetricContent,
-  MetricLabel,
-  MetricValue,
-  MetricChange,
   ChartsRow,
-  ChartCard,
-  ChartTitle,
-  ChartPlaceholder,
   ToolsList,
   ToolItem,
   ToolName,
@@ -89,6 +83,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   // State
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [agentData, setAgentData] = useState<AgentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +98,19 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
+
+      // Fetch agent analytics if we have an agent
+      if (dashData?.agents?.length > 0) {
+        // Fetch detailed analytics for the first agent (workflow-level)
+        const firstAgent = dashData.agents[0];
+        try {
+          const agentDetails = await fetchAgent(firstAgent.id);
+          setAgentData(agentDetails);
+        } catch (agentErr) {
+          console.warn('Failed to fetch agent analytics:', agentErr);
+          // Non-critical error - continue without analytics
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch overview data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load overview');
@@ -142,6 +150,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   const agents = dashboardData?.agents || [];
   const metrics = aggregateMetrics(agents);
+  const analytics = agentData?.analytics;
 
   // Calculate average session duration from sessions
   const avgDuration = sessions.length > 0
@@ -151,6 +160,54 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   // Calculate sessions with errors
   const sessionsWithErrors = sessions.filter(s => s.errors > 0).length;
   const errorRate = sessions.length > 0 ? (sessionsWithErrors / sessions.length) * 100 : 0;
+
+  // Calculate throughput (sessions per hour) based on time range
+  const calculateThroughput = () => {
+    if (sessions.length < 2) return 0;
+    const sortedSessions = [...sessions].sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const firstSession = new Date(sortedSessions[0].created_at);
+    const lastSession = new Date(sortedSessions[sortedSessions.length - 1].created_at);
+    const hoursSpan = Math.max((lastSession.getTime() - firstSession.getTime()) / (1000 * 60 * 60), 1);
+    return sessions.length / hoursSpan;
+  };
+  const throughput = calculateThroughput();
+
+  // Get performance metrics from analytics
+  const avgLatency = agentData?.agent?.avg_response_time_ms ?? 0;
+  const totalTokens = analytics?.token_summary?.total_tokens ?? 0;
+  const totalCost = analytics?.token_summary?.total_cost ?? 0;
+
+  // Get tool analytics for detailed breakdown
+  const toolsData: ToolAnalytics[] = analytics?.tools ?? [];
+
+  // Prepare chart data for Sessions Over Time
+  const sessionsChartData = (analytics?.timeline ?? []).map(point => ({
+    date: point.date,
+    value: point.requests,
+  }));
+
+  // Prepare chart data for Error Rate Trend (aggregate errors by date from sessions)
+  const errorRateChartData = (() => {
+    const errorsByDate: Record<string, { errors: number; total: number }> = {};
+    sessions.forEach(session => {
+      const date = session.created_at.split('T')[0];
+      if (!errorsByDate[date]) {
+        errorsByDate[date] = { errors: 0, total: 0 };
+      }
+      errorsByDate[date].total += 1;
+      if (session.errors > 0) {
+        errorsByDate[date].errors += 1;
+      }
+    });
+    return Object.entries(errorsByDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date,
+        value: data.total > 0 ? (data.errors / data.total) * 100 : 0,
+      }));
+  })();
 
   return (
     <Page className={className} data-testid="overview">
@@ -214,67 +271,77 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
           <Section.Title icon={<TrendingUp size={16} />}>Performance Metrics</Section.Title>
         </Section.Header>
         <Section.Content>
-          <MetricsGrid>
-            <MetricCard>
-              <MetricIcon $color="cyan">
-                <Timer size={20} />
-              </MetricIcon>
-              <MetricContent>
-                <MetricLabel>Avg Latency</MetricLabel>
-                <MetricValue>--</MetricValue>
-                <MetricChange $positive>Coming soon</MetricChange>
-              </MetricContent>
-            </MetricCard>
-            <MetricCard>
-              <MetricIcon $color="green">
-                <MessageSquare size={20} />
-              </MetricIcon>
-              <MetricContent>
-                <MetricLabel>Total Tokens</MetricLabel>
-                <MetricValue>--</MetricValue>
-                <MetricChange>Coming soon</MetricChange>
-              </MetricContent>
-            </MetricCard>
-            <MetricCard>
-              <MetricIcon $color="orange">
-                <DollarSign size={20} />
-              </MetricIcon>
-              <MetricContent>
-                <MetricLabel>Est. Cost</MetricLabel>
-                <MetricValue>--</MetricValue>
-                <MetricChange>Coming soon</MetricChange>
-              </MetricContent>
-            </MetricCard>
-            <MetricCard>
-              <MetricIcon $color="purple">
-                <Zap size={20} />
-              </MetricIcon>
-              <MetricContent>
-                <MetricLabel>Throughput</MetricLabel>
-                <MetricValue>--</MetricValue>
-                <MetricChange>Coming soon</MetricChange>
-              </MetricContent>
-            </MetricCard>
-          </MetricsGrid>
+          <StatsRow columns={4}>
+            <StatCard
+              icon={<Timer size={16} />}
+              iconColor="cyan"
+              label="Avg Latency"
+              value={avgLatency > 0 ? formatLatency(avgLatency) : '--'}
+              detail={avgLatency > 0 ? 'Per LLM call' : 'No data yet'}
+              tooltip="Average response time across all LLM API calls in this workflow."
+              size="sm"
+            />
+            <StatCard
+              icon={<MessageSquare size={16} />}
+              iconColor="green"
+              label="Total Tokens"
+              value={totalTokens > 0 ? formatTokens(totalTokens) : '--'}
+              detail={totalTokens > 0 ? 'All sessions' : 'No data yet'}
+              tooltip="Sum of input and output tokens consumed across all sessions."
+              size="sm"
+            />
+            <StatCard
+              icon={<DollarSign size={16} />}
+              iconColor="orange"
+              label="Est. Cost"
+              value={totalCost > 0 ? formatCost(totalCost) : '--'}
+              detail={totalCost > 0 ? 'Based on model pricing' : 'No data yet'}
+              tooltip="Estimated cost based on token usage and current model pricing."
+              size="sm"
+            />
+            <StatCard
+              icon={<Zap size={16} />}
+              iconColor="purple"
+              label="Throughput"
+              value={throughput > 0 ? formatThroughput(throughput) : '--'}
+              detail={throughput > 0 ? 'Sessions per hour' : 'No data yet'}
+              tooltip="Sessions completed per hour, calculated from the time range of available data."
+              size="sm"
+            />
+          </StatsRow>
         </Section.Content>
       </Section>
 
-      {/* Charts Section - Placeholders */}
+      {/* Charts Section */}
       <ChartsRow>
-        <ChartCard>
-          <ChartTitle>Sessions Over Time</ChartTitle>
-          <ChartPlaceholder>
-            <Activity size={32} />
-            <span>Chart coming soon</span>
-          </ChartPlaceholder>
-        </ChartCard>
-        <ChartCard>
-          <ChartTitle>Error Rate Trend</ChartTitle>
-          <ChartPlaceholder>
-            <AlertTriangle size={32} />
-            <span>Chart coming soon</span>
-          </ChartPlaceholder>
-        </ChartCard>
+        <Section>
+          <Section.Header>
+            <Section.Title>Sessions Over Time</Section.Title>
+          </Section.Header>
+          <Section.Content>
+            <LineChart
+              data={sessionsChartData}
+              color="purple"
+              height={200}
+              formatValue={(v) => v.toString()}
+              emptyMessage="No session data yet"
+            />
+          </Section.Content>
+        </Section>
+        <Section>
+          <Section.Header>
+            <Section.Title>Error Rate Trend</Section.Title>
+          </Section.Header>
+          <Section.Content>
+            <LineChart
+              data={errorRateChartData}
+              color="red"
+              height={200}
+              formatValue={(v) => `${v.toFixed(1)}%`}
+              emptyMessage="No error data yet"
+            />
+          </Section.Content>
+        </Section>
       </ChartsRow>
 
       {/* Tool Usage Section */}
@@ -283,7 +350,37 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
           <Section.Title icon={<Wrench size={16} />}>Tool Usage Summary</Section.Title>
         </Section.Header>
         <Section.Content>
-          {metrics.totalTools > 0 ? (
+          {toolsData.length > 0 ? (
+            <Card>
+              <Card.Content>
+                <BarChart
+                  data={toolsData.map(tool => ({
+                    name: tool.tool,
+                    value: tool.executions,
+                  }))}
+                  color="green"
+                  height={Math.max(200, toolsData.length * 30)}
+                  horizontal
+                  maxBars={10}
+                  formatValue={(v) => `${v} calls`}
+                  emptyMessage="No tool usage data"
+                />
+                {toolsData.length > 0 && (
+                  <ToolsList style={{ marginTop: '16px' }}>
+                    {toolsData.slice(0, 5).map(tool => (
+                      <ToolItem key={tool.tool}>
+                        <ToolName>{tool.tool}</ToolName>
+                        <ToolCount>
+                          {tool.executions} calls
+                          {tool.avg_duration_ms > 0 && ` (avg ${Math.round(tool.avg_duration_ms)}ms)`}
+                        </ToolCount>
+                      </ToolItem>
+                    ))}
+                  </ToolsList>
+                )}
+              </Card.Content>
+            </Card>
+          ) : metrics.totalTools > 0 ? (
             <Card>
               <Card.Content>
                 <ToolsList>
@@ -293,20 +390,16 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
                   </ToolItem>
                 </ToolsList>
                 <p style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '16px' }}>
-                  Detailed tool usage breakdown coming soon. Visit individual system prompts for more details.
+                  Detailed tool usage data will appear after tools are executed in sessions.
                 </p>
               </Card.Content>
             </Card>
           ) : (
-            <Card>
-              <Card.Content>
-                <div style={{ textAlign: 'center', padding: '24px', color: 'var(--color-white50)' }}>
-                  <Wrench size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
-                  <p>No tools discovered yet</p>
-                  <p style={{ fontSize: '12px' }}>Tools will appear here as your agent uses them during sessions.</p>
-                </div>
-              </Card.Content>
-            </Card>
+            <EmptyState
+              icon={<Wrench size={32} />}
+              title="No tools discovered yet"
+              description="Tools will appear here as your agent uses them during sessions."
+            />
           )}
         </Section.Content>
       </Section>
