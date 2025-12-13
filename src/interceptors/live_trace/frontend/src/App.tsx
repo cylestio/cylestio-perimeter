@@ -18,9 +18,9 @@ import {
 import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { IDEConnectionStatus } from '@api/types/ide';
-import type { APIWorkflow } from '@api/types/workflows';
+import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchConfig } from '@api/endpoints/config';
-import { fetchDashboard, fetchWorkflows } from '@api/endpoints/dashboard';
+import { fetchDashboard, fetchAgentWorkflows } from '@api/endpoints/dashboard';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import { usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
@@ -34,25 +34,25 @@ import { Sidebar } from '@domain/layout/Sidebar';
 import { TopBar } from '@domain/layout/TopBar';
 import { LocalModeIndicator } from '@domain/layout/LocalModeIndicator';
 import { Logo } from '@domain/layout/Logo';
-import { WorkflowSelector, type Workflow } from '@domain/workflows';
+import { AgentWorkflowSelector, type AgentWorkflow } from '@domain/agent-workflows';
 import { SecurityCheckItem, type SecurityCheckStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
-import { 
-  AgentDetail, 
-  AgentReport, 
+import {
+  AgentDetail,
+  AgentReport,
   AttackSurface,
-  Connect, 
+  Connect,
   DevConnection,
-  DynamicAnalysis, 
+  DynamicAnalysis,
   Overview,
-  Portfolio, 
+  Portfolio,
   Recommendations,
   Reports,
-  SessionDetail, 
-  Sessions, 
+  SessionDetail,
+  Sessions,
   StaticAnalysis,
-  WorkflowsHome 
+  AgentWorkflowsHome
 } from '@pages/index';
 
 // Convert backend stage status to SecurityCheckStatus
@@ -98,16 +98,16 @@ function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | unde
   return undefined;
 }
 
-// Convert API workflow to component workflow
-const toWorkflow = (api: APIWorkflow): Workflow => ({
+// Convert API agent workflow to component agent workflow
+const toAgentWorkflow = (api: APIAgentWorkflow): AgentWorkflow => ({
   id: api.id,
   name: api.name,
   agentCount: api.agent_count,
 });
 
-// Extract workflowId from URL pathname (e.g., /workflow/abc123/agent/xyz -> abc123)
-function getWorkflowIdFromPath(pathname: string): string | null {
-  const match = pathname.match(/^\/workflow\/([^/]+)/);
+// Extract agentWorkflowId from URL pathname (e.g., /agent-workflow/abc123/agent/xyz -> abc123)
+function getAgentWorkflowIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/agent-workflow\/([^/]+)/);
   return match ? match[1] : null;
 }
 
@@ -124,16 +124,16 @@ function AppLayout() {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // URL is source of truth for workflow
-  const urlWorkflowId = getWorkflowIdFromPath(location.pathname);
+  // URL is source of truth for agent workflow
+  const urlAgentWorkflowId = getAgentWorkflowIdFromPath(location.pathname);
 
   // Detect if we're on the root page or in unassigned context
   const isRootPage = location.pathname === '/' || location.pathname === '/connect';
-  const isUnassignedContext = urlWorkflowId === 'unassigned';
+  const isUnassignedContext = urlAgentWorkflowId === 'unassigned';
 
-  // Workflow list state (for dropdown)
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [workflowsLoaded, setWorkflowsLoaded] = useState(false);
+  // Agent workflow list state (for dropdown)
+  const [agentWorkflows, setAgentWorkflows] = useState<AgentWorkflow[]>([]);
+  const [agentWorkflowsLoaded, setAgentWorkflowsLoaded] = useState(false);
 
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -141,28 +141,28 @@ function AppLayout() {
   // IDE connection state
   const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
-  // Derive selected workflow from URL
-  const selectedWorkflow = (() => {
-    if (!urlWorkflowId) return null;
-    if (urlWorkflowId === 'unassigned') {
+  // Derive selected agent workflow from URL
+  const selectedAgentWorkflow = (() => {
+    if (!urlAgentWorkflowId) return null;
+    if (urlAgentWorkflowId === 'unassigned') {
       return { id: 'unassigned', name: 'Unassigned', agentCount: 0 };
     }
-    return workflows.find(w => w.id === urlWorkflowId) ?? null;
+    return agentWorkflows.find(w => w.id === urlAgentWorkflowId) ?? null;
   })();
 
   // Get breadcrumbs from page context
   const { breadcrumbs, hide: hideTopBar } = usePageMetaValue();
 
-  // Fetch workflows on mount
+  // Fetch agent workflows on mount
   useEffect(() => {
-    fetchWorkflows()
+    fetchAgentWorkflows()
       .then((response) => {
-        setWorkflows(response.workflows.map(toWorkflow));
-        setWorkflowsLoaded(true);
+        setAgentWorkflows(response.agent_workflows.map(toAgentWorkflow));
+        setAgentWorkflowsLoaded(true);
       })
       .catch((error) => {
-        console.error('Failed to fetch workflows:', error);
-        setWorkflowsLoaded(true); // Mark as loaded even on error to unblock redirect
+        console.error('Failed to fetch agent workflows:', error);
+        setAgentWorkflowsLoaded(true); // Mark as loaded even on error to unblock redirect
       });
   }, []);
 
@@ -179,8 +179,8 @@ function AppLayout() {
   useEffect(() => {
     const fetchIDE = async () => {
       try {
-        const workflowIdForIDE = urlWorkflowId === 'unassigned' ? undefined : urlWorkflowId ?? undefined;
-        const status = await fetchIDEConnectionStatus(workflowIdForIDE);
+        const agentWorkflowIdForIDE = urlAgentWorkflowId === 'unassigned' ? undefined : urlAgentWorkflowId ?? undefined;
+        const status = await fetchIDEConnectionStatus(agentWorkflowIdForIDE);
         setIDEConnectionStatus(status);
       } catch {
         // Silently fail - IDE connection is optional
@@ -191,14 +191,14 @@ function AppLayout() {
     // Poll IDE status every 5 seconds
     const interval = setInterval(fetchIDE, 5000);
     return () => clearInterval(interval);
-  }, [urlWorkflowId]);
+  }, [urlAgentWorkflowId]);
 
-  // Refresh workflows periodically (every 30 seconds)
+  // Refresh agent workflows periodically (every 30 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchWorkflows()
+      fetchAgentWorkflows()
         .then((response) => {
-          setWorkflows(response.workflows.map(toWorkflow));
+          setAgentWorkflows(response.agent_workflows.map(toAgentWorkflow));
         })
         .catch(() => {
           // Silently ignore refresh errors
@@ -207,22 +207,22 @@ function AppLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle workflow selection - navigate to new URL
-  const handleWorkflowSelect = useCallback((workflow: Workflow) => {
-    if (workflow.id === null) {
-      // Unassigned workflow - use 'unassigned' in URL
-      navigate('/workflow/unassigned');
+  // Handle agent workflow selection - navigate to new URL
+  const handleAgentWorkflowSelect = useCallback((agentWorkflow: AgentWorkflow) => {
+    if (agentWorkflow.id === null) {
+      // Unassigned agent workflow - use 'unassigned' in URL
+      navigate('/agent-workflow/unassigned');
     } else {
-      // Specific workflow - go to workflow overview
-      navigate(`/workflow/${workflow.id}`);
+      // Specific agent workflow - go to agent workflow overview
+      navigate(`/agent-workflow/${agentWorkflow.id}`);
     }
   }, [navigate]);
 
-  // Poll dashboard data filtered by URL workflow
-  const workflowIdForFetch = urlWorkflowId === 'unassigned' ? 'unassigned' : urlWorkflowId ?? undefined;
+  // Poll dashboard data filtered by URL agent workflow
+  const agentWorkflowIdForFetch = urlAgentWorkflowId === 'unassigned' ? 'unassigned' : urlAgentWorkflowId ?? undefined;
   const fetchFn = useCallback(
-    () => fetchDashboard(workflowIdForFetch),
-    [workflowIdForFetch]
+    () => fetchDashboard(agentWorkflowIdForFetch),
+    [agentWorkflowIdForFetch]
   );
   const { data, loading } = usePolling<DashboardResponse>(fetchFn, {
     interval: 2000,
@@ -232,19 +232,19 @@ function AppLayout() {
   const agents = data?.agents ?? [];
   const dashboardLoaded = !loading && data !== null;
 
-  // Derive if we have any data (workflows or agents)
-  const hasData = workflows.length > 0 || agents.length > 0;
+  // Derive if we have any data (agent workflows or agents)
+  const hasData = agentWorkflows.length > 0 || agents.length > 0;
 
   // Redirect logic based on data availability
   useEffect(() => {
     // Only act when both data sources have loaded
-    if (!workflowsLoaded || !dashboardLoaded) return;
+    if (!agentWorkflowsLoaded || !dashboardLoaded) return;
 
     if (location.pathname === '/' && !hasData) {
       // No data → show Connect page
       navigate('/connect', { replace: true });
     }
-  }, [location.pathname, workflowsLoaded, dashboardLoaded, hasData, navigate]);
+  }, [location.pathname, agentWorkflowsLoaded, dashboardLoaded, hasData, navigate]);
 
   // Security check states
   const staticStatus = stageToSecurityStatus(data?.security_analysis?.static);
@@ -275,12 +275,12 @@ function AppLayout() {
           <Logo />
         </Sidebar.Header>
         
-        {/* Workflow Selector - only show if there are workflows and NOT on root page */}
-        {workflows.length > 0 && !isRootPage && (
-          <WorkflowSelector
-            workflows={workflows}
-            selectedWorkflow={selectedWorkflow}
-            onSelect={handleWorkflowSelect}
+        {/* Agent Workflow Selector - only show if there are agent workflows and NOT on root page */}
+        {agentWorkflows.length > 0 && !isRootPage && (
+          <AgentWorkflowSelector
+            agentWorkflows={agentWorkflows}
+            selectedAgentWorkflow={selectedAgentWorkflow}
+            onSelect={handleAgentWorkflowSelect}
             collapsed={sidebarCollapsed}
           />
         )}
@@ -298,51 +298,51 @@ function AppLayout() {
           )}
 
           {/* ===== DEVELOPER SECTION ===== */}
-          {urlWorkflowId && !isRootPage && (
+          {urlAgentWorkflowId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Developer' : undefined}>
               <NavItem
                 icon={<OverviewIcon size={18} />}
                 label="Overview"
-                active={location.pathname === `/workflow/${urlWorkflowId}/overview`}
-                to={`/workflow/${urlWorkflowId}/overview`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/overview`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/overview`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 label="Agents"
                 icon={<SystemPromptsIcon size={18} />}
                 badge={agents.length > 0 ? agents.length : undefined}
-                active={location.pathname === `/workflow/${urlWorkflowId}/agents` || location.pathname === `/workflow/${urlWorkflowId}`}
-                to={`/workflow/${urlWorkflowId}/agents`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/agents` || location.pathname === `/agent-workflow/${urlAgentWorkflowId}`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/agents`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 icon={<SessionsIcon size={18} />}
                 label="Sessions"
                 badge={data?.sessions_count ? data.sessions_count : undefined}
-                active={location.pathname === `/workflow/${urlWorkflowId}/sessions`}
-                to={`/workflow/${urlWorkflowId}/sessions`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/sessions`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/sessions`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 icon={<RecommendationsIcon size={18} />}
                 label="Recommendations"
-                active={location.pathname === `/workflow/${urlWorkflowId}/recommendations`}
-                to={`/workflow/${urlWorkflowId}/recommendations`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/recommendations`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/recommendations`}
                 collapsed={sidebarCollapsed}
               />
             </NavGroup>
           )}
 
           {/* ===== SECURITY CHECKS SECTION (with Timeline) ===== */}
-          {urlWorkflowId && !isRootPage && (
+          {urlAgentWorkflowId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Security Checks' : undefined}>
               <SecurityCheckItem
                 label="Dev"
                 status={devConnectionStatus}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
-                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/dev-connection`}
-                active={location.pathname === `/workflow/${urlWorkflowId}/dev-connection`}
+                to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/dev-connection`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/dev-connection`}
                 showConnectorBelow
                 isFirst
                 icon={<DevConnectionIcon size={10} />}
@@ -353,8 +353,8 @@ function AppLayout() {
                 count={getOpenFindingsCount(data?.security_analysis?.static)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
-                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/static-analysis`}
-                active={location.pathname === `/workflow/${urlWorkflowId}/static-analysis`}
+                to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/static-analysis`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/static-analysis`}
                 showConnectorAbove
                 showConnectorBelow
               />
@@ -365,8 +365,8 @@ function AppLayout() {
                 stat={getDynamicAnalysisStat(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
-                to={isUnassignedContext ? undefined : `/workflow/${urlWorkflowId}/dynamic-analysis`}
-                active={location.pathname === `/workflow/${urlWorkflowId}/dynamic-analysis`}
+                to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/dynamic-analysis`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/dynamic-analysis`}
                 showConnectorAbove
                 showConnectorBelow
               />
@@ -385,20 +385,20 @@ function AppLayout() {
           )}
 
           {/* ===== REPORTS SECTION ===== */}
-          {urlWorkflowId && !isRootPage && (
+          {urlAgentWorkflowId && !isRootPage && (
             <NavGroup label={!sidebarCollapsed ? 'Reports' : undefined}>
               <NavItem
                 icon={<ReportsIcon size={18} />}
                 label="Reports"
-                active={location.pathname === `/workflow/${urlWorkflowId}/reports`}
-                to={`/workflow/${urlWorkflowId}/reports`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/reports`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/reports`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
                 icon={<AttackSurfaceIcon size={18} />}
                 label="Attack Surface"
-                active={location.pathname === `/workflow/${urlWorkflowId}/attack-surface`}
-                to={`/workflow/${urlWorkflowId}/attack-surface`}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/attack-surface`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/attack-surface`}
                 collapsed={sidebarCollapsed}
               />
             </NavGroup>
@@ -447,32 +447,32 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route element={<AppLayout />}>
-              {/* Root routes - Workflows landing page */}
-              <Route path="/" element={<WorkflowsHome />} />
+              {/* Root routes - Agent Workflows landing page */}
+              <Route path="/" element={<AgentWorkflowsHome />} />
               <Route path="/connect" element={<Connect />} />
 
-              {/* Workflow-prefixed routes - redirect base path to overview */}
-              <Route path="/workflow/:workflowId" element={<Navigate to="overview" replace />} />
+              {/* Agent-workflow-prefixed routes - redirect base path to overview */}
+              <Route path="/agent-workflow/:agentWorkflowId" element={<Navigate to="overview" replace />} />
 
               {/* Developer section */}
-              <Route path="/workflow/:workflowId/overview" element={<Overview />} />
-              <Route path="/workflow/:workflowId/agents" element={<Portfolio />} />
-              <Route path="/workflow/:workflowId/sessions" element={<Sessions />} />
-              <Route path="/workflow/:workflowId/recommendations" element={<Recommendations />} />
+              <Route path="/agent-workflow/:agentWorkflowId/overview" element={<Overview />} />
+              <Route path="/agent-workflow/:agentWorkflowId/agents" element={<Portfolio />} />
+              <Route path="/agent-workflow/:agentWorkflowId/sessions" element={<Sessions />} />
+              <Route path="/agent-workflow/:agentWorkflowId/recommendations" element={<Recommendations />} />
 
               {/* Security Checks section */}
-              <Route path="/workflow/:workflowId/dev-connection" element={<DevConnection />} />
-              <Route path="/workflow/:workflowId/static-analysis" element={<StaticAnalysis />} />
-              <Route path="/workflow/:workflowId/dynamic-analysis" element={<DynamicAnalysis />} />
+              <Route path="/agent-workflow/:agentWorkflowId/dev-connection" element={<DevConnection />} />
+              <Route path="/agent-workflow/:agentWorkflowId/static-analysis" element={<StaticAnalysis />} />
+              <Route path="/agent-workflow/:agentWorkflowId/dynamic-analysis" element={<DynamicAnalysis />} />
 
               {/* Reports section */}
-              <Route path="/workflow/:workflowId/reports" element={<Reports />} />
-              <Route path="/workflow/:workflowId/attack-surface" element={<AttackSurface />} />
+              <Route path="/agent-workflow/:agentWorkflowId/reports" element={<Reports />} />
+              <Route path="/agent-workflow/:agentWorkflowId/attack-surface" element={<AttackSurface />} />
 
               {/* Detail pages */}
-              <Route path="/workflow/:workflowId/agent/:agentId" element={<AgentDetail />} />
-              <Route path="/workflow/:workflowId/agent/:agentId/report" element={<AgentReport />} />
-              <Route path="/workflow/:workflowId/session/:sessionId" element={<SessionDetail />} />
+              <Route path="/agent-workflow/:agentWorkflowId/agent/:agentId" element={<AgentDetail />} />
+              <Route path="/agent-workflow/:agentWorkflowId/agent/:agentId/report" element={<AgentReport />} />
+              <Route path="/agent-workflow/:agentWorkflowId/session/:sessionId" element={<SessionDetail />} />
             </Route>
           </Routes>
         </BrowserRouter>

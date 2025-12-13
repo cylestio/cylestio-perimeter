@@ -3,7 +3,7 @@ import { useState, useMemo, type FC } from 'react';
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, ExternalLink, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import type { AgentSecurityData, WorkflowSecurityCheck } from '@api/endpoints/workflow';
+import type { AgentSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
 
 import { TimeAgo } from '@ui/core';
 
@@ -35,7 +35,7 @@ import {
 
 export interface SecurityChecksExplorerProps {
   agents: AgentSecurityData[];
-  workflowId: string;
+  agentWorkflowId: string;
   className?: string;
 }
 
@@ -79,7 +79,7 @@ const getStatusIcon = (status: string) => {
 
 export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   agents,
-  workflowId,
+  agentWorkflowId,
   className,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -90,7 +90,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   // Group checks by category for current agent
   const checksByCategory = useMemo(() => {
     if (!currentAgent) return {};
-    const grouped: Record<string, WorkflowSecurityCheck[]> = {};
+    const grouped: Record<string, AgentWorkflowSecurityCheck[]> = {};
     currentAgent.checks.forEach((check) => {
       if (!grouped[check.category_id]) {
         grouped[check.category_id] = [];
@@ -131,7 +131,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
     <ExplorerContainer className={className} data-testid="security-checks-explorer">
       <ExplorerHeader>
         <AgentInfo>
-          <AgentLink as={Link} to={`/workflow/${workflowId}/agent/${currentAgent.agent_id}`}>
+          <AgentLink as={Link} to={`/agent-workflow/${agentWorkflowId}/agent/${currentAgent.agent_id}`}>
             {currentAgent.agent_id}
             <ExternalLink size={12} />
           </AgentLink>

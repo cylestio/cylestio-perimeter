@@ -19,12 +19,12 @@ import {
 
 export interface ConnectionSuccessProps {
   agentCount: number;
-  onViewWorkflows: () => void;
+  onViewAgentWorkflows: () => void;
 }
 
 export const ConnectionSuccess: FC<ConnectionSuccessProps> = ({
   agentCount,
-  onViewWorkflows,
+  onViewAgentWorkflows,
 }) => (
   <SuccessContainer>
     <IconContainer>
@@ -50,9 +50,9 @@ export const ConnectionSuccess: FC<ConnectionSuccessProps> = ({
         variant="primary"
         size="md"
         icon={<ArrowRight size={16} />}
-        onClick={onViewWorkflows}
+        onClick={onViewAgentWorkflows}
       >
-        View Workflows
+        View Agent Workflows
       </Button>
     </ActionSection>
   </SuccessContainer>

@@ -1,19 +1,19 @@
 import styled from 'styled-components';
 
-export const WorkflowHeader = styled.div`
+export const AgentWorkflowHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: ${({ theme }) => theme.spacing[4]};
 `;
 
-export const WorkflowInfo = styled.div`
+export const AgentWorkflowInfo = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[2]};
 `;
 
-export const WorkflowName = styled.h1`
+export const AgentWorkflowName = styled.h1`
   font-family: ${({ theme }) => theme.typography.fontDisplay};
   font-size: 24px;
   font-weight: 600;
@@ -21,13 +21,13 @@ export const WorkflowName = styled.h1`
   margin: 0;
 `;
 
-export const WorkflowId = styled.span`
+export const AgentWorkflowId = styled.span`
   font-family: ${({ theme }) => theme.typography.fontMono};
   font-size: 12px;
   color: ${({ theme }) => theme.colors.white50};
 `;
 
-export const WorkflowStats = styled.div`
+export const AgentWorkflowStats = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing[3]};
 `;
