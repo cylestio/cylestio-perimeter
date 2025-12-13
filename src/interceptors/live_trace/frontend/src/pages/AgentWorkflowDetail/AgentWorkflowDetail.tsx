@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FC } from 'react';
 import { Bot, Calendar, Clock, FileSearch, Shield, ArrowRight, Code, Activity, Lightbulb } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
-import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/workflow';
+import { fetchAgentWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/agentWorkflow';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
@@ -11,7 +11,7 @@ import type { APIAgent, SecurityAnalysis, AnalysisStage } from '@api/types/dashb
 import type { SessionListItem } from '@api/types/session';
 
 import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/formatting';
-import { workflowLink } from '../../utils/breadcrumbs';
+import { agentWorkflowLink } from '../../utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -25,11 +25,11 @@ import { SessionsTable } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
 import {
-  WorkflowHeader,
-  WorkflowInfo,
-  WorkflowName,
-  WorkflowId,
-  WorkflowStats,
+  AgentWorkflowHeader,
+  AgentWorkflowInfo,
+  AgentWorkflowName,
+  AgentWorkflowId,
+  AgentWorkflowStats,
   StatBadge,
   StatValue,
   AgentList,
@@ -46,14 +46,14 @@ import {
   SessionId,
   SessionMeta,
   SessionMetaItem,
-} from './WorkflowDetail.styles';
+} from './AgentWorkflowDetail.styles';
 
-export interface WorkflowDetailProps {
+export interface AgentWorkflowDetailProps {
   className?: string;
 }
 
-export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+export const AgentWorkflowDetail: FC<AgentWorkflowDetailProps> = ({ className }) => {
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // State
   const [agents, setAgents] = useState<APIAgent[]>([]);
@@ -68,29 +68,29 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch workflow data (agents + security analysis)
-  const fetchWorkflowData = useCallback(async () => {
-    if (!workflowId) return;
+  // Fetch agent workflow data (agents + security analysis)
+  const fetchAgentWorkflowData = useCallback(async () => {
+    if (!agentWorkflowId) return;
 
     try {
-      const data = await fetchDashboard(workflowId);
+      const data = await fetchDashboard(agentWorkflowId);
       setAgents(data.agents || []);
       setSecurityAnalysis(data.security_analysis ?? null);
     } catch (err) {
-      console.error('Failed to fetch workflow data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load workflow');
+      console.error('Failed to fetch agent workflow data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load agent workflow');
     } finally {
       setLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
-  // Fetch findings for this workflow
+  // Fetch findings for this agent workflow
   const fetchFindings = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     setFindingsLoading(true);
     try {
-      const data = await fetchWorkflowFindings(workflowId);
+      const data = await fetchAgentWorkflowFindings(agentWorkflowId);
       setFindings(data.findings);
       setFindingsSummary(data.summary);
     } catch (err) {
@@ -98,51 +98,51 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
     } finally {
       setFindingsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
-  // Fetch analysis sessions for this workflow
+  // Fetch analysis sessions for this agent workflow
   const fetchAnalysisSessionsData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     setAnalysisSessionsLoading(true);
     try {
-      const data = await fetchAnalysisSessions(workflowId);
+      const data = await fetchAnalysisSessions(agentWorkflowId);
       setAnalysisSessions(data.sessions || []);
     } catch (err) {
       console.error('Failed to fetch analysis sessions:', err);
     } finally {
       setAnalysisSessionsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
-  // Fetch live sessions for this workflow
+  // Fetch live sessions for this agent workflow
   const fetchLiveSessions = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     setLiveSessionsLoading(true);
     try {
-      const data = await fetchSessions({ workflow_id: workflowId, limit: 10 });
+      const data = await fetchSessions({ agent_workflow_id: agentWorkflowId, limit: 10 });
       setLiveSessions(data.sessions || []);
     } catch (err) {
       console.error('Failed to fetch live sessions:', err);
     } finally {
       setLiveSessionsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
   // Fetch data on mount
   useEffect(() => {
-    fetchWorkflowData();
+    fetchAgentWorkflowData();
     fetchFindings();
     fetchAnalysisSessionsData();
     fetchLiveSessions();
-  }, [fetchWorkflowData, fetchFindings, fetchAnalysisSessionsData, fetchLiveSessions]);
+  }, [fetchAgentWorkflowData, fetchFindings, fetchAnalysisSessionsData, fetchLiveSessions]);
 
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Workflows', href: '/' },
-      { label: workflowId || '' },
+      { label: 'Agent Workflows', href: '/' },
+      { label: agentWorkflowId || '' },
     ],
   });
 
@@ -155,7 +155,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   }
 
   if (error) {
-    return <EmptyState title="Failed to load workflow" description={error} />;
+    return <EmptyState title="Failed to load agent workflow" description={error} />;
   }
 
   const openCount = findingsSummary?.open_count || 0;
@@ -206,14 +206,14 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
   ];
 
   return (
-    <Page className={className} data-testid="workflow-detail">
+    <Page className={className} data-testid="agent-workflow-detail">
       {/* Header */}
-      <WorkflowHeader>
-        <WorkflowInfo>
-          <WorkflowName>Workflow</WorkflowName>
-          <WorkflowId>{workflowId}</WorkflowId>
-        </WorkflowInfo>
-        <WorkflowStats>
+      <AgentWorkflowHeader>
+        <AgentWorkflowInfo>
+          <AgentWorkflowName>Agent Workflow</AgentWorkflowName>
+          <AgentWorkflowId>{agentWorkflowId}</AgentWorkflowId>
+        </AgentWorkflowInfo>
+        <AgentWorkflowStats>
           <StatBadge>
             <Bot size={14} />
             <StatValue>{agents.length}</StatValue> agents
@@ -230,8 +230,8 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
               <StatValue>{findingsSummary.total_findings}</StatValue> findings
             </StatBadge>
           )}
-        </WorkflowStats>
-      </WorkflowHeader>
+        </AgentWorkflowStats>
+      </AgentWorkflowHeader>
 
       {/* Analysis Lifecycle Progress */}
       <Section>
@@ -246,16 +246,16 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
       {/* Recent Sessions */}
       <SessionsTable
         sessions={liveSessions}
-        workflowId={workflowId || 'unassigned'}
+        agentWorkflowId={agentWorkflowId || 'unassigned'}
         loading={liveSessionsLoading}
         showAgentColumn
-        emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
+        emptyMessage="No sessions recorded for this agent workflow yet. Sessions will appear here once agents start processing requests."
         header={
           <>
             <Section.Title>Recent Sessions</Section.Title>
             {liveSessions.length > 0 && (
               <Link
-                to={`/workflow/${workflowId}/sessions`}
+                to={`/agent-workflow/${agentWorkflowId}/sessions`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -367,7 +367,7 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
                 <AgentListItem
                   key={agent.id}
                   as={Link}
-                  to={workflowLink(workflowId, `/agent/${agent.id}`)}
+                  to={agentWorkflowLink(agentWorkflowId, `/agent/${agent.id}`)}
                 >
                   <AgentIcon>
                     <Bot size={16} />
@@ -386,9 +386,9 @@ export const WorkflowDetail: FC<WorkflowDetailProps> = ({ className }) => {
             </AgentList>
           ) : (
             <EmptyContent>
-              <p>No agents in this workflow yet.</p>
+              <p>No agents in this agent workflow yet.</p>
               <p style={{ fontSize: '12px' }}>
-                Agents will appear here when they connect using this workflow ID.
+                Agents will appear here when they connect using this agent workflow ID.
               </p>
             </EmptyContent>
           )}

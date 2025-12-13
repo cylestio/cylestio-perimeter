@@ -52,11 +52,11 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "create_analysis_session",
-        "description": "Create a new analysis session to group security findings for a workflow/codebase. Call this before storing findings.",
+        "description": "Create a new analysis session to group security findings for an agent workflow/codebase. Call this before storing findings.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
                     "description": "Workflow/project identifier for the codebase being analyzed"
                 },
@@ -65,12 +65,12 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "default": "STATIC",
                     "description": "STATIC, DYNAMIC, or AUTOFIX"
                 },
-                "workflow_name": {
+                "agent_workflow_name": {
                     "type": "string",
-                    "description": "Human-readable workflow/project name"
+                    "description": "Human-readable agent workflow/project name"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_workflow_id"]
         }
     },
     {
@@ -126,9 +126,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
-                    "description": "Filter by workflow/project identifier"
+                    "description": "Filter by agent workflow/project identifier"
                 },
                 "session_id": {"type": "string"},
                 "severity": {"type": "string"},
@@ -159,19 +159,19 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["finding_id", "status"]
         }
     },
-    # ==================== Workflow Lifecycle Tools ====================
+    # ==================== Agent Workflow Lifecycle Tools ====================
     {
-        "name": "get_workflow_state",
-        "description": "Get the current lifecycle state of a workflow. Shows what analysis exists (static, dynamic, or both) and recommends next steps. Use this first to understand what data is available.",
+        "name": "get_agent_workflow_state",
+        "description": "Get the current lifecycle state of an agent workflow. Shows what analysis exists (static, dynamic, or both) and recommends next steps. Use this first to understand what data is available.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
                     "description": "Workflow/project identifier"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_workflow_id"]
         }
     },
     {
@@ -180,38 +180,38 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
                     "description": "Workflow/project identifier"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_workflow_id"]
         }
     },
     {
-        "name": "get_workflow_correlation",
+        "name": "get_agent_workflow_correlation",
         "description": "Correlate static findings with dynamic runtime observations. Shows which findings are VALIDATED (tool exercised at runtime) or UNEXERCISED (never called in tests). Only meaningful when both static and dynamic data exist.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
                     "description": "Workflow/project identifier"
                 }
             },
-            "required": ["workflow_id"]
+            "required": ["agent_workflow_id"]
         }
     },
     # ==================== Agent Discovery Tools ====================
     {
         "name": "get_agents",
-        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to workflows or naming.",
+        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to agent workflows or naming.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
-                    "description": "Filter by workflow. Use 'unlinked' to get agents with no workflow_id."
+                    "description": "Filter by agent workflow. Use 'unlinked' to get agents with no agent_workflow_id."
                 },
                 "include_stats": {
                     "type": "boolean",
@@ -223,7 +223,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "update_agent_info",
-        "description": "Update an agent's display name, description, or link to a workflow. Use after discovering agents to give them meaningful names or to link dynamic agents to workflows for correlation.",
+        "description": "Update an agent's display name, description, or link to an agent workflow. Use after discovering agents to give them meaningful names or to link dynamic agents to workflows for correlation.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -239,9 +239,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "type": "string",
                     "description": "Brief description of what the agent does"
                 },
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
-                    "description": "Link this agent to a workflow for correlation with static analysis"
+                    "description": "Link this agent to an agent workflow for correlation with static analysis"
                 }
             },
             "required": ["agent_id"]
@@ -259,9 +259,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "Type of IDE you are running in. Use 'cursor' for Cursor IDE, 'claude-code' for Claude Code CLI.",
                     "enum": ["cursor", "claude-code"]
                 },
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
-                    "description": "The workflow/agent ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
+                    "description": "The agent workflow ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
                 },
                 "workspace_path": {
                     "type": "string",
@@ -280,7 +280,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "Username on the machine (optional)"
                 }
             },
-            "required": ["ide_type", "workflow_id", "workspace_path", "model"]
+            "required": ["ide_type", "agent_workflow_id", "workspace_path", "model"]
         }
     },
     {
@@ -298,9 +298,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "description": "true when doing security work, false otherwise",
                     "default": False
                 },
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
-                    "description": "Only if switching workflows"
+                    "description": "Only if switching agent workflows"
                 }
             },
             "required": ["connection_id"]
@@ -326,9 +326,9 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "workflow_id": {
+                "agent_workflow_id": {
                     "type": "string",
-                    "description": "Filter by workflow/agent ID"
+                    "description": "Filter by agent workflow/agent ID"
                 }
             }
         }

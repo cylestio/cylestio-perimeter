@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 
-import { WorkflowsHome } from './WorkflowsHome';
+import { AgentWorkflowsHome } from './AgentWorkflowsHome';
 
-const meta: Meta<typeof WorkflowsHome> = {
-  title: 'Pages/WorkflowsHome',
-  component: WorkflowsHome,
+const meta: Meta<typeof AgentWorkflowsHome> = {
+  title: 'Pages/AgentWorkflowsHome',
+  component: AgentWorkflowsHome,
   tags: ['autodocs'],
   parameters: {
     layout: 'fullscreen',
@@ -15,15 +15,15 @@ const meta: Meta<typeof WorkflowsHome> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof WorkflowsHome>;
+type Story = StoryObj<typeof AgentWorkflowsHome>;
 
-// Mock fetch for workflows and dashboard
-const createMockFetch = (workflows: unknown[], unassignedAgents: unknown[]) => {
+// Mock fetch for agent workflows and dashboard
+const createMockFetch = (agentWorkflows: unknown[], unassignedAgents: unknown[]) => {
   return (url: string) => {
-    if (url === '/api/workflows') {
+    if (url === '/api/agent-workflows') {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ workflows }),
+        json: () => Promise.resolve({ agent_workflows: agentWorkflows }),
       });
     }
     if (url.includes('/api/dashboard')) {
@@ -42,8 +42,8 @@ const createMockFetch = (workflows: unknown[], unassignedAgents: unknown[]) => {
   };
 };
 
-// Generate mock workflows
-const generateWorkflows = (count: number) => {
+// Generate mock agent workflows
+const generateAgentWorkflows = (count: number) => {
   const names = [
     'E-Commerce Platform',
     'Customer Support',
@@ -60,7 +60,7 @@ const generateWorkflows = (count: number) => {
   ];
 
   return Array.from({ length: count }, (_, i) => ({
-    id: `workflow-${i + 1}`,
+    id: `agent-workflow-${i + 1}`,
     name: names[i % names.length],
     agent_count: Math.floor(Math.random() * 10) + 1,
     session_count: Math.floor(Math.random() * 50) + 1,
@@ -72,7 +72,7 @@ const generateUnassignedAgents = (count: number) => {
   return Array.from({ length: count }, (_, i) => ({
     id: `agent-unassigned-${i + 1}`,
     id_short: `una${i + 1}`,
-    workflow_id: null,
+    agent_workflow_id: null,
     total_sessions: Math.floor(Math.random() * 20) + 1,
     active_sessions: Math.random() > 0.7 ? 1 : 0,
     completed_sessions: Math.floor(Math.random() * 15),
@@ -101,24 +101,24 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // Wait for loading to finish and verify empty state
-    await expect(await canvas.findByText('No workflows yet')).toBeInTheDocument();
+    await expect(await canvas.findByText('No agent workflows yet')).toBeInTheDocument();
   },
 };
 
-export const WithTwelveWorkflows: Story = {
+export const WithTwelveAgentWorkflows: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with 12 workflows
-      window.fetch = createMockFetch(generateWorkflows(12), []) as typeof fetch;
+      // Mock fetch with 12 agent workflows
+      window.fetch = createMockFetch(generateAgentWorkflows(12), []) as typeof fetch;
       return <Story />;
     },
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Wait for loading to finish and verify workflow cards appear
+    // Wait for loading to finish and verify agent workflow cards appear
     await expect(await canvas.findByText('E-Commerce Platform')).toBeInTheDocument();
-    // Should have 12 workflow cards
-    const cards = canvasElement.querySelectorAll('[data-testid="workflow-card"]');
+    // Should have 12 agent workflow cards
+    const cards = canvasElement.querySelectorAll('[data-testid="agent-workflow-card"]');
     await expect(cards.length).toBe(12);
   },
 };
@@ -126,9 +126,9 @@ export const WithTwelveWorkflows: Story = {
 export const WithUnassignedAgents: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with some workflows and unassigned agents
+      // Mock fetch with some agent workflows and unassigned agents
       window.fetch = createMockFetch(
-        generateWorkflows(3),
+        generateAgentWorkflows(3),
         generateUnassignedAgents(5)
       ) as typeof fetch;
       return <Story />;
@@ -145,15 +145,15 @@ export const WithUnassignedAgents: Story = {
 export const OnlyUnassignedAgents: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with no workflows but some unassigned agents
+      // Mock fetch with no agent workflows but some unassigned agents
       window.fetch = createMockFetch([], generateUnassignedAgents(3)) as typeof fetch;
       return <Story />;
     },
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Should show empty workflows and unassigned section
-    await expect(await canvas.findByText('No workflows yet')).toBeInTheDocument();
+    // Should show empty agent workflows and unassigned section
+    await expect(await canvas.findByText('No agent workflows yet')).toBeInTheDocument();
     await expect(canvas.getByText('Unassigned Agents')).toBeInTheDocument();
   },
 };

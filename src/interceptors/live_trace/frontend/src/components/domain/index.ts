@@ -9,4 +9,4 @@ export * from './analysis';
 export * from './findings';
 export * from './sessions';
 export * from './visualization';
-export * from './workflows';
+export * from './agent-workflows';

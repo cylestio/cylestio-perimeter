@@ -90,24 +90,24 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # API endpoints for programmatic access
     @app.get("/api/dashboard")
-    async def api_dashboard(workflow_id: Optional[str] = None):
-        """Get complete dashboard data as JSON, optionally filtered by workflow."""
+    async def api_dashboard(agent_workflow_id: Optional[str] = None):
+        """Get complete dashboard data as JSON, optionally filtered by agent workflow."""
         try:
-            data = await insights.get_dashboard_data(workflow_id=workflow_id)
+            data = await insights.get_dashboard_data(agent_workflow_id=agent_workflow_id)
             data["refresh_interval"] = refresh_interval
             return JSONResponse(data)
         except Exception as e:
             logger.error(f"Error getting dashboard data: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflows")
-    async def api_workflows():
-        """Get all workflows with agent counts."""
+    @app.get("/api/agent-workflows")
+    async def api_agent_workflows():
+        """Get all agent workflows with agent counts."""
         try:
-            workflows = insights.store.get_workflows()
-            return JSONResponse({"workflows": workflows})
+            agent_workflows = insights.store.get_agent_workflows()
+            return JSONResponse({"agent_workflows": agent_workflows})
         except Exception as e:
-            logger.error(f"Error getting workflows: {e}")
+            logger.error(f"Error getting agent workflows: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/stats")
@@ -142,16 +142,16 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/sessions/list")
     async def api_sessions_list(
-        workflow_id: Optional[str] = None,
+        agent_workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ):
-        """Get sessions with filtering by workflow_id, agent_id, and/or status.
+        """Get sessions with filtering by agent_workflow_id, agent_id, and/or status.
 
         Args:
-            workflow_id: Filter by workflow ID. Use "unassigned" for sessions without workflow.
+            agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             limit: Maximum number of sessions to return (default 10).
@@ -163,12 +163,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         try:
             # Get total count for pagination (with same filters, but no limit/offset)
             total_count = insights.store.count_sessions_filtered(
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
             )
             sessions = insights.store.get_sessions_filtered(
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
                 limit=limit,
@@ -178,7 +178,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "sessions": sessions,
                 "total_count": total_count,
                 "filters": {
-                    "workflow_id": workflow_id,
+                    "agent_workflow_id": agent_workflow_id,
                     "agent_id": agent_id,
                     "status": status,
                     "limit": limit,
@@ -528,41 +528,41 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # ==================== Findings API Endpoints ====================
 
-    @app.get("/api/workflow/{workflow_id}/findings")
-    async def api_get_workflow_findings(
-        workflow_id: str,
+    @app.get("/api/agent-workflow/{agent_workflow_id}/findings")
+    async def api_get_agent_workflow_findings(
+        agent_workflow_id: str,
         severity: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security findings for a workflow."""
+        """Get security findings for an agent workflow."""
         try:
             findings = insights.store.get_findings(
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 severity=severity.upper() if severity else None,
                 status=status.upper() if status else None,
                 limit=limit,
             )
-            summary = insights.store.get_workflow_findings_summary(workflow_id)
+            summary = insights.store.get_workflow_findings_summary(agent_workflow_id)
             return JSONResponse({
                 "findings": findings,
                 "summary": summary,
             })
         except Exception as e:
-            logger.error(f"Error getting workflow findings: {e}")
+            logger.error(f"Error getting agent workflow findings: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflow/{workflow_id}/security-checks")
-    async def api_get_workflow_security_checks(
-        workflow_id: str,
+    @app.get("/api/agent-workflow/{agent_workflow_id}/security-checks")
+    async def api_get_agent_workflow_security_checks(
+        agent_workflow_id: str,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security checks grouped by agent for a workflow."""
+        """Get security checks grouped by agent for an agent workflow."""
         try:
-            # Get all agents in workflow
-            agents = insights.store.get_all_agents(workflow_id=workflow_id)
+            # Get all agents in agent workflow
+            agents = insights.store.get_all_agents(agent_workflow_id=agent_workflow_id)
 
             # Build per-agent data
             agents_data = []
@@ -622,12 +622,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             }
 
             return JSONResponse({
-                "workflow_id": workflow_id,
+                "agent_workflow_id": agent_workflow_id,
                 "agents": agents_data,
                 "total_summary": total_summary,
             })
         except Exception as e:
-            logger.error(f"Error getting workflow security checks: {e}")
+            logger.error(f"Error getting agent workflow security checks: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.post("/api/findings")
@@ -658,12 +658,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "valid_severities": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
                 }, status_code=400)
 
-            # Get session to extract workflow_id
+            # Get session to extract agent_workflow_id
             session = insights.store.get_analysis_session(session_id)
             if not session:
                 return JSONResponse({"error": "Session not found"}, status_code=404)
 
-            workflow_id = session["workflow_id"]
+            agent_workflow_id = session["agent_workflow_id"]
 
             # Optional fields
             description = body.get("description")
@@ -684,7 +684,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             finding = insights.store.store_finding(
                 finding_id=finding_id,
                 session_id=session_id,
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 file_path=file_path,
                 finding_type=finding_type,
                 severity=severity_enum.value,
@@ -763,14 +763,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/sessions/analysis")
     async def api_get_analysis_sessions(
-        workflow_id: Optional[str] = None,
+        agent_workflow_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
         """List analysis sessions."""
         try:
             sessions = insights.store.get_analysis_sessions(
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 status=status.upper() if status else None,
                 limit=limit,
             )
@@ -784,15 +784,15 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.post("/api/sessions/analysis")
     async def api_create_analysis_session(request: Request):
-        """Create a new analysis session for a workflow."""
+        """Create a new analysis session for an agent workflow."""
         try:
             body = await request.json()
-            workflow_id = body.get("workflow_id")
+            agent_workflow_id = body.get("agent_workflow_id")
             session_type = body.get("session_type", "STATIC")
-            workflow_name = body.get("workflow_name")
+            agent_workflow_name = body.get("agent_workflow_name")
 
-            if not workflow_id:
-                return JSONResponse({"error": "workflow_id is required"}, status_code=400)
+            if not agent_workflow_id:
+                return JSONResponse({"error": "agent_workflow_id is required"}, status_code=400)
 
             # Validate session_type
             try:
@@ -806,9 +806,9 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             session_id = generate_session_id()
             session = insights.store.create_analysis_session(
                 session_id=session_id,
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 session_type=session_type_enum.value,
-                workflow_name=workflow_name,
+                agent_workflow_name=agent_workflow_name,
             )
 
             return JSONResponse({"session": session})
@@ -924,17 +924,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     # ==================== IDE Connection Status Endpoints ====================
 
     @app.get("/api/ide/status")
-    async def api_ide_connection_status(workflow_id: Optional[str] = None):
+    async def api_ide_connection_status(agent_workflow_id: Optional[str] = None):
         """Get IDE connection status for the dashboard.
 
         Args:
-            workflow_id: Optional filter by workflow being developed
+            agent_workflow_id: Optional filter by agent workflow being developed
 
         Returns:
             JSON with connection status, active connections, and history
         """
         try:
-            status = insights.store.get_ide_connection_status(workflow_id=workflow_id)
+            status = insights.store.get_ide_connection_status(agent_workflow_id=agent_workflow_id)
             return JSONResponse(status)
         except Exception as e:
             logger.error(f"Error getting IDE connection status: {e}")
@@ -942,7 +942,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/ide/connections")
     async def api_ide_connections(
-        workflow_id: Optional[str] = None,
+        agent_workflow_id: Optional[str] = None,
         ide_type: Optional[str] = None,
         active_only: bool = True,
         limit: int = 100,
@@ -950,7 +950,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Get IDE connections with filtering.
 
         Args:
-            workflow_id: Filter by workflow
+            agent_workflow_id: Filter by agent workflow
             ide_type: Filter by IDE type (cursor, claude-code, vscode)
             active_only: Only return active connections
             limit: Maximum number of connections
@@ -960,7 +960,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """
         try:
             connections = insights.store.get_ide_connections(
-                workflow_id=workflow_id,
+                agent_workflow_id=agent_workflow_id,
                 ide_type=ide_type,
                 active_only=active_only,
                 limit=limit,

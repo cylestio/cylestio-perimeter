@@ -74,59 +74,59 @@ class AnalysisEngine:
         self._pii_semaphore: Optional[asyncio.Semaphore] = None
         self._pii_max_concurrent = proxy_config.get("pii_max_concurrent", 2)
 
-    async def get_dashboard_data(self, workflow_id: Optional[str] = None) -> Dict[str, Any]:
+    async def get_dashboard_data(self, agent_workflow_id: Optional[str] = None) -> Dict[str, Any]:
         """Get all data needed for the main dashboard.
 
         Args:
-            workflow_id: Optional workflow ID to filter by.
-                        Use "unassigned" to get agents/sessions with no workflow.
+            agent_workflow_id: Optional agent workflow ID to filter by.
+                        Use "unassigned" to get agents/sessions with no agent workflow.
                         None returns all data.
         """
         # Agent summary runs analysis outside the lock
-        agents = await self._get_agent_summary(workflow_id=workflow_id)
+        agents = await self._get_agent_summary(agent_workflow_id=agent_workflow_id)
 
         # Get sessions count and latest session (need lock for data access)
         with self.store.lock:
             # Use efficient count query instead of fetching all sessions
             sessions_count = self.store.count_sessions_filtered(
-                workflow_id=workflow_id if workflow_id != "unassigned" else "unassigned",
+                agent_workflow_id=agent_workflow_id if agent_workflow_id != "unassigned" else "unassigned",
             )
-            latest_session = self._get_latest_active_session(workflow_id=workflow_id)
+            latest_session = self._get_latest_active_session(agent_workflow_id=agent_workflow_id)
 
-        # Get unified security analysis if workflow_id is provided (not for root/all view)
+        # Get unified security analysis if agent_workflow_id is provided (not for root/all view)
         security_analysis = None
-        if workflow_id and workflow_id != "unassigned":
+        if agent_workflow_id and agent_workflow_id != "unassigned":
             try:
-                security_analysis = self._get_security_analysis(workflow_id)
+                security_analysis = self._get_security_analysis(agent_workflow_id)
             except Exception as e:
-                logger.warning(f"Failed to get security analysis for workflow {workflow_id}: {e}")
+                logger.warning(f"Failed to get security analysis for agent workflow {agent_workflow_id}: {e}")
 
         return {
             "agents": agents,
             "sessions_count": sessions_count,
             "latest_session": latest_session,
-            "workflow_id": workflow_id,
+            "agent_workflow_id": agent_workflow_id,
             "security_analysis": security_analysis,
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
-    def _get_security_analysis(self, workflow_id: str) -> Dict[str, Any]:
-        """Get unified security analysis for the workflow.
+    def _get_security_analysis(self, agent_workflow_id: str) -> Dict[str, Any]:
+        """Get unified security analysis for the agent workflow.
 
         Returns status for each analysis type with embedded findings:
         - static: status, findings
         - dynamic: status, findings
         - recommendations: status, findings
         """
-        # Get analysis sessions for this workflow
-        analysis_sessions = self.store.get_analysis_sessions(workflow_id=workflow_id)
+        # Get analysis sessions for this agent workflow
+        analysis_sessions = self.store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
 
         # Get findings summary
         findings_summary = None
         try:
-            findings_summary = self.store.get_workflow_findings_summary(workflow_id)
+            findings_summary = self.store.get_workflow_findings_summary(agent_workflow_id)
         except Exception as e:
-            logger.warning(f"Failed to get findings summary for workflow {workflow_id}: {e}")
+            logger.warning(f"Failed to get findings summary for agent workflow {agent_workflow_id}: {e}")
 
         # Normalize findings summary to standard format
         findings_data = None
@@ -152,14 +152,14 @@ class AnalysisEngine:
             static_findings = findings_data
 
         # Dynamic Analysis status - based on session gathering progress
-        # Get all agents (system prompts) for this workflow to compute session progress
-        workflow_agents = self.store.get_all_agents(workflow_id=workflow_id)
-        
+        # Get all agents (system prompts) for this agent workflow to compute session progress
+        agents_in_workflow = self.store.get_all_agents(agent_workflow_id=agent_workflow_id)
+
         # Calculate aggregate session progress
-        total_current_sessions = sum(agent.total_sessions for agent in workflow_agents)
-        total_min_required = len(workflow_agents) * MIN_SESSIONS_FOR_RISK_ANALYSIS
+        total_current_sessions = sum(agent.total_sessions for agent in agents_in_workflow)
+        total_min_required = len(agents_in_workflow) * MIN_SESSIONS_FOR_RISK_ANALYSIS
         agents_with_enough_sessions = sum(
-            1 for agent in workflow_agents 
+            1 for agent in agents_in_workflow
             if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
         )
         
@@ -183,8 +183,8 @@ class AnalysisEngine:
             "current": total_current_sessions,
             "required": total_min_required,
             "agents_ready": agents_with_enough_sessions,
-            "agents_total": len(workflow_agents),
-        } if workflow_agents else None
+            "agents_total": len(agents_in_workflow),
+        } if agents_in_workflow else None
 
         # Get dynamic analysis findings from security checks
         # Security checks use status values: 'passed', 'warning', 'critical'
@@ -649,17 +649,17 @@ class AnalysisEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
-    async def _get_agent_summary(self, workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def _get_agent_summary(self, agent_workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get summary data for all agents (metrics are maintained incrementally).
 
         Args:
-            workflow_id: Optional workflow ID to filter by.
+            agent_workflow_id: Optional workflow ID to filter by.
         """
         agents = []
 
         # Get all agents while holding the lock
         with self.store.lock:
-            all_agents = list(self.store.get_all_agents(workflow_id=workflow_id))
+            all_agents = list(self.store.get_all_agents(agent_workflow_id=agent_workflow_id))
 
         # Process each agent (analysis runs outside the lock)
         for agent in all_agents:
@@ -681,7 +681,7 @@ class AnalysisEngine:
             agent_data = {
                 "id": agent.agent_id,
                 "id_short": agent.agent_id[:8] + "..." if len(agent.agent_id) > 8 else agent.agent_id,
-                "workflow_id": agent.workflow_id,
+                "agent_workflow_id": agent.agent_workflow_id,
                 "total_sessions": agent.total_sessions,
                 "active_sessions": active_sessions,
                 "completed_sessions": completed_sessions,
@@ -866,22 +866,22 @@ class AnalysisEngine:
         return "low"
 
     @_with_store_lock
-    def _get_recent_sessions(self, limit: int = 20, workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def _get_recent_sessions(self, limit: int = 20, agent_workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get recent sessions with summary data.
 
         Args:
             limit: Maximum number of sessions to return.
-            workflow_id: Optional workflow ID to filter by.
+            agent_workflow_id: Optional workflow ID to filter by.
         """
         sessions = []
         all_sessions = self.store.get_all_sessions()
 
-        # Filter by workflow_id if specified
-        if workflow_id is not None:
-            if workflow_id == "unassigned":
-                all_sessions = [s for s in all_sessions if s.workflow_id is None]
+        # Filter by agent_workflow_id if specified
+        if agent_workflow_id is not None:
+            if agent_workflow_id == "unassigned":
+                all_sessions = [s for s in all_sessions if s.agent_workflow_id is None]
             else:
-                all_sessions = [s for s in all_sessions if s.workflow_id == workflow_id]
+                all_sessions = [s for s in all_sessions if s.agent_workflow_id == agent_workflow_id]
 
         for session in all_sessions:
             # Determine user-friendly status
@@ -916,20 +916,20 @@ class AnalysisEngine:
         return sessions[:limit]
 
     @_with_store_lock
-    def _get_latest_active_session(self, workflow_id: Optional[str] = None) -> Dict[str, Any] | None:
+    def _get_latest_active_session(self, agent_workflow_id: Optional[str] = None) -> Dict[str, Any] | None:
         """Get the most recent active session.
 
         Args:
-            workflow_id: Optional workflow ID to filter by.
+            agent_workflow_id: Optional workflow ID to filter by.
         """
         all_sessions = self.store.get_all_sessions()
 
-        # Filter by workflow_id if specified
-        if workflow_id is not None:
-            if workflow_id == "unassigned":
-                all_sessions = [s for s in all_sessions if s.workflow_id is None]
+        # Filter by agent_workflow_id if specified
+        if agent_workflow_id is not None:
+            if agent_workflow_id == "unassigned":
+                all_sessions = [s for s in all_sessions if s.agent_workflow_id is None]
             else:
-                all_sessions = [s for s in all_sessions if s.workflow_id == workflow_id]
+                all_sessions = [s for s in all_sessions if s.agent_workflow_id == agent_workflow_id]
 
         active_sessions = [s for s in all_sessions if s.is_active]
 

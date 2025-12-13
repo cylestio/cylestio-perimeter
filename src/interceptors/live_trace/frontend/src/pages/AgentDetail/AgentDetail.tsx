@@ -6,7 +6,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, AgentSession } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
-import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   getAgentStatus,
@@ -76,13 +76,13 @@ interface Check {
 }
 
 // Table columns for sessions
-const getSessionColumns = (workflowId: string): TableColumn<AgentSession>[] => [
+const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[] => [
   {
     key: 'id',
     header: 'Session ID',
     render: (session) => (
       <Link
-        to={`/workflow/${workflowId}/session/${session.id}`}
+        to={`/agent-workflow/${agentWorkflowId}/session/${session.id}`}
         style={{
           color: 'var(--color-cyan)',
           textDecoration: 'none',
@@ -154,7 +154,7 @@ const getSessionColumns = (workflowId: string): TableColumn<AgentSession>[] => [
 ];
 
 export const AgentDetail: FC = () => {
-  const { workflowId, agentId } = useParams<{ workflowId: string; agentId: string }>();
+  const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
@@ -166,10 +166,10 @@ export const AgentDetail: FC = () => {
     enabled: !!agentId,
   });
 
-  // Set breadcrumbs with workflow context
+  // Set breadcrumbs with agent workflow context
   usePageMeta({
-    breadcrumbs: buildWorkflowBreadcrumbs(
-      workflowId,
+    breadcrumbs: buildAgentWorkflowBreadcrumbs(
+      agentWorkflowId,
       { label: 'Agent' },
       { label: agentId?.substring(0, 12) + '...' || '' }
     ),
@@ -190,7 +190,7 @@ export const AgentDetail: FC = () => {
   const agent = data.agent;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
-  const reportLink = workflowLink(workflowId, `/agent/${agent.id}/report`);
+  const reportLink = agentWorkflowLink(agentWorkflowId, `/agent/${agent.id}/report`);
 
   // Build failed and warning check lists
   const failedChecks: Check[] = [];
@@ -419,7 +419,7 @@ export const AgentDetail: FC = () => {
             <Section.Content noPadding>
               {data.sessions && data.sessions.length > 0 ? (
                 <Table<AgentSession>
-                  columns={getSessionColumns(workflowId || 'unassigned')}
+                  columns={getSessionColumns(agentWorkflowId || 'unassigned')}
                   data={data.sessions}
                   keyExtractor={(session) => session.id}
                   emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}

@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
-import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   getAgentStatus,
@@ -130,7 +130,7 @@ const getCategorySeverity = (
 };
 
 export const AgentReport: FC = () => {
-  const { workflowId, agentId } = useParams<{ workflowId: string; agentId: string }>();
+  const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
@@ -143,12 +143,12 @@ export const AgentReport: FC = () => {
     enabled: !!agentId,
   });
 
-  // Set breadcrumbs with workflow context
+  // Set breadcrumbs with agent workflow context
   usePageMeta({
-    breadcrumbs: buildWorkflowBreadcrumbs(
-      workflowId,
-      { label: 'Agent', href: workflowLink(workflowId, `/agent/${agentId}`) },
-      { label: agentId?.substring(0, 12) + '...' || '', href: workflowLink(workflowId, `/agent/${agentId}`) },
+    breadcrumbs: buildAgentWorkflowBreadcrumbs(
+      agentWorkflowId,
+      { label: 'Agent', href: agentWorkflowLink(agentWorkflowId, `/agent/${agentId}`) },
+      { label: agentId?.substring(0, 12) + '...' || '', href: agentWorkflowLink(agentWorkflowId, `/agent/${agentId}`) },
       { label: 'Full Report' }
     ),
   });
@@ -651,7 +651,7 @@ export const AgentReport: FC = () => {
                       <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
                         <OutlierHeader>
                           <Link
-                            to={workflowLink(workflowId, `/session/${outlier.session_id}`)}
+                            to={agentWorkflowLink(agentWorkflowId, `/session/${outlier.session_id}`)}
                             style={{
                               fontSize: '13px',
                               fontFamily: 'var(--font-mono)',

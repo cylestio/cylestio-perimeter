@@ -17,7 +17,7 @@ export interface AnalysisSummary {
 export interface APIAgent {
   id: string;
   id_short: string;
-  workflow_id: string | null;
+  agent_workflow_id: string | null;
   total_sessions: number;
   active_sessions: number;
   completed_sessions: number;

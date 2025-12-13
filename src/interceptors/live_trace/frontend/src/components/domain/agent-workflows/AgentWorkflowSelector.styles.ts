@@ -1,10 +1,10 @@
 import styled, { css } from 'styled-components';
 
-interface WorkflowSelectorContainerProps {
+interface AgentWorkflowSelectorContainerProps {
   $collapsed: boolean;
 }
 
-export const WorkflowSelectorContainer = styled.div<WorkflowSelectorContainerProps>`
+export const AgentWorkflowSelectorContainer = styled.div<AgentWorkflowSelectorContainerProps>`
   padding: ${({ theme }) => theme.spacing[4]};
   border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
   position: relative;
@@ -24,7 +24,7 @@ export const WorkflowSelectorContainer = styled.div<WorkflowSelectorContainerPro
   }
 `;
 
-export const WorkflowSelectBox = styled.div`
+export const AgentWorkflowSelectBox = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[3]};
@@ -53,7 +53,7 @@ export const WorkflowSelectBox = styled.div`
   }
 `;
 
-export const WorkflowInfo = styled.div`
+export const AgentWorkflowInfo = styled.div`
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -67,7 +67,7 @@ export const WorkflowInfo = styled.div`
   }
 `;
 
-export const WorkflowIcon = styled.span<{ $small?: boolean }>`
+export const AgentWorkflowIcon = styled.span<{ $small?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -87,7 +87,7 @@ export const DropdownIcon = styled.span<{ $open: boolean }>`
   transform: ${({ $open }) => ($open ? 'rotate(180deg)' : 'rotate(0)')};
 `;
 
-export const WorkflowDropdown = styled.div`
+export const AgentWorkflowDropdown = styled.div`
   position: absolute;
   top: 100%;
   left: ${({ theme }) => theme.spacing[4]};
@@ -103,7 +103,7 @@ export const WorkflowDropdown = styled.div`
   overflow-y: auto;
 `;
 
-export const WorkflowOption = styled.div<{ $selected: boolean; $isAll?: boolean }>`
+export const AgentWorkflowOption = styled.div<{ $selected: boolean; $isAll?: boolean }>`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[3]};

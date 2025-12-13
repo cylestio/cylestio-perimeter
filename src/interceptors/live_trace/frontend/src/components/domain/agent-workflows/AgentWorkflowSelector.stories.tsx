@@ -3,11 +3,11 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, within } from 'storybook/test';
 
-import { WorkflowSelector, type Workflow } from './WorkflowSelector';
+import { AgentWorkflowSelector, type AgentWorkflow } from './AgentWorkflowSelector';
 
-const meta: Meta<typeof WorkflowSelector> = {
-  title: 'Domain/Workflows/WorkflowSelector',
-  component: WorkflowSelector,
+const meta: Meta<typeof AgentWorkflowSelector> = {
+  title: 'Domain/AgentWorkflows/AgentWorkflowSelector',
+  component: AgentWorkflowSelector,
   tags: ['autodocs'],
   parameters: {
     layout: 'centered',
@@ -22,29 +22,29 @@ const meta: Meta<typeof WorkflowSelector> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof WorkflowSelector>;
+type Story = StoryObj<typeof AgentWorkflowSelector>;
 
-const mockWorkflows: Workflow[] = [
+const mockAgentWorkflows: AgentWorkflow[] = [
   { id: 'ecommerce-agents', name: 'E-Commerce Agents', agentCount: 5 },
   { id: 'support-bots', name: 'Support Bots', agentCount: 3 },
   { id: 'analytics-pipeline', name: 'Analytics Pipeline', agentCount: 8 },
   { id: null, name: 'Unassigned', agentCount: 2 },
 ];
 
-const InteractiveWorkflowSelector = () => {
-  const [selected, setSelected] = useState<Workflow | null>(null);
+const InteractiveAgentWorkflowSelector = () => {
+  const [selected, setSelected] = useState<AgentWorkflow | null>(null);
 
   return (
-    <WorkflowSelector
-      workflows={mockWorkflows}
-      selectedWorkflow={selected}
+    <AgentWorkflowSelector
+      agentWorkflows={mockAgentWorkflows}
+      selectedAgentWorkflow={selected}
       onSelect={setSelected}
     />
   );
 };
 
 export const Default: Story = {
-  render: () => <InteractiveWorkflowSelector />,
+  render: () => <InteractiveAgentWorkflowSelector />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // With no selection, first workflow is displayed
@@ -56,8 +56,8 @@ export const Default: Story = {
 
 export const WithSelection: Story = {
   args: {
-    workflows: mockWorkflows,
-    selectedWorkflow: mockWorkflows[0],
+    agentWorkflows: mockAgentWorkflows,
+    selectedAgentWorkflow: mockAgentWorkflows[0],
     onSelect: fn(),
   },
   play: async ({ canvasElement }) => {
@@ -69,8 +69,8 @@ export const WithSelection: Story = {
 
 export const ClickToOpen: Story = {
   args: {
-    workflows: mockWorkflows,
-    selectedWorkflow: mockWorkflows[0],
+    agentWorkflows: mockAgentWorkflows,
+    selectedAgentWorkflow: mockAgentWorkflows[0],
     onSelect: fn(),
   },
   play: async ({ canvasElement }) => {
@@ -87,10 +87,10 @@ export const ClickToOpen: Story = {
   },
 };
 
-export const SelectWorkflow: Story = {
+export const SelectAgentWorkflow: Story = {
   args: {
-    workflows: mockWorkflows,
-    selectedWorkflow: mockWorkflows[0],
+    agentWorkflows: mockAgentWorkflows,
+    selectedAgentWorkflow: mockAgentWorkflows[0],
     onSelect: fn(),
   },
   play: async ({ args, canvasElement }) => {
@@ -99,18 +99,18 @@ export const SelectWorkflow: Story = {
     // Open dropdown
     await userEvent.click(canvas.getByRole('button'));
 
-    // Select a workflow
+    // Select an agent workflow
     await userEvent.click(canvas.getByText('Support Bots'));
 
-    // Verify onSelect was called with correct workflow
-    await expect(args.onSelect).toHaveBeenCalledWith(mockWorkflows[1]);
+    // Verify onSelect was called with correct agent workflow
+    await expect(args.onSelect).toHaveBeenCalledWith(mockAgentWorkflows[1]);
   },
 };
 
 export const Collapsed: Story = {
   args: {
-    workflows: mockWorkflows,
-    selectedWorkflow: mockWorkflows[0],
+    agentWorkflows: mockAgentWorkflows,
+    selectedAgentWorkflow: mockAgentWorkflows[0],
     onSelect: fn(),
     collapsed: true,
   },
@@ -120,10 +120,10 @@ export const Collapsed: Story = {
   },
 };
 
-export const SingleWorkflow: Story = {
+export const SingleAgentWorkflow: Story = {
   args: {
-    workflows: [{ id: 'my-project', name: 'My Project', agentCount: 10 }],
-    selectedWorkflow: null,
+    agentWorkflows: [{ id: 'my-project', name: 'My Project', agentCount: 10 }],
+    selectedAgentWorkflow: null,
     onSelect: fn(),
   },
   play: async ({ canvasElement }) => {
@@ -135,11 +135,11 @@ export const SingleWorkflow: Story = {
 
 export const WithUnassigned: Story = {
   args: {
-    workflows: [
+    agentWorkflows: [
       { id: 'my-project', name: 'My Project', agentCount: 10 },
       { id: null, name: 'Unassigned', agentCount: 5 },
     ],
-    selectedWorkflow: null,
+    selectedAgentWorkflow: null,
     onSelect: fn(),
   },
   play: async ({ canvasElement }) => {

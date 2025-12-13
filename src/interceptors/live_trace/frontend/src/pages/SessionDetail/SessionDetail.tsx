@@ -6,7 +6,7 @@ import { fetchModels } from '@api/endpoints/replay';
 import type { SessionResponse, TimelineEvent } from '@api/types/session';
 import type { ModelsResponse, ModelInfo } from '@api/types/replay';
 import { usePolling } from '@hooks/usePolling';
-import { buildWorkflowBreadcrumbs, workflowLink } from '../../utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { EmptyState } from '@ui/feedback/EmptyState';
@@ -51,7 +51,7 @@ function findModelPricing(
 }
 
 export const SessionDetail: FC = () => {
-  const { sessionId, workflowId } = useParams<{ sessionId: string; workflowId: string }>();
+  const { sessionId, agentWorkflowId } = useParams<{ sessionId: string; agentWorkflowId: string }>();
   const [replayEventId, setReplayEventId] = useState<string | null>(null);
   const [modelsData, setModelsData] = useState<ModelsResponse | null>(null);
 
@@ -77,12 +77,12 @@ export const SessionDetail: FC = () => {
     [modelsData, data?.session.model]
   );
 
-  // Set breadcrumbs with workflow context
+  // Set breadcrumbs with agent workflow context
   usePageMeta({
-    breadcrumbs: buildWorkflowBreadcrumbs(
-      workflowId,
+    breadcrumbs: buildAgentWorkflowBreadcrumbs(
+      agentWorkflowId,
       ...(data?.session.agent_id
-        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: workflowLink(workflowId, `/agent/${data.session.agent_id}`) }]
+        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: agentWorkflowLink(agentWorkflowId, `/agent/${data.session.agent_id}`) }]
         : []),
       { label: 'Session' },
       { label: sessionId?.substring(0, 12) + '...' || '' }

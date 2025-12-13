@@ -43,9 +43,9 @@ class AnalysisStore(Protocol):
     def create_analysis_session(
         self,
         session_id: str,
-        workflow_id: str,
+        agent_workflow_id: str,
         session_type: str,
-        workflow_name: Optional[str] = None,
+        agent_workflow_name: Optional[str] = None,
         agent_id: Optional[str] = None,
     ) -> None:
         """Create an analysis session record."""
@@ -56,7 +56,7 @@ class AnalysisStore(Protocol):
         agent_id: str,
         security_report,
         analysis_session_id: str,
-        workflow_id: Optional[str] = None,
+        agent_workflow_id: Optional[str] = None,
     ) -> int:
         """Persist security check results."""
         ...
@@ -264,19 +264,19 @@ class AnalysisRunner:
             agent_id: Agent identifier
             result: Analysis results to persist
         """
-        # Get workflow_id and agent info
+        # Get agent_workflow_id and agent info
         agent = self._store.get_agent(agent_id)
-        workflow_id = agent.workflow_id if agent else None
-        workflow_name = agent.workflow_id if agent else None  # Use workflow_id as name
+        agent_workflow_id = agent.agent_workflow_id if agent else None
+        agent_workflow_name = agent.agent_workflow_id if agent else None  # Use agent_workflow_id as name
 
         # Create analysis session in database first (for foreign key constraint)
         analysis_session_id = f"analysis_{agent_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         self._store.create_analysis_session(
             session_id=analysis_session_id,
-            workflow_id=workflow_id or agent_id,
+            agent_workflow_id=agent_workflow_id or agent_id,
             session_type="DYNAMIC",
-            workflow_name=workflow_name,
+            agent_workflow_name=agent_workflow_name,
             agent_id=agent_id,
         )
 
@@ -285,7 +285,7 @@ class AnalysisRunner:
             agent_id=agent_id,
             security_report=result.security_report,
             analysis_session_id=analysis_session_id,
-            workflow_id=workflow_id,
+            agent_workflow_id=agent_workflow_id,
         )
 
         # Persist behavioral analysis to database

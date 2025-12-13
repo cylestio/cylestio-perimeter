@@ -5,4 +5,4 @@ export * from './findings';
 export * from './ide';
 export * from './replay';
 export * from './session';
-export * from './workflows';
+export * from './agentWorkflows';

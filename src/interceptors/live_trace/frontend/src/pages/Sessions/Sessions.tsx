@@ -6,7 +6,7 @@ import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { APIAgent } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
-import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -23,7 +23,7 @@ import { LoadingContainer } from './Sessions.styles';
 const PAGE_SIZE = 10;
 
 export const Sessions: FC = () => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // Sessions data
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -40,32 +40,32 @@ export const Sessions: FC = () => {
 
   // Set page metadata
   usePageMeta({
-    breadcrumbs: workflowId
-      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Sessions' })
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Sessions' })
       : [{ label: 'Sessions', href: '/sessions' }],
   });
 
   // Fetch agents for filter options
   const loadAgents = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     try {
-      const data = await fetchDashboard(workflowId);
+      const data = await fetchDashboard(agentWorkflowId);
       setAgents(data.agents || []);
     } catch (err) {
       console.error('Failed to fetch agents:', err);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
   // Fetch sessions with current filters and pagination
   const loadSessions = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     try {
       setError(null);
       const offset = (currentPage - 1) * PAGE_SIZE;
       const data = await fetchSessions({
-        workflow_id: workflowId,
+        agent_workflow_id: agentWorkflowId,
         agent_id: selectedAgent || undefined,
         limit: PAGE_SIZE,
         offset,
@@ -78,7 +78,7 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [workflowId, selectedAgent, currentPage]);
+  }, [agentWorkflowId, selectedAgent, currentPage]);
 
   // Initial load of agents
   useEffect(() => {
@@ -121,7 +121,7 @@ export const Sessions: FC = () => {
       const name = selected?.id_short || selectedAgent.substring(0, 12);
       return `${totalCount} session${totalCount !== 1 ? 's' : ''} from agent ${name}`;
     }
-    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all agents in this workflow`;
+    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all agents in this agent workflow`;
   }, [totalCount, selectedAgent, agents]);
 
   if (loading) {
@@ -163,9 +163,9 @@ export const Sessions: FC = () => {
         <Card.Content noPadding>
           <SessionsTable
             sessions={sessions}
-            workflowId={workflowId || 'unassigned'}
+            agentWorkflowId={agentWorkflowId || 'unassigned'}
             showAgentColumn={!selectedAgent}
-            emptyMessage="No sessions recorded for this workflow yet. Sessions will appear here once agents start processing requests."
+            emptyMessage="No sessions recorded for this agent workflow yet. Sessions will appear here once agents start processing requests."
           />
           <Pagination
             currentPage={currentPage}
