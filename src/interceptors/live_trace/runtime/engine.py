@@ -124,7 +124,7 @@ class AnalysisEngine:
         # Get findings summary
         findings_summary = None
         try:
-            findings_summary = self.store.get_workflow_findings_summary(agent_workflow_id)
+            findings_summary = self.store.get_agent_workflow_findings_summary(agent_workflow_id)
         except Exception as e:
             logger.warning(f"Failed to get findings summary for agent workflow {agent_workflow_id}: {e}")
 
