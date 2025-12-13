@@ -31,6 +31,7 @@
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
 | `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
+| `domain/charts/` | LineChart, BarChart |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
@@ -1234,6 +1235,117 @@ interface RiskScoreProps {
   change?: number;
 }
 ```
+
+---
+
+## Chart Components
+
+### LineChart
+
+Time-series line chart using Recharts. Displays data points connected by a smooth line with interactive tooltips.
+
+```typescript
+type ChartColor = 'cyan' | 'purple' | 'red' | 'green' | 'orange';
+
+interface LineChartDataPoint {
+  date: string;      // Date string (e.g., "2025-12-12")
+  value: number;     // Numeric value for the Y-axis
+  label?: string;    // Optional label for tooltip
+}
+
+interface LineChartProps {
+  data: LineChartDataPoint[];
+  color?: ChartColor;                    // Line color (default: 'cyan')
+  height?: number;                       // Chart height in pixels (default: 200)
+  formatValue?: (value: number) => string;  // Y-axis value formatter
+  formatDate?: (date: string) => string;    // X-axis date formatter
+  emptyMessage?: string;                 // Message when no data
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Sessions over time chart
+<LineChart
+  data={[
+    { date: '2025-12-10', value: 15 },
+    { date: '2025-12-11', value: 23 },
+    { date: '2025-12-12', value: 18 },
+  ]}
+  color="purple"
+  height={200}
+  formatValue={(v) => `${v} sessions`}
+  emptyMessage="No session data yet"
+/>
+
+// Error rate trend
+<LineChart
+  data={errorRateData}
+  color="red"
+  formatValue={(v) => `${v.toFixed(1)}%`}
+/>
+```
+
+### BarChart
+
+Horizontal or vertical bar chart using Recharts. Displays categorical data with interactive tooltips.
+
+```typescript
+type BarChartColor = 'cyan' | 'purple' | 'red' | 'green' | 'orange';
+
+interface BarChartDataPoint {
+  name: string;           // Category label
+  value: number;          // Numeric value
+  color?: BarChartColor;  // Per-bar color override
+}
+
+interface BarChartProps {
+  data: BarChartDataPoint[];
+  color?: BarChartColor;                    // Default bar color (default: 'cyan')
+  height?: number;                          // Chart height in pixels (default: 200)
+  horizontal?: boolean;                     // Horizontal bars (default: false)
+  formatValue?: (value: number) => string;  // Value formatter for tooltips
+  emptyMessage?: string;                    // Message when no data
+  maxBars?: number;                         // Limit number of bars (default: 10)
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Horizontal tool usage chart
+<BarChart
+  data={[
+    { name: 'web_search', value: 42 },
+    { name: 'code_editor', value: 28 },
+    { name: 'file_reader', value: 15 },
+  ]}
+  color="green"
+  height={200}
+  horizontal
+  maxBars={10}
+  formatValue={(v) => `${v} calls`}
+  emptyMessage="No tool usage data"
+/>
+
+// Vertical chart with custom colors per bar
+<BarChart
+  data={[
+    { name: 'Critical', value: 3, color: 'red' },
+    { name: 'High', value: 8, color: 'orange' },
+    { name: 'Medium', value: 15, color: 'purple' },
+    { name: 'Low', value: 25, color: 'cyan' },
+  ]}
+  height={250}
+/>
+```
+
+**Notes:**
+- Both components show an empty state with icon when `data` is empty
+- Charts are responsive and fill their container width
+- Tooltips show formatted values and labels
+- Data is automatically sorted by value (descending) for BarChart
 
 ### LifecycleProgress
 

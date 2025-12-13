@@ -56,6 +56,46 @@ export const formatCompactNumber = (num: number): string => {
 };
 
 /**
+ * Format cost in USD with appropriate precision.
+ * e.g., 0.0001 -> "$0.0001", 1.234 -> "$1.23", 0 -> "$0.00"
+ */
+export const formatCost = (cost: number): string => {
+  if (cost === 0) return '$0.00';
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  if (cost < 1) return `$${cost.toFixed(3)}`;
+  return `$${cost.toFixed(2)}`;
+};
+
+/**
+ * Format latency in milliseconds to human-readable string.
+ * e.g., 150 -> "150ms", 1500 -> "1.5s", 65000 -> "1m 5s"
+ */
+export const formatLatency = (ms: number): string => {
+  if (ms === 0) return '0ms';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.round((ms % 60000) / 1000);
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+};
+
+/**
+ * Format throughput as sessions per hour.
+ * e.g., 2.5 -> "2.5/hr", 0.1 -> "0.1/hr"
+ */
+export const formatThroughput = (sessionsPerHour: number): string => {
+  if (sessionsPerHour === 0) return '0/hr';
+  if (sessionsPerHour < 0.1) return '<0.1/hr';
+  return `${sessionsPerHour.toFixed(1)}/hr`;
+};
+
+/**
+ * Format tokens with K/M suffix for display.
+ * Alias for formatCompactNumber with explicit naming.
+ */
+export const formatTokens = formatCompactNumber;
+
+/**
  * Format duration in minutes to a human-readable string.
  * e.g., 0.5 -> "<1m", 45 -> "45m", 90 -> "1h 30m"
  */

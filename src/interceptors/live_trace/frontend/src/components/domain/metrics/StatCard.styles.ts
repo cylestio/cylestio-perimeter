@@ -92,6 +92,31 @@ export const StatLabel = styled.span`
   color: ${({ theme }) => theme.colors.white50};
 `;
 
+export const StatLabelRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+`;
+
+export const InfoIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.white30};
+  cursor: help;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.white50};
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+`;
+
 interface StatValueProps {
   $color?: StatCardColor;
   $size: StatCardSize;

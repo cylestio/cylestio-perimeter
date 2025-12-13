@@ -59,7 +59,7 @@ const mockSessionsData = {
       session_id: 'sess_001',
       agent_id: 'agent_001',
       agent_name: 'Customer Support Bot',
-      start_time: new Date(Date.now() - 3600000).toISOString(),
+      created_at: new Date(Date.now() - 3600000).toISOString(),
       duration_minutes: 45,
       errors: 1,
       events_count: 120,
@@ -69,7 +69,7 @@ const mockSessionsData = {
       session_id: 'sess_002',
       agent_id: 'agent_002',
       agent_name: 'Code Assistant',
-      start_time: new Date(Date.now() - 1800000).toISOString(),
+      created_at: new Date(Date.now() - 1800000).toISOString(),
       duration_minutes: 30,
       errors: 0,
       events_count: 85,
@@ -79,8 +79,40 @@ const mockSessionsData = {
   total: 225,
 };
 
+const mockAgentAnalytics = {
+  agent: {
+    id: 'agent_001',
+    name: 'Customer Support Bot',
+    avg_response_time_ms: 1250,
+  },
+  analytics: {
+    token_summary: {
+      total_tokens: 150000,
+      input_tokens: 100000,
+      output_tokens: 50000,
+      total_cost: 0.45,
+      models_used: 2,
+      pricing_last_updated: null,
+    },
+    tools: [
+      { tool: 'web_search', executions: 42, avg_duration_ms: 350 },
+      { tool: 'code_editor', executions: 28, avg_duration_ms: 120 },
+    ],
+    timeline: [
+      { date: '2025-12-10', requests: 12, tokens: 5000, input_tokens: 3000, output_tokens: 2000 },
+      { date: '2025-12-11', requests: 18, tokens: 7500, input_tokens: 4500, output_tokens: 3000 },
+      { date: '2025-12-12', requests: 15, tokens: 6000, input_tokens: 3600, output_tokens: 2400 },
+    ],
+    tool_timeline: [],
+  },
+};
+
 // Create mock fetch function
-const createMockFetch = (dashboardData: unknown, sessionsData: unknown) => {
+const createMockFetch = (
+  dashboardData: unknown,
+  sessionsData: unknown,
+  agentData: unknown = mockAgentAnalytics
+) => {
   return (url: string) => {
     if (url.includes('/api/dashboard')) {
       return Promise.resolve({
@@ -92,6 +124,12 @@ const createMockFetch = (dashboardData: unknown, sessionsData: unknown) => {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve(sessionsData),
+      });
+    }
+    if (url.includes('/api/agent/')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(agentData),
       });
     }
     return Promise.reject(new Error(`Unknown URL: ${url}`));

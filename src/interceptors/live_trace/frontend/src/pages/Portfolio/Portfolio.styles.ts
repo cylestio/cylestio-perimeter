@@ -9,9 +9,3 @@ export const AgentsGrid = styled.div`
     grid-template-columns: 1fr;
   }
 `;
-
-export const SessionsList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[2]};
-`;

@@ -233,3 +233,85 @@ export const SizeComparison: Story = {
     await expect(labels).toHaveLength(2);
   },
 };
+
+export const WithTooltip: Story = {
+  args: {
+    icon: <Activity />,
+    iconColor: 'purple',
+    label: 'Throughput',
+    value: '12.5/hr',
+    detail: 'Sessions per hour',
+    tooltip: 'Calculated as total sessions divided by the time span between the first and last session.',
+  },
+  play: async ({ canvas, canvasElement }) => {
+    await expect(canvas.getByText('Throughput')).toBeInTheDocument();
+    // Info icon should be present when tooltip is provided (2 SVGs: main icon + info icon)
+    const svgs = canvasElement.querySelectorAll('svg');
+    await expect(svgs.length).toBeGreaterThanOrEqual(2);
+  },
+};
+
+export const WithTooltipCompact: Story = {
+  args: {
+    icon: <Zap />,
+    iconColor: 'orange',
+    label: 'Avg Latency',
+    value: '1.25s',
+    detail: 'Per LLM call',
+    tooltip: 'Average response time across all LLM API calls in this workflow.',
+    size: 'sm',
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Avg Latency')).toBeInTheDocument();
+    await expect(canvas.getByText('1.25s')).toBeInTheDocument();
+  },
+};
+
+export const TooltipsInGrid: Story = {
+  render: () => (
+    <StatGrid>
+      <StatCard
+        icon={<Activity />}
+        iconColor="cyan"
+        label="Avg Latency"
+        value="1.25s"
+        detail="Per LLM call"
+        tooltip="Average response time across all LLM API calls in this workflow."
+        size="sm"
+      />
+      <StatCard
+        icon={<Shield />}
+        iconColor="green"
+        label="Total Tokens"
+        value="150K"
+        detail="All sessions"
+        tooltip="Sum of input and output tokens consumed across all sessions."
+        size="sm"
+      />
+      <StatCard
+        icon={<AlertTriangle />}
+        iconColor="orange"
+        label="Est. Cost"
+        value="$0.45"
+        detail="Based on model pricing"
+        tooltip="Estimated cost based on token usage and current model pricing. Input: $3/M tokens, Output: $15/M tokens."
+        size="sm"
+      />
+      <StatCard
+        icon={<Zap />}
+        iconColor="purple"
+        label="Throughput"
+        value="12.5/hr"
+        detail="Sessions per hour"
+        tooltip="Sessions completed per hour, calculated from the time range of available data."
+        size="sm"
+      />
+    </StatGrid>
+  ),
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Avg Latency')).toBeInTheDocument();
+    await expect(canvas.getByText('Total Tokens')).toBeInTheDocument();
+    await expect(canvas.getByText('Est. Cost')).toBeInTheDocument();
+    await expect(canvas.getByText('Throughput')).toBeInTheDocument();
+  },
+};
