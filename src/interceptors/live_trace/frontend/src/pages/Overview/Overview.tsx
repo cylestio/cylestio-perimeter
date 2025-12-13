@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { 
-  Activity, 
-  AlertTriangle, 
-  Bot, 
-  Clock, 
-  DollarSign, 
+import {
+  Activity,
+  AlertTriangle,
+  Bot,
+  Clock,
+  DollarSign,
   Zap,
   Wrench,
   MessageSquare,
   TrendingUp,
   Timer
 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import { fetchDashboard } from '@api/endpoints/dashboard';
@@ -23,9 +23,11 @@ import type { SessionListItem } from '@api/types/session';
 import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration, formatLatency, formatTokens, formatCost, formatThroughput } from '@utils/formatting';
 
+import { Avatar, Badge, TimeAgo } from '@ui/core';
+import { Card } from '@ui/core/Card';
+import { Table, type Column } from '@ui/data-display/Table';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
-import { Card } from '@ui/core/Card';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
@@ -61,7 +63,7 @@ interface AggregatedMetrics {
 
 const aggregateMetrics = (agents: APIAgent[]): AggregatedMetrics => {
   const toolsUsage: Record<string, number> = {};
-  
+
   // Aggregate tool usage from agents (placeholder - would come from actual data)
   // For now, we'll track total tools per agent
 
@@ -77,7 +79,42 @@ const aggregateMetrics = (agents: APIAgent[]): AggregatedMetrics => {
   };
 };
 
+// Column definitions for recent sessions table
+const recentSessionsColumns: Column<SessionListItem>[] = [
+  {
+    key: 'last_activity',
+    header: 'Last Activity',
+    render: (session) => <TimeAgo timestamp={session.last_activity} />,
+  },
+  {
+    key: 'agent_id',
+    header: 'System Prompt',
+    render: (session) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <Avatar name={session.agent_id} size="sm" />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
+          {session.agent_id_short || session.agent_id.slice(0, 8)}
+        </span>
+      </div>
+    ),
+  },
+  {
+    key: 'status',
+    header: 'Status',
+    render: (session) => {
+      if (session.is_active) {
+        return <Badge variant="success">ACTIVE</Badge>;
+      }
+      if (session.errors > 0) {
+        return <Badge variant="critical">ERROR</Badge>;
+      }
+      return <Badge variant="info">COMPLETE</Badge>;
+    },
+  },
+];
+
 export const Overview: FC<OverviewProps> = ({ className }) => {
+  const navigate = useNavigate();
   const { agentId } = useParams<{ agentId: string }>();
 
   // State
@@ -187,27 +224,6 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     date: point.date,
     value: point.requests,
   }));
-
-  // Prepare chart data for Error Rate Trend (aggregate errors by date from sessions)
-  const errorRateChartData = (() => {
-    const errorsByDate: Record<string, { errors: number; total: number }> = {};
-    sessions.forEach(session => {
-      const date = session.created_at.split('T')[0];
-      if (!errorsByDate[date]) {
-        errorsByDate[date] = { errors: 0, total: 0 };
-      }
-      errorsByDate[date].total += 1;
-      if (session.errors > 0) {
-        errorsByDate[date].errors += 1;
-      }
-    });
-    return Object.entries(errorsByDate)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, data]) => ({
-        date,
-        value: data.total > 0 ? (data.errors / data.total) * 100 : 0,
-      }));
-  })();
 
   return (
     <Page className={className} data-testid="overview">
@@ -330,15 +346,23 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
         </Section>
         <Section>
           <Section.Header>
-            <Section.Title>Error Rate Trend</Section.Title>
+            <Section.Title icon={<Activity size={16} />}>Recent Sessions</Section.Title>
           </Section.Header>
-          <Section.Content>
-            <LineChart
-              data={errorRateChartData}
-              color="red"
-              height={200}
-              formatValue={(v) => `${v.toFixed(1)}%`}
-              emptyMessage="No error data yet"
+          <Section.Content noPadding>
+            <Table<SessionListItem>
+              columns={recentSessionsColumns}
+              data={sessions.slice(0, 4)}
+              keyExtractor={(session) => session.id}
+              onRowClick={(session) => {
+                navigate(`/agent/${agentId}/session/${session.id}`);
+              }}
+              emptyState={
+                <EmptyState
+                  icon={<Activity size={24} />}
+                  title="No sessions yet"
+                  description="Sessions will appear here once activity is recorded."
+                />
+              }
             />
           </Section.Content>
         </Section>
