@@ -307,6 +307,9 @@ class SessionData:
         self.behavioral_signature = None  # MinHash signature (computed when completed)
         self.behavioral_features = None  # SessionFeatures (computed when completed)
 
+        # Analysis tracking (Phase 4.5)
+        self.last_analysis_session_id = None  # ID of analysis session that last analyzed this session
+
     def add_event(self, event: BaseEvent):
         """Add an event to this session."""
         self.events.append(event)
@@ -666,6 +669,16 @@ class TraceStore:
         
         self.db.commit()
 
+        # Migration (Phase 4.5): Add last_analysis_session_id to sessions table for tracking which analysis processed each session
+        cursor = self.db.execute("PRAGMA table_info(sessions)")
+        session_columns = {col[1] for col in cursor.fetchall()}
+        
+        if 'last_analysis_session_id' not in session_columns:
+            self.db.execute("ALTER TABLE sessions ADD COLUMN last_analysis_session_id TEXT")
+            self.db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_last_analysis ON sessions(last_analysis_session_id)")
+            self.db.commit()
+            logger.info("Migration: Added last_analysis_session_id column to sessions table")
+
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
         return {
@@ -689,6 +702,7 @@ class TraceStore:
             'events_json': json.dumps([e.model_dump() for e in session.events]),
             'behavioral_signature': json.dumps(session.behavioral_signature) if session.behavioral_signature else None,
             'behavioral_features': session.behavioral_features.model_dump_json() if session.behavioral_features else None,
+            'last_analysis_session_id': session.last_analysis_session_id,
         }
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
@@ -715,6 +729,9 @@ class TraceStore:
         if row['behavioral_features']:
             from ..runtime.models import SessionFeatures
             session.behavioral_features = SessionFeatures.model_validate_json(row['behavioral_features'])
+        # Handle last_analysis_session_id (may not exist in older DBs before migration runs)
+        if 'last_analysis_session_id' in row.keys():
+            session.last_analysis_session_id = row['last_analysis_session_id']
         return session
 
     def _serialize_agent(self, agent: AgentData) -> Dict[str, Any]:
@@ -778,7 +795,8 @@ class TraceStore:
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
                 :tool_usage_details, :available_tools, :events_json,
-                :behavioral_signature, :behavioral_features
+                :behavioral_signature, :behavioral_features,
+                :last_analysis_session_id
             )
         """, data)
         self.db.commit()
@@ -979,6 +997,25 @@ class TraceStore:
             cursor = self.db.execute(
                 "SELECT * FROM sessions WHERE system_prompt_id = ? ORDER BY created_at DESC",
                 (system_prompt_id,)
+            )
+            return [self._deserialize_session(row) for row in cursor.fetchall()]
+
+    def get_sessions_by_ids(self, session_ids: List[str]) -> List[SessionData]:
+        """Get sessions by their IDs from SQLite.
+        
+        Args:
+            session_ids: List of session IDs to fetch
+            
+        Returns:
+            List of SessionData objects for the requested sessions
+        """
+        if not session_ids:
+            return []
+        with self._lock:
+            placeholders = ','.join('?' * len(session_ids))
+            cursor = self.db.execute(
+                f"SELECT * FROM sessions WHERE session_id IN ({placeholders})",
+                tuple(session_ids)
             )
             return [self._deserialize_session(row) for row in cursor.fetchall()]
 
@@ -1481,17 +1518,26 @@ class TraceStore:
         session_id: str,
         findings_count: Optional[int] = None,
         risk_score: Optional[int] = None,
+        sessions_analyzed: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Mark an analysis session as completed."""
+        """Mark an analysis session as completed.
+        
+        Args:
+            session_id: The analysis session ID
+            findings_count: Number of findings/checks discovered
+            risk_score: Overall risk score
+            sessions_analyzed: Number of sessions that were analyzed
+        """
         with self._lock:
             now = datetime.now(timezone.utc)
             completed_at = now.timestamp()
 
             self.db.execute("""
                 UPDATE analysis_sessions
-                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count), risk_score = ?
+                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count), 
+                    risk_score = ?, sessions_analyzed = COALESCE(?, sessions_analyzed)
                 WHERE session_id = ?
-            """, ('COMPLETED', completed_at, findings_count, risk_score, session_id))
+            """, ('COMPLETED', completed_at, findings_count, risk_score, sessions_analyzed, session_id))
             self.db.commit()
 
             # Return the updated session
@@ -2009,6 +2055,228 @@ class TraceStore:
                 ) > COALESCE(a.last_analyzed_session_count, 0)
             """, (min_sessions,))
             return [row[0] for row in cursor.fetchall()]
+
+    # =========================================================================
+    # Phase 4.5: On-Demand Dynamic Analysis Methods
+    # =========================================================================
+
+    def get_unanalyzed_sessions(
+        self,
+        system_prompt_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+    ) -> List[SessionData]:
+        """Get completed sessions that haven't been analyzed yet.
+        
+        Phase 4.5: For incremental analysis - only process new sessions.
+        
+        Args:
+            system_prompt_id: Filter by specific system prompt
+            agent_id: Filter by agent ID (gets all system prompts for that agent)
+            
+        Returns:
+            List of SessionData that are completed but not yet analyzed
+        """
+        with self._lock:
+            query = """
+                SELECT * FROM sessions 
+                WHERE is_completed = 1 
+                AND (last_analysis_session_id IS NULL OR last_analysis_session_id = '')
+            """
+            params = []
+            
+            if system_prompt_id:
+                query += " AND system_prompt_id = ?"
+                params.append(system_prompt_id)
+            elif agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
+            
+            query += " ORDER BY created_at ASC"
+            
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_session(row) for row in cursor.fetchall()]
+
+    def get_unanalyzed_session_count(
+        self,
+        system_prompt_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+    ) -> int:
+        """Get count of completed sessions that haven't been analyzed yet.
+        
+        Args:
+            system_prompt_id: Filter by specific system prompt
+            agent_id: Filter by agent ID
+            
+        Returns:
+            Count of unanalyzed sessions
+        """
+        with self._lock:
+            query = """
+                SELECT COUNT(*) as count FROM sessions 
+                WHERE is_completed = 1 
+                AND (last_analysis_session_id IS NULL OR last_analysis_session_id = '')
+            """
+            params = []
+            
+            if system_prompt_id:
+                query += " AND system_prompt_id = ?"
+                params.append(system_prompt_id)
+            elif agent_id:
+                query += " AND agent_id = ?"
+                params.append(agent_id)
+            
+            cursor = self.db.execute(query, params)
+            row = cursor.fetchone()
+            return row['count'] if row else 0
+
+    def mark_sessions_analyzed(
+        self,
+        session_ids: List[str],
+        analysis_session_id: str,
+    ) -> int:
+        """Mark sessions as analyzed by setting their analysis_session_id.
+        
+        Phase 4.5: Called after analysis completes to mark which sessions were processed.
+        
+        Args:
+            session_ids: List of session IDs to mark as analyzed
+            analysis_session_id: The analysis session that processed these sessions
+            
+        Returns:
+            Number of sessions updated
+        """
+        if not session_ids:
+            return 0
+            
+        with self._lock:
+            placeholders = ','.join(['?' for _ in session_ids])
+            cursor = self.db.execute(f"""
+                UPDATE sessions 
+                SET last_analysis_session_id = ?
+                WHERE session_id IN ({placeholders})
+            """, [analysis_session_id] + session_ids)
+            self.db.commit()
+            
+            logger.info(f"Marked {cursor.rowcount} sessions as analyzed (analysis_session_id={analysis_session_id})")
+            return cursor.rowcount
+
+    def get_dynamic_analysis_status(self, agent_id: str) -> Dict[str, Any]:
+        """Get comprehensive dynamic analysis status for an agent.
+        
+        Phase 4.5: For the status API endpoint.
+        
+        Args:
+            agent_id: Agent identifier
+            
+        Returns:
+            Dict with analysis status information including per-system-prompt breakdown
+        """
+        with self._lock:
+            # Get all system prompts for this agent
+            cursor = self.db.execute("""
+                SELECT system_prompt_id, display_name, total_sessions
+                FROM agents WHERE agent_id = ?
+            """, (agent_id,))
+            system_prompts = cursor.fetchall()
+            
+            system_prompt_status = []
+            total_unanalyzed = 0
+            
+            # Get all unique system_prompt_ids from sessions for this agent
+            # (sessions may have different system_prompt_ids than what's in agents table)
+            cursor = self.db.execute("""
+                SELECT DISTINCT system_prompt_id FROM sessions WHERE agent_id = ?
+            """, (agent_id,))
+            session_system_prompts = [row['system_prompt_id'] for row in cursor.fetchall()]
+            
+            # Use session system_prompts if available, otherwise fall back to agents table
+            sp_ids_to_check = session_system_prompts if session_system_prompts else [sp['system_prompt_id'] for sp in system_prompts]
+            
+            for sp_id in sp_ids_to_check:
+                # Count unanalyzed sessions for this system prompt AND agent_id
+                # (filter by agent_id to avoid counting sessions from other agents with same system_prompt)
+                cursor = self.db.execute("""
+                    SELECT COUNT(*) as count FROM sessions 
+                    WHERE system_prompt_id = ? 
+                    AND agent_id = ?
+                    AND is_completed = 1 
+                    AND (last_analysis_session_id IS NULL OR last_analysis_session_id = '')
+                """, (sp_id, agent_id))
+                unanalyzed = cursor.fetchone()['count']
+                total_unanalyzed += unanalyzed
+                
+                # Get last analysis info for this system prompt
+                cursor = self.db.execute("""
+                    SELECT session_id, completed_at, sessions_analyzed
+                    FROM analysis_sessions 
+                    WHERE system_prompt_id = ? AND session_type = 'DYNAMIC' AND status = 'COMPLETED'
+                    ORDER BY completed_at DESC LIMIT 1
+                """, (sp_id,))
+                last_analysis = cursor.fetchone()
+                
+                # Get display name from agents table if available
+                cursor = self.db.execute("""
+                    SELECT display_name FROM agents WHERE system_prompt_id = ?
+                """, (sp_id,))
+                agent_row = cursor.fetchone()
+                display_name = (agent_row['display_name'] if agent_row and agent_row['display_name'] else sp_id[:12])
+                
+                system_prompt_status.append({
+                    'system_prompt_id': sp_id,
+                    'display_name': display_name,
+                    'unanalyzed_sessions': unanalyzed,
+                    'last_analyzed_at': (
+                        datetime.fromtimestamp(last_analysis['completed_at'], tz=timezone.utc).isoformat()
+                        if last_analysis and last_analysis['completed_at'] else None
+                    ),
+                    'last_sessions_analyzed': last_analysis['sessions_analyzed'] if last_analysis else 0,
+                })
+            
+            # Count active (not yet completed) sessions
+            cursor = self.db.execute("""
+                SELECT COUNT(*) as count FROM sessions 
+                WHERE agent_id = ? AND is_completed = 0 AND is_active = 1
+            """, (agent_id,))
+            active_sessions = cursor.fetchone()['count']
+            
+            # Check if analysis is currently running (any IN_PROGRESS DYNAMIC session for this agent)
+            cursor = self.db.execute("""
+                SELECT session_id FROM analysis_sessions 
+                WHERE agent_id = ? AND session_type = 'DYNAMIC' AND status = 'IN_PROGRESS'
+            """, (agent_id,))
+            is_running = cursor.fetchone() is not None
+            
+            # Get latest completed analysis summary
+            cursor = self.db.execute("""
+                SELECT session_id, completed_at, sessions_analyzed, findings_count, risk_score
+                FROM analysis_sessions 
+                WHERE agent_id = ? AND session_type = 'DYNAMIC' AND status = 'COMPLETED'
+                ORDER BY completed_at DESC LIMIT 1
+            """, (agent_id,))
+            last_analysis = cursor.fetchone()
+            
+            # Determine overall status
+            can_trigger = total_unanalyzed > 0 and not is_running
+            
+            return {
+                'agent_id': agent_id,
+                'is_running': is_running,
+                'can_trigger': can_trigger,
+                'total_unanalyzed_sessions': total_unanalyzed,
+                'total_active_sessions': active_sessions,  # Sessions still in progress
+                'system_prompts': system_prompt_status,
+                'system_prompts_total': len(system_prompts),
+                'system_prompts_with_new_sessions': sum(1 for sp in system_prompt_status if sp['unanalyzed_sessions'] > 0),
+                'last_analysis': {
+                    'session_id': last_analysis['session_id'] if last_analysis else None,
+                    'completed_at': (
+                        datetime.fromtimestamp(last_analysis['completed_at'], tz=timezone.utc).isoformat()
+                        if last_analysis and last_analysis['completed_at'] else None
+                    ),
+                    'sessions_analyzed': last_analysis['sessions_analyzed'] if last_analysis else 0,
+                    'issues_found': last_analysis['findings_count'] if last_analysis else 0,
+                } if last_analysis else None,
+            }
 
     def store_security_check(
         self,

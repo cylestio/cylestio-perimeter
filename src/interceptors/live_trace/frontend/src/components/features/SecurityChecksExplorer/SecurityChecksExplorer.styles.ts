@@ -153,20 +153,107 @@ export const CheckList = styled.div`
   flex-direction: column;
 `;
 
-export const CheckItem = styled.div`
+export const CheckItemContainer = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: ${({ theme }) => theme.spacing[2]} ${({ theme }) => theme.spacing[4]};
+  flex-direction: column;
   border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
 
   &:last-child {
     border-bottom: none;
   }
+`;
+
+export const CheckItem = styled.div<{ $expanded?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${({ theme }) => theme.spacing[2]} ${({ theme }) => theme.spacing[4]};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.base};
 
   &:hover {
     background: ${({ theme }) => theme.colors.surface2};
   }
+
+  ${({ $expanded, theme }) => $expanded && `
+    background: ${theme.colors.surface2};
+  `}
+`;
+
+export const CheckDetails = styled.div<{ $expanded?: boolean }>`
+  display: ${({ $expanded }) => $expanded ? 'flex' : 'none'};
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
+  background: ${({ theme }) => theme.colors.void};
+  border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+`;
+
+export const CheckDescription = styled.p`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white70};
+  margin: 0;
+  line-height: 1.5;
+`;
+
+export const CheckEvidence = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const EvidenceLabel = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+export const EvidenceContent = styled.pre`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.white80};
+  background: ${({ theme }) => theme.colors.surface};
+  padding: ${({ theme }) => theme.spacing[3]};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
+export const RecommendationsList = styled.ul`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[2]};
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`;
+
+export const RecommendationItem = styled.li`
+  display: flex;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.spacing[2]};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white80};
+  line-height: 1.4;
+
+  &::before {
+    content: '→';
+    color: ${({ theme }) => theme.colors.cyan};
+    flex-shrink: 0;
+  }
+`;
+
+export const ExpandIcon = styled.span<{ $expanded?: boolean }>`
+  display: flex;
+  align-items: center;
+  color: ${({ theme }) => theme.colors.white50};
+  transition: transform ${({ theme }) => theme.transitions.base};
+  transform: rotate(${({ $expanded }) => $expanded ? '90deg' : '0deg'});
+  margin-left: ${({ theme }) => theme.spacing[2]};
 `;
 
 export const CheckInfo = styled.div`

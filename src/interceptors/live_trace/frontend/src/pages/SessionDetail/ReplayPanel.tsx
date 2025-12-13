@@ -1,7 +1,7 @@
 import { useState, useEffect, type FC } from 'react';
 
 import { fetchReplayConfig, fetchModels, sendReplay } from '@api/endpoints/replay';
-import type { ReplayConfig, ReplayResponse, TimelineEvent, ModelInfo } from '@api/types';
+import type { ReplayConfig, ReplayResponse, ReplayContentBlock, TimelineEvent, ModelInfo } from '@api/types';
 
 import { Badge } from '@ui/core/Badge';
 import { Input } from '@ui/form/Input';
@@ -481,7 +481,7 @@ export const ReplayPanel: FC<ReplayPanelProps> = ({
                     </Badge>
                   )}
                 </ResponseMeta>
-                {response.parsed?.content?.map((item, idx) => (
+                {response.parsed?.content?.map((item: ReplayContentBlock, idx: number) => (
                   <ResponseContentItem key={idx}>
                     {item.type === 'text' && (
                       <ResponseContent>{item.text}</ResponseContent>

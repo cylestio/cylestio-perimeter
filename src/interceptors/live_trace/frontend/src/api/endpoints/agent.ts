@@ -357,3 +357,79 @@ export const fetchAgentBehavioralAnalysis = async (
   }
   return data;
 };
+
+// ==================== Phase 4.5: Dynamic Analysis Status & Trigger ====================
+
+export interface SystemPromptAnalysisStatus {
+  system_prompt_id: string;
+  display_name?: string;
+  unanalyzed_sessions: number;
+  last_analyzed_at?: string;
+  last_sessions_analyzed: number;
+}
+
+export interface DynamicAnalysisStatus {
+  agent_id: string;
+  is_running: boolean;
+  can_trigger: boolean;
+  total_unanalyzed_sessions: number;
+  total_active_sessions: number;  // Sessions still in progress (not yet completed)
+  system_prompts: SystemPromptAnalysisStatus[];
+  system_prompts_total: number;
+  system_prompts_with_new_sessions: number;
+  last_analysis?: {
+    session_id: string;
+    completed_at: string;
+    sessions_analyzed: number;
+    issues_found: number;
+  };
+  ui_status: 'never_analyzed' | 'running' | 'has_new_sessions' | 'up_to_date' | 'sessions_in_progress';
+}
+
+export interface TriggerAnalysisResponse {
+  status: 'triggered' | 'already_running' | 'no_new_sessions' | 'error';
+  message: string;
+  agent_id: string;
+  sessions_to_analyze?: number;
+  system_prompts_triggered?: number;
+  note?: string;
+}
+
+/**
+ * Fetch dynamic analysis status for an agent.
+ * Phase 4.5: Returns unanalyzed session counts and analysis history.
+ */
+export const fetchDynamicAnalysisStatus = async (
+  agentId: string
+): Promise<DynamicAnalysisStatus> => {
+  const response = await fetch(`/api/agent/${agentId}/dynamic-analysis-status`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch dynamic analysis status: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+/**
+ * Trigger dynamic analysis for an agent.
+ * Phase 4.5: On-demand analysis of unanalyzed sessions only (incremental).
+ */
+export const triggerDynamicAnalysis = async (
+  agentId: string
+): Promise<TriggerAnalysisResponse> => {
+  const response = await fetch(`/api/agent/${agentId}/trigger-dynamic-analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to trigger dynamic analysis: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};

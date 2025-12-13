@@ -1,6 +1,6 @@
 import { useState, useMemo, type FC } from 'react';
 
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, ExternalLink, Shield, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ChevronRight as Chevron, Clock, ExternalLink, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import type { AgentSecurityCheck, SystemPromptSecurityData as AgentSecurityData } from '@api/endpoints/agent';
@@ -24,7 +24,16 @@ import {
   CategoryTitle,
   CategoryCount,
   CheckList,
+  CheckItemContainer,
   CheckItem,
+  CheckDetails,
+  CheckDescription,
+  CheckEvidence,
+  EvidenceLabel,
+  EvidenceContent,
+  RecommendationsList,
+  RecommendationItem,
+  ExpandIcon,
   CheckInfo,
   CheckIcon,
   CheckTitle,
@@ -83,9 +92,22 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   className,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [expandedChecks, setExpandedChecks] = useState<Set<string>>(new Set());
 
   const currentAgent = agents[currentIndex];
   const hasMultipleAgents = agents.length > 1;
+
+  const toggleCheckExpanded = (checkId: string) => {
+    setExpandedChecks((prev) => {
+      const next = new Set(prev);
+      if (next.has(checkId)) {
+        next.delete(checkId);
+      } else {
+        next.add(checkId);
+      }
+      return next;
+    });
+  };
 
   // Group checks by category for current agent
   const checksByCategory = useMemo(() => {
@@ -210,20 +232,66 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
                   <CategoryCount>{checks.length} checks</CategoryCount>
                 </CategoryHeader>
                 <CheckList>
-                  {checks.map((check) => (
-                    <CheckItem key={check.check_id}>
-                      <CheckInfo>
-                        <CheckIcon $status={check.status}>
-                          {getStatusIcon(check.status)}
-                        </CheckIcon>
-                        <CheckTitle>{check.title}</CheckTitle>
-                        {check.value && <CheckValue>({check.value})</CheckValue>}
-                      </CheckInfo>
-                      <CheckStatusBadge $status={check.status}>
-                        {check.status}
-                      </CheckStatusBadge>
-                    </CheckItem>
-                  ))}
+                  {checks.map((check) => {
+                    const isExpanded = expandedChecks.has(check.check_id);
+                    const hasDetails = check.description || check.evidence || (check.recommendations && check.recommendations.length > 0);
+                    
+                    return (
+                      <CheckItemContainer key={check.check_id}>
+                        <CheckItem 
+                          onClick={() => hasDetails && toggleCheckExpanded(check.check_id)}
+                          $expanded={isExpanded}
+                          style={{ cursor: hasDetails ? 'pointer' : 'default' }}
+                        >
+                          <CheckInfo>
+                            <CheckIcon $status={check.status}>
+                              {getStatusIcon(check.status)}
+                            </CheckIcon>
+                            <CheckTitle>{check.title}</CheckTitle>
+                            {check.value && <CheckValue>({check.value})</CheckValue>}
+                          </CheckInfo>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <CheckStatusBadge $status={check.status}>
+                              {check.status}
+                            </CheckStatusBadge>
+                            {hasDetails && (
+                              <ExpandIcon $expanded={isExpanded}>
+                                <Chevron size={12} />
+                              </ExpandIcon>
+                            )}
+                          </div>
+                        </CheckItem>
+                        
+                        {hasDetails && (
+                          <CheckDetails $expanded={isExpanded}>
+                            {check.description && (
+                              <CheckDescription>{check.description}</CheckDescription>
+                            )}
+                            
+                            {check.evidence && Object.keys(check.evidence).length > 0 && (
+                              <CheckEvidence>
+                                <EvidenceLabel>Evidence</EvidenceLabel>
+                                <EvidenceContent>
+                                  {JSON.stringify(check.evidence, null, 2)}
+                                </EvidenceContent>
+                              </CheckEvidence>
+                            )}
+                            
+                            {check.recommendations && check.recommendations.length > 0 && (
+                              <CheckEvidence>
+                                <EvidenceLabel>Recommendations</EvidenceLabel>
+                                <RecommendationsList>
+                                  {check.recommendations.map((rec, idx) => (
+                                    <RecommendationItem key={idx}>{rec}</RecommendationItem>
+                                  ))}
+                                </RecommendationsList>
+                              </CheckEvidence>
+                            )}
+                          </CheckDetails>
+                        )}
+                      </CheckItemContainer>
+                    );
+                  })}
                 </CheckList>
               </CategoryCard>
             );

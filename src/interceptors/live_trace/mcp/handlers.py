@@ -218,53 +218,95 @@ def handle_update_finding_status(args: Dict[str, Any], store: Any) -> Dict[str, 
 def handle_trigger_dynamic_analysis(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Manually trigger dynamic analysis for an agent.
     
-    Note: Dynamic analysis runs automatically when sessions complete.
-    Use this to manually re-run if needed.
+    Phase 4.5: On-demand analysis model. Analysis only processes sessions that
+    haven't been analyzed yet (incremental). This provides a fresh assessment
+    of the agent's current behavior.
+    
+    Note: This MCP tool checks status and returns trigger info. The actual
+    triggering happens via the AnalysisRunner which runs on the server.
+    For direct triggering, use the REST API: POST /api/agent/{agent_id}/trigger-dynamic-analysis
     """
     agent_id = args.get("agent_id")
     if not agent_id:
         return {"error": "agent_id is required"}
     
-    # Check if there are any completed sessions
-    sessions = store.get_sessions(agent_id=agent_id, status="COMPLETED")
-    if not sessions:
+    force = args.get("force", False)
+    
+    # Get comprehensive status
+    try:
+        status = store.get_dynamic_analysis_status(agent_id)
+    except AttributeError:
+        # Fallback if method doesn't exist (older store version)
+        unanalyzed_count = store.get_unanalyzed_session_count(agent_id=agent_id)
         return {
-            "status": "no_sessions",
-            "message": f"No completed sessions found for agent '{agent_id}'. Run some sessions first.",
+            "status": "ready" if unanalyzed_count > 0 else "no_new_sessions",
+            "message": f"{unanalyzed_count} unanalyzed sessions ready for analysis" if unanalyzed_count > 0 else "All sessions already analyzed",
+            "agent_id": agent_id,
+            "sessions_to_analyze": unanalyzed_count,
+            "trigger_url": f"POST http://localhost:7100/api/agent/{agent_id}/trigger-dynamic-analysis",
+        }
+    
+    if status['is_running']:
+        return {
+            "status": "already_running",
+            "message": "Analysis is already in progress",
             "agent_id": agent_id,
         }
     
+    if status['total_unanalyzed_sessions'] == 0 and not force:
+        return {
+            "status": "no_new_sessions",
+            "message": "All sessions have already been analyzed. Use force=true to re-analyze.",
+            "agent_id": agent_id,
+            "last_analysis": status.get('last_analysis'),
+        }
+    
+    # Return trigger info - actual triggering happens via REST API
     return {
-        "status": "triggered",
-        "message": f"Dynamic analysis will run automatically for agent '{agent_id}' when sessions complete.",
+        "status": "ready",
+        "message": f"Ready to analyze {status['total_unanalyzed_sessions']} new sessions across {status['system_prompts_with_new_sessions']} system prompt(s)",
         "agent_id": agent_id,
-        "completed_sessions": len(sessions),
+        "sessions_to_analyze": status['total_unanalyzed_sessions'],
+        "system_prompts_with_new_sessions": status['system_prompts_with_new_sessions'],
+        "trigger_url": f"POST http://localhost:7100/api/agent/{agent_id}/trigger-dynamic-analysis",
+        "note": "Analysis processes only new sessions since last analysis. Previous issues not detected will be auto-resolved.",
     }
 
 
 @register_handler("get_dynamic_analysis_status")
 def handle_get_dynamic_analysis_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Get the current status of dynamic analysis for an agent."""
+    """Get the current status of dynamic analysis for an agent.
+    
+    Phase 4.5: Returns comprehensive status including per-system-prompt breakdown,
+    unanalyzed session counts, and last analysis info.
+    """
     agent_id = args.get("agent_id")
     if not agent_id:
         return {"error": "agent_id is required"}
     
-    # Get session counts
-    sessions = store.get_sessions(agent_id=agent_id)
-    completed = [s for s in sessions if s.status == "COMPLETED"]
-    active = [s for s in sessions if s.status == "ACTIVE"]
-    
-    # Get security checks
-    security_checks = store.get_security_checks_by_agent(agent_id)
-    
-    return {
-        "agent_id": agent_id,
-        "total_sessions": len(sessions),
-        "completed_sessions": len(completed),
-        "active_sessions": len(active),
-        "security_checks_count": len(security_checks),
-        "status": "ready" if len(completed) > 0 else "waiting_for_sessions",
-    }
+    try:
+        status = store.get_dynamic_analysis_status(agent_id)
+        
+        # Add helpful message based on status
+        if status['is_running']:
+            status['message'] = "Analysis is currently running..."
+        elif status['total_unanalyzed_sessions'] > 0:
+            status['message'] = f"{status['total_unanalyzed_sessions']} new sessions ready to analyze"
+        elif status['last_analysis']:
+            status['message'] = f"All sessions analyzed. Last analysis: {status['last_analysis']['completed_at']}"
+        else:
+            status['message'] = "No analysis has been run yet. Run sessions first."
+        
+        return status
+    except AttributeError:
+        # Fallback for older store version
+        unanalyzed_count = store.get_unanalyzed_session_count(agent_id=agent_id)
+        return {
+            "agent_id": agent_id,
+            "total_unanalyzed_sessions": unanalyzed_count,
+            "can_trigger": unanalyzed_count > 0,
+            "message": f"{unanalyzed_count} unanalyzed sessions" if unanalyzed_count > 0 else "No unanalyzed sessions",
+        }
 
 
 # ==================== Agent Lifecycle Tools ====================

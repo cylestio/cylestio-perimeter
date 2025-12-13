@@ -40,6 +40,20 @@ class AnalysisStore(Protocol):
         """Get agent data."""
         ...
 
+    def get_sessions_by_ids(self, session_ids: list):
+        """Get sessions by their IDs."""
+        ...
+
+    def update_agent_info(
+        self,
+        system_prompt_id: str,
+        agent_id: Optional[str] = None,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+    ):
+        """Update agent info including agent_id linkage."""
+        ...
+
     def create_analysis_session(
         self,
         session_id: str,
@@ -128,23 +142,27 @@ class AnalysisRunner:
         Called from:
         - Session completion (from SessionMonitor)
         - Post-analysis burst check (from within _run itself)
+        - Manual trigger from API/MCP
 
         Args:
-            system_prompt_id: Agent identifier
+            system_prompt_id: Agent identifier (system prompt ID)
         """
+        logger.info(f"[ANALYSIS] Trigger called for {system_prompt_id}")
         if self._should_run(system_prompt_id):
-            logger.info(f"[ANALYSIS] Triggering analysis for {system_prompt_id}")
+            logger.info(f"[ANALYSIS] _should_run=True, starting analysis for {system_prompt_id}")
             self._run_async(system_prompt_id)
         else:
-            logger.debug(f"[ANALYSIS] Skipping analysis for {system_prompt_id} (running or no new sessions)")
+            logger.info(f"[ANALYSIS] _should_run=False, skipping analysis for {system_prompt_id}")
 
     def _should_run(self, system_prompt_id: str) -> bool:
         """Check if analysis should run for an agent.
 
+        Phase 4.5: On-demand model - analysis runs when user triggers it.
+        Minimum 1 session required (no 5-session minimum).
+        
         All conditions in one place:
         1. No current analysis running for this agent
-        2. Minimum session count met (5)
-        3. New sessions exist since last analysis
+        2. At least 1 unanalyzed session exists
 
         Returns:
             True if analysis should run, False otherwise
@@ -152,34 +170,33 @@ class AnalysisRunner:
         with self._lock:
             # Condition 1: Don't run if analysis is already in progress
             if self._running.get(system_prompt_id, False):
-                logger.debug(f"[ANALYSIS] Analysis already running for {system_prompt_id}")
+                logger.info(f"[ANALYSIS] _should_run=False: already running for {system_prompt_id}")
                 return False
 
-            # Condition 2 & 3: Check counts
-            current_count = self._store.get_completed_session_count(system_prompt_id)
-            last_count = self._store.get_agent_last_analyzed_count(system_prompt_id)
-
-            # Must have minimum sessions
-            if current_count < MIN_SESSIONS_FOR_RISK_ANALYSIS:
-                logger.debug(
-                    f"[ANALYSIS] Insufficient sessions for {system_prompt_id}: "
-                    f"{current_count} < {MIN_SESSIONS_FOR_RISK_ANALYSIS}"
+            # Phase 4.5: Check for unanalyzed sessions (proper incremental tracking)
+            try:
+                unanalyzed_count = self._store.get_unanalyzed_session_count(
+                    system_prompt_id=system_prompt_id
                 )
+                logger.info(f"[ANALYSIS] get_unanalyzed_session_count({system_prompt_id}) = {unanalyzed_count}")
+            except AttributeError:
+                # Fallback to legacy count-based check if method doesn't exist
+                current_count = self._store.get_completed_session_count(system_prompt_id)
+                last_count = self._store.get_agent_last_analyzed_count(system_prompt_id)
+                unanalyzed_count = current_count - last_count if current_count > last_count else 0
+                logger.info(f"[ANALYSIS] Fallback count for {system_prompt_id}: current={current_count}, last={last_count}, unanalyzed={unanalyzed_count}")
+
+            if unanalyzed_count == 0:
+                logger.info(f"[ANALYSIS] _should_run=False: no unanalyzed sessions for {system_prompt_id}")
                 return False
 
-            # Must have new sessions since last analysis
-            if current_count > last_count:
-                logger.debug(
-                    f"[ANALYSIS] Analysis should run for {system_prompt_id}: "
-                    f"completed={current_count}, last_analyzed={last_count}"
-                )
-                return True
-
-            logger.debug(
-                f"[ANALYSIS] No new sessions for {system_prompt_id}: "
-                f"completed={current_count}, last_analyzed={last_count}"
+            # Phase 4.5: On-demand model - just need 1+ unanalyzed session
+            # No 5-session minimum since user controls when to run analysis
+            logger.info(
+                f"[ANALYSIS] _should_run=True for {system_prompt_id}: "
+                f"{unanalyzed_count} unanalyzed sessions"
             )
-            return False
+            return True
 
     def _mark_started(self, system_prompt_id: str) -> None:
         """Mark that analysis has started for an agent."""
@@ -212,13 +229,13 @@ class AnalysisRunner:
             system_prompt_id: Agent identifier
         """
         try:
-            asyncio.get_running_loop()  # Check if we're in async context
+            loop = asyncio.get_running_loop()
             # Already in async context - create task
-            asyncio.create_task(self._run(system_prompt_id))
-            logger.debug(f"[ANALYSIS] Scheduled background analysis for {system_prompt_id}")
+            task = asyncio.create_task(self._run(system_prompt_id))
+            logger.info(f"[ANALYSIS] Created background task for {system_prompt_id} (loop={loop})")
         except RuntimeError:
             # No running event loop - we're in a thread, run synchronously
-            logger.info(f"[ANALYSIS] Running analysis synchronously for {system_prompt_id}")
+            logger.info(f"[ANALYSIS] Running analysis synchronously for {system_prompt_id} (no event loop)")
             try:
                 asyncio.run(self._run(system_prompt_id))
             except Exception as e:
@@ -233,52 +250,136 @@ class AnalysisRunner:
         Returns:
             RiskAnalysisResult or None if insufficient sessions
         """
-        logger.info(f"[ANALYSIS] run started for {system_prompt_id}")
+        logger.info(f"[ANALYSIS] _run() STARTED for {system_prompt_id}")
         self._mark_started(system_prompt_id)
+        
+        # Create IN_PROGRESS analysis session at start so status API knows we're running
+        # Get agent_id and agent info
+        agent = self._store.get_agent(system_prompt_id)
+        agent_id = agent.agent_id if agent else None
+        agent_name = agent.agent_id if agent else None
+        
+        analysis_session_id = f"analysis_{system_prompt_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        
+        try:
+            # Create IN_PROGRESS session to track that analysis is running
+            self._store.create_analysis_session(
+                session_id=analysis_session_id,
+                agent_id=agent_id or system_prompt_id,
+                session_type="DYNAMIC",
+                agent_name=agent_name,
+                system_prompt_id=system_prompt_id,
+            )
+            logger.info(f"[ANALYSIS] Created IN_PROGRESS session {analysis_session_id} for {system_prompt_id}")
+        except Exception as e:
+            logger.warning(f"[ANALYSIS] Could not create analysis session: {e}")
+            analysis_session_id = None
+        
         try:
             # Run the computation (delegates to engine)
+            logger.info(f"[ANALYSIS] Calling compute_fn for {system_prompt_id}...")
             result = await self._compute_fn(system_prompt_id)
             logger.info(
-                f"[ANALYSIS] compute returned for {system_prompt_id}: "
+                f"[ANALYSIS] compute_fn returned for {system_prompt_id}: "
                 f"result={result is not None}, "
-                f"has_security_report={result.security_report is not None if result else False}"
+                f"status={result.evaluation_status if result else 'N/A'}, "
+                f"has_security_report={result.security_report is not None if result else False}, "
+                f"sessions_analyzed={result.sessions_analyzed if result else 0}"
             )
 
             if result and result.security_report:
-                await self._persist_results(system_prompt_id, result)
+                logger.info(f"[ANALYSIS] Persisting results for {system_prompt_id}...")
+                await self._persist_results(system_prompt_id, result, analysis_session_id)
+                logger.info(f"[ANALYSIS] Results persisted for {system_prompt_id}")
+            elif result:
+                logger.warning(f"[ANALYSIS] No security_report in result for {system_prompt_id}, status={result.evaluation_status}")
+                # Complete the session even without results
+                if analysis_session_id:
+                    self._store.complete_analysis_session(
+                        session_id=analysis_session_id,
+                        findings_count=0,
+                    )
+            else:
+                logger.warning(f"[ANALYSIS] No result returned for {system_prompt_id}")
+                # Complete the session even without results
+                if analysis_session_id:
+                    self._store.complete_analysis_session(
+                        session_id=analysis_session_id,
+                        findings_count=0,
+                    )
 
             return result
+        except Exception as e:
+            logger.error(f"[ANALYSIS] Exception in _run for {system_prompt_id}: {e}", exc_info=True)
+            # Complete the session with error
+            if analysis_session_id:
+                try:
+                    self._store.complete_analysis_session(
+                        session_id=analysis_session_id,
+                        findings_count=0,
+                    )
+                except Exception:
+                    pass
+            raise
         finally:
             completed_count = self._store.get_completed_session_count(system_prompt_id)
             self._mark_completed(system_prompt_id, completed_count)
+            logger.info(f"[ANALYSIS] _run() COMPLETED for {system_prompt_id}")
 
             # Burst handling: check if more sessions arrived during analysis
             if self._should_run(system_prompt_id):
                 logger.info(f"[ANALYSIS] New sessions arrived during analysis for {system_prompt_id}, scheduling re-run")
                 asyncio.create_task(self._run(system_prompt_id))
 
-    async def _persist_results(self, system_prompt_id: str, result: RiskAnalysisResult) -> None:
+    async def _persist_results(
+        self, 
+        system_prompt_id: str, 
+        result: RiskAnalysisResult,
+        analysis_session_id: Optional[str] = None,
+    ) -> None:
         """Persist analysis results to database.
+
+        Phase 4.5: Also marks analyzed sessions to support incremental analysis.
 
         Args:
             system_prompt_id: Agent identifier
             result: Analysis results to persist
+            analysis_session_id: Optional existing session ID (created at start of analysis)
         """
         # Get agent_id and agent info
         agent = self._store.get_agent(system_prompt_id)
         agent_id = agent.agent_id if agent else None
-        agent_name = agent.agent_id if agent else None  # Use agent_id as name
+        
+        # Fallback: get agent_id from analyzed sessions if not set in agents table
+        if not agent_id and result.analyzed_session_ids:
+            try:
+                sessions = self._store.get_sessions_by_ids(result.analyzed_session_ids)
+                if sessions:
+                    # Get agent_id from first session that has it
+                    for session in sessions:
+                        if hasattr(session, 'agent_id') and session.agent_id:
+                            agent_id = session.agent_id
+                            # Also update the agents table for future queries
+                            self._store.update_agent_info(
+                                system_prompt_id=system_prompt_id,
+                                agent_id=agent_id,
+                            )
+                            logger.info(f"[ANALYSIS] Auto-linked system_prompt {system_prompt_id} to agent_id {agent_id}")
+                            break
+            except Exception as e:
+                logger.warning(f"[ANALYSIS] Could not get agent_id from sessions: {e}")
 
-        # Create analysis session in database first (for foreign key constraint)
-        analysis_session_id = f"analysis_{system_prompt_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-
-        self._store.create_analysis_session(
-            session_id=analysis_session_id,
-            agent_id=agent_id or system_prompt_id,
-            session_type="DYNAMIC",
-            agent_name=agent_name,
-            system_prompt_id=system_prompt_id,
-        )
+        # Use provided analysis_session_id or create new one (legacy behavior)
+        if not analysis_session_id:
+            agent_name = agent.agent_id if agent else None
+            analysis_session_id = f"analysis_{system_prompt_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            self._store.create_analysis_session(
+                session_id=analysis_session_id,
+                agent_id=agent_id or system_prompt_id,
+                session_type="DYNAMIC",
+                agent_name=agent_name,
+                system_prompt_id=system_prompt_id,
+            )
 
         # Persist security checks to database
         checks_persisted = self._store.persist_security_checks(
@@ -297,12 +398,24 @@ class AnalysisRunner:
             )
             logger.info(f"[ANALYSIS] Persisted behavioral analysis for agent {system_prompt_id}")
 
-        # Complete the analysis session with findings count
+        # Complete the analysis session with findings count and sessions analyzed
         self._store.complete_analysis_session(
             session_id=analysis_session_id,
             findings_count=checks_persisted,
             risk_score=result.security_report.overall_score if hasattr(result.security_report, 'overall_score') else None,
+            sessions_analyzed=result.sessions_analyzed,
         )
+
+        # Phase 4.5: Mark sessions as analyzed for incremental analysis tracking
+        if result.analyzed_session_ids:
+            marked_count = self._store.mark_sessions_analyzed(
+                session_ids=result.analyzed_session_ids,
+                analysis_session_id=analysis_session_id,
+            )
+            logger.info(
+                f"[ANALYSIS] Marked {marked_count} sessions as analyzed "
+                f"for agent {system_prompt_id} (session: {analysis_session_id})"
+            )
 
         logger.info(
             f"[ANALYSIS] Persisted {checks_persisted} security checks "

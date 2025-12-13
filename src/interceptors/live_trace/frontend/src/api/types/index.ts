@@ -2,6 +2,8 @@
 
 export * from './dashboard';
 export * from './ide';
+export * from './replay';
+export * from './session';
 
 // Agent types
 export {

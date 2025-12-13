@@ -155,12 +155,15 @@ class AnalysisEngine:
         # Get all system prompts for this agent to compute session progress
         agent_system_prompts = self.store.get_all_agents(agent_id=agent_id)
         
+        # Phase 4.5: On-demand model - only 1 session required to trigger analysis
+        MIN_SESSIONS_FOR_ANALYSIS = 1
+        
         # Calculate aggregate session progress
         total_current_sessions = sum(sp.total_sessions for sp in agent_system_prompts)
-        total_min_required = len(agent_system_prompts) * MIN_SESSIONS_FOR_RISK_ANALYSIS
+        total_min_required = len(agent_system_prompts) * MIN_SESSIONS_FOR_ANALYSIS
         agents_with_enough_sessions = sum(
             1 for sp in agent_system_prompts
-            if sp.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
+            if sp.total_sessions >= MIN_SESSIONS_FOR_ANALYSIS
         )
         
         # Check for DYNAMIC analysis sessions
@@ -168,20 +171,24 @@ class AnalysisEngine:
         dynamic_in_progress = any(s.get("status") == "IN_PROGRESS" for s in dynamic_sessions)
         dynamic_completed = any(s.get("status") == "COMPLETED" for s in dynamic_sessions)
         
-        # Determine dynamic status
+        # Phase 4.5: Determine dynamic status
+        # - "pending" = no sessions yet
+        # - "ready" = has sessions, can run analysis
+        # - "active" = analysis in progress
+        # - "completed" = analysis completed
         dynamic_status = "pending"
         if dynamic_in_progress:
             dynamic_status = "active"
         elif dynamic_completed:
             dynamic_status = "completed"
         elif total_current_sessions > 0:
-            # Has sessions but no dynamic analysis yet - show as gathering/active
-            dynamic_status = "active"
+            # Has sessions - ready for on-demand analysis
+            dynamic_status = "ready"
         
-        # Session progress info for dynamic analysis
+        # Session progress info for dynamic analysis (Phase 4.5: min 1 session)
         dynamic_sessions_progress = {
             "current": total_current_sessions,
-            "required": total_min_required,
+            "required": total_min_required,  # Now 1 per system prompt
             "agents_ready": agents_with_enough_sessions,
             "agents_total": len(agent_system_prompts),
         } if agent_system_prompts else None
@@ -1566,38 +1573,59 @@ class AnalysisEngine:
                     del self._pii_analysis_tasks[system_prompt_id]
                     logger.info(f"[PII BACKGROUND] Cleaned up task for agent {system_prompt_id}")
 
-    async def compute_risk_analysis(self, system_prompt_id: str) -> Optional[RiskAnalysisResult]:
+    async def compute_risk_analysis(
+        self, 
+        system_prompt_id: str,
+        incremental: bool = True,
+    ) -> Optional[RiskAnalysisResult]:
         """Compute risk analysis for an agent (behavioral + security).
 
         This is the core computation method called by AnalysisRunner.
         API endpoints should use get_persisted_risk_analysis() to read from DB.
 
+        Phase 4.5: Supports incremental analysis mode where only unanalyzed sessions
+        are processed. This provides a "point in time" assessment of the agent's
+        current behavior rather than historical patterns.
+
         Args:
             system_prompt_id: Agent identifier
+            incremental: If True (default), only process unanalyzed sessions.
+                        If False, process all completed sessions (legacy behavior).
 
         Returns:
-            RiskAnalysisResult or None if insufficient sessions
+            RiskAnalysisResult or None if insufficient sessions.
+            The result includes `analyzed_session_ids` list for marking sessions as analyzed.
         """
         agent = self.store.get_agent(system_prompt_id)
         if not agent:
             return None
 
-        # Get all sessions for this agent
-        agent_sessions = self.store.get_agent_sessions(system_prompt_id)
+        # Phase 4.5: Get sessions based on analysis mode
+        if incremental:
+            # Get only unanalyzed completed sessions
+            agent_sessions = self.store.get_unanalyzed_sessions(system_prompt_id=system_prompt_id)
+            logger.info(f"[RISK ANALYSIS] Incremental mode: {len(agent_sessions)} unanalyzed sessions for {system_prompt_id}")
+        else:
+            # Legacy mode: get all sessions
+            agent_sessions = self.store.get_agent_sessions(system_prompt_id)
         
-        # Check minimum session requirement
-        if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+        # Phase 4.5: Minimum session requirement depends on mode
+        # - Incremental mode: 1 session minimum (analyzing new sessions after prior analysis)
+        # - First analysis (non-incremental): MIN_SESSIONS_FOR_RISK_ANALYSIS
+        min_required = 1 if incremental else MIN_SESSIONS_FOR_RISK_ANALYSIS
+        
+        if len(agent_sessions) < min_required:
             return RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
                 system_prompt_id=system_prompt_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 sessions_analyzed=len(agent_sessions),
                 evaluation_status="INSUFFICIENT_DATA",
-                error=f"Need at least {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions for analysis (have {len(agent_sessions)})",
+                error=f"Need at least {min_required} session(s) for analysis (have {len(agent_sessions)})",
                 summary={
-                    "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS,
+                    "min_sessions_required": min_required,
                     "current_sessions": len(agent_sessions),
-                    "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_sessions)
+                    "sessions_needed": min_required - len(agent_sessions)
                 }
             )
         
@@ -1712,6 +1740,9 @@ class AnalysisEngine:
                 summary["pii_status"] = "pending"
                 summary["pii_message"] = "PII analysis starting..."
 
+            # Phase 4.5: Track which sessions were analyzed for incremental marking
+            analyzed_session_ids = [s.session_id for s in agent_sessions]
+
             result = RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
                 system_prompt_id=system_prompt_id,
@@ -1721,7 +1752,8 @@ class AnalysisEngine:
                 behavioral_analysis=behavioral_result,
                 security_report=security_report,
                 pii_analysis=pii_result,
-                summary=summary
+                summary=summary,
+                analyzed_session_ids=analyzed_session_ids,
             )
 
             # Always cache results (even with pending PII) to avoid re-running behavioral analysis

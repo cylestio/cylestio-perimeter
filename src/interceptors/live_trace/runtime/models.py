@@ -239,7 +239,8 @@ class PIIAnalysisResult(BaseModel):
 class RiskAnalysisResult(BaseModel):
     """Complete risk analysis result combining behavioral and security."""
     evaluation_id: str
-    agent_id: str
+    # Support both agent_id and system_prompt_id for backwards compatibility
+    agent_id: str = Field(default="", alias="system_prompt_id")
     timestamp: str
     sessions_analyzed: int
     evaluation_status: str  # COMPLETE, INSUFFICIENT_DATA, ERROR
@@ -250,4 +251,9 @@ class RiskAnalysisResult(BaseModel):
 
     summary: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
+    
+    # Phase 4.5: Track which sessions were analyzed for incremental marking
+    analyzed_session_ids: List[str] = Field(default_factory=list)
+    
+    model_config = {"populate_by_name": True}  # Allow both field name and alias
 

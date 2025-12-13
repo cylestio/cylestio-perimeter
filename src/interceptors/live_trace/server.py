@@ -988,6 +988,94 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2, ana
             logger.error(f"Error getting agent behavioral analysis: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    # ==================== Phase 4.5: On-Demand Dynamic Analysis ====================
+
+    @app.get("/api/agent/{agent_id}/dynamic-analysis-status")
+    async def api_get_dynamic_analysis_status(agent_id: str):
+        """Get comprehensive dynamic analysis status for an agent.
+        
+        Phase 4.5: Returns information about unanalyzed sessions, analysis history,
+        and whether analysis can be triggered.
+        """
+        try:
+            status = insights.store.get_dynamic_analysis_status(agent_id)
+            
+            # Determine UI status indicator
+            if status['is_running']:
+                ui_status = 'running'
+            elif status['last_analysis'] is None:
+                ui_status = 'never_analyzed'
+            elif status['total_unanalyzed_sessions'] > 0:
+                ui_status = 'has_new_sessions'
+            else:
+                # Check if latest analysis had critical/high issues
+                # This would require additional store query - for now use simple logic
+                ui_status = 'up_to_date'
+            
+            return JSONResponse({
+                **status,
+                'ui_status': ui_status,
+            })
+        except Exception as e:
+            logger.error(f"Error getting dynamic analysis status: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/agent/{agent_id}/trigger-dynamic-analysis")
+    async def api_trigger_dynamic_analysis(agent_id: str, request: Request):
+        """Trigger on-demand dynamic analysis for an agent.
+        
+        Phase 4.5: Triggers analysis only on unanalyzed sessions (incremental).
+        Returns status of the trigger attempt.
+        """
+        try:
+            # Get analysis status first
+            status = insights.store.get_dynamic_analysis_status(agent_id)
+            
+            if status['is_running']:
+                return JSONResponse({
+                    "status": "already_running",
+                    "message": "Analysis is already in progress",
+                    "agent_id": agent_id,
+                })
+            
+            if status['total_unanalyzed_sessions'] == 0:
+                return JSONResponse({
+                    "status": "no_new_sessions",
+                    "message": "All sessions have already been analyzed",
+                    "agent_id": agent_id,
+                })
+            
+            # Check if we have access to the analysis runner
+            if analysis_runner is None:
+                return JSONResponse({
+                    "status": "error",
+                    "message": "Analysis runner not available",
+                    "agent_id": agent_id,
+                }, status_code=500)
+            
+            # Get system prompts to trigger analysis for
+            triggered_count = 0
+            triggered_system_prompts = []
+            for sp_status in status['system_prompts']:
+                if sp_status['unanalyzed_sessions'] > 0:
+                    sp_id = sp_status['system_prompt_id']
+                    logger.info(f"[TRIGGER API] Triggering analysis for system_prompt_id={sp_id} ({sp_status['unanalyzed_sessions']} unanalyzed sessions)")
+                    analysis_runner.trigger(sp_id)
+                    triggered_count += 1
+                    triggered_system_prompts.append(sp_id)
+            
+            return JSONResponse({
+                "status": "triggered",
+                "message": f"Analysis started for {triggered_count} system prompt(s)",
+                "agent_id": agent_id,
+                "sessions_to_analyze": status['total_unanalyzed_sessions'],
+                "system_prompts_triggered": triggered_count,
+                "note": "Analysis processes only new sessions since last analysis. Previous issues not detected will be auto-resolved.",
+            })
+        except Exception as e:
+            logger.error(f"Error triggering dynamic analysis: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/security-checks")
     async def api_get_security_checks(
         system_prompt_id: Optional[str] = None,

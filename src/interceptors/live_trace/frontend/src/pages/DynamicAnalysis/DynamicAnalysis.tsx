@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { AlertTriangle, FileSearch, Shield, X } from 'lucide-react';
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
+import { AlertTriangle, FileSearch, Loader2, Play, Shield, X } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import {
   fetchAnalysisSessions,
   fetchAgentSecurityChecks,
   fetchAgentBehavioralAnalysis,
+  fetchDynamicAnalysisStatus,
+  triggerDynamicAnalysis,
   type AnalysisSession,
   type SystemPromptSecurityData,
   type AgentSecurityChecksSummary,
   type AgentBehavioralAnalysisResponse,
+  type DynamicAnalysisStatus,
 } from '@api/endpoints/agent';
-import type { SecurityAnalysis } from '@api/types/dashboard';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -21,7 +23,6 @@ import { Section } from '@ui/layout/Section';
 import { AnalysisSessionsTable } from '@domain/analysis';
 import { BehavioralInsights } from '@domain/dynamic';
 
-import { GatheringData } from '@features/GatheringData';
 import { SecurityChecksExplorer } from '@features/SecurityChecksExplorer';
 
 import { usePageMeta } from '../../context';
@@ -35,12 +36,14 @@ import {
   StatBadge,
   StatValue,
   LoaderContainer,
+  AnalysisStatusCard,
+  AnalysisStatusInfo,
+  AnalysisStatusTitle,
+  AnalysisStatusSubtitle,
+  RunAnalysisButton,
+  SessionsBadge,
+  SpinningLoader,
 } from './DynamicAnalysis.styles';
-
-// Context from App layout
-interface DynamicAnalysisContext {
-  securityAnalysis?: SecurityAnalysis;
-}
 
 export interface DynamicAnalysisProps {
   className?: string;
@@ -51,7 +54,6 @@ const MAX_SESSIONS_DISPLAYED = 5;
 export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
-  const { securityAnalysis } = useOutletContext<DynamicAnalysisContext>() || {};
 
   // State
   const [agentsData, setAgentsData] = useState<SystemPromptSecurityData[]>([]);
@@ -62,11 +64,11 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  // Get dynamic analysis session progress
-  const sessionsProgress = securityAnalysis?.dynamic?.sessions_progress;
-  const isGatheringSessions = sessionsProgress && 
-    securityAnalysis?.dynamic?.status === 'active' && 
-    analysisSessions.length === 0;
+  // Phase 4.5: Analysis status and trigger state
+  const [analysisStatus, setAnalysisStatus] = useState<DynamicAnalysisStatus | null>(null);
+  const [isTriggering, setIsTriggering] = useState(false);
+
+  // Phase 4.5: Removed old sessions_progress logic - now using analysisStatus from dedicated endpoint
 
   // Fetch security checks for this agent (grouped by system prompt)
   const fetchChecksData = useCallback(async () => {
@@ -115,15 +117,96 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     }
   }, [agentId]);
 
+  // Phase 4.5: Fetch dynamic analysis status
+  const fetchAnalysisStatus = useCallback(async () => {
+    if (!agentId) return;
+
+    try {
+      const data = await fetchDynamicAnalysisStatus(agentId);
+      setAnalysisStatus(data);
+    } catch (err) {
+      console.error('Failed to fetch analysis status:', err);
+    }
+  }, [agentId]);
+
+  // Phase 4.5: Handle trigger analysis
+  const handleTriggerAnalysis = useCallback(async () => {
+    if (!agentId || isTriggering) return;
+
+    setIsTriggering(true);
+    try {
+      console.log('[DynamicAnalysis] Triggering analysis for agent:', agentId);
+      const result = await triggerDynamicAnalysis(agentId);
+      console.log('[DynamicAnalysis] Trigger result:', result);
+      
+      if (result.status === 'triggered') {
+        // Refresh status immediately after triggering
+        await fetchAnalysisStatus();
+        
+        // Poll for completion every 2 seconds
+        let pollCount = 0;
+        const maxPolls = 60; // 2 minutes max (60 * 2s)
+        const pollInterval = setInterval(async () => {
+          pollCount++;
+          try {
+            const status = await fetchDynamicAnalysisStatus(agentId);
+            console.log(`[DynamicAnalysis] Poll ${pollCount}:`, { is_running: status.is_running, unanalyzed: status.total_unanalyzed_sessions });
+            setAnalysisStatus(status);
+            
+            // Stop polling when analysis completes or max polls reached
+            if (!status.is_running || pollCount >= maxPolls) {
+              clearInterval(pollInterval);
+              console.log('[DynamicAnalysis] Polling stopped, refreshing all data...');
+              // Refresh all data after analysis completes
+              await Promise.all([fetchChecksData(), fetchSessionsData(), fetchBehavioralData()]);
+            }
+          } catch (err) {
+            console.error('[DynamicAnalysis] Poll error:', err);
+          }
+        }, 2000);
+      } else if (result.status === 'no_new_sessions') {
+        console.log('[DynamicAnalysis] No new sessions to analyze');
+        await fetchAnalysisStatus();
+      } else if (result.status === 'already_running') {
+        console.log('[DynamicAnalysis] Analysis already running');
+        await fetchAnalysisStatus();
+      }
+    } catch (err) {
+      console.error('[DynamicAnalysis] Failed to trigger analysis:', err);
+    } finally {
+      setIsTriggering(false);
+    }
+  }, [agentId, isTriggering, fetchAnalysisStatus, fetchChecksData, fetchSessionsData, fetchBehavioralData]);
+
   // Fetch data on mount
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      await Promise.all([fetchChecksData(), fetchSessionsData(), fetchBehavioralData()]);
+      await Promise.all([
+        fetchChecksData(), 
+        fetchSessionsData(), 
+        fetchBehavioralData(),
+        fetchAnalysisStatus(),
+      ]);
       setLoading(false);
     };
     fetchAll();
-  }, [fetchChecksData, fetchSessionsData, fetchBehavioralData]);
+  }, [fetchChecksData, fetchSessionsData, fetchBehavioralData, fetchAnalysisStatus]);
+
+  // Phase 4.5: Auto-refresh analysis status every 10 seconds to detect new sessions
+  useEffect(() => {
+    if (loading) return; // Don't poll while initial load is happening
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        await fetchAnalysisStatus();
+      } catch (err) {
+        console.error('Failed to poll analysis status:', err);
+      }
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [loading, fetchAnalysisStatus]);
 
   // Handle viewing outlier session
   const handleViewOutlier = useCallback((sessionId: string) => {
@@ -185,6 +268,63 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         </PageStats>
       </PageHeader>
 
+      {/* Phase 4.5: Analysis Status Card with Run Analysis Button */}
+      <AnalysisStatusCard>
+        <AnalysisStatusInfo>
+          <AnalysisStatusTitle>
+            {analysisStatus?.is_running ? (
+              <>
+                <SpinningLoader>
+                  <Loader2 size={16} />
+                </SpinningLoader>
+                Analyzing...
+              </>
+            ) : analysisStatus?.total_unanalyzed_sessions ? (
+              <>
+                <SessionsBadge>{analysisStatus.total_unanalyzed_sessions} new</SessionsBadge>
+                sessions ready to analyze
+              </>
+            ) : analysisStatus?.total_active_sessions ? (
+              <>
+                <SessionsBadge>{analysisStatus.total_active_sessions} active</SessionsBadge>
+                sessions in progress (waiting to complete)
+              </>
+            ) : analysisStatus?.last_analysis ? (
+              '✓ All sessions analyzed'
+            ) : (
+              'No sessions yet'
+            )}
+          </AnalysisStatusTitle>
+          <AnalysisStatusSubtitle>
+            {analysisStatus?.last_analysis ? (
+              <>Last analysis: {new Date(analysisStatus.last_analysis.completed_at).toLocaleString()} • {analysisStatus.last_analysis.sessions_analyzed} sessions</>
+            ) : analysisStatus?.total_active_sessions ? (
+              'Sessions will be ready to analyze after they complete (30s of inactivity)'
+            ) : (
+              'Run your agent to collect sessions, then analyze to see security insights'
+            )}
+          </AnalysisStatusSubtitle>
+        </AnalysisStatusInfo>
+        
+        <RunAnalysisButton
+          onClick={handleTriggerAnalysis}
+          disabled={!analysisStatus?.can_trigger || isTriggering}
+          $loading={analysisStatus?.is_running || isTriggering}
+        >
+          {analysisStatus?.is_running || isTriggering ? (
+            <>
+              <Loader2 size={14} />
+              Analyzing...
+            </>
+          ) : (
+            <>
+              <Play size={14} />
+              Run Analysis
+            </>
+          )}
+        </RunAnalysisButton>
+      </AnalysisStatusCard>
+
       {/* Behavioral Insights - Agent Inspector exclusive feature */}
       {behavioralData?.has_data && (
         <Section>
@@ -204,23 +344,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         </Section>
       )}
 
-      {/* Session Progress - Show when gathering sessions */}
-      {isGatheringSessions && sessionsProgress && (
-        <Section>
-          <Section.Header>
-            <Section.Title>Gathering Data for Risk Analysis</Section.Title>
-            <Badge variant="medium">
-              {sessionsProgress.current} / {sessionsProgress.required}
-            </Badge>
-          </Section.Header>
-          <Section.Content noPadding>
-            <GatheringData
-              currentSessions={sessionsProgress.current}
-              minSessionsRequired={sessionsProgress.required}
-            />
-          </Section.Content>
-        </Section>
-      )}
+      {/* Phase 4.5: Removed "Gathering Data" section - replaced by AnalysisStatusCard above */}
 
       {/* Analysis Sessions - Table with limit */}
       <Section>
