@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FC } from 'react';
 import { Calendar, Clock, FileSearch, Shield } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
-import { fetchWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/workflow';
+import { fetchAgentWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/agentWorkflow';
 import type { Finding, FindingsSummary } from '@api/types/findings';
 
 import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/formatting';
@@ -36,7 +36,7 @@ export interface StaticAnalysisProps {
 }
 
 export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // State
   const [findings, setFindings] = useState<Finding[]>([]);
@@ -46,13 +46,13 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const [findingsLoading, setFindingsLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
 
-  // Fetch findings for this workflow
+  // Fetch findings for this agent workflow
   const fetchFindingsData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     setFindingsLoading(true);
     try {
-      const data = await fetchWorkflowFindings(workflowId);
+      const data = await fetchAgentWorkflowFindings(agentWorkflowId);
       setFindings(data.findings);
       setFindingsSummary(data.summary);
     } catch (err) {
@@ -60,15 +60,15 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     } finally {
       setFindingsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
-  // Fetch analysis sessions for this workflow (STATIC and AUTOFIX only)
+  // Fetch analysis sessions for this agent workflow (STATIC and AUTOFIX only)
   const fetchSessionsData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     setSessionsLoading(true);
     try {
-      const data = await fetchAnalysisSessions(workflowId);
+      const data = await fetchAnalysisSessions(agentWorkflowId);
       // Filter to only STATIC and AUTOFIX sessions
       const filteredSessions = (data.sessions || []).filter(
         (session) => session.session_type === 'STATIC' || session.session_type === 'AUTOFIX'
@@ -79,7 +79,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     } finally {
       setSessionsLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -94,8 +94,8 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   // Set breadcrumbs
   usePageMeta({
     breadcrumbs: [
-      { label: 'Workflows', href: '/' },
-      { label: workflowId || '', href: `/workflow/${workflowId}` },
+      { label: 'Agent Workflows', href: '/' },
+      { label: agentWorkflowId || '', href: `/agent-workflow/${agentWorkflowId}` },
       { label: 'Static Analysis' },
     ],
   });
@@ -116,7 +116,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
       {/* Header */}
       <PageHeader
         title="Static Analysis"
-        description={`Workflow: ${workflowId}`}
+        description={`Agent Workflow: ${agentWorkflowId}`}
         actions={
           <PageStats>
             <StatBadge>

@@ -1,38 +1,38 @@
-"""Tests for MCP handlers with workflow_id support."""
+"""Tests for MCP handlers with agent_workflow_id support."""
 import pytest
 
 from ..store import TraceStore
 from .handlers import call_tool
 
 
-class TestMCPWorkflowHandlers:
-    """Tests for MCP handlers with workflow_id."""
+class TestMCPAgentWorkflowHandlers:
+    """Tests for MCP handlers with agent_workflow_id."""
 
     @pytest.fixture
     def store(self):
         """Create an in-memory store for testing."""
         return TraceStore(storage_mode="memory")
 
-    def test_create_analysis_session_handler_with_workflow(self, store):
-        """Test create_analysis_session MCP handler with workflow_id."""
+    def test_create_analysis_session_handler_with_agent_workflow(self, store):
+        """Test create_analysis_session MCP handler with agent_workflow_id."""
         result = call_tool(
             "create_analysis_session",
             {
-                "workflow_id": "my-workflow",
+                "agent_workflow_id": "my-agent-workflow",
                 "session_type": "STATIC",
-                "workflow_name": "My Workflow"
+                "agent_workflow_name": "My Agent Workflow"
             },
             store
         )
 
         assert "session" in result
         session = result["session"]
-        assert session["workflow_id"] == "my-workflow"
-        assert session["workflow_name"] == "My Workflow"
+        assert session["agent_workflow_id"] == "my-agent-workflow"
+        assert session["agent_workflow_name"] == "My Agent Workflow"
         assert session["session_type"] == "STATIC"
 
-    def test_create_analysis_session_handler_without_workflow(self, store):
-        """Test create_analysis_session MCP handler without workflow_id returns error."""
+    def test_create_analysis_session_handler_without_agent_workflow(self, store):
+        """Test create_analysis_session MCP handler without agent_workflow_id returns error."""
         result = call_tool(
             "create_analysis_session",
             {
@@ -41,17 +41,17 @@ class TestMCPWorkflowHandlers:
             store
         )
 
-        # Should return error since workflow_id is now required
+        # Should return error since agent_workflow_id is now required
         assert "error" in result
-        assert "workflow_id" in result["error"]
+        assert "agent_workflow_id" in result["error"]
 
-    def test_store_finding_handler_inherits_workflow(self, store):
-        """Test store_finding inherits workflow_id from session."""
-        # First create a session with workflow_id
+    def test_store_finding_handler_inherits_agent_workflow(self, store):
+        """Test store_finding inherits agent_workflow_id from session."""
+        # First create a session with agent_workflow_id
         session_result = call_tool(
             "create_analysis_session",
             {
-                "workflow_id": "finding-workflow",
+                "agent_workflow_id": "finding-agent-workflow",
                 "session_type": "STATIC"
             },
             store
@@ -73,26 +73,26 @@ class TestMCPWorkflowHandlers:
 
         assert "finding" in finding_result
         finding = finding_result["finding"]
-        assert finding["workflow_id"] == "finding-workflow"
+        assert finding["agent_workflow_id"] == "finding-agent-workflow"
 
-    def test_get_findings_handler_filters_by_workflow(self, store):
-        """Test get_findings MCP handler filters by workflow_id."""
-        # Create sessions for different workflows
+    def test_get_findings_handler_filters_by_agent_workflow(self, store):
+        """Test get_findings MCP handler filters by agent_workflow_id."""
+        # Create sessions for different agent workflows
         session1_result = call_tool(
             "create_analysis_session",
-            {"workflow_id": "workflow-a", "session_type": "STATIC"},
+            {"agent_workflow_id": "agent-workflow-a", "session_type": "STATIC"},
             store
         )
         session2_result = call_tool(
             "create_analysis_session",
-            {"workflow_id": "workflow-b", "session_type": "STATIC"},
+            {"agent_workflow_id": "agent-workflow-b", "session_type": "STATIC"},
             store
         )
 
         session1_id = session1_result["session"]["session_id"]
         session2_id = session2_result["session"]["session_id"]
 
-        # Store findings in different workflows
+        # Store findings in different agent workflows
         call_tool(
             "store_finding",
             {
@@ -116,13 +116,13 @@ class TestMCPWorkflowHandlers:
             store
         )
 
-        # Get findings filtered by workflow
+        # Get findings filtered by agent workflow
         result = call_tool(
             "get_findings",
-            {"workflow_id": "workflow-a"},
+            {"agent_workflow_id": "agent-workflow-a"},
             store
         )
 
         assert "findings" in result
         assert result["total_count"] == 1
-        assert result["findings"][0]["workflow_id"] == "workflow-a"
+        assert result["findings"][0]["agent_workflow_id"] == "agent-workflow-a"

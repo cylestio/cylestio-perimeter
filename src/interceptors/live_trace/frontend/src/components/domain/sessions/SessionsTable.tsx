@@ -13,8 +13,8 @@ import { EmptyState } from '@ui/feedback/EmptyState';
 export interface SessionsTableProps {
   /** Sessions data to display */
   sessions: SessionListItem[];
-  /** Workflow ID for generating links */
-  workflowId: string;
+  /** Agent Workflow ID for generating links */
+  agentWorkflowId: string;
   /** Loading state */
   loading?: boolean;
   /** Custom empty state message */
@@ -26,14 +26,14 @@ export interface SessionsTableProps {
 }
 
 // Column definitions
-const getColumns = (workflowId: string, showAgentColumn: boolean): Column<SessionListItem>[] => {
+const getColumns = (agentWorkflowId: string, showAgentColumn: boolean): Column<SessionListItem>[] => {
   const columns: Column<SessionListItem>[] = [
     {
       key: 'id',
       header: 'Session ID',
       render: (session) => (
         <Link
-          to={`/workflow/${workflowId}/session/${session.id}`}
+          to={`/agent-workflow/${agentWorkflowId}/session/${session.id}`}
           style={{
             color: 'var(--color-cyan)',
             textDecoration: 'none',
@@ -54,7 +54,7 @@ const getColumns = (workflowId: string, showAgentColumn: boolean): Column<Sessio
       header: 'Agent',
       render: (session) => (
         <Link
-          to={`/workflow/${workflowId}/agent/${session.agent_id}`}
+          to={`/agent-workflow/${agentWorkflowId}/agent/${session.agent_id}`}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -145,13 +145,13 @@ const getColumns = (workflowId: string, showAgentColumn: boolean): Column<Sessio
 // Component
 export const SessionsTable: FC<SessionsTableProps> = ({
   sessions,
-  workflowId,
+  agentWorkflowId,
   loading = false,
   emptyMessage = 'No sessions found',
   showAgentColumn = false,
   header,
 }) => {
-  const columns = getColumns(workflowId, showAgentColumn);
+  const columns = getColumns(agentWorkflowId, showAgentColumn);
 
   return (
     <Table

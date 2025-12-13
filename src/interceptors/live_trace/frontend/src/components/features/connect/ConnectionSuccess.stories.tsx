@@ -25,7 +25,7 @@ type Story = StoryObj<typeof ConnectionSuccess>;
 export const SingleAgent: Story = {
   args: {
     agentCount: 1,
-    onViewWorkflows: fn(),
+    onViewAgentWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -39,7 +39,7 @@ export const SingleAgent: Story = {
 export const MultipleAgents: Story = {
   args: {
     agentCount: 5,
-    onViewWorkflows: fn(),
+    onViewAgentWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -50,23 +50,23 @@ export const MultipleAgents: Story = {
   },
 };
 
-export const ClickViewWorkflows: Story = {
+export const ClickViewAgentWorkflows: Story = {
   args: {
     agentCount: 3,
-    onViewWorkflows: fn(),
+    onViewAgentWorkflows: fn(),
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole('button', { name: /view workflows/i });
+    const button = canvas.getByRole('button', { name: /view agent workflows/i });
     await userEvent.click(button);
-    await expect(args.onViewWorkflows).toHaveBeenCalled();
+    await expect(args.onViewAgentWorkflows).toHaveBeenCalled();
   },
 };
 
 export const HighAgentCount: Story = {
   args: {
     agentCount: 42,
-    onViewWorkflows: fn(),
+    onViewAgentWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

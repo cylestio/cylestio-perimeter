@@ -8,7 +8,7 @@ import { FindingCard } from './FindingCard';
 const mockFinding: Finding = {
   finding_id: 'find_001',
   session_id: 'sess_001',
-  workflow_id: 'my-workflow',
+  agent_workflow_id: 'my-agent-workflow',
   file_path: 'src/handlers/auth.py',
   line_start: 42,
   line_end: 48,

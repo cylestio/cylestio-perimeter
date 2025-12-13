@@ -9,8 +9,8 @@ import { AnalysisSessionsTable } from './AnalysisSessionsTable';
 const mockSessions: AnalysisSession[] = [
   {
     session_id: 'analysis_ant-math-agent-v8_20251211_085832',
-    workflow_id: 'workflow_001',
-    workflow_name: 'math-workflow',
+    agent_workflow_id: 'agent-workflow-001',
+    agent_workflow_name: 'math-agent-workflow',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
@@ -19,8 +19,8 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-assistant-v2_20251211_085500',
-    workflow_id: 'workflow_001',
-    workflow_name: 'math-workflow',
+    agent_workflow_id: 'agent-workflow-001',
+    agent_workflow_name: 'math-agent-workflow',
     agent_id: 'agent_xyz789',
     session_type: 'DYNAMIC',
     status: 'IN_PROGRESS',
@@ -29,8 +29,8 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-code-agent_20251211_080000',
-    workflow_id: 'workflow_001',
-    workflow_name: 'math-workflow',
+    agent_workflow_id: 'agent-workflow-001',
+    agent_workflow_name: 'math-agent-workflow',
     session_type: 'STATIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
@@ -39,7 +39,7 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-longname-agent-with-extra-chars_20251210_120000',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
@@ -48,7 +48,7 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_no-agent-field_20251209_100000',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
@@ -57,7 +57,7 @@ const mockSessions: AnalysisSession[] = [
   },
   {
     session_id: 'analysis_ant-fifth-agent_20251208_090000',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     session_type: 'DYNAMIC',
     status: 'COMPLETED',
     created_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
@@ -85,7 +85,7 @@ type Story = StoryObj<typeof AnalysisSessionsTable>;
 export const Default: Story = {
   args: {
     sessions: mockSessions,
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -100,7 +100,7 @@ export const Default: Story = {
 export const WithMaxRows: Story = {
   args: {
     sessions: mockSessions,
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
     maxRows: 3,
   },
   play: async ({ canvasElement }) => {
@@ -117,7 +117,7 @@ export const WithMaxRows: Story = {
 export const Loading: Story = {
   args: {
     sessions: [],
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
     loading: true,
   },
   play: async ({ canvasElement }) => {
@@ -129,7 +129,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     sessions: [],
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
     emptyMessage: 'No analysis sessions yet.',
     emptyDescription: 'Run an analysis to see results here.',
   },
@@ -143,7 +143,7 @@ export const Empty: Story = {
 export const SingleSession: Story = {
   args: {
     sessions: [mockSessions[0]],
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -156,7 +156,7 @@ export const SingleSession: Story = {
 export const InProgressSession: Story = {
   args: {
     sessions: [mockSessions[1]],
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -167,7 +167,7 @@ export const InProgressSession: Story = {
 export const AgentExtractedFromSessionId: Story = {
   args: {
     sessions: [mockSessions[0]], // Session without explicit agent_id, but has session_id
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -179,7 +179,7 @@ export const AgentExtractedFromSessionId: Story = {
 export const DynamicAnalysisOnly: Story = {
   args: {
     sessions: mockSessions.filter(s => s.session_type === 'DYNAMIC'),
-    workflowId: 'workflow_001',
+    agentWorkflowId: 'agent-workflow-001',
     maxRows: 5,
   },
   play: async ({ canvasElement }) => {

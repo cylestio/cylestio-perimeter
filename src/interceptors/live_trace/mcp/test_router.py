@@ -115,7 +115,7 @@ class TestMCPToolsList(TestMCPRouter):
         assert "get_security_patterns" in tool_names
         assert "create_analysis_session" in tool_names
         assert "store_finding" in tool_names
-        assert "get_workflow_state" in tool_names
+        assert "get_agent_workflow_state" in tool_names
 
     def test_tools_have_input_schema(self, client):
         """Test each tool has inputSchema defined."""
@@ -165,7 +165,7 @@ class TestMCPToolsCall(TestMCPRouter):
             "params": {
                 "name": "create_analysis_session",
                 "arguments": {
-                    "workflow_id": "test-workflow",
+                    "agent_workflow_id": "test-agent-workflow",
                     "session_type": "STATIC"
                 }
             }
@@ -175,7 +175,7 @@ class TestMCPToolsCall(TestMCPRouter):
         data = response.json()
         content = json.loads(data["result"]["content"][0]["text"])
         assert "session" in content
-        assert content["session"]["workflow_id"] == "test-workflow"
+        assert content["session"]["agent_workflow_id"] == "test-agent-workflow"
 
     def test_tools_call_unknown_tool(self, client):
         """Test calling an unknown tool returns error in content."""
@@ -203,7 +203,7 @@ class TestMCPToolsCall(TestMCPRouter):
             "method": "tools/call",
             "params": {
                 "name": "create_analysis_session",
-                "arguments": {}  # Missing required workflow_id
+                "arguments": {}  # Missing required agent_workflow_id
             }
         })
 
@@ -385,7 +385,7 @@ class TestMCPToolIntegration(TestMCPRouter):
             "params": {
                 "name": "create_analysis_session",
                 "arguments": {
-                    "workflow_id": "integration-test",
+                    "agent_workflow_id": "integration-test",
                     "session_type": "STATIC"
                 }
             }
@@ -422,7 +422,7 @@ class TestMCPToolIntegration(TestMCPRouter):
             "method": "tools/call",
             "params": {
                 "name": "get_findings",
-                "arguments": {"workflow_id": "integration-test"}
+                "arguments": {"agent_workflow_id": "integration-test"}
             }
         })
 
@@ -443,15 +443,15 @@ class TestMCPToolIntegration(TestMCPRouter):
         content = json.loads(response.json()["result"]["content"][0]["text"])
         assert content["session"]["status"] == "COMPLETED"
 
-    def test_workflow_state_tool(self, client, store):
-        """Test get_workflow_state tool."""
+    def test_agent_workflow_state_tool(self, client, store):
+        """Test get_agent_workflow_state tool."""
         response = client.post("/mcp", json={
             "jsonrpc": "2.0",
             "id": 1,
             "method": "tools/call",
             "params": {
-                "name": "get_workflow_state",
-                "arguments": {"workflow_id": "new-workflow"}
+                "name": "get_agent_workflow_state",
+                "arguments": {"agent_workflow_id": "new-agent-workflow"}
             }
         })
 

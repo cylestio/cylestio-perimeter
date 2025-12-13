@@ -4,4 +4,4 @@ export * from './dashboard';
 export * from './ide';
 export * from './replay';
 export * from './session';
-export * from './workflow';
+export * from './agentWorkflow';

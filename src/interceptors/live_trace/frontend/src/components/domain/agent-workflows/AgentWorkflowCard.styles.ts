@@ -37,12 +37,12 @@ export const IconContainer = styled.div`
   color: ${({ theme }) => theme.colors.cyan};
 `;
 
-export const WorkflowInfo = styled.div`
+export const AgentWorkflowInfo = styled.div`
   flex: 1;
   min-width: 0;
 `;
 
-export const WorkflowName = styled.div`
+export const AgentWorkflowName = styled.div`
   font-size: 14px;
   font-weight: 600;
   color: ${({ theme }) => theme.colors.white};
@@ -51,7 +51,7 @@ export const WorkflowName = styled.div`
   white-space: nowrap;
 `;
 
-export const WorkflowId = styled.div`
+export const AgentWorkflowId = styled.div`
   font-size: 11px;
   color: ${({ theme }) => theme.colors.white30};
   font-family: ${({ theme }) => theme.typography.fontMono};

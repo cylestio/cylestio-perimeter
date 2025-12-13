@@ -6,9 +6,9 @@ import {
   CardContainer,
   CardHeader,
   IconContainer,
-  WorkflowInfo,
-  WorkflowName,
-  WorkflowId,
+  AgentWorkflowInfo,
+  AgentWorkflowName,
+  AgentWorkflowId,
   CardBody,
   StatsGrid,
   StatItem,
@@ -16,9 +16,9 @@ import {
   StatLabel,
   CardFooter,
   ViewButton,
-} from './WorkflowCard.styles';
+} from './AgentWorkflowCard.styles';
 
-export interface WorkflowCardProps {
+export interface AgentWorkflowCardProps {
   id: string;
   name: string;
   agentCount: number;
@@ -26,7 +26,7 @@ export interface WorkflowCardProps {
   onClick?: () => void;
 }
 
-export const WorkflowCard: FC<WorkflowCardProps> = ({
+export const AgentWorkflowCard: FC<AgentWorkflowCardProps> = ({
   id,
   name,
   agentCount,
@@ -34,15 +34,15 @@ export const WorkflowCard: FC<WorkflowCardProps> = ({
   onClick,
 }) => {
   return (
-    <CardContainer $clickable={!!onClick} onClick={onClick} data-testid="workflow-card">
+    <CardContainer $clickable={!!onClick} onClick={onClick} data-testid="agent-workflow-card">
       <CardHeader>
         <IconContainer>
           <Folder size={20} />
         </IconContainer>
-        <WorkflowInfo>
-          <WorkflowName>{name}</WorkflowName>
-          <WorkflowId>{id}</WorkflowId>
-        </WorkflowInfo>
+        <AgentWorkflowInfo>
+          <AgentWorkflowName>{name}</AgentWorkflowName>
+          <AgentWorkflowId>{id}</AgentWorkflowId>
+        </AgentWorkflowInfo>
       </CardHeader>
 
       <CardBody>
@@ -59,7 +59,7 @@ export const WorkflowCard: FC<WorkflowCardProps> = ({
       </CardBody>
 
       <CardFooter>
-        <ViewButton>View Workflow →</ViewButton>
+        <ViewButton>View Agent Workflow →</ViewButton>
       </CardFooter>
     </CardContainer>
   );

@@ -11,7 +11,7 @@ const meta: Meta<typeof StaticAnalysis> = {
   parameters: {
     layout: 'fullscreen',
     router: {
-      initialEntries: ['/workflow/test-workflow/static-analysis'],
+      initialEntries: ['/agent-workflow/test-agent-workflow/static-analysis'],
     },
   },
 };
@@ -22,8 +22,8 @@ type Story = StoryObj<typeof StaticAnalysis>;
 // Mock sessions and findings data
 const mockStaticSession = {
   session_id: 'sess_abc123def456',
-  workflow_id: 'test-workflow',
-  workflow_name: 'Test Workflow',
+  agent_workflow_id: 'test-agent-workflow',
+  agent_workflow_name: 'Test Agent Workflow',
   session_type: 'STATIC',
   status: 'COMPLETED',
   created_at: Date.now() / 1000 - 3600, // 1 hour ago
@@ -34,8 +34,8 @@ const mockStaticSession = {
 
 const mockAutofixSession = {
   session_id: 'sess_fix789xyz012',
-  workflow_id: 'test-workflow',
-  workflow_name: 'Test Workflow',
+  agent_workflow_id: 'test-agent-workflow',
+  agent_workflow_name: 'Test Agent Workflow',
   session_type: 'AUTOFIX',
   status: 'COMPLETED',
   created_at: Date.now() / 1000 - 1800, // 30 minutes ago
@@ -46,8 +46,8 @@ const mockAutofixSession = {
 
 const mockRunningSession = {
   session_id: 'sess_running456',
-  workflow_id: 'test-workflow',
-  workflow_name: 'Test Workflow',
+  agent_workflow_id: 'test-agent-workflow',
+  agent_workflow_name: 'Test Agent Workflow',
   session_type: 'STATIC',
   status: 'IN_PROGRESS',
   created_at: Date.now() / 1000 - 300, // 5 minutes ago
@@ -60,7 +60,7 @@ const mockFindings = [
   {
     finding_id: 'find_001',
     session_id: 'sess_abc123def456',
-    workflow_id: 'test-workflow',
+    agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/handlers/auth.py',
     line_start: 42,
     line_end: 45,
@@ -80,7 +80,7 @@ const mockFindings = [
   {
     finding_id: 'find_002',
     session_id: 'sess_abc123def456',
-    workflow_id: 'test-workflow',
+    agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/utils/logging.py',
     line_start: 15,
     line_end: 18,
@@ -100,7 +100,7 @@ const mockFindings = [
   {
     finding_id: 'find_003',
     session_id: 'sess_abc123def456',
-    workflow_id: 'test-workflow',
+    agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/models/chat.py',
     line_start: 88,
     line_end: 92,
@@ -120,7 +120,7 @@ const mockFindings = [
 ];
 
 const mockSummary = {
-  workflow_id: 'test-workflow',
+  agent_workflow_id: 'test-agent-workflow',
   total_findings: 3,
   by_severity: { CRITICAL: 1, HIGH: 1, MEDIUM: 1, LOW: 0 },
   by_status: { OPEN: 2, FIXED: 1, IGNORED: 0 },
@@ -142,7 +142,7 @@ const createMockFetch = (
         json: () => Promise.resolve({ sessions }),
       });
     }
-    if (url.includes('/api/workflow/') && url.includes('/findings')) {
+    if (url.includes('/api/agent-workflow/') && url.includes('/findings')) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ findings, summary }),
@@ -155,7 +155,7 @@ const createMockFetch = (
 // Wrapper to provide route params via Routes
 const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
   <Routes>
-    <Route path="/workflow/:workflowId/static-analysis" element={children} />
+    <Route path="/agent-workflow/:agentWorkflowId/static-analysis" element={children} />
   </Routes>
 );
 
@@ -163,7 +163,7 @@ export const Empty: Story = {
   decorators: [
     (Story) => {
       window.fetch = createMockFetch([], [], {
-        workflow_id: 'test-workflow',
+        agent_workflow_id: 'test-agent-workflow',
         total_findings: 0,
         by_severity: {},
         by_status: {},
@@ -180,7 +180,7 @@ export const Empty: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/workflow/test-workflow/static-analysis'],
+      initialEntries: ['/agent-workflow/test-agent-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -207,7 +207,7 @@ export const WithSessions: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/workflow/test-workflow/static-analysis'],
+      initialEntries: ['/agent-workflow/test-agent-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -238,7 +238,7 @@ export const WithRunningSession: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/workflow/test-workflow/static-analysis'],
+      initialEntries: ['/agent-workflow/test-agent-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -289,7 +289,7 @@ export const WithManyFindings: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/workflow/test-workflow/static-analysis'],
+      initialEntries: ['/agent-workflow/test-agent-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {

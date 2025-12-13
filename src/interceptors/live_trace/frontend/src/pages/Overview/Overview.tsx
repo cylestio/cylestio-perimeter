@@ -18,7 +18,7 @@ import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
-import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration } from '@utils/formatting';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -84,7 +84,7 @@ const aggregateMetrics = (agents: APIAgent[]): AggregatedMetrics => {
 };
 
 export const Overview: FC<OverviewProps> = ({ className }) => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // State
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
@@ -94,12 +94,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   // Fetch data
   const fetchData = useCallback(async () => {
-    if (!workflowId) return;
+    if (!agentWorkflowId) return;
 
     try {
       const [dashData, sessionsData] = await Promise.all([
-        fetchDashboard(workflowId),
-        fetchSessions({ workflow_id: workflowId, limit: 100 }),
+        fetchDashboard(agentWorkflowId),
+        fetchSessions({ agent_workflow_id: agentWorkflowId, limit: 100 }),
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
@@ -109,7 +109,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     } finally {
       setLoading(false);
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
   useEffect(() => {
     fetchData();
@@ -117,9 +117,9 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   // Set breadcrumbs
   usePageMeta({
-    breadcrumbs: workflowId
-      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Overview' })
-      : [{ label: 'Workflows', href: '/' }, { label: 'Overview' }],
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Overview' })
+      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Overview' }],
   });
 
   if (loading) {
@@ -157,7 +157,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
       {/* Header */}
       <PageHeader
         title="Overview"
-        description={`Aggregated metrics for workflow: ${workflowId}`}
+        description={`Aggregated metrics for agent workflow: ${agentWorkflowId}`}
       />
 
       {/* Key Metrics Row */}

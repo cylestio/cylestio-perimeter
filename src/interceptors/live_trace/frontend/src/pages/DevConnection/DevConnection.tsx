@@ -20,7 +20,7 @@ import { useParams } from 'react-router-dom';
 import { DevConnectionIcon } from '@constants/pageIcons';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import type { IDEConnectionStatus } from '@api/types/ide';
-import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
@@ -108,20 +108,20 @@ const SETUP_INSTRUCTIONS_URL = 'https://www.cylestio.com/install';
 const SETUP_MESSAGE = `Install Agent Inspector from: ${SETUP_INSTRUCTIONS_URL}`;
 
 export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
-  const { workflowId } = useParams<{ workflowId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
   const [connectionStatus, setConnectionStatus] = useState<IDEConnectionStatus | null>(null);
   const [copied, setCopied] = useState(false);
 
   usePageMeta({
-    breadcrumbs: workflowId
-      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Dev Connection' })
-      : [{ label: 'Workflows', href: '/' }, { label: 'Dev Connection' }],
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Dev Connection' })
+      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Dev Connection' }],
   });
 
   // Fetch connection status
   const fetchStatus = useCallback(async () => {
     try {
-      const status = await fetchIDEConnectionStatus(workflowId === 'unassigned' ? undefined : workflowId);
+      const status = await fetchIDEConnectionStatus(agentWorkflowId === 'unassigned' ? undefined : agentWorkflowId);
       setConnectionStatus(status);
     } catch (err) {
       // Silently handle errors - connection status is optional
@@ -137,7 +137,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
         connection_count: 0,
       });
     }
-  }, [workflowId]);
+  }, [agentWorkflowId]);
 
   // Initial fetch and polling
   useEffect(() => {
