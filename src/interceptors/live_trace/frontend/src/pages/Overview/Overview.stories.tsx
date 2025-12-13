@@ -11,7 +11,7 @@ const meta: Meta<typeof Overview> = {
   parameters: {
     layout: 'fullscreen',
     router: {
-      initialEntries: ['/agent/test-agent/overview'],
+      initialEntries: ['/workflow/test-workflow/overview'],
     },
   },
 };
@@ -26,7 +26,7 @@ const mockDashboardData = {
       id: 'agent_001',
       id_short: 'agent_001',
       name: 'Customer Support Bot',
-      workflow_id: 'test-agent',
+      workflow_id: 'test-workflow',
       total_sessions: 150,
       active_sessions: 3,
       total_errors: 5,
@@ -39,7 +39,7 @@ const mockDashboardData = {
       id: 'agent_002',
       id_short: 'agent_002',
       name: 'Code Assistant',
-      workflow_id: 'test-agent',
+      workflow_id: 'test-workflow',
       total_sessions: 75,
       active_sessions: 1,
       total_errors: 2,
@@ -101,7 +101,7 @@ const createMockFetch = (dashboardData: unknown, sessionsData: unknown) => {
 // Wrapper to provide route params
 const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
   <Routes>
-    <Route path="/agent/:agentId/overview" element={children} />
+    <Route path="/workflow/:workflowId/overview" element={children} />
   </Routes>
 );
 
@@ -119,7 +119,7 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Overview')).toBeInTheDocument();
-    await expect(await canvas.findByText('System Prompts')).toBeInTheDocument();
+    await expect(await canvas.findByText('Agents')).toBeInTheDocument();
     await expect(await canvas.findByText('Total Sessions')).toBeInTheDocument();
   },
 };

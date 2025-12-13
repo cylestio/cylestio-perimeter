@@ -155,7 +155,7 @@ const createMockFetch = (
 // Wrapper to provide route params via Routes
 const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
   <Routes>
-    <Route path="/agent/:agentId/static-analysis" element={children} />
+    <Route path="/workflow/:workflowId/static-analysis" element={children} />
   </Routes>
 );
 
@@ -180,7 +180,7 @@ export const Empty: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/agent/test-agent/static-analysis'],
+      initialEntries: ['/workflow/test-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -207,7 +207,7 @@ export const WithSessions: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/agent/test-agent/static-analysis'],
+      initialEntries: ['/workflow/test-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -238,7 +238,7 @@ export const WithRunningSession: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/agent/test-agent/static-analysis'],
+      initialEntries: ['/workflow/test-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -289,7 +289,7 @@ export const WithManyFindings: Story = {
   ],
   parameters: {
     router: {
-      initialEntries: ['/agent/test-agent/static-analysis'],
+      initialEntries: ['/workflow/test-workflow/static-analysis'],
     },
   },
   play: async ({ canvasElement }) => {
