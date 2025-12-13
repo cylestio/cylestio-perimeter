@@ -996,8 +996,8 @@ interface AnalysisStatusItemProps {
   label="Static Analysis"
   status="ok"
   collapsed={sidebarCollapsed}
-  to={`/workflow/${workflowId}/static-analysis`}
-  active={location.pathname === `/workflow/${workflowId}/static-analysis`}
+  to={`/agent-workflow/${agentWorkflowId}/static-analysis`}
+  active={location.pathname === `/agent-workflow/${agentWorkflowId}/static-analysis`}
 />
 
 // Dynamic scan with warnings
