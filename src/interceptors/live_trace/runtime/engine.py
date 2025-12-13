@@ -78,8 +78,8 @@ class AnalysisEngine:
         """Get all data needed for the main dashboard.
 
         Args:
-            agent_workflow_id: Optional workflow ID to filter by.
-                        Use "unassigned" to get agents/sessions with no workflow.
+            agent_workflow_id: Optional agent workflow ID to filter by.
+                        Use "unassigned" to get agents/sessions with no agent workflow.
                         None returns all data.
         """
         # Agent summary runs analysis outside the lock
@@ -111,14 +111,14 @@ class AnalysisEngine:
         }
 
     def _get_security_analysis(self, agent_workflow_id: str) -> Dict[str, Any]:
-        """Get unified security analysis for the workflow.
+        """Get unified security analysis for the agent workflow.
 
         Returns status for each analysis type with embedded findings:
         - static: status, findings
         - dynamic: status, findings
         - recommendations: status, findings
         """
-        # Get analysis sessions for this workflow
+        # Get analysis sessions for this agent workflow
         analysis_sessions = self.store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
 
         # Get findings summary
@@ -152,14 +152,14 @@ class AnalysisEngine:
             static_findings = findings_data
 
         # Dynamic Analysis status - based on session gathering progress
-        # Get all agents (system prompts) for this workflow to compute session progress
-        workflow_agents = self.store.get_all_agents(agent_workflow_id=agent_workflow_id)
-        
+        # Get all agents (system prompts) for this agent workflow to compute session progress
+        agents_in_workflow = self.store.get_all_agents(agent_workflow_id=agent_workflow_id)
+
         # Calculate aggregate session progress
-        total_current_sessions = sum(agent.total_sessions for agent in workflow_agents)
-        total_min_required = len(workflow_agents) * MIN_SESSIONS_FOR_RISK_ANALYSIS
+        total_current_sessions = sum(agent.total_sessions for agent in agents_in_workflow)
+        total_min_required = len(agents_in_workflow) * MIN_SESSIONS_FOR_RISK_ANALYSIS
         agents_with_enough_sessions = sum(
-            1 for agent in workflow_agents 
+            1 for agent in agents_in_workflow
             if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
         )
         
@@ -183,8 +183,8 @@ class AnalysisEngine:
             "current": total_current_sessions,
             "required": total_min_required,
             "agents_ready": agents_with_enough_sessions,
-            "agents_total": len(workflow_agents),
-        } if workflow_agents else None
+            "agents_total": len(agents_in_workflow),
+        } if agents_in_workflow else None
 
         # Get dynamic analysis findings from security checks
         # Security checks use status values: 'passed', 'warning', 'critical'

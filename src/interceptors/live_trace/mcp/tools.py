@@ -67,7 +67,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 },
                 "agent_workflow_name": {
                     "type": "string",
-                    "description": "Human-readable workflow/project name"
+                    "description": "Human-readable agent workflow/project name"
                 }
             },
             "required": ["agent_workflow_id"]
@@ -205,7 +205,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     # ==================== Agent Discovery Tools ====================
     {
         "name": "get_agents",
-        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to workflows or naming.",
+        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to agent workflows or naming.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -261,7 +261,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 },
                 "agent_workflow_id": {
                     "type": "string",
-                    "description": "The workflow/agent ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
+                    "description": "The agent workflow ID - derive from project folder name (e.g., 'next-rooms', 'my-agent')"
                 },
                 "workspace_path": {
                     "type": "string",

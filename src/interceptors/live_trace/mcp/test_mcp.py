@@ -312,7 +312,7 @@ class TestMCPToolsCall:
         tool_result = json.loads(result["content"][0]["text"])
         
         assert "error" in tool_result
-        assert "workflow_id" in tool_result["error"]
+        assert "agent_workflow_id" in tool_result["error"]
 
 
 # ============================================================================

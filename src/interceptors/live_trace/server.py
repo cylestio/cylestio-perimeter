@@ -104,10 +104,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     async def api_agent_workflows():
         """Get all agent workflows with agent counts."""
         try:
-            workflows = insights.store.get_agent_workflows()
-            return JSONResponse({"workflows": workflows})
+            agent_workflows = insights.store.get_agent_workflows()
+            return JSONResponse({"agent_workflows": agent_workflows})
         except Exception as e:
-            logger.error(f"Error getting workflows: {e}")
+            logger.error(f"Error getting agent workflows: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/stats")

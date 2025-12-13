@@ -589,7 +589,7 @@ class TraceStore:
             # Extract agent_workflow_id from event attributes
             agent_workflow_id = None
             if hasattr(event, 'attributes'):
-                agent_workflow_id = event.attributes.get('workflow.id')
+                agent_workflow_id = event.attributes.get('agent_workflow.id')
 
             # Add to global event stream (kept in memory as circular buffer)
             self.events.append(event)
@@ -1009,14 +1009,14 @@ class TraceStore:
         """Get all unique agent workflows with their agent counts.
 
         Returns:
-            List of workflow dicts with id, name, agent_count, and session_count.
-            Includes workflows from agents and sessions tables.
+            List of agent workflow dicts with id, name, agent_count, and session_count.
+            Includes agent workflows from agents and sessions tables.
             Includes "Unassigned" for agents without an agent workflow.
         """
         with self._lock:
-            workflows = []
+            agent_workflows = []
 
-            # Get workflows with agent counts and session counts
+            # Get agent workflows with agent counts and session counts
             cursor = self.db.execute("""
                 SELECT
                     agent_workflow_id,
@@ -1040,7 +1040,7 @@ class TraceStore:
 
                     UNION ALL
 
-                    -- Agent workflows from analysis_sessions (for workflow names)
+                    -- Agent workflows from analysis_sessions (for agent workflow names)
                     SELECT agent_workflow_id, agent_workflow_name, 0 as agent_count, 0 as session_count
                     FROM analysis_sessions
                     WHERE agent_workflow_id IS NOT NULL
@@ -1051,7 +1051,7 @@ class TraceStore:
             """)
 
             for row in cursor.fetchall():
-                workflows.append({
+                agent_workflows.append({
                     "id": row["agent_workflow_id"],
                     "name": row["name"],
                     "agent_count": row["agent_count"],
@@ -1065,13 +1065,13 @@ class TraceStore:
             unassigned_count = cursor.fetchone()["count"]
 
             if unassigned_count > 0:
-                workflows.append({
+                agent_workflows.append({
                     "id": None,
                     "name": "Unassigned",
                     "agent_count": unassigned_count
                 })
 
-            return workflows
+            return agent_workflows
 
     def get_global_stats(self) -> Dict[str, Any]:
         """Get global statistics from SQLite."""
@@ -2144,7 +2144,7 @@ class TraceStore:
             cursor = self.db.execute(query, params)
             active_connections = [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
 
-            # Get the most recent connection for this workflow (even if inactive)
+            # Get the most recent connection for this agent workflow (even if inactive)
             # This is used to show "was connected" state
             most_recent_query = "SELECT * FROM ide_connections WHERE 1=1"
             most_recent_params = []
