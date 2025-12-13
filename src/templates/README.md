@@ -57,9 +57,9 @@ Then restart Cursor and approve the MCP server when prompted.
 | `update_finding_status` | Mark FIXED/IGNORED |
 | `get_owasp_control` | OWASP control details |
 | `get_fix_template` | Remediation templates |
-| `get_workflow_state` | Check static/dynamic data exists |
+| `get_agent_workflow_state` | Check static/dynamic data exists |
 | `get_tool_usage_summary` | Runtime tool usage patterns |
-| `get_workflow_correlation` | Correlate static ↔ dynamic |
+| `get_agent_workflow_correlation` | Correlate static ↔ dynamic |
 | `get_agents` | List agents |
 | `update_agent_info` | Link/name agents |
 
@@ -78,16 +78,16 @@ Configure your agent to use the proxy:
 
 ```python
 from openai import OpenAI
-client = OpenAI(base_url="http://localhost:4000/workflow/my-project")
+client = OpenAI(base_url="http://localhost:4000/agent-workflow/my-project")
 
 # or Anthropic
 from anthropic import Anthropic
-client = Anthropic(base_url="http://localhost:4000/workflow/my-project")
+client = Anthropic(base_url="http://localhost:4000/agent-workflow/my-project")
 ```
 
 ### View Results
 
-Open the dashboard: `http://localhost:7100/workflow/{workflow_id}`
+Open the dashboard: `http://localhost:7100/agent-workflow/{agent_workflow_id}`
 
 ---
 

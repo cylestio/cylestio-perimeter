@@ -191,7 +191,7 @@ class TestMCPToolsList:
         assert "get_security_patterns" in tool_names
         assert "create_analysis_session" in tool_names
         assert "store_finding" in tool_names
-        assert "get_workflow_state" in tool_names
+        assert "get_agent_workflow_state" in tool_names
     
     def test_tools_have_required_fields(self, client):
         """Test that all tools have required MCP fields."""
@@ -262,9 +262,9 @@ class TestMCPToolsCall:
             "params": {
                 "name": "create_analysis_session",
                 "arguments": {
-                    "workflow_id": "test-workflow",
+                    "agent_workflow_id": "test-workflow",
                     "session_type": "STATIC",
-                    "workflow_name": "Test Workflow"
+                    "agent_workflow_name": "Test Workflow"
                 }
             }
         })
@@ -274,7 +274,7 @@ class TestMCPToolsCall:
         tool_result = json.loads(result["content"][0]["text"])
         
         assert "session" in tool_result
-        assert tool_result["session"]["workflow_id"] == "test-workflow"
+        assert tool_result["session"]["agent_workflow_id"] == "test-workflow"
         assert tool_result["session"]["status"] == "IN_PROGRESS"
     
     def test_call_unknown_tool_returns_error(self, client):
@@ -304,7 +304,7 @@ class TestMCPToolsCall:
             "method": "tools/call",
             "params": {
                 "name": "create_analysis_session",
-                "arguments": {}  # Missing required workflow_id
+                "arguments": {}  # Missing required agent_workflow_id
             }
         })
         
@@ -416,20 +416,20 @@ class TestMCPSSEStreaming:
 class TestToolHandlers:
     """Test individual tool handlers."""
 
-    def test_get_workflow_state_no_data(self, store):
-        """Test get_workflow_state with no data."""
-        result = call_tool("get_workflow_state", {"workflow_id": "test"}, store)
-        
+    def test_get_agent_workflow_state_no_data(self, store):
+        """Test get_agent_workflow_state with no data."""
+        result = call_tool("get_agent_workflow_state", {"agent_workflow_id": "test"}, store)
+
         assert result["state"] == "NO_DATA"
         assert result["has_static_analysis"] is False
         assert result["has_dynamic_sessions"] is False
-    
-    def test_get_workflow_state_with_static(self, store):
-        """Test get_workflow_state with static analysis data."""
+
+    def test_get_agent_workflow_state_with_static(self, store):
+        """Test get_agent_workflow_state with static analysis data."""
         # Create a session
         store.create_analysis_session("sess1", "test-wf", "STATIC")
-        
-        result = call_tool("get_workflow_state", {"workflow_id": "test-wf"}, store)
+
+        result = call_tool("get_agent_workflow_state", {"agent_workflow_id": "test-wf"}, store)
         
         assert result["state"] == "STATIC_ONLY"
         assert result["has_static_analysis"] is True
@@ -453,7 +453,7 @@ class TestToolHandlers:
         assert result["finding"]["title"] == "Test Finding"
         
         # Get findings
-        findings = call_tool("get_findings", {"workflow_id": "test-wf"}, store)
+        findings = call_tool("get_findings", {"agent_workflow_id": "test-wf"}, store)
         assert findings["total_count"] == 1
     
     def test_complete_analysis_session(self, store):
@@ -594,7 +594,7 @@ class TestMCPIntegration:
             "params": {
                 "name": "create_analysis_session",
                 "arguments": {
-                    "workflow_id": "integration-test",
+                    "agent_workflow_id": "integration-test",
                     "session_type": "STATIC"
                 }
             }
@@ -646,14 +646,14 @@ class TestMCPIntegration:
         # Risk score is calculated (can be 0 depending on finding weights)
         assert isinstance(complete_result["risk_score"], (int, float))
         
-        # 6. Get workflow state
+        # 6. Get agent workflow state
         state = client.post("/mcp", json={
             "jsonrpc": "2.0",
             "id": 6,
             "method": "tools/call",
             "params": {
-                "name": "get_workflow_state",
-                "arguments": {"workflow_id": "integration-test"}
+                "name": "get_agent_workflow_state",
+                "arguments": {"agent_workflow_id": "integration-test"}
             }
         }, headers={"Mcp-Session-Id": session_id})
         
