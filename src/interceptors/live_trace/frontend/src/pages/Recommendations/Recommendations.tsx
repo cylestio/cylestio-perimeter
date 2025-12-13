@@ -11,7 +11,7 @@ import { useParams, Link } from 'react-router-dom';
 import { RecommendationsIcon } from '@constants/pageIcons';
 import { fetchWorkflowFindings } from '@api/endpoints/workflow';
 import type { Finding } from '@api/types/findings';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Badge } from '@ui/core/Badge';
@@ -118,35 +118,35 @@ const generateRecommendations = (findings: Finding[]): Recommendation[] => {
 };
 
 export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { workflowId } = useParams<{ workflowId: string }>();
 
   const [findings, setFindings] = useState<Finding[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
-    if (!agentId) {
+    if (!workflowId) {
       setLoading(false);
       return;
     }
 
     try {
-      const data = await fetchWorkflowFindings(agentId);
+      const data = await fetchWorkflowFindings(workflowId);
       setFindings(data.findings);
     } catch (err) {
       console.error('Failed to fetch findings:', err);
     } finally {
       setLoading(false);
     }
-  }, [agentId]);
+  }, [workflowId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Recommendations' })
-      : [{ label: 'Agents', href: '/' }, { label: 'Recommendations' }],
+    breadcrumbs: workflowId
+      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Recommendations' })
+      : [{ label: 'Workflows', href: '/' }, { label: 'Recommendations' }],
   });
 
   if (loading) {
@@ -239,7 +239,7 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
                       <RecommendationActions>
                         <ActionLink
                           as={Link}
-                          to={`/agent/${agentId}/${rec.actionLink}`}
+                          to={`/workflow/${workflowId}/${rec.actionLink}`}
                         >
                           {rec.actionLabel} <ArrowRight size={14} />
                         </ActionLink>

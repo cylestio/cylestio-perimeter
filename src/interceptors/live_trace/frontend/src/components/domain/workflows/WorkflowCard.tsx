@@ -49,7 +49,7 @@ export const WorkflowCard: FC<WorkflowCardProps> = ({
         <StatsGrid>
           <StatItem>
             <StatValue $color="cyan">{agentCount}</StatValue>
-            <StatLabel>System prompts</StatLabel>
+            <StatLabel>Agents</StatLabel>
           </StatItem>
           <StatItem>
             <StatValue $color="purple">{sessionCount}</StatValue>
@@ -59,7 +59,7 @@ export const WorkflowCard: FC<WorkflowCardProps> = ({
       </CardBody>
 
       <CardFooter>
-        <ViewButton>View Agent →</ViewButton>
+        <ViewButton>View Workflow →</ViewButton>
       </CardFooter>
     </CardContainer>
   );

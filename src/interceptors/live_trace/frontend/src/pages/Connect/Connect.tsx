@@ -94,7 +94,7 @@ export const Connect: FC = () => {
     : 'http://localhost:4000';
 
   const proxyUrl = urlMode === 'workflow'
-    ? `${baseUrl}/agent/${workflowId}`
+    ? `${baseUrl}/workflow/${workflowId}`
     : baseUrl;
 
   const handleCopy = async () => {
@@ -113,7 +113,7 @@ export const Connect: FC = () => {
         <HeroSection>
         <LogoOrb />
         <HeroTitle>
-          Connect Your <HeroHighlight>Agent</HeroHighlight>
+          Connect Your <HeroHighlight>Workflow</HeroHighlight>
         </HeroTitle>
         <HeroSubtitle>
           Point your client to this proxy URL to start capturing requests
@@ -139,7 +139,7 @@ export const Connect: FC = () => {
                   $active={urlMode === 'workflow'}
                   onClick={() => setUrlMode('workflow')}
                 >
-                  With Agent
+                  With Workflow
                 </ToggleOption>
               </WorkflowToggle>
 
@@ -177,8 +177,8 @@ export const Connect: FC = () => {
                   <WorkflowNote>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
                     <span>
-                      Use an agent ID to group system prompts and link static analysis findings to your project.
-                      The same agent_id should be used in MCP tools when running security scans.
+                      Use a workflow ID to group agents and link static analysis findings to your project.
+                      The same workflow_id should be used in MCP tools when running security scans.
                     </span>
                   </WorkflowNote>
                 )}
@@ -222,7 +222,7 @@ export const Connect: FC = () => {
             <OrbLoader size="sm" />
           </StatusSpinner>
           <Text size="sm" weight="medium" color="muted">
-            Listening for system prompt activity
+            Listening for agent activity
           </Text>
         </StatusBanner>
       )}
@@ -231,7 +231,7 @@ export const Connect: FC = () => {
       {isConnected && (
         <ConnectionSuccess
           agentCount={agentCount}
-          onViewAgents={() => navigate('/')}
+          onViewWorkflows={() => navigate('/')}
         />
       )}
 

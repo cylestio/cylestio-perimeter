@@ -25,48 +25,48 @@ type Story = StoryObj<typeof ConnectionSuccess>;
 export const SingleAgent: Story = {
   args: {
     agentCount: 1,
-    onViewAgents: fn(),
+    onViewWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Connection Successful')).toBeInTheDocument();
-    await expect(canvas.getByText('Your system prompt is now being monitored')).toBeInTheDocument();
+    await expect(canvas.getByText('Your agent is now being monitored')).toBeInTheDocument();
     await expect(canvas.getByText('1')).toBeInTheDocument();
-    await expect(canvas.getByText('System prompt')).toBeInTheDocument();
+    await expect(canvas.getByText('Agent')).toBeInTheDocument();
   },
 };
 
 export const MultipleAgents: Story = {
   args: {
     agentCount: 5,
-    onViewAgents: fn(),
+    onViewWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Connection Successful')).toBeInTheDocument();
-    await expect(canvas.getByText('Your system prompts are now being monitored')).toBeInTheDocument();
+    await expect(canvas.getByText('Your agents are now being monitored')).toBeInTheDocument();
     await expect(canvas.getByText('5')).toBeInTheDocument();
-    await expect(canvas.getByText('System prompts')).toBeInTheDocument();
+    await expect(canvas.getByText('Agents')).toBeInTheDocument();
   },
 };
 
-export const ClickViewAgents: Story = {
+export const ClickViewWorkflows: Story = {
   args: {
     agentCount: 3,
-    onViewAgents: fn(),
+    onViewWorkflows: fn(),
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const button = canvas.getByRole('button', { name: /view agents/i });
+    const button = canvas.getByRole('button', { name: /view workflows/i });
     await userEvent.click(button);
-    await expect(args.onViewAgents).toHaveBeenCalled();
+    await expect(args.onViewWorkflows).toHaveBeenCalled();
   },
 };
 
 export const HighAgentCount: Story = {
   args: {
     agentCount: 42,
-    onViewAgents: fn(),
+    onViewWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

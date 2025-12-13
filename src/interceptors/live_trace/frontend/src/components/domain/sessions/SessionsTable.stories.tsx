@@ -104,7 +104,7 @@ type Story = StoryObj<typeof SessionsTable>;
 export const Default: Story = {
   args: {
     sessions: mockSessions,
-    agentId: 'agent_001',
+    workflowId: 'workflow_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -113,16 +113,16 @@ export const Default: Story = {
   },
 };
 
-export const WithSystemPromptColumn: Story = {
+export const WithAgentColumn: Story = {
   args: {
     sessions: mockSessions,
-    agentId: 'agent_001',
+    workflowId: 'workflow_001',
     showAgentColumn: true,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('System prompt')).toBeInTheDocument();
-    // Multiple sessions can have the same system prompt, so use getAllByText
+    await expect(canvas.getByText('Agent')).toBeInTheDocument();
+    // Multiple sessions can have the same agent, so use getAllByText
     // Component renders full agent_id, not agent_id_short
     const agentCells = canvas.getAllByText('agent_xyz789');
     await expect(agentCells.length).toBeGreaterThan(0);
@@ -132,7 +132,7 @@ export const WithSystemPromptColumn: Story = {
 export const Loading: Story = {
   args: {
     sessions: [],
-    agentId: 'agent_001',
+    workflowId: 'workflow_001',
     loading: true,
   },
   play: async ({ canvasElement }) => {
@@ -144,7 +144,7 @@ export const Loading: Story = {
 export const Empty: Story = {
   args: {
     sessions: [],
-    agentId: 'agent_001',
+    workflowId: 'workflow_001',
     emptyMessage: 'No sessions found for this agent',
   },
   play: async ({ canvasElement }) => {
@@ -157,7 +157,7 @@ export const Empty: Story = {
 export const SingleSession: Story = {
   args: {
     sessions: [mockSessions[0]],
-    agentId: 'agent_001',
+    workflowId: 'workflow_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -168,7 +168,7 @@ export const SingleSession: Story = {
 export const WithErrors: Story = {
   args: {
     sessions: mockSessions.filter(s => s.errors > 0),
-    agentId: 'agent_001',
+    workflowId: 'workflow_001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

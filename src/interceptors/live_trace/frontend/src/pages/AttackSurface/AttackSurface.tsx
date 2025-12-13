@@ -13,7 +13,7 @@ import {
 import { useParams } from 'react-router-dom';
 
 import { AttackSurfaceIcon } from '@constants/pageIcons';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { Page } from '@ui/layout/Page';
@@ -88,14 +88,14 @@ const mockVectors: AttackVector[] = [
 ];
 
 export const AttackSurface: FC<AttackSurfaceProps> = ({ className }) => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { workflowId } = useParams<{ workflowId: string }>();
   const [vectors] = useState<AttackVector[]>(mockVectors);
   const [isScanning, setIsScanning] = useState(false);
 
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Attack Surface' })
-      : [{ label: 'Agents', href: '/' }, { label: 'Attack Surface' }],
+    breadcrumbs: workflowId
+      ? buildWorkflowBreadcrumbs(workflowId, { label: 'Attack Surface' })
+      : [{ label: 'Workflows', href: '/' }, { label: 'Attack Surface' }],
   });
 
   const handleScan = () => {
