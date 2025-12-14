@@ -16,16 +16,16 @@ class MockStore:
         self.last_analyzed_counts = last_analyzed_counts or {}
         self.persisted_counts = {}
 
-    def get_completed_session_count(self, agent_id: str) -> int:
-        return self.completed_counts.get(agent_id, 0)
+    def get_completed_session_count(self, agent_step_id: str) -> int:
+        return self.completed_counts.get(agent_step_id, 0)
 
-    def get_agent_last_analyzed_count(self, agent_id: str) -> int:
-        return self.last_analyzed_counts.get(agent_id, 0)
+    def get_agent_step_last_analyzed_count(self, agent_step_id: str) -> int:
+        return self.last_analyzed_counts.get(agent_step_id, 0)
 
-    def update_agent_last_analyzed(self, agent_id: str, session_count: int) -> None:
-        self.last_analyzed_counts[agent_id] = session_count
+    def update_agent_step_last_analyzed(self, agent_step_id: str, session_count: int) -> None:
+        self.last_analyzed_counts[agent_step_id] = session_count
 
-    def get_agents_needing_analysis(self, min_sessions: int):
+    def get_agent_steps_needing_analysis(self, min_sessions: int):
         return [
             aid for aid, count in self.completed_counts.items()
             if count >= min_sessions and count > self.last_analyzed_counts.get(aid, 0)
@@ -166,8 +166,8 @@ class TestAnalysisRunner:
 
         assert runner.get_last_analyzed_count("agent-1") == 3
 
-    def test_reset_agent(self):
-        """Test reset_agent clears in-memory state."""
+    def test_reset_agent_step(self):
+        """Test reset_agent_step clears in-memory state."""
         store = MockStore(completed_counts={"agent-1": MIN_SESSIONS_FOR_RISK_ANALYSIS})
         compute_fn = AsyncMock()
         runner = AnalysisRunner(store, compute_fn)
@@ -175,7 +175,7 @@ class TestAnalysisRunner:
         runner._mark_started("agent-1")
         assert runner.is_running("agent-1") is True
 
-        runner.reset_agent("agent-1")
+        runner.reset_agent_step("agent-1")
         assert runner.is_running("agent-1") is False
 
     def test_get_status(self):

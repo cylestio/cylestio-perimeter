@@ -422,14 +422,14 @@ class TraceStore:
     def _run_migrations(self) -> None:
         """Run database migrations for existing databases."""
         # Migration: add last_analyzed_session_count column if missing
-        cursor = self.db.execute("PRAGMA table_info(agents)")
+        cursor = self.db.execute("PRAGMA table_info(agent_steps)")
         columns = {row[1] for row in cursor.fetchall()}
         if 'last_analyzed_session_count' not in columns:
             self.db.execute(
-                "ALTER TABLE agents ADD COLUMN last_analyzed_session_count INTEGER DEFAULT 0"
+                "ALTER TABLE agent_steps ADD COLUMN last_analyzed_session_count INTEGER DEFAULT 0"
             )
             self.db.commit()
-            logger.info("Migration: Added last_analyzed_session_count column to agents table")
+            logger.info("Migration: Added last_analyzed_session_count column to agent_steps table")
 
         # Migration: add model column to ide_connections if missing
         cursor = self.db.execute("PRAGMA table_info(ide_connections)")

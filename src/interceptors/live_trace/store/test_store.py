@@ -475,11 +475,11 @@ class TestAgentWorkflowIdMethods:
         """Create an in-memory store for testing."""
         return TraceStore(storage_mode="memory")
 
-    def _create_agent(self, store, agent_id: str, agent_workflow_id: str = None):
-        """Helper to create an agent directly in the database."""
-        from .store import AgentData
-        agent = AgentData(agent_id, agent_workflow_id)
-        store._save_agent(agent)
+    def _create_agent_step(self, store, agent_step_id: str, agent_workflow_id: str = None):
+        """Helper to create an agent step directly in the database."""
+        from .store import AgentStepData
+        agent_step = AgentStepData(agent_step_id, agent_workflow_id)
+        store._save_agent_step(agent_step)
 
     # --- get_agent_workflows() tests ---
 
@@ -490,10 +490,10 @@ class TestAgentWorkflowIdMethods:
 
     def test_get_agent_workflows_with_agent_workflows(self, store):
         """Test get_agent_workflows returns distinct agent workflows with counts."""
-        # Create agents with different agent workflows
-        self._create_agent(store, "agent1", "agent-workflow-a")
-        self._create_agent(store, "agent2", "agent-workflow-a")
-        self._create_agent(store, "agent3", "agent-workflow-b")
+        # Create agent steps with different agent workflows
+        self._create_agent_step(store, "agent_step1", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step2", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step3", "agent-workflow-b")
 
         agent_workflows = store.get_agent_workflows()
 
@@ -505,17 +505,17 @@ class TestAgentWorkflowIdMethods:
         agent_workflow_b = next((w for w in agent_workflows if w['id'] == 'agent-workflow-b'), None)
 
         assert agent_workflow_a is not None
-        assert agent_workflow_a['agent_count'] == 2
+        assert agent_workflow_a['agent_step_count'] == 2
 
         assert agent_workflow_b is not None
-        assert agent_workflow_b['agent_count'] == 1
+        assert agent_workflow_b['agent_step_count'] == 1
 
     def test_get_agent_workflows_includes_unassigned(self, store):
         """Test get_agent_workflows includes 'Unassigned' for NULL agent_workflow_id."""
-        # Create agents with and without agent workflow
-        self._create_agent(store, "agent1", "agent-workflow-a")
-        self._create_agent(store, "agent2", None)  # Unassigned
-        self._create_agent(store, "agent3", None)  # Unassigned
+        # Create agent steps with and without agent workflow
+        self._create_agent_step(store, "agent_step1", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step2", None)  # Unassigned
+        self._create_agent_step(store, "agent_step3", None)  # Unassigned
 
         agent_workflows = store.get_agent_workflows()
 
@@ -526,41 +526,41 @@ class TestAgentWorkflowIdMethods:
         unassigned = next((w for w in agent_workflows if w['id'] is None), None)
         assert unassigned is not None
         assert unassigned['name'] == "Unassigned"
-        assert unassigned['agent_count'] == 2
+        assert unassigned['agent_step_count'] == 2
 
-    # --- get_all_agents() filtering tests ---
+    # --- get_all_agent_steps() filtering tests ---
 
-    def test_get_all_agents_filter_by_agent_workflow(self, store):
-        """Test filtering agents by specific agent_workflow_id."""
-        self._create_agent(store, "agent1", "agent-workflow-a")
-        self._create_agent(store, "agent2", "agent-workflow-a")
-        self._create_agent(store, "agent3", "agent-workflow-b")
+    def test_get_all_agent_steps_filter_by_agent_workflow(self, store):
+        """Test filtering agent steps by specific agent_workflow_id."""
+        self._create_agent_step(store, "agent_step1", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step2", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step3", "agent-workflow-b")
 
-        agents = store.get_all_agents(agent_workflow_id="agent-workflow-a")
+        agent_steps = store.get_all_agent_steps(agent_workflow_id="agent-workflow-a")
 
-        assert len(agents) == 2
-        assert all(a.agent_workflow_id == "agent-workflow-a" for a in agents)
+        assert len(agent_steps) == 2
+        assert all(a.agent_workflow_id == "agent-workflow-a" for a in agent_steps)
 
-    def test_get_all_agents_filter_unassigned(self, store):
-        """Test filtering agents with 'unassigned' returns NULL agent_workflow agents."""
-        self._create_agent(store, "agent1", "agent-workflow-a")
-        self._create_agent(store, "agent2", None)
-        self._create_agent(store, "agent3", None)
+    def test_get_all_agent_steps_filter_unassigned(self, store):
+        """Test filtering agent steps with 'unassigned' returns NULL agent_workflow agent steps."""
+        self._create_agent_step(store, "agent_step1", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step2", None)
+        self._create_agent_step(store, "agent_step3", None)
 
-        agents = store.get_all_agents(agent_workflow_id="unassigned")
+        agent_steps = store.get_all_agent_steps(agent_workflow_id="unassigned")
 
-        assert len(agents) == 2
-        assert all(a.agent_workflow_id is None for a in agents)
+        assert len(agent_steps) == 2
+        assert all(a.agent_workflow_id is None for a in agent_steps)
 
-    def test_get_all_agents_no_filter(self, store):
-        """Test get_all_agents with no filter returns all agents."""
-        self._create_agent(store, "agent1", "agent-workflow-a")
-        self._create_agent(store, "agent2", "agent-workflow-b")
-        self._create_agent(store, "agent3", None)
+    def test_get_all_agent_steps_no_filter(self, store):
+        """Test get_all_agent_steps with no filter returns all agent steps."""
+        self._create_agent_step(store, "agent_step1", "agent-workflow-a")
+        self._create_agent_step(store, "agent_step2", "agent-workflow-b")
+        self._create_agent_step(store, "agent_step3", None)
 
-        agents = store.get_all_agents()
+        agent_steps = store.get_all_agent_steps()
 
-        assert len(agents) == 3
+        assert len(agent_steps) == 3
 
     # --- create_analysis_session (agent_workflow_id is now required) ---
 
@@ -654,7 +654,7 @@ class TestSecurityChecksMethods:
         self._create_analysis_session(store, "analysis_001")
         check = store.store_security_check(
             check_id="check_001",
-            agent_id="agent-123",
+            agent_step_id="agent-123",
             analysis_session_id="analysis_001",
             category_id="RESOURCE_MANAGEMENT",
             check_type="RESOURCE_001_TOKEN_BOUNDS",
@@ -667,7 +667,7 @@ class TestSecurityChecksMethods:
         )
 
         assert check['check_id'] == "check_001"
-        assert check['agent_id'] == "agent-123"
+        assert check['agent_step_id'] == "agent-123"
         assert check['category_id'] == "RESOURCE_MANAGEMENT"
         assert check['status'] == "passed"
         assert check['evidence']['tokens_used'] == 1500
@@ -677,7 +677,7 @@ class TestSecurityChecksMethods:
         self._create_analysis_session(store, "analysis_001")
         store.store_security_check(
             check_id="check_002",
-            agent_id="agent-123",
+            agent_step_id="agent-123",
             analysis_session_id="analysis_001",
             category_id="BEHAVIORAL",
             check_type="BEHAV_001",
@@ -694,17 +694,17 @@ class TestSecurityChecksMethods:
         check = store.get_security_check("nonexistent")
         assert check is None
 
-    def test_get_security_checks_by_agent(self, store):
-        """Test filtering security checks by agent_id."""
+    def test_get_security_checks_by_agent_step(self, store):
+        """Test filtering security checks by agent_step_id."""
         self._create_analysis_session(store, "sess1")
         self._create_analysis_session(store, "sess2")
         store.store_security_check("check_a1", "agent-a", "sess1", "CAT1", "TYPE1", "passed", "C1")
         store.store_security_check("check_a2", "agent-a", "sess1", "CAT2", "TYPE2", "warning", "C2")
         store.store_security_check("check_b1", "agent-b", "sess2", "CAT1", "TYPE1", "passed", "C3")
 
-        checks = store.get_security_checks(agent_id="agent-a")
+        checks = store.get_security_checks(agent_step_id="agent-a")
         assert len(checks) == 2
-        assert all(c['agent_id'] == "agent-a" for c in checks)
+        assert all(c['agent_step_id'] == "agent-a" for c in checks)
 
     def test_get_security_checks_by_status(self, store):
         """Test filtering security checks by status."""
@@ -727,7 +727,7 @@ class TestSecurityChecksMethods:
         resource_checks = store.get_security_checks(category_id="RESOURCE_MANAGEMENT")
         assert len(resource_checks) == 2
 
-    def test_get_latest_security_checks_for_agent(self, store):
+    def test_get_latest_security_checks_for_agent_step(self, store):
         """Test getting only latest analysis session's checks."""
         import time
         self._create_analysis_session(store, "old_session")
@@ -742,20 +742,20 @@ class TestSecurityChecksMethods:
         store.store_security_check("check_new_1", "agent-x", "new_session", "CAT1", "TYPE1", "passed", "New1")
 
         # Should only get checks from new_session
-        latest = store.get_latest_security_checks_for_agent("agent-x")
+        latest = store.get_latest_security_checks_for_agent_step("agent-x")
         assert len(latest) == 1
         assert latest[0]['analysis_session_id'] == "new_session"
 
-    def test_get_agent_security_summary(self, store):
-        """Test getting security summary for an agent."""
+    def test_get_agent_step_security_summary(self, store):
+        """Test getting security summary for an agent step."""
         self._create_analysis_session(store, "sess")
         store.store_security_check("c1", "agent-123", "sess", "CAT1", "T1", "passed", "C1")
         store.store_security_check("c2", "agent-123", "sess", "CAT1", "T2", "warning", "C2")
         store.store_security_check("c3", "agent-123", "sess", "CAT2", "T3", "critical", "C3")
 
-        summary = store.get_agent_security_summary("agent-123")
+        summary = store.get_agent_step_security_summary("agent-123")
 
-        assert summary['agent_id'] == "agent-123"
+        assert summary['agent_step_id'] == "agent-123"
         assert summary['total_checks'] == 3
         assert summary['by_status']['passed'] == 1
         assert summary['by_status']['warning'] == 1
@@ -841,7 +841,7 @@ class TestSecurityChecksMethods:
         security_report = MockSecurityReport(categories=[category1])
 
         count = store.persist_security_checks(
-            agent_id="test-agent",
+            agent_step_id="test-agent",
             security_report=security_report,
             analysis_session_id="analysis_session_123",
             agent_workflow_id="test-agent-workflow",
@@ -850,6 +850,6 @@ class TestSecurityChecksMethods:
         assert count == 2
 
         # Verify checks were stored
-        checks = store.get_security_checks(agent_id="test-agent")
+        checks = store.get_security_checks(agent_step_id="test-agent")
         assert len(checks) == 2
         assert checks[0]['category_id'] == "RESOURCE_MANAGEMENT"

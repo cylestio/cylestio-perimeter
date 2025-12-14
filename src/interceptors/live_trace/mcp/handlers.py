@@ -208,11 +208,11 @@ def handle_get_agent_workflow_state(args: Dict[str, Any], store: Any) -> Dict[st
     static_sessions = store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
     findings = store.get_findings(agent_workflow_id=agent_workflow_id)
     
-    # Get dynamic data (agents running through proxy)
-    dynamic_agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
-    
+    # Get dynamic data (agent steps running through proxy)
+    dynamic_agent_steps = store.get_all_agent_steps(agent_workflow_id=agent_workflow_id)
+
     has_static = len(static_sessions) > 0
-    has_dynamic = len(dynamic_agents) > 0
+    has_dynamic = len(dynamic_agent_steps) > 0
     open_findings = [f for f in findings if f.get("status") == "OPEN"]
     
     # Determine state and provide context-aware recommendations
@@ -238,7 +238,7 @@ def handle_get_agent_workflow_state(args: Dict[str, Any], store: Any) -> Dict[st
         "has_static_analysis": has_static,
         "has_dynamic_sessions": has_dynamic,
         "static_sessions_count": len(static_sessions),
-        "dynamic_agents_count": len(dynamic_agents),
+        "dynamic_agent_steps_count": len(dynamic_agent_steps),
         "findings_count": len(findings),
         "open_findings_count": len(open_findings),
         "recommendation": recommendation,
@@ -253,8 +253,8 @@ def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str,
     if not agent_workflow_id:
         return {"error": "agent_workflow_id is required"}
 
-    agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
-    if not agents:
+    agent_steps = store.get_all_agent_steps(agent_workflow_id=agent_workflow_id)
+    if not agent_steps:
         return {
             "agent_workflow_id": agent_workflow_id,
             "message": "No dynamic sessions found. Run your agent through the proxy to capture tool usage.",
@@ -263,18 +263,18 @@ def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str,
             "total_sessions": 0,
         }
 
-    # Aggregate tool usage across all agents
+    # Aggregate tool usage across all agent steps
     tool_usage = {}
     available_tools = set()
     used_tools = set()
     total_sessions = 0
 
-    for agent in agents:
-        total_sessions += agent.total_sessions
-        available_tools.update(agent.available_tools)
-        used_tools.update(agent.used_tools)
+    for agent_step in agent_steps:
+        total_sessions += agent_step.total_sessions
+        available_tools.update(agent_step.available_tools)
+        used_tools.update(agent_step.used_tools)
 
-        for tool_name, count in agent.tool_usage_details.items():
+        for tool_name, count in agent_step.tool_usage_details.items():
             if tool_name not in tool_usage:
                 tool_usage[tool_name] = {"count": 0}
             tool_usage[tool_name]["count"] += count
@@ -312,16 +312,16 @@ def handle_get_agent_workflow_correlation(args: Dict[str, Any], store: Any) -> D
     static_sessions = store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
     
     # Get dynamic data
-    agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
-    
+    agent_steps = store.get_all_agent_steps(agent_workflow_id=agent_workflow_id)
+
     if not static_sessions:
         return {
             "agent_workflow_id": agent_workflow_id,
             "error": "No static analysis data. Run a security scan first.",
             "hint": "Use get_security_patterns and create_analysis_session to begin.",
         }
-    
-    if not agents:
+
+    if not agent_steps:
         return {
             "agent_workflow_id": agent_workflow_id,
             "message": "Static analysis exists but no dynamic data yet.",
@@ -334,10 +334,10 @@ def handle_get_agent_workflow_correlation(args: Dict[str, Any], store: Any) -> D
     dynamic_tools_used = set()
     tool_call_counts = {}
     total_sessions = 0
-    for agent in agents:
-        dynamic_tools_used.update(agent.used_tools)
-        total_sessions += agent.total_sessions
-        for tool_name, count in agent.tool_usage_details.items():
+    for agent_step in agent_steps:
+        dynamic_tools_used.update(agent_step.used_tools)
+        total_sessions += agent_step.total_sessions
+        for tool_name, count in agent_step.tool_usage_details.items():
             tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + count
 
     # Return raw data for the coding agent to analyze
