@@ -30,10 +30,10 @@ export interface AnalysisSessionsTableProps {
   maxRows?: number;
 }
 
-// Get agent name - prefer agent_id, fallback to extracting from session_id
-const getAgentName = (session: AnalysisSession): string | null => {
-  if (session.agent_id) {
-    return session.agent_id.length > 20 ? session.agent_id.slice(0, 20) : session.agent_id;
+// Get agent step name - prefer agent_step_id, fallback to extracting from session_id
+const getAgentStepName = (session: AnalysisSession): string | null => {
+  if (session.agent_step_id) {
+    return session.agent_step_id.length > 20 ? session.agent_step_id.slice(0, 20) : session.agent_step_id;
   }
   const extracted = extractAgentFromSessionId(session.session_id);
   if (extracted) {
@@ -42,9 +42,9 @@ const getAgentName = (session: AnalysisSession): string | null => {
   return null;
 };
 
-// Get agent ID for linking - prefer agent_id, fallback to extracted
-const getAgentId = (session: AnalysisSession): string | null => {
-  return session.agent_id || extractAgentFromSessionId(session.session_id);
+// Get agent step ID for linking - prefer agent_step_id, fallback to extracted
+const getAgentStepId = (session: AnalysisSession): string | null => {
+  return session.agent_step_id || extractAgentFromSessionId(session.session_id);
 };
 
 export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
@@ -74,16 +74,16 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       ),
     },
     {
-      key: 'agent_id',
-      header: 'Agent',
+      key: 'agent_step_id',
+      header: 'Agent Step',
       width: '180px',
       render: (session) => {
-        const agentName = getAgentName(session);
-        const agentIdValue = getAgentId(session);
-        if (!agentName || !agentIdValue) return <MetaCell>-</MetaCell>;
+        const agentStepName = getAgentStepName(session);
+        const agentStepIdValue = getAgentStepId(session);
+        if (!agentStepName || !agentStepIdValue) return <MetaCell>-</MetaCell>;
         return (
-          <AgentLink as={Link} to={`/agent-workflow/${agentWorkflowId}/agent/${agentIdValue}`}>
-            {agentName}
+          <AgentLink as={Link} to={`/agent-workflow/${agentWorkflowId}/agent-step/${agentStepIdValue}`}>
+            {agentStepName}
             <ExternalLink size={10} />
           </AgentLink>
         );

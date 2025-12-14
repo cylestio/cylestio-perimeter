@@ -3,7 +3,7 @@ import { useState, useMemo, type FC } from 'react';
 import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, ExternalLink, Shield, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import type { AgentSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
+import type { AgentStepSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
 
 import { TimeAgo } from '@ui/core';
 
@@ -34,7 +34,7 @@ import {
 } from './SecurityChecksExplorer.styles';
 
 export interface SecurityChecksExplorerProps {
-  agents: AgentSecurityData[];
+  agentSteps: AgentStepSecurityData[];
   agentWorkflowId: string;
   className?: string;
 }
@@ -78,27 +78,27 @@ const getStatusIcon = (status: string) => {
 };
 
 export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
-  agents,
+  agentSteps,
   agentWorkflowId,
   className,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const currentAgent = agents[currentIndex];
-  const hasMultipleAgents = agents.length > 1;
+  const currentAgentStep = agentSteps[currentIndex];
+  const hasMultipleAgentSteps = agentSteps.length > 1;
 
-  // Group checks by category for current agent
+  // Group checks by category for current agent step
   const checksByCategory = useMemo(() => {
-    if (!currentAgent) return {};
+    if (!currentAgentStep) return {};
     const grouped: Record<string, AgentWorkflowSecurityCheck[]> = {};
-    currentAgent.checks.forEach((check) => {
+    currentAgentStep.checks.forEach((check) => {
       if (!grouped[check.category_id]) {
         grouped[check.category_id] = [];
       }
       grouped[check.category_id].push(check);
     });
     return grouped;
-  }, [currentAgent]);
+  }, [currentAgentStep]);
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
@@ -107,12 +107,12 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   };
 
   const handleNext = () => {
-    if (currentIndex < agents.length - 1) {
+    if (currentIndex < agentSteps.length - 1) {
       setCurrentIndex(currentIndex + 1);
     }
   };
 
-  if (agents.length === 0) {
+  if (agentSteps.length === 0) {
     return (
       <EmptyState>
         <p>No security checks available.</p>
@@ -123,7 +123,7 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
     );
   }
 
-  if (!currentAgent) {
+  if (!currentAgentStep) {
     return null;
   }
 
@@ -131,58 +131,58 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
     <ExplorerContainer className={className} data-testid="security-checks-explorer">
       <ExplorerHeader>
         <AgentInfo>
-          <AgentLink as={Link} to={`/agent-workflow/${agentWorkflowId}/agent/${currentAgent.agent_id}`}>
-            {currentAgent.agent_id}
+          <AgentLink as={Link} to={`/agent-workflow/${agentWorkflowId}/agent-step/${currentAgentStep.agent_step_id}`}>
+            {currentAgentStep.agent_step_id}
             <ExternalLink size={12} />
           </AgentLink>
-          {hasMultipleAgents && (
+          {hasMultipleAgentSteps && (
             <AgentCounter>
-              Agent {currentIndex + 1} of {agents.length}
+              Agent Step {currentIndex + 1} of {agentSteps.length}
             </AgentCounter>
           )}
-          {currentAgent.latest_check_at && (
+          {currentAgentStep.latest_check_at && (
             <LastUpdated>
-              <TimeAgo timestamp={currentAgent.latest_check_at} />
+              <TimeAgo timestamp={currentAgentStep.latest_check_at} />
             </LastUpdated>
           )}
         </AgentInfo>
 
         <SummaryBadges>
-          {currentAgent.summary.passed > 0 && (
+          {currentAgentStep.summary.passed > 0 && (
             <SummaryBadge $variant="passed">
               <Check size={10} />
-              {currentAgent.summary.passed} passed
+              {currentAgentStep.summary.passed} passed
             </SummaryBadge>
           )}
-          {currentAgent.summary.warnings > 0 && (
+          {currentAgentStep.summary.warnings > 0 && (
             <SummaryBadge $variant="warning">
               <AlertTriangle size={10} />
-              {currentAgent.summary.warnings} warnings
+              {currentAgentStep.summary.warnings} warnings
             </SummaryBadge>
           )}
-          {currentAgent.summary.critical > 0 && (
+          {currentAgentStep.summary.critical > 0 && (
             <SummaryBadge $variant="critical">
               <X size={10} />
-              {currentAgent.summary.critical} critical
+              {currentAgentStep.summary.critical} critical
             </SummaryBadge>
           )}
         </SummaryBadges>
 
-        {hasMultipleAgents && (
+        {hasMultipleAgentSteps && (
           <NavigationControls>
             <NavButton
               onClick={handlePrevious}
               disabled={currentIndex === 0}
               $disabled={currentIndex === 0}
-              aria-label="Previous agent"
+              aria-label="Previous agent step"
             >
               <ChevronLeft size={16} />
             </NavButton>
             <NavButton
               onClick={handleNext}
-              disabled={currentIndex === agents.length - 1}
-              $disabled={currentIndex === agents.length - 1}
-              aria-label="Next agent"
+              disabled={currentIndex === agentSteps.length - 1}
+              $disabled={currentIndex === agentSteps.length - 1}
+              aria-label="Next agent step"
             >
               <ChevronRight size={16} />
             </NavButton>
@@ -190,9 +190,9 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
         )}
       </ExplorerHeader>
 
-      {currentAgent.checks.length === 0 ? (
+      {currentAgentStep.checks.length === 0 ? (
         <EmptyState>
-          <p>No checks for this agent yet.</p>
+          <p>No checks for this agent step yet.</p>
         </EmptyState>
       ) : (
         <ChecksGrid>

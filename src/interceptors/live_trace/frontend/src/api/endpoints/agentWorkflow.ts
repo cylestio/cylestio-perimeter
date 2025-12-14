@@ -49,7 +49,7 @@ export const fetchAnalysisSessions = async (
 // Security Checks Types
 export interface AgentWorkflowSecurityCheck {
   check_id: string;
-  agent_id: string;
+  agent_step_id: string;
   agent_workflow_id?: string;
   analysis_session_id: string;
   category_id: string;
@@ -70,9 +70,9 @@ export interface AgentChecksSummary {
   critical: number;
 }
 
-export interface AgentSecurityData {
-  agent_id: string;
-  agent_name: string;
+export interface AgentStepSecurityData {
+  agent_step_id: string;
+  agent_step_name: string;
   checks: AgentWorkflowSecurityCheck[];
   latest_check_at?: string;
   summary: AgentChecksSummary;
@@ -83,12 +83,12 @@ export interface AgentWorkflowSecurityChecksSummary {
   passed: number;
   warnings: number;
   critical: number;
-  agents_analyzed: number;
+  agent_steps_analyzed: number;
 }
 
 export interface AgentWorkflowSecurityChecksResponse {
   agent_workflow_id: string;
-  agents: AgentSecurityData[];
+  agent_steps: AgentStepSecurityData[];
   total_summary: AgentWorkflowSecurityChecksSummary;
 }
 

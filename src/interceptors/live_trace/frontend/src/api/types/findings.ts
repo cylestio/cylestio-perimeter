@@ -32,7 +32,7 @@ export interface AnalysisSession {
   session_id: string;
   agent_workflow_id: string;
   agent_workflow_name?: string;
-  agent_id?: string;
+  agent_step_id?: string;
   session_type: SessionType;
   status: SessionStatus;
   created_at: string; // ISO date string
