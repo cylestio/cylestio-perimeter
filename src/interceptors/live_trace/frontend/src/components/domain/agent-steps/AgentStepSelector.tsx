@@ -11,32 +11,32 @@ import {
   DropdownIcon,
   AgentDropdown,
   AgentOption,
-} from './AgentSelector.styles';
+} from './AgentStepSelector.styles';
 
 // Types
-export type AgentStatus = 'online' | 'offline' | 'error';
+export type AgentStepStatus = 'online' | 'offline' | 'error';
 
-export interface Agent {
+export interface AgentStep {
   id: string;
   name: string;
   initials: string;
-  status: AgentStatus;
+  status: AgentStepStatus;
 }
 
-export interface AgentSelectorProps {
-  agents: Agent[];
-  selectedAgent: Agent;
-  onSelect: (agent: Agent) => void;
+export interface AgentStepSelectorProps {
+  agentSteps: AgentStep[];
+  selectedAgentStep: AgentStep;
+  onSelect: (agentStep: AgentStep) => void;
   label?: string;
   collapsed?: boolean;
 }
 
 // Component
-export const AgentSelector: FC<AgentSelectorProps> = ({
-  agents,
-  selectedAgent,
+export const AgentStepSelector: FC<AgentStepSelectorProps> = ({
+  agentSteps,
+  selectedAgentStep,
   onSelect,
-  label = 'Active Agent',
+  label = 'Active Agent Step',
   collapsed = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -53,8 +53,8 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (agent: Agent) => {
-    onSelect(agent);
+  const handleSelect = (agentStep: AgentStep) => {
+    onSelect(agentStep);
     setIsOpen(false);
   };
 
@@ -71,11 +71,11 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
     return (
       <AgentSelectorContainer ref={containerRef} $collapsed>
         <Avatar
-          initials={selectedAgent.initials}
-          status={selectedAgent.status}
+          initials={selectedAgentStep.initials}
+          status={selectedAgentStep.status}
           variant="gradient"
           size="md"
-          title={selectedAgent.name}
+          title={selectedAgentStep.name}
         />
       </AgentSelectorContainer>
     );
@@ -95,14 +95,14 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
         aria-expanded={isOpen}
       >
         <Avatar
-          initials={selectedAgent.initials}
-          status={selectedAgent.status}
+          initials={selectedAgentStep.initials}
+          status={selectedAgentStep.status}
           variant="gradient"
           size="md"
         />
         <AgentInfo>
           <Text size="sm" truncate>
-            {selectedAgent.name}
+            {selectedAgentStep.name}
           </Text>
         </AgentInfo>
         <DropdownIcon $open={isOpen}>
@@ -112,24 +112,24 @@ export const AgentSelector: FC<AgentSelectorProps> = ({
 
       {isOpen && (
         <AgentDropdown role="listbox">
-          {agents.map((agent) => (
+          {agentSteps.map((agentStep) => (
             <AgentOption
-              key={agent.id}
-              onClick={() => handleSelect(agent)}
+              key={agentStep.id}
+              onClick={() => handleSelect(agentStep)}
               role="option"
-              aria-selected={agent.id === selectedAgent.id}
-              $selected={agent.id === selectedAgent.id}
+              aria-selected={agentStep.id === selectedAgentStep.id}
+              $selected={agentStep.id === selectedAgentStep.id}
             >
               <Avatar
-                initials={agent.initials}
-                status={agent.status}
+                initials={agentStep.initials}
+                status={agentStep.status}
                 variant="gradient"
                 size="sm"
               />
               <Text size="sm" truncate>
-                {agent.name}
+                {agentStep.name}
               </Text>
-              {agent.id === selectedAgent.id && <Check size={14} />}
+              {agentStep.id === selectedAgentStep.id && <Check size={14} />}
             </AgentOption>
           ))}
         </AgentDropdown>

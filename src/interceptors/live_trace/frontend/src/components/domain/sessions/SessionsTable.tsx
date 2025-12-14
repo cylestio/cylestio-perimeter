@@ -47,14 +47,14 @@ const getColumns = (agentWorkflowId: string, showAgentColumn: boolean): Column<S
     },
   ];
 
-  // Optionally show agent column
+  // Optionally show agent step column
   if (showAgentColumn) {
     columns.push({
-      key: 'agent_id',
-      header: 'Agent',
+      key: 'agent_step_id',
+      header: 'Agent Step',
       render: (session) => (
         <Link
-          to={`/agent-workflow/${agentWorkflowId}/agent/${session.agent_id}`}
+          to={`/agent-workflow/${agentWorkflowId}/agent-step/${session.agent_step_id}`}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -65,8 +65,8 @@ const getColumns = (agentWorkflowId: string, showAgentColumn: boolean): Column<S
             fontSize: '12px',
           }}
         >
-          <Avatar name={session.agent_id} size="sm" />
-          {session.agent_id}
+          <Avatar name={session.agent_step_id} size="sm" />
+          {session.agent_step_id}
         </Link>
       ),
     });

@@ -14,7 +14,7 @@ export const fetchSession = async (sessionId: string): Promise<SessionResponse> 
 
 export interface FetchSessionsParams {
   agent_workflow_id?: string;
-  agent_id?: string;
+  agent_step_id?: string;
   status?: LiveSessionStatus;
   limit?: number;
   offset?: number;
@@ -26,8 +26,8 @@ export const fetchSessions = async (params?: FetchSessionsParams): Promise<Sessi
   if (params?.agent_workflow_id) {
     searchParams.set('agent_workflow_id', params.agent_workflow_id);
   }
-  if (params?.agent_id) {
-    searchParams.set('agent_id', params.agent_id);
+  if (params?.agent_step_id) {
+    searchParams.set('agent_step_id', params.agent_step_id);
   }
   if (params?.status) {
     searchParams.set('status', params.status);

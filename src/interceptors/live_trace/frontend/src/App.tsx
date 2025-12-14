@@ -39,8 +39,8 @@ import { SecurityCheckItem, type SecurityCheckStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
 import {
-  AgentDetail,
-  AgentReport,
+  AgentStepDetail,
+  AgentStepReport,
   AttackSurface,
   Connect,
   DevConnection,
@@ -229,11 +229,11 @@ function AppLayout() {
     enabled: true,
   });
 
-  const agents = data?.agents ?? [];
+  const agentSteps = data?.agent_steps ?? [];
   const dashboardLoaded = !loading && data !== null;
 
-  // Derive if we have any data (agent workflows or agents)
-  const hasData = agentWorkflows.length > 0 || agents.length > 0;
+  // Derive if we have any data (agent workflows or agent steps)
+  const hasData = agentWorkflows.length > 0 || agentSteps.length > 0;
 
   // Redirect logic based on data availability
   useEffect(() => {
@@ -308,11 +308,11 @@ function AppLayout() {
                 collapsed={sidebarCollapsed}
               />
               <NavItem
-                label="Agents"
+                label="Agent Steps"
                 icon={<SystemPromptsIcon size={18} />}
-                badge={agents.length > 0 ? agents.length : undefined}
-                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/agents` || location.pathname === `/agent-workflow/${urlAgentWorkflowId}`}
-                to={`/agent-workflow/${urlAgentWorkflowId}/agents`}
+                badge={agentSteps.length > 0 ? agentSteps.length : undefined}
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/agent-steps` || location.pathname === `/agent-workflow/${urlAgentWorkflowId}`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/agent-steps`}
                 collapsed={sidebarCollapsed}
               />
               <NavItem
@@ -432,7 +432,7 @@ function AppLayout() {
         />}
 
         <Content>
-          <Outlet context={{ agents, sessionsCount: data?.sessions_count ?? 0, loading, securityAnalysis: data?.security_analysis }} />
+          <Outlet context={{ agentSteps, sessionsCount: data?.sessions_count ?? 0, loading, securityAnalysis: data?.security_analysis }} />
         </Content>
       </Main>
     </Shell>
@@ -456,7 +456,7 @@ function App() {
 
               {/* Developer section */}
               <Route path="/agent-workflow/:agentWorkflowId/overview" element={<Overview />} />
-              <Route path="/agent-workflow/:agentWorkflowId/agents" element={<Portfolio />} />
+              <Route path="/agent-workflow/:agentWorkflowId/agent-steps" element={<Portfolio />} />
               <Route path="/agent-workflow/:agentWorkflowId/sessions" element={<Sessions />} />
               <Route path="/agent-workflow/:agentWorkflowId/recommendations" element={<Recommendations />} />
 
@@ -470,8 +470,8 @@ function App() {
               <Route path="/agent-workflow/:agentWorkflowId/attack-surface" element={<AttackSurface />} />
 
               {/* Detail pages */}
-              <Route path="/agent-workflow/:agentWorkflowId/agent/:agentId" element={<AgentDetail />} />
-              <Route path="/agent-workflow/:agentWorkflowId/agent/:agentId/report" element={<AgentReport />} />
+              <Route path="/agent-workflow/:agentWorkflowId/agent-step/:agentStepId" element={<AgentStepDetail />} />
+              <Route path="/agent-workflow/:agentWorkflowId/agent-step/:agentStepId/report" element={<AgentStepReport />} />
               <Route path="/agent-workflow/:agentWorkflowId/session/:sessionId" element={<SessionDetail />} />
             </Route>
           </Routes>

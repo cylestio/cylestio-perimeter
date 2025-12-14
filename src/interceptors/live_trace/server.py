@@ -143,16 +143,16 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     @app.get("/api/sessions/list")
     async def api_sessions_list(
         agent_workflow_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ):
-        """Get sessions with filtering by agent_workflow_id, agent_id, and/or status.
+        """Get sessions with filtering by agent_workflow_id, agent_step_id, and/or status.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
-            agent_id: Filter by agent ID.
+            agent_step_id: Filter by agent step ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             limit: Maximum number of sessions to return (default 10).
             offset: Number of sessions to skip for pagination (default 0).
@@ -164,12 +164,12 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             # Get total count for pagination (with same filters, but no limit/offset)
             total_count = insights.store.count_sessions_filtered(
                 agent_workflow_id=agent_workflow_id,
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 status=status,
             )
             sessions = insights.store.get_sessions_filtered(
                 agent_workflow_id=agent_workflow_id,
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 status=status,
                 limit=limit,
                 offset=offset,
@@ -179,7 +179,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "total_count": total_count,
                 "filters": {
                     "agent_workflow_id": agent_workflow_id,
-                    "agent_id": agent_id,
+                    "agent_step_id": agent_step_id,
                     "status": status,
                     "limit": limit,
                     "offset": offset,
@@ -189,14 +189,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting filtered sessions: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/agent/{agent_id}")
-    async def api_agent(agent_id: str):
-        """Get agent details as JSON."""
+    @app.get("/api/agent-step/{agent_step_id}")
+    async def api_agent_step(agent_step_id: str):
+        """Get agent step details as JSON."""
         try:
-            data = await insights.get_agent_data(agent_id)
+            data = await insights.get_agent_step_data(agent_step_id)
             return JSONResponse(data)
         except Exception as e:
-            logger.error(f"Error getting agent data: {e}")
+            logger.error(f"Error getting agent step data: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/session/{session_id}")
@@ -559,21 +559,21 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security checks grouped by agent for an agent workflow."""
+        """Get security checks grouped by agent step for an agent workflow."""
         try:
-            # Get all agents in agent workflow
-            agents = insights.store.get_all_agents(agent_workflow_id=agent_workflow_id)
+            # Get all agent steps in agent workflow
+            agent_steps = insights.store.get_all_agent_steps(agent_workflow_id=agent_workflow_id)
 
-            # Build per-agent data
-            agents_data = []
+            # Build per-agent-step data
+            agent_steps_data = []
             total_checks = 0
             total_passed = 0
             total_warnings = 0
             total_critical = 0
 
-            for agent in agents:
-                checks = insights.store.get_latest_security_checks_for_agent(
-                    agent.agent_id
+            for agent_step in agent_steps:
+                checks = insights.store.get_latest_security_checks_for_agent_step(
+                    agent_step.agent_step_id
                 )
 
                 # Apply filters
@@ -582,7 +582,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 if status:
                     checks = [c for c in checks if c['status'] == status.lower()]
 
-                # Per-agent summary
+                # Per-agent-step summary
                 passed = sum(1 for c in checks if c['status'] == 'passed')
                 warnings = sum(1 for c in checks if c['status'] == 'warning')
                 critical = sum(1 for c in checks if c['status'] == 'critical')
@@ -594,9 +594,9 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     if timestamps:
                         latest_check_at = max(timestamps)
 
-                agents_data.append({
-                    "agent_id": agent.agent_id,
-                    "agent_name": agent.id_short if hasattr(agent, 'id_short') else agent.agent_id[:12],
+                agent_steps_data.append({
+                    "agent_step_id": agent_step.agent_step_id,
+                    "agent_step_name": agent_step.id_short if hasattr(agent_step, 'id_short') else agent_step.agent_step_id[:12],
                     "checks": checks[:limit],
                     "latest_check_at": latest_check_at,
                     "summary": {
@@ -612,18 +612,18 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 total_warnings += warnings
                 total_critical += critical
 
-            # Total summary across all agents
+            # Total summary across all agent steps
             total_summary = {
                 "total_checks": total_checks,
                 "passed": total_passed,
                 "warnings": total_warnings,
                 "critical": total_critical,
-                "agents_analyzed": len(agents),
+                "agent_steps_analyzed": len(agent_steps),
             }
 
             return JSONResponse({
                 "agent_workflow_id": agent_workflow_id,
-                "agents": agents_data,
+                "agent_steps": agent_steps_data,
                 "total_summary": total_summary,
             })
         except Exception as e:
@@ -703,17 +703,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     # ==================== Security Checks API Endpoints ====================
 
-    @app.get("/api/agent/{agent_id}/security-checks")
-    async def api_get_agent_security_checks(
-        agent_id: str,
+    @app.get("/api/agent-step/{agent_step_id}/security-checks")
+    async def api_get_agent_step_security_checks(
+        agent_step_id: str,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
     ):
-        """Get security checks for an agent (from latest analysis)."""
+        """Get security checks for an agent step (from latest analysis)."""
         try:
-            # Get latest checks for the agent
-            checks = insights.store.get_latest_security_checks_for_agent(agent_id)
+            # Get latest checks for the agent step
+            checks = insights.store.get_latest_security_checks_for_agent_step(agent_step_id)
 
             # Apply filters
             if category_id:
@@ -725,10 +725,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             checks = checks[:limit]
 
             # Get summary
-            summary = insights.store.get_agent_security_summary(agent_id)
+            summary = insights.store.get_agent_step_security_summary(agent_step_id)
 
             return JSONResponse({
-                "agent_id": agent_id,
+                "agent_step_id": agent_step_id,
                 "checks": checks,
                 "summary": summary,
             })
@@ -738,7 +738,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/security-checks")
     async def api_get_security_checks(
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
         analysis_session_id: Optional[str] = None,
         category_id: Optional[str] = None,
         status: Optional[str] = None,
@@ -747,7 +747,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Get security checks with optional filtering."""
         try:
             checks = insights.store.get_security_checks(
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 analysis_session_id=analysis_session_id,
                 category_id=category_id,
                 status=status.lower() if status else None,

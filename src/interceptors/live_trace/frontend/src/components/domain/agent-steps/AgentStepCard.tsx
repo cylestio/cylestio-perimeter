@@ -27,7 +27,7 @@ import {
   BehavioralValue,
   ConfidenceBadge,
   WarningsText,
-} from './AgentCard.styles';
+} from './AgentStepCard.styles';
 
 // Types
 export type RiskStatus = 'evaluating' | 'ok';
@@ -35,7 +35,7 @@ export type RiskStatus = 'evaluating' | 'ok';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 
-export interface AgentCardProps {
+export interface AgentStepCardProps {
   id: string;
   name: string;
   /** @deprecated Use name prop - initials are now auto-generated */
@@ -58,7 +58,7 @@ export interface AgentCardProps {
 }
 
 // Component
-export const AgentCard: FC<AgentCardProps> = ({
+export const AgentStepCard: FC<AgentStepCardProps> = ({
   id,
   name,
   totalSessions,
@@ -93,7 +93,7 @@ export const AgentCard: FC<AgentCardProps> = ({
       $hasCritical={hasCriticalFinding}
       $clickable={!!onClick}
       onClick={onClick}
-      data-testid="agent-card"
+      data-testid="agent-step-card"
     >
       <CardHeader>
         <Avatar name={id} size="lg" />

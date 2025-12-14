@@ -1,4 +1,4 @@
-import type { BehavioralCluster, OutlierSession } from '@api/types/agent';
+import type { BehavioralCluster, OutlierSession } from '@api/types/agentStep';
 import type { ClusterNodeData } from '@domain/visualization';
 
 /**

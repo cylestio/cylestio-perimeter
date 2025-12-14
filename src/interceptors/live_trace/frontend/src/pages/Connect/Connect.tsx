@@ -62,9 +62,9 @@ export const Connect: FC = () => {
   const checkAgentStatus = useCallback(async () => {
     try {
       const dashboard = await fetchDashboard();
-      const hasAgents = dashboard.agents.length > 0;
-      setAgentCount(dashboard.agents.length);
-      setStatus(hasAgents ? 'connected' : 'waiting');
+      const hasAgentSteps = dashboard.agent_steps.length > 0;
+      setAgentCount(dashboard.agent_steps.length);
+      setStatus(hasAgentSteps ? 'connected' : 'waiting');
     } catch {
       setStatus('waiting');
     }

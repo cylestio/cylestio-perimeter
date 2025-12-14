@@ -81,8 +81,8 @@ export const SessionDetail: FC = () => {
   usePageMeta({
     breadcrumbs: buildAgentWorkflowBreadcrumbs(
       agentWorkflowId,
-      ...(data?.session.agent_id
-        ? [{ label: `Agent ${data.session.agent_id.substring(0, 12)}...`, href: agentWorkflowLink(agentWorkflowId, `/agent/${data.session.agent_id}`) }]
+      ...(data?.session.agent_step_id
+        ? [{ label: `Agent Step ${data.session.agent_step_id.substring(0, 12)}...`, href: agentWorkflowLink(agentWorkflowId, `/agent-step/${data.session.agent_step_id}`) }]
         : []),
       { label: 'Session' },
       { label: sessionId?.substring(0, 12) + '...' || '' }
@@ -124,7 +124,7 @@ export const SessionDetail: FC = () => {
           {/* Sidebar with real data from API */}
           <SessionSidebarInfo
           sessionId={session.id}
-          agentId={session.agent_id}
+          agentStepId={session.agent_step_id}
           isActive={session.is_active}
           totalTokens={session.total_tokens}
           messageCount={session.message_count}

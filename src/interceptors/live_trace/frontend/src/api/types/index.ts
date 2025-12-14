@@ -1,4 +1,4 @@
-export * from './agent';
+export * from './agentStep';
 export * from './config';
 export * from './dashboard';
 export * from './findings';

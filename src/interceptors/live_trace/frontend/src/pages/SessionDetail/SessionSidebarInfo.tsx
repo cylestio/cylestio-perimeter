@@ -65,8 +65,8 @@ interface CostEstimate {
 export interface SessionSidebarInfoProps {
   /** Session ID */
   sessionId?: string;
-  /** Agent/System Prompt ID */
-  agentId?: string;
+  /** Agent Step/System Prompt ID */
+  agentStepId?: string;
   /** Whether the session is currently active */
   isActive?: boolean;
   /** Total tokens used in the session */

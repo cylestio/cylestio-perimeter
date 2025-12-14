@@ -14,7 +14,7 @@ export interface AnalysisSummary {
   total_sessions: number;
 }
 
-export interface APIAgent {
+export interface APIAgentStep {
   id: string;
   id_short: string;
   agent_workflow_id: string | null;
@@ -38,8 +38,8 @@ export interface APIAgent {
 export interface APISession {
   id: string;
   id_short: string;
-  agent_id: string;
-  agent_id_short: string;
+  agent_step_id: string;
+  agent_step_id_short: string;
   created_at: string;
   last_activity: string;
   last_activity_relative: string;
@@ -56,7 +56,7 @@ export interface APISession {
 
 export interface LatestSession {
   id: string;
-  agent_id: string;
+  agent_step_id: string;
   message_count: number;
   duration_minutes: number;
   is_active: boolean;
@@ -76,8 +76,8 @@ export type AnalysisStageStatus = 'pending' | 'active' | 'completed';
 export interface SessionsProgress {
   current: number;
   required: number;
-  agents_ready: number;
-  agents_total: number;
+  agent_steps_ready: number;
+  agent_steps_total: number;
 }
 
 // Analysis stage with embedded findings
@@ -95,7 +95,7 @@ export interface SecurityAnalysis {
 }
 
 export interface DashboardResponse {
-  agents: APIAgent[];
+  agent_steps: APIAgentStep[];
   sessions_count: number;
   latest_session: LatestSession;
   last_updated: string;

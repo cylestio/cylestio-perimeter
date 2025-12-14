@@ -4,7 +4,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgentStep } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { fetchSessions } from '@api/endpoints/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
@@ -17,37 +17,37 @@ import { Page } from '@ui/layout/Page';
 import { StatsRow, TwoColumn, Stack } from '@ui/layout/Grid';
 
 import { SessionItem } from '@domain/activity';
-import { AgentCard } from '@domain/agents';
+import { AgentStepCard } from '@domain/agent-steps';
 import { StatCard } from '@domain/metrics/StatCard';
 
 import { usePageMeta } from '../../context';
-import { AgentsGrid, SessionsList } from './Portfolio.styles';
+import { AgentStepsGrid, SessionsList } from './Portfolio.styles';
 
 // Context type from App.tsx outlet
 interface PortfolioContext {
-  agents: APIAgent[];
+  agentSteps: APIAgentStep[];
   sessionsCount: number;
   loading: boolean;
 }
 
-// Transform API agent to AgentCard props
-const transformAgent = (agent: APIAgent) => ({
-  id: agent.id,
-  name: formatAgentName(agent.id),
-  totalSessions: agent.total_sessions,
-  totalErrors: agent.total_errors,
-  totalTools: agent.total_tools,
-  lastSeen: agent.last_seen_relative,
-  riskStatus: agent.risk_status,
-  currentSessions: agent.current_sessions,
-  minSessionsRequired: agent.min_sessions_required,
-  hasCriticalFinding: agent.analysis_summary?.action_required ?? false,
+// Transform API agent step to AgentStepCard props
+const transformAgentStep = (agentStep: APIAgentStep) => ({
+  id: agentStep.id,
+  name: formatAgentName(agentStep.id),
+  totalSessions: agentStep.total_sessions,
+  totalErrors: agentStep.total_errors,
+  totalTools: agentStep.total_tools,
+  lastSeen: agentStep.last_seen_relative,
+  riskStatus: agentStep.risk_status,
+  currentSessions: agentStep.current_sessions,
+  minSessionsRequired: agentStep.min_sessions_required,
+  hasCriticalFinding: agentStep.analysis_summary?.action_required ?? false,
   // Behavioral metrics (when evaluation complete)
-  stability: agent.analysis_summary?.behavioral?.stability,
-  predictability: agent.analysis_summary?.behavioral?.predictability,
-  confidence: agent.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
-  failedChecks: agent.analysis_summary?.failed_checks ?? 0,
-  warnings: agent.analysis_summary?.warnings ?? 0,
+  stability: agentStep.analysis_summary?.behavioral?.stability,
+  predictability: agentStep.analysis_summary?.behavioral?.predictability,
+  confidence: agentStep.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
+  failedChecks: agentStep.analysis_summary?.failed_checks ?? 0,
+  warnings: agentStep.analysis_summary?.warnings ?? 0,
 });
 
 // Helper to map API session status to SessionItem status
@@ -60,7 +60,7 @@ const getSessionStatus = (session: SessionListItem): 'ACTIVE' | 'COMPLETE' | 'ER
 export const Portfolio: FC = () => {
   const navigate = useNavigate();
   const { agentWorkflowId } = useParams<{ agentWorkflowId?: string }>();
-  const { agents, loading } = useOutletContext<PortfolioContext>();
+  const { agentSteps, loading } = useOutletContext<PortfolioContext>();
 
   // Fetch sessions from the new API
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -80,7 +80,7 @@ export const Portfolio: FC = () => {
     }
   }, [agentWorkflowId]);
 
-  // Fetch sessions on mount and when agentId changes
+  // Fetch sessions on mount and when agentStepId changes
   useEffect(() => {
     loadSessions();
     // Refresh sessions periodically
@@ -90,17 +90,17 @@ export const Portfolio: FC = () => {
 
   usePageMeta({
     breadcrumbs: agentWorkflowId
-      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Agents' })
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Agent Steps' })
       : [{ label: 'Agent Workflows', href: '/' }],
   });
 
-  // Calculate summary stats from agents
-  const totalAgents = agents.length;
-  const totalErrors = agents.reduce((sum, a) => sum + a.total_errors, 0);
-  const totalSessions = agents.reduce((sum, a) => sum + a.total_sessions, 0);
-  const activeAgents = agents.filter((a) => a.active_sessions > 0).length;
+  // Calculate summary stats from agent steps
+  const totalAgentSteps = agentSteps.length;
+  const totalErrors = agentSteps.reduce((sum, a) => sum + a.total_errors, 0);
+  const totalSessions = agentSteps.reduce((sum, a) => sum + a.total_sessions, 0);
+  const activeAgentSteps = agentSteps.filter((a) => a.active_sessions > 0).length;
 
-  const isLoading = loading && agents.length === 0;
+  const isLoading = loading && agentSteps.length === 0;
 
   return (
     <Page>
@@ -110,9 +110,9 @@ export const Portfolio: FC = () => {
           <StatCard
             icon={<Bot size={16} />}
             iconColor="cyan"
-            label="Total Agents"
-            value={isLoading ? '-' : totalAgents}
-            detail={`${activeAgents} active sessions`}
+            label="Total Agent Steps"
+            value={isLoading ? '-' : totalAgentSteps}
+            detail={`${activeAgentSteps} active sessions`}
             size="sm"
           />
           <StatCard
@@ -121,16 +121,16 @@ export const Portfolio: FC = () => {
             label="Total Errors"
             value={isLoading ? '-' : totalErrors}
             valueColor={totalErrors > 0 ? 'red' : undefined}
-            detail="Across all agents"
+            detail="Across all agent steps"
             size="sm"
           />
           <StatCard
             icon={<CheckCircle size={16} />}
             iconColor="green"
             label="OK Status"
-            value={isLoading ? '-' : agents.filter((a) => a.risk_status === 'ok').length}
+            value={isLoading ? '-' : agentSteps.filter((a) => a.risk_status === 'ok').length}
             valueColor="green"
-            detail="Evaluated agents"
+            detail="Evaluated agent steps"
             size="sm"
           />
           <StatCard
@@ -146,17 +146,17 @@ export const Portfolio: FC = () => {
             icon={<Target size={16} />}
             iconColor="orange"
             label="Evaluating"
-            value={isLoading ? '-' : agents.filter((a) => a.risk_status === 'evaluating').length}
+            value={isLoading ? '-' : agentSteps.filter((a) => a.risk_status === 'evaluating').length}
             valueColor="orange"
             detail="Need more sessions"
             size="sm"
           />
         </StatsRow>
 
-        {/* Two Column Layout: Agents Grid + Activity Feed */}
+        {/* Two Column Layout: Agent Steps Grid + Activity Feed */}
         <TwoColumn
           main={
-            <AgentsGrid>
+            <AgentStepsGrid>
               {isLoading ? (
                 // Loading skeletons
                 <>
@@ -165,25 +165,25 @@ export const Portfolio: FC = () => {
                   <Skeleton variant="rect" height={200} />
                   <Skeleton variant="rect" height={200} />
                 </>
-              ) : agents.length === 0 ? (
+              ) : agentSteps.length === 0 ? (
                 <EmptyState
                   icon={<Bot size={24} />}
-                  title="No agents yet"
+                  title="No agent steps yet"
                   description="Connect your first agent to get started. Go to the Connect page for instructions."
                 />
               ) : (
-                agents.map((agent) => (
-                  <AgentCard
-                    key={agent.id}
-                    {...transformAgent(agent)}
+                agentSteps.map((agentStep) => (
+                  <AgentStepCard
+                    key={agentStep.id}
+                    {...transformAgentStep(agentStep)}
                     onClick={() => {
-                      const currentAgentWorkflowId = agentWorkflowId || agent.agent_workflow_id || 'unassigned';
-                      navigate(`/agent-workflow/${currentAgentWorkflowId}/agent/${agent.id}`);
+                      const currentAgentWorkflowId = agentWorkflowId || agentStep.agent_workflow_id || 'unassigned';
+                      navigate(`/agent-workflow/${currentAgentWorkflowId}/agent-step/${agentStep.id}`);
                     }}
                   />
                 ))
               )}
-            </AgentsGrid>
+            </AgentStepsGrid>
           }
           sidebar={
             <Card>
@@ -209,14 +209,14 @@ export const Portfolio: FC = () => {
                 ) : (
                   <SessionsList>
                     {sessions.map((session) => {
-                      // Use session's agent_workflow_id if available, or get from URL, or from agent
-                      const agent = agents.find(a => a.id === session.agent_id);
-                      const sessionAgentWorkflowId = session.agent_workflow_id || agentWorkflowId || agent?.agent_workflow_id || 'unassigned';
+                      // Use session's agent_workflow_id if available, or get from URL, or from agent step
+                      const agentStep = agentSteps.find(a => a.id === session.agent_step_id);
+                      const sessionAgentWorkflowId = session.agent_workflow_id || agentWorkflowId || agentStep?.agent_workflow_id || 'unassigned';
                       return (
                         <SessionItem
                           key={session.id}
-                          agentId={session.agent_id}
-                          agentName={formatAgentName(session.agent_id)}
+                          agentStepId={session.agent_step_id}
+                          agentStepName={formatAgentName(session.agent_step_id)}
                           sessionId={session.id.slice(0, 8)}
                           status={getSessionStatus(session)}
                           isActive={session.is_active}

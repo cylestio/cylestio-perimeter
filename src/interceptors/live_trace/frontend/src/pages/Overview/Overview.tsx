@@ -16,7 +16,7 @@ import { useParams } from 'react-router-dom';
 
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
-import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
+import type { APIAgentStep, DashboardResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration } from '@utils/formatting';
@@ -53,29 +53,29 @@ export interface OverviewProps {
   className?: string;
 }
 
-// Aggregated metrics from all agents
+// Aggregated metrics from all agent steps
 interface AggregatedMetrics {
   totalSessions: number;
   totalErrors: number;
   totalTools: number;
-  activeAgents: number;
+  activeAgentSteps: number;
   avgLatency: number;
   totalTokens: number;
   totalCost: number;
   toolsUsage: Record<string, number>;
 }
 
-const aggregateMetrics = (agents: APIAgent[]): AggregatedMetrics => {
+const aggregateMetrics = (agentSteps: APIAgentStep[]): AggregatedMetrics => {
   const toolsUsage: Record<string, number> = {};
   
-  // Aggregate tool usage from agents (placeholder - would come from actual data)
-  // For now, we'll track total tools per agent
+  // Aggregate tool usage from agent steps (placeholder - would come from actual data)
+  // For now, we'll track total tools per agent step
 
   return {
-    totalSessions: agents.reduce((sum, a) => sum + a.total_sessions, 0),
-    totalErrors: agents.reduce((sum, a) => sum + a.total_errors, 0),
-    totalTools: agents.reduce((sum, a) => sum + a.total_tools, 0),
-    activeAgents: agents.filter(a => a.active_sessions > 0).length,
+    totalSessions: agentSteps.reduce((sum, a) => sum + a.total_sessions, 0),
+    totalErrors: agentSteps.reduce((sum, a) => sum + a.total_errors, 0),
+    totalTools: agentSteps.reduce((sum, a) => sum + a.total_tools, 0),
+    activeAgentSteps: agentSteps.filter(a => a.active_sessions > 0).length,
     avgLatency: 0, // Would come from actual session data
     totalTokens: 0, // Would come from actual usage data
     totalCost: 0, // Would come from actual usage data
@@ -140,8 +140,8 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     );
   }
 
-  const agents = dashboardData?.agents || [];
-  const metrics = aggregateMetrics(agents);
+  const agentSteps = dashboardData?.agent_steps || [];
+  const metrics = aggregateMetrics(agentSteps);
 
   // Calculate average session duration from sessions
   const avgDuration = sessions.length > 0
@@ -165,9 +165,9 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
         <StatCard
           icon={<Bot size={16} />}
           iconColor="cyan"
-          label="Agents"
-          value={agents.length}
-          detail={`${metrics.activeAgents} active`}
+          label="Agent Steps"
+          value={agentSteps.length}
+          detail={`${metrics.activeAgentSteps} active`}
           size="sm"
         />
         <StatCard
@@ -288,12 +288,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
               <Card.Content>
                 <ToolsList>
                   <ToolItem>
-                    <ToolName>Tools discovered across all agents</ToolName>
+                    <ToolName>Tools discovered across all agent steps</ToolName>
                     <ToolCount>{metrics.totalTools}</ToolCount>
                   </ToolItem>
                 </ToolsList>
                 <p style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '16px' }}>
-                  Detailed tool usage breakdown coming soon. Visit individual agents for more details.
+                  Detailed tool usage breakdown coming soon. Visit individual agent steps for more details.
                 </p>
               </Card.Content>
             </Card>

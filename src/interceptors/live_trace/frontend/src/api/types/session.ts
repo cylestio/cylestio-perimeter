@@ -22,7 +22,7 @@ export interface TimelineEvent {
 
 export interface SessionDetail {
   id: string;
-  agent_id: string;
+  agent_step_id: string;
   is_active: boolean;
   is_completed: boolean;
   model?: string | null;
@@ -56,8 +56,8 @@ export type LiveSessionStatus = 'ACTIVE' | 'INACTIVE' | 'COMPLETED';
 export interface SessionListItem {
   id: string;
   id_short: string;
-  agent_id: string;
-  agent_id_short: string | null;
+  agent_step_id: string;
+  agent_step_id_short: string | null;
   agent_workflow_id: string | null;
   created_at: string;
   last_activity: string;
@@ -75,7 +75,7 @@ export interface SessionListItem {
 
 export interface SessionsListFilters {
   agent_workflow_id?: string;
-  agent_id?: string;
+  agent_step_id?: string;
   status?: LiveSessionStatus;
   limit: number;
   offset: number;

@@ -1,4 +1,4 @@
-// API Types for /api/agent/:id endpoint
+// API Types for /api/agent-step/:id endpoint
 
 export interface SecurityCheck {
   check_id: string;
@@ -102,13 +102,13 @@ export interface ToolUsageItem {
   avg_duration_ms: number;
 }
 
-export interface AgentAnalytics {
+export interface AgentStepAnalytics {
   token_usage: TokenUsage;
   model_usage: ModelUsage[];
   tool_usage: ToolUsageItem[];
 }
 
-export interface AgentSession {
+export interface AgentStepSession {
   id: string;
   is_active: boolean;
   duration_minutes: number;
@@ -120,7 +120,7 @@ export interface AgentSession {
   last_activity: string;
 }
 
-export interface AgentDetail {
+export interface AgentStepDetail {
   id: string;
   total_sessions: number;
   total_messages: number;
@@ -134,9 +134,9 @@ export interface AgentDetail {
   pii_disabled?: boolean;
 }
 
-export interface AgentResponse {
-  agent: AgentDetail;
+export interface AgentStepResponse {
+  agent_step: AgentStepDetail;
   risk_analysis: RiskAnalysis;
-  analytics: AgentAnalytics;
-  sessions: AgentSession[];
+  analytics: AgentStepAnalytics;
+  sessions: AgentStepSession[];
 }

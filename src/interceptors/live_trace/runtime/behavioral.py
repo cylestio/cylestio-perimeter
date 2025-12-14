@@ -90,7 +90,7 @@ def extract_session_features(session: SessionData) -> SessionFeatures:
     
     return SessionFeatures(
         session_id=session.session_id,
-        agent_id=session.agent_id,
+        agent_step_id=session.agent_step_id,
         tools_used=tools_used,
         tool_sequences=tool_sequences,
         tool_execution_times=tool_times,

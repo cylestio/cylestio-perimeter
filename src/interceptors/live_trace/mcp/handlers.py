@@ -367,80 +367,80 @@ def handle_get_agent_workflow_correlation(args: Dict[str, Any], store: Any) -> D
     }
 
 
-# ==================== Agent Discovery Tools ====================
+# ==================== Agent Step Discovery Tools ====================
 
-@register_handler("get_agents")
-def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """List all agents discovered during dynamic sessions."""
+@register_handler("get_agent_steps")
+def handle_get_agent_steps(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """List all agent steps discovered during dynamic sessions."""
     agent_workflow_id = args.get("agent_workflow_id")
     include_stats = args.get("include_stats", True)
-    
+
     # Handle special "unlinked" filter
     if agent_workflow_id == "unlinked":
-        agents = store.get_all_agents(agent_workflow_id=None)
-        # Filter to only agents with no agent_workflow_id
-        agents = [a for a in agents if not a.agent_workflow_id]
+        agent_steps = store.get_all_agent_steps(agent_workflow_id=None)
+        # Filter to only agent steps with no agent_workflow_id
+        agent_steps = [a for a in agent_steps if not a.agent_workflow_id]
     elif agent_workflow_id:
-        agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
+        agent_steps = store.get_all_agent_steps(agent_workflow_id=agent_workflow_id)
     else:
-        agents = store.get_all_agents()
-    
+        agent_steps = store.get_all_agent_steps()
+
     result = []
-    for agent in agents:
-        agent_info = {
-            "agent_id": agent.agent_id,
-            "agent_id_short": agent.agent_id[:12] if len(agent.agent_id) > 12 else agent.agent_id,
-            "agent_workflow_id": agent.agent_workflow_id,
-            "display_name": getattr(agent, 'display_name', None),
-            "description": getattr(agent, 'description', None),
+    for agent_step in agent_steps:
+        agent_step_info = {
+            "agent_step_id": agent_step.agent_step_id,
+            "agent_step_id_short": agent_step.agent_step_id[:12] if len(agent_step.agent_step_id) > 12 else agent_step.agent_step_id,
+            "agent_workflow_id": agent_step.agent_workflow_id,
+            "display_name": getattr(agent_step, 'display_name', None),
+            "description": getattr(agent_step, 'description', None),
         }
-        
+
         if include_stats:
-            agent_info.update({
-                "total_sessions": agent.total_sessions,
-                "total_messages": agent.total_messages,
-                "total_tokens": agent.total_tokens,
-                "tools_available": len(agent.available_tools),
-                "tools_used": len(agent.used_tools),
-                "first_seen": agent.first_seen.isoformat(),
-                "last_seen": agent.last_seen.isoformat(),
+            agent_step_info.update({
+                "total_sessions": agent_step.total_sessions,
+                "total_messages": agent_step.total_messages,
+                "total_tokens": agent_step.total_tokens,
+                "tools_available": len(agent_step.available_tools),
+                "tools_used": len(agent_step.used_tools),
+                "first_seen": agent_step.first_seen.isoformat(),
+                "last_seen": agent_step.last_seen.isoformat(),
             })
-        
-        result.append(agent_info)
-    
+
+        result.append(agent_step_info)
+
     return {
-        "agents": result,
+        "agent_steps": result,
         "total_count": len(result),
         "filter": agent_workflow_id if agent_workflow_id else "all",
     }
 
 
-@register_handler("update_agent_info")
-def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Update an agent's display name, description, or link to agent workflow."""
-    agent_id = args.get("agent_id")
-    if not agent_id:
-        return {"error": "agent_id is required"}
-    
+@register_handler("update_agent_step_info")
+def handle_update_agent_step_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Update an agent step's display name, description, or link to agent workflow."""
+    agent_step_id = args.get("agent_step_id")
+    if not agent_step_id:
+        return {"error": "agent_step_id is required"}
+
     display_name = args.get("display_name")
     description = args.get("description")
     agent_workflow_id = args.get("agent_workflow_id")
-    
+
     # Check at least one field to update
     if not any([display_name, description, agent_workflow_id]):
         return {"error": "Provide at least one of: display_name, description, agent_workflow_id"}
-    
-    result = store.update_agent_info(
-        agent_id=agent_id,
+
+    result = store.update_agent_step_info(
+        agent_step_id=agent_step_id,
         display_name=display_name,
         description=description,
         agent_workflow_id=agent_workflow_id,
     )
-    
+
     if not result:
-        return {"error": f"Agent '{agent_id}' not found"}
-    
-    return {"agent": result, "message": "Agent updated successfully"}
+        return {"error": f"Agent step '{agent_step_id}' not found"}
+
+    return {"agent_step": result, "message": "Agent step updated successfully"}
 
 
 # ==================== IDE Connection Tools ====================

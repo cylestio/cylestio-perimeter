@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class SessionFeatures(BaseModel):
     """Behavioral features extracted from a session."""
     session_id: str
-    agent_id: str
+    agent_step_id: str
     
     # Tool usage (PRIMARY behavioral signal)
     tools_used: Set[str] = Field(default_factory=set)
@@ -165,7 +165,7 @@ class AssessmentCategory(BaseModel):
 class SecurityReport(BaseModel):
     """Complete security assessment report."""
     report_id: str
-    agent_id: str
+    agent_step_id: str
     timestamp: str
     sessions_analyzed: int
     categories: Dict[str, AssessmentCategory] = Field(default_factory=dict)
@@ -231,7 +231,7 @@ class PIIAnalysisResult(BaseModel):
 class RiskAnalysisResult(BaseModel):
     """Complete risk analysis result combining behavioral and security."""
     evaluation_id: str
-    agent_id: str
+    agent_step_id: str
     timestamp: str
     sessions_analyzed: int
     evaluation_status: str  # COMPLETE, INSUFFICIENT_DATA, ERROR

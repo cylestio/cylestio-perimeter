@@ -23,7 +23,7 @@ class SessionStore(Protocol):
         """Check for inactive sessions and mark them as completed.
 
         Returns:
-            List of agent IDs that had sessions completed.
+            List of agent step IDs that had sessions completed.
         """
         ...
 
@@ -31,12 +31,12 @@ class SessionStore(Protocol):
 class AnalysisTrigger(Protocol):
     """Protocol for analysis trigger methods."""
 
-    def trigger(self, agent_id: str) -> None:
-        """Trigger analysis for an agent."""
+    def trigger(self, agent_step_id: str) -> None:
+        """Trigger analysis for an agent step."""
         ...
 
     async def check_pending_on_startup(self) -> List[str]:
-        """Check for agents needing analysis on startup."""
+        """Check for agent steps needing analysis on startup."""
         ...
 
 
@@ -145,15 +145,15 @@ class SessionMonitor:
         while not self._stop_event.is_set():
             try:
                 # Check for sessions that should be marked as completed
-                # Returns list of agent IDs that had sessions completed
-                completed_agent_ids = self._store.check_and_complete_sessions(self._timeout)
+                # Returns list of agent step IDs that had sessions completed
+                completed_agent_step_ids = self._store.check_and_complete_sessions(self._timeout)
 
-                # Trigger analysis for each agent that had sessions complete
-                for agent_id in completed_agent_ids:
+                # Trigger analysis for each agent step that had sessions complete
+                for agent_step_id in completed_agent_step_ids:
                     try:
-                        self._analysis_runner.trigger(agent_id)
+                        self._analysis_runner.trigger(agent_step_id)
                     except Exception as e:
-                        logger.error(f"Error triggering analysis for agent {agent_id}: {e}")
+                        logger.error(f"Error triggering analysis for agent step {agent_step_id}: {e}")
             except Exception as e:
                 logger.error(f"Error in session monitor: {e}")
 

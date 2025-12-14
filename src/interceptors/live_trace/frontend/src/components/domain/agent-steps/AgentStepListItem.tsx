@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgentStep } from '@api/types/dashboard';
 import { formatAgentName } from '@utils/formatting';
 
 import { Avatar } from '@ui/core/Avatar';
@@ -15,13 +15,13 @@ import {
   AgentMeta,
   SessionCount,
   StatusIcon,
-} from './AgentListItem.styles';
+} from './AgentStepListItem.styles';
 
 // Types
-type AgentStatus = 'evaluating' | 'ok' | 'requires_action';
+type AgentStepStatus = 'evaluating' | 'ok' | 'requires_action';
 
-export interface AgentListItemProps {
-  agent: APIAgent;
+export interface AgentStepListItemProps {
+  agentStep: APIAgentStep;
   active?: boolean;
   collapsed?: boolean;
   /** Use 'to' for React Router navigation (preferred) */
@@ -29,44 +29,44 @@ export interface AgentListItemProps {
   onClick?: () => void;
 }
 
-// Helper to determine status from agent data
-const getAgentStatus = (agent: APIAgent): AgentStatus => {
-  if (agent.analysis_summary?.action_required) {
+// Helper to determine status from agent step data
+const getAgentStepStatus = (agentStep: APIAgentStep): AgentStepStatus => {
+  if (agentStep.analysis_summary?.action_required) {
     return 'requires_action';
   }
-  return agent.risk_status;
+  return agentStep.risk_status;
 };
 
 // Status tooltip text
-const statusTooltips: Record<Exclude<AgentStatus, 'ok'>, string> = {
-  evaluating: 'Evaluating agent behavior',
+const statusTooltips: Record<Exclude<AgentStepStatus, 'ok'>, string> = {
+  evaluating: 'Evaluating agent step behavior',
   requires_action: 'Action required',
 };
 
 // Component
-export const AgentListItem: FC<AgentListItemProps> = ({
-  agent,
+export const AgentStepListItem: FC<AgentStepListItemProps> = ({
+  agentStep,
   active = false,
   collapsed = false,
   to,
   onClick,
 }) => {
-  const name = formatAgentName(agent.id);
-  const agentStatus = getAgentStatus(agent);
+  const name = formatAgentName(agentStep.id);
+  const agentStepStatus = getAgentStepStatus(agentStep);
 
   // Render status icon with tooltip
   const renderStatusIcon = () => {
-    if (agentStatus === 'ok') return null;
+    if (agentStepStatus === 'ok') return null;
 
     const icon = (
-      <StatusIcon $status={agentStatus}>
-        {agentStatus === 'evaluating' && <Loader2 size={12} />}
-        {agentStatus === 'requires_action' && <AlertTriangle size={12} />}
+      <StatusIcon $status={agentStepStatus}>
+        {agentStepStatus === 'evaluating' && <Loader2 size={12} />}
+        {agentStepStatus === 'requires_action' && <AlertTriangle size={12} />}
       </StatusIcon>
     );
 
     return (
-      <Tooltip content={statusTooltips[agentStatus]} position="right">
+      <Tooltip content={statusTooltips[agentStepStatus]} position="right">
         {icon}
       </Tooltip>
     );
@@ -84,13 +84,13 @@ export const AgentListItem: FC<AgentListItemProps> = ({
     if (to) {
       return (
         <AgentListItemContainer as={Link} to={to} {...containerProps}>
-          <Avatar name={agent.id} size="md" />
+          <Avatar name={agentStep.id} size="md" />
         </AgentListItemContainer>
       );
     }
     return (
       <AgentListItemContainer onClick={onClick} role="button" tabIndex={0} {...containerProps}>
-        <Avatar name={agent.id} size="md" />
+        <Avatar name={agentStep.id} size="md" />
       </AgentListItemContainer>
     );
   }
@@ -98,15 +98,15 @@ export const AgentListItem: FC<AgentListItemProps> = ({
   // Full content
   const content = (
     <>
-      <Avatar name={agent.id} size="md" />
+      <Avatar name={agentStep.id} size="md" />
       <AgentInfo>
         <AgentName>
           {name}
           {renderStatusIcon()}
         </AgentName>
-        <AgentMeta>{agent.last_seen_relative}</AgentMeta>
+        <AgentMeta>{agentStep.last_seen_relative}</AgentMeta>
       </AgentInfo>
-      <SessionCount>{agent.total_sessions}</SessionCount>
+      <SessionCount>{agentStep.total_sessions}</SessionCount>
     </>
   );
 

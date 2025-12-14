@@ -7,7 +7,7 @@ import { fetchAgentWorkflowFindings, fetchAnalysisSessions, type AnalysisSession
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { Finding, FindingsSummary } from '@api/types/findings';
-import type { APIAgent, SecurityAnalysis, AnalysisStage } from '@api/types/dashboard';
+import type { APIAgentStep, SecurityAnalysis, AnalysisStage } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 
 import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/formatting';
@@ -56,7 +56,7 @@ export const AgentWorkflowDetail: FC<AgentWorkflowDetailProps> = ({ className })
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // State
-  const [agents, setAgents] = useState<APIAgent[]>([]);
+  const [agentSteps, setAgentSteps] = useState<APIAgentStep[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
   const [securityAnalysis, setSecurityAnalysis] = useState<SecurityAnalysis | null>(null);
@@ -68,13 +68,13 @@ export const AgentWorkflowDetail: FC<AgentWorkflowDetailProps> = ({ className })
   const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch agent workflow data (agents + security analysis)
+  // Fetch agent workflow data (agent steps + security analysis)
   const fetchAgentWorkflowData = useCallback(async () => {
     if (!agentWorkflowId) return;
 
     try {
       const data = await fetchDashboard(agentWorkflowId);
-      setAgents(data.agents || []);
+      setAgentSteps(data.agent_steps || []);
       setSecurityAnalysis(data.security_analysis ?? null);
     } catch (err) {
       console.error('Failed to fetch agent workflow data:', err);
@@ -216,7 +216,7 @@ export const AgentWorkflowDetail: FC<AgentWorkflowDetailProps> = ({ className })
         <AgentWorkflowStats>
           <StatBadge>
             <Bot size={14} />
-            <StatValue>{agents.length}</StatValue> agents
+            <StatValue>{agentSteps.length}</StatValue> agent steps
           </StatBadge>
           {analysisSessions.length > 0 && (
             <StatBadge>
@@ -355,40 +355,40 @@ export const AgentWorkflowDetail: FC<AgentWorkflowDetailProps> = ({ className })
         </Section.Content>
       </Section>
 
-      {/* Agents List */}
+      {/* Agent Steps List */}
       <Section>
         <Section.Header>
-          <Section.Title icon={<Bot size={16} />}>Agents ({agents.length})</Section.Title>
+          <Section.Title icon={<Bot size={16} />}>Agent Steps ({agentSteps.length})</Section.Title>
         </Section.Header>
         <Section.Content>
-          {agents.length > 0 ? (
+          {agentSteps.length > 0 ? (
             <AgentList>
-              {agents.map((agent) => (
+              {agentSteps.map((agentStep) => (
                 <AgentListItem
-                  key={agent.id}
+                  key={agentStep.id}
                   as={Link}
-                  to={agentWorkflowLink(agentWorkflowId, `/agent/${agent.id}`)}
+                  to={agentWorkflowLink(agentWorkflowId, `/agent-step/${agentStep.id}`)}
                 >
                   <AgentIcon>
                     <Bot size={16} />
                   </AgentIcon>
                   <AgentInfo>
-                    <AgentIdText>{agent.id_short || agent.id.substring(0, 12)}</AgentIdText>
+                    <AgentIdText>{agentStep.id_short || agentStep.id.substring(0, 12)}</AgentIdText>
                     <AgentMeta>
-                      {agent.total_sessions} sessions | {agent.active_sessions} active
+                      {agentStep.total_sessions} sessions | {agentStep.active_sessions} active
                     </AgentMeta>
                   </AgentInfo>
-                  <Badge variant={agent.risk_status === 'ok' ? 'success' : 'info'}>
-                    {agent.risk_status === 'ok' ? 'OK' : 'EVALUATING'}
+                  <Badge variant={agentStep.risk_status === 'ok' ? 'success' : 'info'}>
+                    {agentStep.risk_status === 'ok' ? 'OK' : 'EVALUATING'}
                   </Badge>
                 </AgentListItem>
               ))}
             </AgentList>
           ) : (
             <EmptyContent>
-              <p>No agents in this agent workflow yet.</p>
+              <p>No agent steps in this agent workflow yet.</p>
               <p style={{ fontSize: '12px' }}>
-                Agents will appear here when they connect using this agent workflow ID.
+                Agent steps will appear here when agents connect using this agent workflow ID.
               </p>
             </EmptyContent>
           )}

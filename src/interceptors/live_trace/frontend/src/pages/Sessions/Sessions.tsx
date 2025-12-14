@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgentStep } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
@@ -31,8 +31,8 @@ export const Sessions: FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Agents for filtering
-  const [agents, setAgents] = useState<APIAgent[]>([]);
+  // Agent steps for filtering
+  const [agentSteps, setAgentSteps] = useState<APIAgentStep[]>([]);
 
   // Filter and pagination state
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
@@ -45,15 +45,15 @@ export const Sessions: FC = () => {
       : [{ label: 'Sessions', href: '/sessions' }],
   });
 
-  // Fetch agents for filter options
-  const loadAgents = useCallback(async () => {
+  // Fetch agent steps for filter options
+  const loadAgentSteps = useCallback(async () => {
     if (!agentWorkflowId) return;
 
     try {
       const data = await fetchDashboard(agentWorkflowId);
-      setAgents(data.agents || []);
+      setAgentSteps(data.agent_steps || []);
     } catch (err) {
-      console.error('Failed to fetch agents:', err);
+      console.error('Failed to fetch agent steps:', err);
     }
   }, [agentWorkflowId]);
 
@@ -66,7 +66,7 @@ export const Sessions: FC = () => {
       const offset = (currentPage - 1) * PAGE_SIZE;
       const data = await fetchSessions({
         agent_workflow_id: agentWorkflowId,
-        agent_id: selectedAgent || undefined,
+        agent_step_id: selectedAgent || undefined,
         limit: PAGE_SIZE,
         offset,
       });
@@ -80,10 +80,10 @@ export const Sessions: FC = () => {
     }
   }, [agentWorkflowId, selectedAgent, currentPage]);
 
-  // Initial load of agents
+  // Initial load of agent steps
   useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
+    loadAgentSteps();
+  }, [loadAgentSteps]);
 
   // Initial load and reload when filters change
   useEffect(() => {
@@ -102,14 +102,14 @@ export const Sessions: FC = () => {
     setCurrentPage(1);
   };
 
-  // Build agent options for filter
-  const agentOptions: SystemPromptOption[] = useMemo(() => {
-    return agents.map((agent) => ({
-      id: agent.id,
-      id_short: agent.id_short,
-      sessionCount: agent.total_sessions,
+  // Build agent step options for filter
+  const agentStepOptions: SystemPromptOption[] = useMemo(() => {
+    return agentSteps.map((agentStep) => ({
+      id: agentStep.id,
+      id_short: agentStep.id_short,
+      sessionCount: agentStep.total_sessions,
     }));
-  }, [agents]);
+  }, [agentSteps]);
 
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -117,12 +117,12 @@ export const Sessions: FC = () => {
   // Build description text
   const descriptionText = useMemo(() => {
     if (selectedAgent) {
-      const selected = agents.find((a) => a.id === selectedAgent);
+      const selected = agentSteps.find((a) => a.id === selectedAgent);
       const name = selected?.id_short || selectedAgent.substring(0, 12);
-      return `${totalCount} session${totalCount !== 1 ? 's' : ''} from agent ${name}`;
+      return `${totalCount} session${totalCount !== 1 ? 's' : ''} from agent step ${name}`;
     }
-    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all agents in this agent workflow`;
-  }, [totalCount, selectedAgent, agents]);
+    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all agent steps in this agent workflow`;
+  }, [totalCount, selectedAgent, agentSteps]);
 
   if (loading) {
     return (
@@ -154,7 +154,7 @@ export const Sessions: FC = () => {
       />
 
       <SystemPromptFilter
-        systemPrompts={agentOptions}
+        systemPrompts={agentStepOptions}
         selectedId={selectedAgent}
         onSelect={handleAgentSelect}
       />

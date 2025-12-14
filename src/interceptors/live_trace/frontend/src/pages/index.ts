@@ -1,5 +1,5 @@
-export { AgentDetail } from './AgentDetail';
-export { AgentReport } from './AgentReport';
+export { AgentStepDetail } from './AgentStepDetail';
+export { AgentStepReport } from './AgentStepReport';
 export { AgentWorkflowDetail } from './AgentWorkflowDetail';
 export { AgentWorkflowsHome } from './AgentWorkflowsHome';
 export { AttackSurface } from './AttackSurface';

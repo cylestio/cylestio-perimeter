@@ -144,9 +144,10 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Process all events from the request
         for event in request_data.events:
             try:
-                # Extract agent_id from request metadata or use default
-                agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
-                self.store.add_event(event, request_data.session_id, agent_id)
+                # Extract agent_id from proxy layer and use as agent_step_id internally
+                # The proxy uses 'agent_id', but live_trace stores it as 'agent_step_id'
+                agent_step_id = getattr(request_data.request.state, 'agent_id', 'unknown')
+                self.store.add_event(event, request_data.session_id, agent_step_id)
             except Exception as e:
                 logger.error(f"Error processing request event: {e}")
 
@@ -172,10 +173,11 @@ class LiveTraceInterceptor(BaseInterceptor):
         # Process all events from the response
         for event in response_data.events:
             try:
-                # Extract agent_id from request metadata or use default
-                agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
+                # Extract agent_id from proxy layer and use as agent_step_id internally
+                # The proxy uses 'agent_id', but live_trace stores it as 'agent_step_id'
+                agent_step_id = getattr(request_data.request.state, 'agent_id', 'unknown')
                 effective_session_id = response_data.session_id or request_data.session_id
-                self.store.add_event(event, effective_session_id, agent_id)
+                self.store.add_event(event, effective_session_id, agent_step_id)
             except Exception as e:
                 logger.error(f"Error processing response event: {e}")
 
@@ -195,8 +197,9 @@ class LiveTraceInterceptor(BaseInterceptor):
         for event in request_data.events:
             if event.name.value.endswith(".error"):
                 try:
-                    agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
-                    self.store.add_event(event, request_data.session_id, agent_id)
+                    # Extract agent_id from proxy layer and use as agent_step_id internally
+                    agent_step_id = getattr(request_data.request.state, 'agent_id', 'unknown')
+                    self.store.add_event(event, request_data.session_id, agent_step_id)
                 except Exception as e:
                     logger.error(f"Error processing error event: {e}")
 

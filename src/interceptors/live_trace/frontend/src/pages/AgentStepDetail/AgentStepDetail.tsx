@@ -3,8 +3,8 @@ import { useCallback, type FC } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
-import { fetchAgent } from '@api/endpoints/agent';
-import type { AgentResponse, AgentSession } from '@api/types/agent';
+import { fetchAgentStep } from '@api/endpoints/agentStep';
+import type { AgentStepResponse, AgentStepSession } from '@api/types/agentStep';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
@@ -66,7 +66,7 @@ import {
   PlaceholderMessage,
   EmptySessions,
   ActiveSessionsNote,
-} from './AgentDetail.styles';
+} from './AgentStepDetail.styles';
 
 interface Check {
   name: string;
@@ -76,7 +76,7 @@ interface Check {
 }
 
 // Table columns for sessions
-const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[] => [
+const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentStepSession>[] => [
   {
     key: 'id',
     header: 'Session ID',
@@ -153,25 +153,25 @@ const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[]
   },
 ];
 
-export const AgentDetail: FC = () => {
-  const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
+export const AgentStepDetail: FC = () => {
+  const { agentWorkflowId, agentStepId } = useParams<{ agentWorkflowId: string; agentStepId: string }>();
 
   const fetchFn = useCallback(() => {
-    if (!agentId) return Promise.reject(new Error('No agent ID'));
-    return fetchAgent(agentId);
-  }, [agentId]);
+    if (!agentStepId) return Promise.reject(new Error('No agent step ID'));
+    return fetchAgentStep(agentStepId);
+  }, [agentStepId]);
 
-  const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
+  const { data, error, loading } = usePolling<AgentStepResponse>(fetchFn, {
     interval: 2000,
-    enabled: !!agentId,
+    enabled: !!agentStepId,
   });
 
   // Set breadcrumbs with agent workflow context
   usePageMeta({
     breadcrumbs: buildAgentWorkflowBreadcrumbs(
       agentWorkflowId,
-      { label: 'Agent' },
-      { label: agentId?.substring(0, 12) + '...' || '' }
+      { label: 'Agent Step' },
+      { label: agentStepId?.substring(0, 12) + '...' || '' }
     ),
   });
 
@@ -184,13 +184,13 @@ export const AgentDetail: FC = () => {
   }
 
   if (error || !data) {
-    return <EmptyState title="Failed to load agent" description={error || 'Agent not found'} />;
+    return <EmptyState title="Failed to load agent step" description={error || 'Agent step not found'} />;
   }
 
-  const agent = data.agent;
+  const agentStep = data.agent_step;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
-  const reportLink = agentWorkflowLink(agentWorkflowId, `/agent/${agent.id}/report`);
+  const reportLink = agentWorkflowLink(agentWorkflowId, `/agent-step/${agentStep.id}/report`);
 
   // Build failed and warning check lists
   const failedChecks: Check[] = [];
@@ -212,13 +212,13 @@ export const AgentDetail: FC = () => {
 
   return (
     <Page>
-      {/* Agent Header */}
+      {/* Agent Step Header */}
       <AgentHeader>
         <AgentHeaderLeft>
-          <AgentTitle>{agent.id}</AgentTitle>
+          <AgentTitle>{agentStep.id}</AgentTitle>
           <AgentMeta>
-            <span>First seen: <TimeAgo timestamp={agent.first_seen} /></span>
-            <span>Last seen: <TimeAgo timestamp={agent.last_seen} /></span>
+            <span>First seen: <TimeAgo timestamp={agentStep.first_seen} /></span>
+            <span>Last seen: <TimeAgo timestamp={agentStep.last_seen} /></span>
           </AgentMeta>
         </AgentHeaderLeft>
         <ButtonLink $variant="secondary" to={reportLink}>
@@ -243,22 +243,22 @@ export const AgentDetail: FC = () => {
       {/* Stats Bar - full width */}
       <StatsBar>
         <StatItem>
-          <StatValue>{agent.total_sessions}</StatValue>
+          <StatValue>{agentStep.total_sessions}</StatValue>
           <StatLabel>sessions</StatLabel>
         </StatItem>
         <StatDivider />
         <StatItem>
-          <StatValue>{formatCompactNumber(agent.total_messages)}</StatValue>
+          <StatValue>{formatCompactNumber(agentStep.total_messages)}</StatValue>
           <StatLabel>messages</StatLabel>
         </StatItem>
         <StatDivider />
         <StatItem>
-          <StatValue>{formatCompactNumber(agent.total_tokens)}</StatValue>
+          <StatValue>{formatCompactNumber(agentStep.total_tokens)}</StatValue>
           <StatLabel>tokens</StatLabel>
         </StatItem>
         <StatDivider />
         <StatItem>
-          <StatValue>{agent.total_tools}</StatValue>
+          <StatValue>{agentStep.total_tools}</StatValue>
           <StatLabel>tools</StatLabel>
         </StatItem>
       </StatsBar>
@@ -403,7 +403,7 @@ export const AgentDetail: FC = () => {
                   </BehavioralMetrics>
                 ) : (
                   <PlaceholderMessage>
-                    Behavioral scores require cluster formation. Once the agent has more sessions with
+                    Behavioral scores require cluster formation. Once the agent step has more sessions with
                     similar patterns, detailed stability metrics will be available.
                   </PlaceholderMessage>
                 )}
@@ -418,15 +418,15 @@ export const AgentDetail: FC = () => {
             </Section.Header>
             <Section.Content noPadding>
               {data.sessions && data.sessions.length > 0 ? (
-                <Table<AgentSession>
+                <Table<AgentStepSession>
                   columns={getSessionColumns(agentWorkflowId || 'unassigned')}
                   data={data.sessions}
                   keyExtractor={(session) => session.id}
-                  emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
+                  emptyState={<EmptySessions>No sessions found for this agent step.</EmptySessions>}
                 />
               ) : (
                 <EmptySessions>
-                  <p>No sessions found for this agent.</p>
+                  <p>No sessions found for this agent step.</p>
                 </EmptySessions>
               )}
             </Section.Content>
@@ -477,7 +477,7 @@ export const AgentDetail: FC = () => {
 
                   {/* Inline PII note */}
                   {riskAnalysis?.summary?.pii_disabled && (
-                    <PIINote>PII detection unavailable for this agent</PIINote>
+                    <PIINote>PII detection unavailable for this agent step</PIINote>
                   )}
 
                   {/* Issues list */}

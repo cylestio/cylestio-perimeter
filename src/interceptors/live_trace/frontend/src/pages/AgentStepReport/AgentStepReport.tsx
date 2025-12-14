@@ -1,8 +1,8 @@
 import { useState, useCallback, type FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
 
-import { fetchAgent } from '@api/endpoints/agent';
-import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
+import { fetchAgentStep } from '@api/endpoints/agentStep';
+import type { AgentStepResponse, SecurityCheck, SecurityCategory } from '@api/types/agentStep';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
@@ -88,7 +88,7 @@ import {
   WaitingContent,
   WaitingTitle,
   WaitingDescription,
-} from './AgentReport.styles';
+} from './AgentStepReport.styles';
 import {
   RiskHeroCard,
   RiskHeroHeader,
@@ -102,7 +102,7 @@ import {
   EvaluationCounter,
   EvaluationDescription,
   ActiveSessionsNote,
-} from '../AgentDetail/AgentDetail.styles';
+} from '../AgentStepDetail/AgentStepDetail.styles';
 
 // Helper to get category icon
 const getCategoryIcon = (categoryId: string): string => {
@@ -129,26 +129,26 @@ const getCategorySeverity = (
   return 'ok';
 };
 
-export const AgentReport: FC = () => {
-  const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
+export const AgentStepReport: FC = () => {
+  const { agentWorkflowId, agentStepId } = useParams<{ agentWorkflowId: string; agentStepId: string }>();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
-    if (!agentId) return Promise.reject(new Error('No agent ID'));
-    return fetchAgent(agentId);
-  }, [agentId]);
+    if (!agentStepId) return Promise.reject(new Error('No agent step ID'));
+    return fetchAgentStep(agentStepId);
+  }, [agentStepId]);
 
-  const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
+  const { data, error, loading } = usePolling<AgentStepResponse>(fetchFn, {
     interval: 2000,
-    enabled: !!agentId,
+    enabled: !!agentStepId,
   });
 
   // Set breadcrumbs with agent workflow context
   usePageMeta({
     breadcrumbs: buildAgentWorkflowBreadcrumbs(
       agentWorkflowId,
-      { label: 'Agent', href: agentWorkflowLink(agentWorkflowId, `/agent/${agentId}`) },
-      { label: agentId?.substring(0, 12) + '...' || '', href: agentWorkflowLink(agentWorkflowId, `/agent/${agentId}`) },
+      { label: 'Agent Step', href: agentWorkflowLink(agentWorkflowId, `/agent-step/${agentStepId}`) },
+      { label: agentStepId?.substring(0, 12) + '...' || '', href: agentWorkflowLink(agentWorkflowId, `/agent-step/${agentStepId}`) },
       { label: 'Full Report' }
     ),
   });
@@ -169,10 +169,10 @@ export const AgentReport: FC = () => {
   }
 
   if (error || !data) {
-    return <EmptyState title="Failed to load report" description={error || 'Agent not found'} />;
+    return <EmptyState title="Failed to load report" description={error || 'Agent step not found'} />;
   }
 
-  const agent = data.agent;
+  const agentStep = data.agent_step;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
 
@@ -187,14 +187,14 @@ export const AgentReport: FC = () => {
     <Page>
       <ReportLayout>
         <ReportSidebar>
-        {/* Agent Identity Card */}
+        {/* Agent Step Identity Card */}
         <InfoCard
-          title="Agent Identity"
+          title="Agent Step Identity"
           primaryLabel="ID"
-          primaryValue={agent.id}
+          primaryValue={agentStep.id}
           stats={[
-            { label: 'FIRST SEEN', badge: <TimeAgo timestamp={agent.first_seen} /> },
-            { label: 'LAST SEEN', badge: <TimeAgo timestamp={agent.last_seen} /> },
+            { label: 'FIRST SEEN', badge: <TimeAgo timestamp={agentStep.first_seen} /> },
+            { label: 'LAST SEEN', badge: <TimeAgo timestamp={agentStep.last_seen} /> },
           ]}
         />
 
@@ -233,19 +233,19 @@ export const AgentReport: FC = () => {
         <MetricGrid>
           <MetricCard>
             <MetricLabel>Sessions</MetricLabel>
-            <MetricValue>{agent.total_sessions}</MetricValue>
+            <MetricValue>{agentStep.total_sessions}</MetricValue>
           </MetricCard>
           <MetricCard>
             <MetricLabel>Messages</MetricLabel>
-            <MetricValue>{formatCompactNumber(agent.total_messages)}</MetricValue>
+            <MetricValue>{formatCompactNumber(agentStep.total_messages)}</MetricValue>
           </MetricCard>
           <MetricCard>
             <MetricLabel>Tokens</MetricLabel>
-            <MetricValue>{formatCompactNumber(agent.total_tokens)}</MetricValue>
+            <MetricValue>{formatCompactNumber(agentStep.total_tokens)}</MetricValue>
           </MetricCard>
           <MetricCard>
             <MetricLabel>Tools</MetricLabel>
-            <MetricValue>{agent.total_tools}</MetricValue>
+            <MetricValue>{agentStep.total_tools}</MetricValue>
           </MetricCard>
         </MetricGrid>
       </ReportSidebar>
@@ -267,7 +267,7 @@ export const AgentReport: FC = () => {
               />
               <EvaluationDescription style={{ marginTop: '12px' }}>
                 We need at least {status.minSessionsRequired} sessions to provide meaningful risk
-                analysis. Keep using your agent to build up session history.
+                analysis. Keep using your agent step to build up session history.
               </EvaluationDescription>
             </Section.Content>
           </Section>
@@ -384,31 +384,31 @@ export const AgentReport: FC = () => {
 
                   {/* Tools Section for Environment */}
                   {categoryId === 'ENVIRONMENT' &&
-                    agent.available_tools &&
-                    agent.available_tools.length > 0 && (
+                    agentStep.available_tools &&
+                    agentStep.available_tools.length > 0 && (
                       <ToolsSection>
-                        <SectionLabel>TOOLS ({agent.available_tools.length})</SectionLabel>
+                        <SectionLabel>TOOLS ({agentStep.available_tools.length})</SectionLabel>
                         <ToolsList>
                           {(() => {
-                            const usedTools = agent.available_tools
+                            const usedTools = agentStep.available_tools
                               .filter(
-                                (tool) => (agent.tool_usage_details?.[tool] || 0) > 0
+                                (tool) => (agentStep.tool_usage_details?.[tool] || 0) > 0
                               )
                               .sort((a, b) => {
-                                const countA = agent.tool_usage_details?.[a] || 0;
-                                const countB = agent.tool_usage_details?.[b] || 0;
+                                const countA = agentStep.tool_usage_details?.[a] || 0;
+                                const countB = agentStep.tool_usage_details?.[b] || 0;
                                 return countB - countA;
                               });
 
-                            const unusedTools = agent.available_tools
+                            const unusedTools = agentStep.available_tools
                               .filter(
-                                (tool) => (agent.tool_usage_details?.[tool] || 0) === 0
+                                (tool) => (agentStep.tool_usage_details?.[tool] || 0) === 0
                               )
                               .sort();
 
                             return [...usedTools, ...unusedTools];
                           })().map((tool) => {
-                            const usageCount = agent.tool_usage_details?.[tool] || 0;
+                            const usageCount = agentStep.tool_usage_details?.[tool] || 0;
                             const isUsed = usageCount > 0;
 
                             return (
@@ -512,7 +512,7 @@ export const AgentReport: FC = () => {
                 </CategoryBadges>
               </CategoryTitleRow>
               <CategoryDescription>
-                Analyze behavior, flag outliers, and forecast the probability your agent stays on
+                Analyze behavior, flag outliers, and forecast the probability your agent step stays on
                 track, predictable, and stable.
               </CategoryDescription>
             </BehavioralHeader>
@@ -627,7 +627,7 @@ export const AgentReport: FC = () => {
                 </>
               ) : (
                 <InterpretationBox>
-                  Behavioral scores require cluster formation. Once the agent has more sessions
+                  Behavioral scores require cluster formation. Once the agent step has more sessions
                   with similar patterns, clustering will occur and detailed stability metrics will
                   be available.
                 </InterpretationBox>

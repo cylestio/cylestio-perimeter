@@ -8,7 +8,7 @@ from functools import wraps
 from typing import Any, Dict, List, Optional
 
 from ..store import TraceStore
-from ..store.store import AgentData
+from ..store.store import AgentStepData
 from .models import RiskAnalysisResult
 from .behavioral import analyze_agent_behavior
 from .security import generate_security_report
@@ -62,10 +62,10 @@ class AnalysisEngine:
         self.proxy_config = proxy_config or {}
         self.enable_presidio = proxy_config.get("enable_presidio", True)
         # Cache for risk analysis results
-        self._risk_analysis_cache: Dict[str, tuple] = {}  # {agent_id: (result, timestamp, cache_key)}
+        self._risk_analysis_cache: Dict[str, tuple] = {}  # {agent_step_id: (result, timestamp, cache_key)}
         # Background task tracking for PII analysis
-        self._pii_analysis_tasks: Dict[str, Any] = {}  # {agent_id: asyncio.Task}
-        self._pii_results_cache: Dict[str, tuple] = {}  # {agent_id: (PIIAnalysisResult, cache_key)}
+        self._pii_analysis_tasks: Dict[str, Any] = {}  # {agent_step_id: asyncio.Task}
+        self._pii_results_cache: Dict[str, tuple] = {}  # {agent_step_id: (PIIAnalysisResult, cache_key)}
         # Lock to prevent concurrent PII task launches for same agent
         # Use threading.Lock since __init__ runs in synchronous context (no event loop)
         self._pii_launch_lock = threading.Lock()
@@ -79,11 +79,11 @@ class AnalysisEngine:
 
         Args:
             agent_workflow_id: Optional agent workflow ID to filter by.
-                        Use "unassigned" to get agents/sessions with no agent workflow.
+                        Use "unassigned" to get agent steps/sessions with no agent workflow.
                         None returns all data.
         """
-        # Agent summary runs analysis outside the lock
-        agents = await self._get_agent_summary(agent_workflow_id=agent_workflow_id)
+        # Agent step summary runs analysis outside the lock
+        agent_steps = await self._get_agent_step_summary(agent_workflow_id=agent_workflow_id)
 
         # Get sessions count and latest session (need lock for data access)
         with self.store.lock:
@@ -102,7 +102,7 @@ class AnalysisEngine:
                 logger.warning(f"Failed to get security analysis for agent workflow {agent_workflow_id}: {e}")
 
         return {
-            "agents": agents,
+            "agent_steps": agent_steps,
             "sessions_count": sessions_count,
             "latest_session": latest_session,
             "agent_workflow_id": agent_workflow_id,
@@ -152,15 +152,15 @@ class AnalysisEngine:
             static_findings = findings_data
 
         # Dynamic Analysis status - based on session gathering progress
-        # Get all agents (system prompts) for this agent workflow to compute session progress
-        agents_in_workflow = self.store.get_all_agents(agent_workflow_id=agent_workflow_id)
+        # Get all agent steps (system prompts) for this agent workflow to compute session progress
+        agent_steps_in_workflow = self.store.get_all_agent_steps(agent_workflow_id=agent_workflow_id)
 
         # Calculate aggregate session progress
-        total_current_sessions = sum(agent.total_sessions for agent in agents_in_workflow)
-        total_min_required = len(agents_in_workflow) * MIN_SESSIONS_FOR_RISK_ANALYSIS
-        agents_with_enough_sessions = sum(
-            1 for agent in agents_in_workflow
-            if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
+        total_current_sessions = sum(agent_step.total_sessions for agent_step in agent_steps_in_workflow)
+        total_min_required = len(agent_steps_in_workflow) * MIN_SESSIONS_FOR_RISK_ANALYSIS
+        agent_steps_with_enough_sessions = sum(
+            1 for agent_step in agent_steps_in_workflow
+            if agent_step.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS
         )
         
         # Check for DYNAMIC analysis sessions
@@ -182,9 +182,9 @@ class AnalysisEngine:
         dynamic_sessions_progress = {
             "current": total_current_sessions,
             "required": total_min_required,
-            "agents_ready": agents_with_enough_sessions,
-            "agents_total": len(agents_in_workflow),
-        } if agents_in_workflow else None
+            "agent_steps_ready": agent_steps_with_enough_sessions,
+            "agent_steps_total": len(agent_steps_in_workflow),
+        } if agent_steps_in_workflow else None
 
         # Get dynamic analysis findings from security checks
         # Security checks use status values: 'passed', 'warning', 'critical'
@@ -261,19 +261,19 @@ class AnalysisEngine:
             },
         }
 
-    async def get_agent_data(self, agent_id: str) -> Dict[str, Any]:
-        """Get detailed data for a specific agent."""
-        # Get agent and sessions data while holding lock
+    async def get_agent_step_data(self, agent_step_id: str) -> Dict[str, Any]:
+        """Get detailed data for a specific agent step."""
+        # Get agent step and sessions data while holding lock
         with self.store.lock:
-            agent = self.store.get_agent(agent_id)
-            if not agent:
-                return {"error": "Agent not found"}
+            agent_step = self.store.get_agent_step(agent_step_id)
+            if not agent_step:
+                return {"error": "Agent step not found"}
 
-            # Get agent's sessions (metrics are maintained incrementally)
-            agent_sessions = []
-            for session in self.store.get_agent_sessions(agent_id):
+            # Get agent step's sessions (metrics are maintained incrementally)
+            agent_step_sessions = []
+            for session in self.store.get_agent_step_sessions(agent_step_id):
                 if session:
-                    agent_sessions.append({
+                    agent_step_sessions.append({
                         "id": session.session_id,
                         "created_at": session.created_at.isoformat(),
                         "last_activity": session.last_activity.isoformat(),
@@ -288,44 +288,44 @@ class AnalysisEngine:
 
             # Calculate tools utilization percentage
             tools_utilization = 0.0
-            if len(agent.available_tools) > 0:
-                tools_utilization = (len(agent.used_tools) / len(agent.available_tools)) * 100
+            if len(agent_step.available_tools) > 0:
+                tools_utilization = (len(agent_step.used_tools) / len(agent_step.available_tools)) * 100
 
-            # Store agent attributes we need
-            agent_dict = {
-                "id": agent_id,
-                "first_seen": agent.first_seen.isoformat(),
-                "last_seen": agent.last_seen.isoformat(),
-                "total_sessions": agent.total_sessions,
-                "total_messages": agent.total_messages,
-                "total_tokens": agent.total_tokens,
-                "total_tools": agent.total_tools,
-                "total_errors": agent.total_errors,
-                "avg_response_time_ms": agent.avg_response_time_ms,
-                "avg_messages_per_session": agent.avg_messages_per_session,
-                "tool_usage_details": dict(agent.tool_usage_details),
-                "available_tools": list(agent.available_tools),
-                "used_tools": list(agent.used_tools),
+            # Store agent step attributes we need
+            agent_step_dict = {
+                "id": agent_step_id,
+                "first_seen": agent_step.first_seen.isoformat(),
+                "last_seen": agent_step.last_seen.isoformat(),
+                "total_sessions": agent_step.total_sessions,
+                "total_messages": agent_step.total_messages,
+                "total_tokens": agent_step.total_tokens,
+                "total_tools": agent_step.total_tools,
+                "total_errors": agent_step.total_errors,
+                "avg_response_time_ms": agent_step.avg_response_time_ms,
+                "avg_messages_per_session": agent_step.avg_messages_per_session,
+                "tool_usage_details": dict(agent_step.tool_usage_details),
+                "available_tools": list(agent_step.available_tools),
+                "used_tools": list(agent_step.used_tools),
                 "tools_utilization_percent": round(tools_utilization, 1)
             }
 
-            patterns = self._analyze_agent_patterns(agent)
-            
+            patterns = self._analyze_agent_step_patterns(agent_step)
+
             # Compute analytics data
-            analytics = self._compute_agent_analytics(agent, self.store.get_agent_sessions(agent_id))
+            analytics = self._compute_agent_step_analytics(agent_step, self.store.get_agent_step_sessions(agent_step_id))
 
         # Sort sessions by last activity
-        agent_sessions.sort(key=lambda x: x["last_activity"], reverse=True)
+        agent_step_sessions.sort(key=lambda x: x["last_activity"], reverse=True)
 
         # Read persisted risk analysis from DB (no longer compute inline)
-        risk_analysis = self.get_persisted_risk_analysis(agent_id)
+        risk_analysis = self.get_persisted_risk_analysis(agent_step_id)
         if not risk_analysis:
             # No persisted analysis - return status based on session count
-            risk_analysis = self._get_pending_analysis_status(agent_id)
+            risk_analysis = self._get_pending_analysis_status(agent_step_id)
 
         return {
-            "agent": agent_dict,
-            "sessions": agent_sessions,
+            "agent_step": agent_step_dict,
+            "sessions": agent_step_sessions,
             "patterns": patterns,
             "analytics": analytics,
             "risk_analysis": risk_analysis,
@@ -366,27 +366,27 @@ class AnalysisEngine:
 
         return result
 
-    def get_persisted_risk_analysis(self, agent_id: str) -> Optional[Dict[str, Any]]:
+    def get_persisted_risk_analysis(self, agent_step_id: str) -> Optional[Dict[str, Any]]:
         """Get latest persisted risk analysis from DB.
 
         Reads security checks and behavioral analysis from the database
         and reconstructs the API-compatible format.
 
         Args:
-            agent_id: The agent ID to get analysis for
+            agent_step_id: The agent step ID to get analysis for
 
         Returns:
             Dict with analysis data matching _serialize_risk_analysis output,
             or None if no analysis exists
         """
-        security_checks = self.store.get_latest_security_checks_for_agent(agent_id)
+        security_checks = self.store.get_latest_security_checks_for_agent_step(agent_step_id)
         if not security_checks:
             return None
-        return self._reconstruct_analysis_from_checks(agent_id, security_checks)
+        return self._reconstruct_analysis_from_checks(agent_step_id, security_checks)
 
     def _reconstruct_analysis_from_checks(
         self,
-        agent_id: str,
+        agent_step_id: str,
         checks: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Reconstruct analysis from persisted security checks.
@@ -452,7 +452,7 @@ class AnalysisEngine:
         timestamp = checks[0]['created_at'] if checks else None
 
         # Get behavioral analysis from DB
-        behavioral_dict = self.store.get_latest_behavioral_analysis(agent_id)
+        behavioral_dict = self.store.get_latest_behavioral_analysis(agent_step_id)
         behavioral_analysis = None
         behavioral_status = 'NOT_AVAILABLE'
 
@@ -479,23 +479,23 @@ class AnalysisEngine:
                 'confidence': confidence,
             }
 
-        # Get session counts for the agent
+        # Get session counts for the agent step
         with self.store.lock:
-            agent_sessions = self.store.get_agent_sessions(agent_id)
-            completed_count = sum(1 for s in agent_sessions if s.is_completed)
-            active_count = sum(1 for s in agent_sessions if s.is_active and not s.is_completed)
+            agent_step_sessions = self.store.get_agent_step_sessions(agent_step_id)
+            completed_count = sum(1 for s in agent_step_sessions if s.is_completed)
+            active_count = sum(1 for s in agent_step_sessions if s.is_active and not s.is_completed)
 
         return {
             'evaluation_id': analysis_session_id,
             'evaluation_status': 'COMPLETE' if behavioral_analysis else 'PARTIAL',
-            'agent_id': agent_id,
+            'agent_step_id': agent_step_id,
             'timestamp': timestamp,
-            'sessions_analyzed': len(agent_sessions) if agent_sessions else 0,
+            'sessions_analyzed': len(agent_step_sessions) if agent_step_sessions else 0,
             'security_report': {
                 'report_id': analysis_session_id,
-                'agent_id': agent_id,
+                'agent_step_id': agent_step_id,
                 'timestamp': timestamp,
-                'sessions_analyzed': len(agent_sessions) if agent_sessions else 0,
+                'sessions_analyzed': len(agent_step_sessions) if agent_step_sessions else 0,
                 'overall_status': overall_status,
                 'total_checks': total_checks,
                 'critical_issues': total_critical,
@@ -510,7 +510,7 @@ class AnalysisEngine:
                 'warnings': total_warnings,
                 'stability_score': behavioral_analysis['stability_score'] if behavioral_analysis else None,
                 'predictability_score': behavioral_analysis['predictability_score'] if behavioral_analysis else None,
-                'total_sessions': len(agent_sessions) if agent_sessions else 0,
+                'total_sessions': len(agent_step_sessions) if agent_step_sessions else 0,
                 'completed_sessions': completed_count,
                 'active_sessions': active_count,
                 'behavioral_status': behavioral_status,
@@ -518,20 +518,20 @@ class AnalysisEngine:
             }
         }
 
-    def _get_pending_analysis_status(self, agent_id: str) -> Dict[str, Any]:
+    def _get_pending_analysis_status(self, agent_step_id: str) -> Dict[str, Any]:
         """Get analysis status when no persisted analysis exists.
 
         Returns appropriate status based on session count.
         """
         with self.store.lock:
-            agent_sessions = self.store.get_agent_sessions(agent_id)
-            session_count = len(agent_sessions) if agent_sessions else 0
-            completed_count = sum(1 for s in agent_sessions if s.is_completed) if agent_sessions else 0
+            agent_step_sessions = self.store.get_agent_step_sessions(agent_step_id)
+            session_count = len(agent_step_sessions) if agent_step_sessions else 0
+            completed_count = sum(1 for s in agent_step_sessions if s.is_completed) if agent_step_sessions else 0
 
         if session_count < MIN_SESSIONS_FOR_RISK_ANALYSIS:
             return {
                 'evaluation_status': 'INSUFFICIENT_DATA',
-                'agent_id': agent_id,
+                'agent_step_id': agent_step_id,
                 'summary': {
                     'min_sessions_required': MIN_SESSIONS_FOR_RISK_ANALYSIS,
                     'current_sessions': session_count,
@@ -542,7 +542,7 @@ class AnalysisEngine:
         else:
             return {
                 'evaluation_status': 'PENDING',
-                'agent_id': agent_id,
+                'agent_step_id': agent_step_id,
                 'summary': {
                     'current_sessions': session_count,
                     'completed_sessions': completed_count,
@@ -625,7 +625,7 @@ class AnalysisEngine:
         return {
             "session": {
                 "id": session_id,
-                "agent_id": session.agent_id,
+                "agent_step_id": session.agent_step_id,
                 "created_at": session.created_at.isoformat(),
                 "last_activity": session.last_activity.isoformat(),
                 "duration_minutes": session.duration_minutes,
@@ -649,76 +649,76 @@ class AnalysisEngine:
             "last_updated": datetime.now(timezone.utc).isoformat()
         }
 
-    async def _get_agent_summary(self, agent_workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get summary data for all agents (metrics are maintained incrementally).
+    async def _get_agent_step_summary(self, agent_workflow_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get summary data for all agent steps (metrics are maintained incrementally).
 
         Args:
             agent_workflow_id: Optional workflow ID to filter by.
         """
-        agents = []
+        agent_steps = []
 
-        # Get all agents while holding the lock
+        # Get all agent steps while holding the lock
         with self.store.lock:
-            all_agents = list(self.store.get_all_agents(agent_workflow_id=agent_workflow_id))
+            all_agent_steps = list(self.store.get_all_agent_steps(agent_workflow_id=agent_workflow_id))
 
-        # Process each agent (analysis runs outside the lock)
-        for agent in all_agents:
+        # Process each agent step (analysis runs outside the lock)
+        for agent_step in all_agent_steps:
             # Get session status counts (need lock for this)
             with self.store.lock:
-                agent_session_objects = self.store.get_agent_sessions(agent.agent_id)
-                active_sessions = len([s for s in agent_session_objects if s.is_active])
-                completed_sessions = len([s for s in agent_session_objects if s.is_completed])
+                agent_step_session_objects = self.store.get_agent_step_sessions(agent_step.agent_step_id)
+                active_sessions = len([s for s in agent_step_session_objects if s.is_active])
+                completed_sessions = len([s for s in agent_step_session_objects if s.is_completed])
 
             # Compute lightweight risk status for dashboard display
-            risk_status = self._compute_agent_risk_status(agent.agent_id)
+            risk_status = self._compute_agent_step_risk_status(agent_step.agent_step_id)
 
-            # Get analysis summary for agents with enough sessions
+            # Get analysis summary for agent steps with enough sessions
             # This runs OUTSIDE the lock and uses background threads for PII
             analysis_summary = None
-            if agent.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS:
-                analysis_summary = await self._get_agent_analysis_summary(agent.agent_id)
+            if agent_step.total_sessions >= MIN_SESSIONS_FOR_RISK_ANALYSIS:
+                analysis_summary = await self._get_agent_step_analysis_summary(agent_step.agent_step_id)
 
-            agent_data = {
-                "id": agent.agent_id,
-                "id_short": agent.agent_id[:8] + "..." if len(agent.agent_id) > 8 else agent.agent_id,
-                "agent_workflow_id": agent.agent_workflow_id,
-                "total_sessions": agent.total_sessions,
+            agent_step_data = {
+                "id": agent_step.agent_step_id,
+                "id_short": agent_step.agent_step_id[:8] + "..." if len(agent_step.agent_step_id) > 8 else agent_step.agent_step_id,
+                "agent_workflow_id": agent_step.agent_workflow_id,
+                "total_sessions": agent_step.total_sessions,
                 "active_sessions": active_sessions,
                 "completed_sessions": completed_sessions,
-                "total_messages": agent.total_messages,
-                "total_tokens": agent.total_tokens,
-                "total_tools": agent.total_tools,
-                "unique_tools": len(agent.used_tools),
-                "total_errors": agent.total_errors,
-                "avg_response_time_ms": agent.avg_response_time_ms,
-                "last_seen": agent.last_seen.isoformat(),
-                "last_seen_relative": self._time_ago(agent.last_seen),
+                "total_messages": agent_step.total_messages,
+                "total_tokens": agent_step.total_tokens,
+                "total_tools": agent_step.total_tools,
+                "unique_tools": len(agent_step.used_tools),
+                "total_errors": agent_step.total_errors,
+                "avg_response_time_ms": agent_step.avg_response_time_ms,
+                "last_seen": agent_step.last_seen.isoformat(),
+                "last_seen_relative": self._time_ago(agent_step.last_seen),
                 "risk_status": risk_status,  # "ok", "warning", "evaluating", or None
-                "current_sessions": agent.total_sessions,
+                "current_sessions": agent_step.total_sessions,
                 "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS
             }
-            
+
             # Add analysis summary if available
             if analysis_summary:
-                agent_data["analysis_summary"] = analysis_summary
-            
-            agents.append(agent_data)
+                agent_step_data["analysis_summary"] = analysis_summary
+
+            agent_steps.append(agent_step_data)
 
         # Sort by last seen
-        agents.sort(key=lambda x: x["last_seen"], reverse=True)
-        return agents
-    
-    async def _get_agent_analysis_summary(self, agent_id: str) -> Dict[str, Any]:
+        agent_steps.sort(key=lambda x: x["last_seen"], reverse=True)
+        return agent_steps
+
+    async def _get_agent_step_analysis_summary(self, agent_step_id: str) -> Dict[str, Any]:
         """Get lightweight analysis summary for dashboard display."""
         # Read persisted analysis from DB (no longer compute inline)
-        risk_analysis = self.get_persisted_risk_analysis(agent_id)
+        risk_analysis = self.get_persisted_risk_analysis(agent_step_id)
 
-        logger.debug(f"[ANALYSIS SUMMARY] Agent {agent_id}: risk_analysis exists={risk_analysis is not None}, "
+        logger.debug(f"[ANALYSIS SUMMARY] Agent step {agent_step_id}: risk_analysis exists={risk_analysis is not None}, "
                    f"status={risk_analysis.get('evaluation_status') if risk_analysis else None}")
 
         # Accept both COMPLETE and PARTIAL status (PARTIAL = security done, behavioral waiting)
         if not risk_analysis or risk_analysis.get('evaluation_status') not in ["COMPLETE", "PARTIAL"]:
-            logger.debug(f"[ANALYSIS SUMMARY] Returning None for agent {agent_id} due to status check")
+            logger.debug(f"[ANALYSIS SUMMARY] Returning None for agent step {agent_step_id} due to status check")
             return None
 
         # Count failed checks and warnings from dict structure
@@ -895,8 +895,8 @@ class AnalysisEngine:
             sessions.append({
                 "id": session.session_id,
                 "id_short": session.session_id[:8] + "..." if len(session.session_id) > 8 else session.session_id,
-                "agent_id": session.agent_id,
-                "agent_id_short": session.agent_id[:8] + "..." if len(session.agent_id) > 8 else session.agent_id,
+                "agent_step_id": session.agent_step_id,
+                "agent_step_id_short": session.agent_step_id[:8] + "..." if len(session.agent_step_id) > 8 else session.agent_step_id,
                 "created_at": session.created_at.isoformat(),
                 "last_activity": session.last_activity.isoformat(),
                 "last_activity_relative": self._time_ago(session.last_activity),
@@ -945,7 +945,7 @@ class AnalysisEngine:
 
         return {
             "id": latest.session_id,
-            "agent_id": latest.agent_id,
+            "agent_step_id": latest.agent_step_id,
             "message_count": latest.message_count,
             "duration_minutes": latest.duration_minutes,
             "is_active": latest.is_active,
@@ -953,17 +953,17 @@ class AnalysisEngine:
         }
 
     @_with_store_lock
-    def _analyze_agent_patterns(self, agent: AgentData) -> Dict[str, Any]:
-        """Analyze patterns for a specific agent."""
-        agent_sessions = self.store.get_agent_sessions(agent.agent_id)
+    def _analyze_agent_step_patterns(self, agent_step: AgentStepData) -> Dict[str, Any]:
+        """Analyze patterns for a specific agent step."""
+        agent_step_sessions = self.store.get_agent_step_sessions(agent_step.agent_step_id)
 
-        if not agent_sessions:
+        if not agent_step_sessions:
             return {}
 
         # Session length patterns
-        durations = [s.duration_minutes for s in agent_sessions if s.duration_minutes > 0]
-        messages = [s.message_count for s in agent_sessions if s.message_count > 0]
-        tools = [s.tool_uses for s in agent_sessions]
+        durations = [s.duration_minutes for s in agent_step_sessions if s.duration_minutes > 0]
+        messages = [s.message_count for s in agent_step_sessions if s.message_count > 0]
+        tools = [s.tool_uses for s in agent_step_sessions]
 
         return {
             "avg_session_duration": round(sum(durations) / len(durations), 1) if durations else 0,
@@ -972,12 +972,12 @@ class AnalysisEngine:
             "max_messages_per_session": max(messages) if messages else 0,
             "tool_usage_rate": round(len([t for t in tools if t > 0]) / len(tools) * 100, 1) if tools else 0,
             "avg_tools_per_session": round(sum(tools) / len(tools), 1) if tools else 0,
-            "sessions_with_errors": len([s for s in agent_sessions if s.errors > 0]),
-            "most_productive_session": max(agent_sessions, key=lambda s: s.message_count).session_id if agent_sessions else None
+            "sessions_with_errors": len([s for s in agent_step_sessions if s.errors > 0]),
+            "most_productive_session": max(agent_step_sessions, key=lambda s: s.message_count).session_id if agent_step_sessions else None
         }
 
-    def _compute_agent_analytics(self, agent: AgentData, sessions: List) -> Dict[str, Any]:
-        """Compute comprehensive analytics for agent monitoring."""
+    def _compute_agent_step_analytics(self, agent_step: AgentStepData, sessions: List) -> Dict[str, Any]:
+        """Compute comprehensive analytics for agent step monitoring."""
         from collections import defaultdict
         from datetime import datetime, timezone
         from .model_pricing import get_model_pricing, get_last_updated
@@ -1322,34 +1322,34 @@ class AnalysisEngine:
             days = int(diff.total_seconds() / 86400)
             return f"{days}d ago"
 
-    async def _update_cache_with_pii(self, agent_id: str, pii_result: Any) -> None:
+    async def _update_cache_with_pii(self, agent_step_id: str, pii_result: Any) -> None:
         """Update cached risk analysis with completed PII results.
 
         Args:
-            agent_id: Agent identifier
+            agent_step_id: Agent step identifier
             pii_result: Completed PII analysis result
         """
-        if agent_id not in self._risk_analysis_cache:
-            logger.info(f"[CACHE UPDATE] No cached risk analysis found for {agent_id}, skipping PII update")
+        if agent_step_id not in self._risk_analysis_cache:
+            logger.info(f"[CACHE UPDATE] No cached risk analysis found for {agent_step_id}, skipping PII update")
             return
 
-        cached_result, cached_time, cache_key = self._risk_analysis_cache[agent_id]
+        cached_result, cached_time, cache_key = self._risk_analysis_cache[agent_step_id]
 
         # Update the cached result with PII data (no TTL check - cache only invalidates on session changes)
-        logger.info(f"[CACHE UPDATE] Updating cached risk analysis for {agent_id} with PII results")
+        logger.info(f"[CACHE UPDATE] Updating cached risk analysis for {agent_step_id} with PII results")
 
         # Regenerate security report with PII data included
         # This ensures PRIVACY_COMPLIANCE category is added to the report
         from .security import generate_security_report
 
-        agent_sessions = self.store.get_agent_sessions(agent_id)
+        agent_step_sessions = self.store.get_agent_step_sessions(agent_step_id)
         updated_security_report = generate_security_report(
-            agent_id,
-            agent_sessions,
+            agent_step_id,
+            agent_step_sessions,
             cached_result.behavioral_analysis,
             pii_result
         )
-        logger.info(f"[CACHE UPDATE] Regenerated security report for {agent_id} with PII data")
+        logger.info(f"[CACHE UPDATE] Regenerated security report for {agent_step_id} with PII data")
 
         # Create updated summary with PII data
         updated_summary = dict(cached_result.summary)
@@ -1367,7 +1367,7 @@ class AnalysisEngine:
         # Create new result with PII included
         updated_result = RiskAnalysisResult(
             evaluation_id=cached_result.evaluation_id,
-            agent_id=cached_result.agent_id,
+            agent_step_id=cached_result.agent_step_id,
             timestamp=cached_result.timestamp,
             sessions_analyzed=cached_result.sessions_analyzed,
             evaluation_status=cached_result.evaluation_status,
@@ -1378,25 +1378,25 @@ class AnalysisEngine:
         )
 
         # Update cache with new result
-        self._risk_analysis_cache[agent_id] = (updated_result, cached_time, cache_key)
-        logger.info(f"[CACHE UPDATE] Successfully updated cache for {agent_id} with PII results")
+        self._risk_analysis_cache[agent_step_id] = (updated_result, cached_time, cache_key)
+        logger.info(f"[CACHE UPDATE] Successfully updated cache for {agent_step_id} with PII results")
 
-    def _should_run_pii_analysis(self, agent_id: str, cache_key: tuple) -> tuple[bool, Optional[Any], str]:
+    def _should_run_pii_analysis(self, agent_step_id: str, cache_key: tuple) -> tuple[bool, Optional[Any], str]:
         """Determine if PII analysis should run and get current PII status.
-        
+
         This method centralizes all PII execution gating logic:
         1. If PII is already running - do not run another
         2. If PII was completed - check if sessions changed, run if needed
-        3. Never run more than one PII analysis at once per agent
+        3. Never run more than one PII analysis at once per agent step
         4. Never cancel, stop, or ignore a running PII analysis
-        
+
         This is a synchronous method that performs fast dictionary lookups only.
         Must be called while holding _pii_launch_lock to ensure atomicity.
-        
+
         Args:
-            agent_id: Agent identifier
+            agent_step_id: Agent step identifier
             cache_key: Current (session_count, completed_count) tuple
-            
+
         Returns:
             Tuple of (should_launch: bool, current_pii_result: Optional[PIIAnalysisResult], pii_status: str)
             - should_launch: True if caller should launch new PII analysis
@@ -1412,44 +1412,44 @@ class AnalysisEngine:
                 disabled=True,
                 disabled_reason="PII analysis disabled by configuration (enable_presidio: false)"
             )
-            logger.info(f"[PII GUARD] Agent {agent_id}: PII analysis disabled by configuration")
+            logger.info(f"[PII GUARD] Agent step {agent_step_id}: PII analysis disabled by configuration")
             return False, disabled_result, "disabled"
-        
+
         # Get cached PII data (result + the cache_key it was computed for)
-        old_pii_data = self._pii_results_cache.get(agent_id)
+        old_pii_data = self._pii_results_cache.get(agent_step_id)
         if old_pii_data:
             old_pii_result, old_pii_cache_key = old_pii_data
         else:
             old_pii_result, old_pii_cache_key = None, None
-        
+
         # Check if PII result is fresh (matches current sessions)
         if old_pii_result and old_pii_cache_key == cache_key:
-            logger.info(f"[PII GUARD] Agent {agent_id}: Fresh PII result available (key={cache_key})")
+            logger.info(f"[PII GUARD] Agent step {agent_step_id}: Fresh PII result available (key={cache_key})")
             return False, old_pii_result, "complete"
-        
+
         # Check if analysis is already running
         # IMPORTANT: Never launch a second task if one is running
-        if agent_id in self._pii_analysis_tasks:
-            task = self._pii_analysis_tasks[agent_id]
+        if agent_step_id in self._pii_analysis_tasks:
+            task = self._pii_analysis_tasks[agent_step_id]
             if not task.done():
                 # Task is actively running - use old data if available
                 pii_status = "refreshing" if old_pii_result else "pending"
-                logger.info(f"[PII GUARD] Agent {agent_id}: Analysis already running, status={pii_status}")
+                logger.info(f"[PII GUARD] Agent step {agent_step_id}: Analysis already running, status={pii_status}")
                 return False, old_pii_result, pii_status
             else:
                 # Task completed/failed but wasn't cleaned up - remove it
-                logger.info(f"[PII GUARD] Agent {agent_id}: Cleaning up completed task")
-                del self._pii_analysis_tasks[agent_id]
-        
+                logger.info(f"[PII GUARD] Agent step {agent_step_id}: Cleaning up completed task")
+                del self._pii_analysis_tasks[agent_step_id]
+
         # Need new analysis: either no previous result or sessions changed
         if old_pii_result:
-            logger.info(f"[PII GUARD] Agent {agent_id}: Sessions changed {old_pii_cache_key} → {cache_key}, need refresh")
+            logger.info(f"[PII GUARD] Agent step {agent_step_id}: Sessions changed {old_pii_cache_key} → {cache_key}, need refresh")
             return True, old_pii_result, "refreshing"
         else:
-            logger.info(f"[PII GUARD] Agent {agent_id}: No previous PII data, need initial analysis (key={cache_key})")
+            logger.info(f"[PII GUARD] Agent step {agent_step_id}: No previous PII data, need initial analysis (key={cache_key})")
             return True, None, "pending"
 
-    async def _run_pii_analysis(self, agent_id: str, agent_sessions: List[Any],
+    async def _run_pii_analysis(self, agent_step_id: str, agent_step_sessions: List[Any],
                                expected_cache_key: tuple) -> None:
         """Run PII analysis in background and cache results.
 
@@ -1460,156 +1460,156 @@ class AnalysisEngine:
         Uses a semaphore to limit concurrent analyses and prevent CPU contention.
 
         Args:
-            agent_id: Agent identifier
-            agent_sessions: List of session data objects
+            agent_step_id: Agent step identifier
+            agent_step_sessions: List of session data objects
             expected_cache_key: (session_count, completed_count) expected after analysis
         """
         # Lazy initialize semaphore (can't create in __init__ without event loop)
         if self._pii_semaphore is None:
             self._pii_semaphore = asyncio.Semaphore(self._pii_max_concurrent)
 
-        analysis_session_count = len(agent_sessions)
-        logger.info(f"[PII BACKGROUND] Queued PII analysis for agent {agent_id} ({analysis_session_count} sessions, key={expected_cache_key})")
+        analysis_session_count = len(agent_step_sessions)
+        logger.info(f"[PII BACKGROUND] Queued PII analysis for agent step {agent_step_id} ({analysis_session_count} sessions, key={expected_cache_key})")
 
         # Acquire semaphore to limit concurrent CPU-bound analyses
         async with self._pii_semaphore:
             start_time = datetime.now(timezone.utc)
             try:
                 from .pii import analyze_sessions_for_pii
-                logger.info(f"[PII BACKGROUND] Starting PII analysis for agent {agent_id} ({analysis_session_count} sessions, key={expected_cache_key})")
+                logger.info(f"[PII BACKGROUND] Starting PII analysis for agent step {agent_step_id} ({analysis_session_count} sessions, key={expected_cache_key})")
 
                 # Run in background thread to avoid blocking event loop
                 # Use asyncio.wait_for to add timeout (60 seconds)
                 try:
                     pii_result = await asyncio.wait_for(
-                        asyncio.to_thread(analyze_sessions_for_pii, agent_sessions, enable_presidio=self.enable_presidio),
+                        asyncio.to_thread(analyze_sessions_for_pii, agent_step_sessions, enable_presidio=self.enable_presidio),
                         timeout=60.0
                     )
                 except asyncio.TimeoutError:
-                    logger.error(f"[PII BACKGROUND] PII analysis timed out for agent {agent_id} after 60 seconds")
+                    logger.error(f"[PII BACKGROUND] PII analysis timed out for agent step {agent_step_id} after 60 seconds")
                     raise Exception("PII analysis timed out after 60 seconds")
 
                 duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-                logger.info(f"[PII BACKGROUND] Completed PII analysis for agent {agent_id}: {pii_result.total_findings} findings in {duration:.1f}s")
+                logger.info(f"[PII BACKGROUND] Completed PII analysis for agent step {agent_step_id}: {pii_result.total_findings} findings in {duration:.1f}s")
 
                 # Always cache completed results (they're valid for the session count they analyzed)
-                self._pii_results_cache[agent_id] = (pii_result, expected_cache_key)
-                logger.info(f"[PII BACKGROUND] Cached PII result for {agent_id} with key {expected_cache_key}")
+                self._pii_results_cache[agent_step_id] = (pii_result, expected_cache_key)
+                logger.info(f"[PII BACKGROUND] Cached PII result for {agent_step_id} with key {expected_cache_key}")
 
                 # Check if sessions changed during analysis
-                current_sessions = self.store.get_agent_sessions(agent_id)
+                current_sessions = self.store.get_agent_step_sessions(agent_step_id)
                 current_cache_key = (len(current_sessions), len([s for s in current_sessions if s.is_completed]))
 
                 if current_cache_key != expected_cache_key:
-                    logger.info(f"[PII REFRESH] Sessions changed during analysis for {agent_id}: {expected_cache_key} → {current_cache_key}")
+                    logger.info(f"[PII REFRESH] Sessions changed during analysis for {agent_step_id}: {expected_cache_key} → {current_cache_key}")
                     logger.info(f"[PII REFRESH] Cached results for {expected_cache_key}, will refresh automatically on next request")
                     # Don't update risk cache with stale data - skip _update_cache_with_pii
                     # Next compute_risk_analysis() will detect the cache_key mismatch and launch fresh analysis
                     # The _should_run_pii_analysis helper will see this task has completed and allow new launch
                 else:
                     # Sessions haven't changed - safe to update the cached risk analysis
-                    await self._update_cache_with_pii(agent_id, pii_result)
+                    await self._update_cache_with_pii(agent_step_id, pii_result)
 
             except Exception as e:
-                logger.error(f"[PII BACKGROUND] PII analysis failed for agent {agent_id}: {e}", exc_info=True)
+                logger.error(f"[PII BACKGROUND] PII analysis failed for agent step {agent_step_id}: {e}", exc_info=True)
                 # Store error result so we don't retry continuously
                 from .models import PIIAnalysisResult
                 error_result = PIIAnalysisResult(
                     total_findings=0,
-                    sessions_without_pii=len(agent_sessions),
+                    sessions_without_pii=len(agent_step_sessions),
                     disabled=True,
                     disabled_reason=f"Analysis failed: {str(e)}"
                 )
-                self._pii_results_cache[agent_id] = (error_result, expected_cache_key)
+                self._pii_results_cache[agent_step_id] = (error_result, expected_cache_key)
             finally:
                 # CRITICAL: Always cleanup task tracking to allow future analysis
                 # This removal signals to _should_run_pii_analysis that the task completed
                 # and new analysis can be launched if sessions changed
-                # Without this cleanup, the agent would be permanently stuck
-                if agent_id in self._pii_analysis_tasks:
-                    del self._pii_analysis_tasks[agent_id]
-                    logger.info(f"[PII BACKGROUND] Cleaned up task for agent {agent_id}")
+                # Without this cleanup, the agent step would be permanently stuck
+                if agent_step_id in self._pii_analysis_tasks:
+                    del self._pii_analysis_tasks[agent_step_id]
+                    logger.info(f"[PII BACKGROUND] Cleaned up task for agent step {agent_step_id}")
 
-    async def compute_risk_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
-        """Compute risk analysis for an agent (behavioral + security).
+    async def compute_risk_analysis(self, agent_step_id: str) -> Optional[RiskAnalysisResult]:
+        """Compute risk analysis for an agent step (behavioral + security).
 
         This is the core computation method called by AnalysisRunner.
         API endpoints should use get_persisted_risk_analysis() to read from DB.
 
         Args:
-            agent_id: Agent identifier
+            agent_step_id: Agent step identifier
 
         Returns:
             RiskAnalysisResult or None if insufficient sessions
         """
-        agent = self.store.get_agent(agent_id)
-        if not agent:
+        agent_step = self.store.get_agent_step(agent_step_id)
+        if not agent_step:
             return None
 
-        # Get all sessions for this agent
-        agent_sessions = self.store.get_agent_sessions(agent_id)
-        
+        # Get all sessions for this agent step
+        agent_step_sessions = self.store.get_agent_step_sessions(agent_step_id)
+
         # Check minimum session requirement
-        if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+        if len(agent_step_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
             return RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
-                sessions_analyzed=len(agent_sessions),
+                sessions_analyzed=len(agent_step_sessions),
                 evaluation_status="INSUFFICIENT_DATA",
-                error=f"Need at least {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions for analysis (have {len(agent_sessions)})",
+                error=f"Need at least {MIN_SESSIONS_FOR_RISK_ANALYSIS} sessions for analysis (have {len(agent_step_sessions)})",
                 summary={
                     "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS,
-                    "current_sessions": len(agent_sessions),
-                    "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_sessions)
+                    "current_sessions": len(agent_step_sessions),
+                    "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_step_sessions)
                 }
             )
-        
+
         # Count completed sessions for cache key
-        completed_count = len([s for s in agent_sessions if s.is_completed])
+        completed_count = len([s for s in agent_step_sessions if s.is_completed])
 
         # Check cache (invalidate only if session count OR completion count changed)
-        cache_key = (len(agent_sessions), completed_count)
-        if agent_id in self._risk_analysis_cache:
-            cached_result, _cached_time, cached_key = self._risk_analysis_cache[agent_id]
+        cache_key = (len(agent_step_sessions), completed_count)
+        if agent_step_id in self._risk_analysis_cache:
+            cached_result, _cached_time, cached_key = self._risk_analysis_cache[agent_step_id]
             # Cache valid if session counts match (no TTL check)
             if cached_key == cache_key:
                 return cached_result
             # Cache key changed (sessions added/completed) - invalidate risk cache
             else:
-                logger.info(f"[CACHE INVALIDATION] Session count changed for {agent_id}: {cached_key} → {cache_key}")
+                logger.info(f"[CACHE INVALIDATION] Session count changed for {agent_step_id}: {cached_key} → {cache_key}")
                 # NOTE: We do NOT cancel running PII tasks - they will complete naturally
                 # The _should_run_pii_analysis helper will handle stale task detection
                 # and ensure new sessions trigger fresh analysis when appropriate
 
         # Cache miss - computing fresh analysis
-        logger.debug(f"[CACHE MISS] Computing fresh risk analysis for {agent_id} (cache_key={cache_key})")
+        logger.debug(f"[CACHE MISS] Computing fresh risk analysis for {agent_step_id} (cache_key={cache_key})")
 
         try:
             # Count completed vs active sessions for status reporting
-            completed_sessions = [s for s in agent_sessions if s.is_completed]
-            active_sessions_count = len(agent_sessions) - len(completed_sessions)
+            completed_sessions = [s for s in agent_step_sessions if s.is_completed]
+            active_sessions_count = len(agent_step_sessions) - len(completed_sessions)
 
-            logger.info(f"[RISK ANALYSIS] Agent {agent_id}: {len(agent_sessions)} total sessions, "
+            logger.info(f"[RISK ANALYSIS] Agent step {agent_step_id}: {len(agent_step_sessions)} total sessions, "
                        f"{len(completed_sessions)} completed, {active_sessions_count} active")
-            
+
             # Run behavioral analysis with frozen percentiles
             # Percentiles are calculated once and never change (stability)
             # Signatures are computed once per session and stored (efficiency)
             behavioral_result, frozen_percentiles = analyze_agent_behavior(
-                agent_sessions, 
-                cached_percentiles=agent.cached_percentiles
+                agent_step_sessions,
+                cached_percentiles=agent_step.cached_percentiles
             )
-            
+
             # Store frozen percentiles if this is the first calculation
-            if agent.cached_percentiles is None and frozen_percentiles is not None:
-                agent.cached_percentiles = frozen_percentiles
-                agent.percentiles_session_count = len(completed_sessions)
-                logger.info(f"[PERCENTILE FREEZE] Froze percentiles for agent {agent_id} at {len(completed_sessions)} sessions")
-            
+            if agent_step.cached_percentiles is None and frozen_percentiles is not None:
+                agent_step.cached_percentiles = frozen_percentiles
+                agent_step.percentiles_session_count = len(completed_sessions)
+                logger.info(f"[PERCENTILE FREEZE] Froze percentiles for agent step {agent_step_id} at {len(completed_sessions)} sessions")
+
             logger.info(f"[RISK ANALYSIS] Behavioral analysis result: total_sessions={behavioral_result.total_sessions}, "
                        f"num_clusters={behavioral_result.num_clusters}, error={behavioral_result.error}")
-            
+
             behavioral_status = "COMPLETE" if behavioral_result.total_sessions >= 2 else "WAITING_FOR_COMPLETION"
 
             # Run PII analysis (works on all sessions - doesn't need completion)
@@ -1618,19 +1618,19 @@ class AnalysisEngine:
             # This prevents race conditions where multiple coroutines try to launch PII simultaneously
             # Note: Using threading.Lock (not asyncio.Lock) since lock is held for < 1ms
             with self._pii_launch_lock:
-                should_launch, pii_result, pii_status = self._should_run_pii_analysis(agent_id, cache_key)
-                
+                should_launch, pii_result, pii_status = self._should_run_pii_analysis(agent_step_id, cache_key)
+
                 if should_launch:
                     # Launch new PII analysis task (runs in background, doesn't block)
-                    logger.info(f"[PII LAUNCH] Launching analysis for {agent_id} with key {cache_key}")
-                    task = asyncio.create_task(self._run_pii_analysis(agent_id, agent_sessions, cache_key))
-                    self._pii_analysis_tasks[agent_id] = task
+                    logger.info(f"[PII LAUNCH] Launching analysis for {agent_step_id} with key {cache_key}")
+                    task = asyncio.create_task(self._run_pii_analysis(agent_step_id, agent_step_sessions, cache_key))
+                    self._pii_analysis_tasks[agent_step_id] = task
 
             # Run security assessment - generates complete security report
             # Security analysis works on all sessions (doesn't require completion)
             security_report = generate_security_report(
-                agent_id,
-                agent_sessions,
+                agent_step_id,
+                agent_step_sessions,
                 behavioral_result,
                 pii_result
             )
@@ -1678,9 +1678,9 @@ class AnalysisEngine:
 
             result = RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
-                sessions_analyzed=len(agent_sessions),
+                sessions_analyzed=len(agent_step_sessions),
                 evaluation_status=evaluation_status,
                 behavioral_analysis=behavioral_result,
                 security_report=security_report,
@@ -1690,27 +1690,27 @@ class AnalysisEngine:
 
             # Always cache results (even with pending PII) to avoid re-running behavioral analysis
             # This prevents wasting CPU on repeated behavioral clustering
-            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), cache_key)
+            self._risk_analysis_cache[agent_step_id] = (result, datetime.now(timezone.utc), cache_key)
 
             if pii_result is not None:
-                logger.info(f"[RISK CACHE] Cached complete result for agent {agent_id}")
+                logger.info(f"[RISK CACHE] Cached complete result for agent step {agent_step_id}")
             else:
-                logger.info(f"[RISK CACHE] Cached partial result (PII pending) for agent {agent_id}")
+                logger.info(f"[RISK CACHE] Cached partial result (PII pending) for agent step {agent_step_id}")
 
             return result
-            
+
         except Exception as e:
-            logger.error(f"[RISK ANALYSIS] Exception in risk analysis for agent {agent_id}: {e}", exc_info=True)
+            logger.error(f"[RISK ANALYSIS] Exception in risk analysis for agent step {agent_step_id}: {e}", exc_info=True)
             return RiskAnalysisResult(
                 evaluation_id=str(uuid.uuid4()),
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 timestamp=datetime.now(timezone.utc).isoformat(),
-                sessions_analyzed=len(agent_sessions),
+                sessions_analyzed=len(agent_step_sessions),
                 evaluation_status="ERROR",
                 error=f"Risk analysis failed: {str(e)}"
             )
 
-    def _compute_agent_risk_status(self, agent_id: str) -> Optional[str]:
+    def _compute_agent_step_risk_status(self, agent_step_id: str) -> Optional[str]:
         """Compute lightweight risk status for dashboard display.
 
         Returns:
@@ -1719,24 +1719,24 @@ class AnalysisEngine:
             "evaluating" - Not enough sessions yet
             None - No data or error
         """
-        agent = self.store.get_agent(agent_id)
-        if not agent:
+        agent_step = self.store.get_agent_step(agent_step_id)
+        if not agent_step:
             return None
 
-        # Get all sessions for this agent
-        agent_sessions = self.store.get_agent_sessions(agent_id)
+        # Get all sessions for this agent step
+        agent_step_sessions = self.store.get_agent_step_sessions(agent_step_id)
 
         # Check if we have enough sessions for analysis
-        if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+        if len(agent_step_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
             # Only show "evaluating" if we have at least 1 session
-            return "evaluating" if len(agent_sessions) > 0 else None
+            return "evaluating" if len(agent_step_sessions) > 0 else None
 
         # Check cache for existing analysis
-        if agent_id in self._risk_analysis_cache:
-            cached_result, cached_time, cached_session_count = self._risk_analysis_cache[agent_id]
+        if agent_step_id in self._risk_analysis_cache:
+            cached_result, cached_time, cached_session_count = self._risk_analysis_cache[agent_step_id]
             # Use cache if still valid (30 seconds and same session count)
             if (datetime.now(timezone.utc) - cached_time).total_seconds() < 30 and \
-               cached_session_count == len(agent_sessions):
+               cached_session_count == len(agent_step_sessions):
                 if cached_result.evaluation_status == 'COMPLETE' and cached_result.security_report:
                     # Check for critical issues
                     has_critical = False

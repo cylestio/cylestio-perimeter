@@ -978,7 +978,7 @@ def check_privacy_compliance(
 # ============================================================================
 
 def generate_security_report(
-    agent_id: str,
+    agent_step_id: str,
     sessions: List[SessionData],
     behavioral_result: BehavioralAnalysisResult,
     pii_result: Optional[PIIAnalysisResult] = None
@@ -986,7 +986,7 @@ def generate_security_report(
     """Generate complete security assessment report.
 
     Args:
-        agent_id: Agent identifier
+        agent_step_id: Agent step identifier
         sessions: List of session data
         behavioral_result: Results from behavioral analysis
         pii_result: Results from PII analysis (optional)
@@ -1013,7 +1013,7 @@ def generate_security_report(
         "critical_issues": sum(cat.critical_checks for cat in categories.values()),
         "warnings": sum(cat.warning_checks for cat in categories.values())
     }
-    
+
     # Add PII disabled status if applicable
     if pii_result and pii_result.disabled:
         summary["pii_disabled"] = True
@@ -1021,7 +1021,7 @@ def generate_security_report(
 
     return SecurityReport(
         report_id=str(uuid.uuid4()),
-        agent_id=agent_id,
+        agent_step_id=agent_step_id,
         timestamp=datetime.now(timezone.utc).isoformat(),
         sessions_analyzed=len(sessions),
         categories=categories,

@@ -202,16 +202,16 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["agent_workflow_id"]
         }
     },
-    # ==================== Agent Discovery Tools ====================
+    # ==================== Agent Step Discovery Tools ====================
     {
-        "name": "get_agents",
-        "description": "List all agents discovered during dynamic sessions. Use to find agents that need linking to agent workflows or naming.",
+        "name": "get_agent_steps",
+        "description": "List all agent steps discovered during dynamic sessions. Use to find agent steps that need linking to agent workflows or naming.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "agent_workflow_id": {
                     "type": "string",
-                    "description": "Filter by agent workflow. Use 'unlinked' to get agents with no agent_workflow_id."
+                    "description": "Filter by agent workflow. Use 'unlinked' to get agent steps with no agent_workflow_id."
                 },
                 "include_stats": {
                     "type": "boolean",
@@ -222,14 +222,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
-        "name": "update_agent_info",
-        "description": "Update an agent's display name, description, or link to an agent workflow. Use after discovering agents to give them meaningful names or to link dynamic agents to workflows for correlation.",
+        "name": "update_agent_step_info",
+        "description": "Update an agent step's display name, description, or link to an agent workflow. Use after discovering agent steps to give them meaningful names or to link dynamic agent steps to workflows for correlation.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "agent_id": {
+                "agent_step_id": {
                     "type": "string",
-                    "description": "The agent ID from dynamic sessions"
+                    "description": "The agent step ID from dynamic sessions"
                 },
                 "display_name": {
                     "type": "string",
@@ -237,14 +237,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 },
                 "description": {
                     "type": "string",
-                    "description": "Brief description of what the agent does"
+                    "description": "Brief description of what the agent step does"
                 },
                 "agent_workflow_id": {
                     "type": "string",
-                    "description": "Link this agent to an agent workflow for correlation with static analysis"
+                    "description": "Link this agent step to an agent workflow for correlation with static analysis"
                 }
             },
-            "required": ["agent_id"]
+            "required": ["agent_step_id"]
         }
     },
     # ==================== IDE Connection Tools ====================

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, type FC } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Folder, Bot } from 'lucide-react';
 
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgentStep } from '@api/types/dashboard';
 import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchAgentWorkflows } from '@api/endpoints/dashboard';
@@ -34,8 +34,8 @@ import {
   EmptyDescription,
 } from './AgentWorkflowsHome.styles';
 
-// Table row type for unassigned agents
-interface AgentRow {
+// Table row type for unassigned agent steps
+interface AgentStepRow {
   id: string;
   name: string;
   sessions: number;
@@ -44,21 +44,21 @@ interface AgentRow {
   status: 'evaluating' | 'ok';
 }
 
-// Transform API agent to table row
-const toAgentRow = (agent: APIAgent): AgentRow => ({
-  id: agent.id,
-  name: formatAgentName(agent.id),
-  sessions: agent.total_sessions,
-  errors: agent.total_errors,
-  lastSeen: agent.last_seen_relative,
-  status: agent.risk_status,
+// Transform API agent step to table row
+const toAgentStepRow = (agentStep: APIAgentStep): AgentStepRow => ({
+  id: agentStep.id,
+  name: formatAgentName(agentStep.id),
+  sessions: agentStep.total_sessions,
+  errors: agentStep.total_errors,
+  lastSeen: agentStep.last_seen_relative,
+  status: agentStep.risk_status,
 });
 
-// Table columns for unassigned agents
-const agentColumns: Column<AgentRow>[] = [
+// Table columns for unassigned agent steps
+const agentStepColumns: Column<AgentStepRow>[] = [
   {
     key: 'name',
-    header: 'Agent',
+    header: 'Agent Step',
     render: (row) => (
       <span style={{ fontWeight: 500 }}>{row.name}</span>
     ),
@@ -109,7 +109,7 @@ const agentColumns: Column<AgentRow>[] = [
 export const AgentWorkflowsHome: FC = () => {
   const navigate = useNavigate();
   const [agentWorkflows, setAgentWorkflows] = useState<APIAgentWorkflow[]>([]);
-  const [unassignedAgents, setUnassignedAgents] = useState<APIAgent[]>([]);
+  const [unassignedAgentSteps, setUnassignedAgentSteps] = useState<APIAgentStep[]>([]);
   const [loading, setLoading] = useState(true);
 
   usePageMeta({
@@ -124,7 +124,7 @@ export const AgentWorkflowsHome: FC = () => {
       ]);
       console.log('agentWorkflowsRes', agentWorkflowsRes);
       setAgentWorkflows(agentWorkflowsRes.agent_workflows.filter(w => w.id !== null));
-      setUnassignedAgents(unassignedRes.agents);
+      setUnassignedAgentSteps(unassignedRes.agent_steps);
     } catch (error) {
       console.error('Failed to load agent workflows data:', error);
     } finally {
@@ -143,12 +143,12 @@ export const AgentWorkflowsHome: FC = () => {
     navigate(`/agent-workflow/${agentWorkflowId}`);
   };
 
-  const handleAgentClick = (agent: AgentRow) => {
-    navigate(`/agent-workflow/unassigned/agent/${agent.id}`);
+  const handleAgentStepClick = (agentStep: AgentStepRow) => {
+    navigate(`/agent-workflow/unassigned/agent-step/${agentStep.id}`);
   };
 
   const hasAgentWorkflows = agentWorkflows.length > 0;
-  const hasUnassignedAgents = unassignedAgents.length > 0;
+  const hasUnassignedAgentSteps = unassignedAgentSteps.length > 0;
 
   return (
     <Page>
@@ -208,25 +208,25 @@ export const AgentWorkflowsHome: FC = () => {
           </AgentWorkflowsGrid>
         </div>
 
-        {/* Unassigned Agents Section - only show if there are any */}
-        {(hasUnassignedAgents || loading) && (
+        {/* Unassigned Agent Steps Section - only show if there are any */}
+        {(hasUnassignedAgentSteps || loading) && (
           <UnassignedSection>
             <Table
               header={
                 <SectionTitle>
                   <Bot size={18} />
-                  Unassigned Agents
-                  {hasUnassignedAgents && <SectionBadge>{unassignedAgents.length}</SectionBadge>}
+                  Unassigned Agent Steps
+                  {hasUnassignedAgentSteps && <SectionBadge>{unassignedAgentSteps.length}</SectionBadge>}
                 </SectionTitle>
               }
-              columns={agentColumns}
-              data={unassignedAgents.map(toAgentRow)}
+              columns={agentStepColumns}
+              data={unassignedAgentSteps.map(toAgentStepRow)}
               loading={loading}
-              onRowClick={handleAgentClick}
+              onRowClick={handleAgentStepClick}
               keyExtractor={(row) => row.id}
               emptyState={
                 <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-white-50)' }}>
-                  No unassigned agents
+                  No unassigned agent steps
                 </div>
               }
             />

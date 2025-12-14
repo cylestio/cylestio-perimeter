@@ -31,8 +31,8 @@ type Story = StoryObj<typeof SessionItem>;
 
 export const Default: Story = {
   args: {
-    agentId: 'prompt-a8b9ef35309f',
-    agentName: 'Prompt A8b9ef35309f',
+    agentStepId: 'prompt-a8b9ef35309f',
+    agentStepName: 'Prompt A8b9ef35309f',
     sessionId: 'f4f68af8',
     status: 'COMPLETE',
     isActive: false,
@@ -48,8 +48,8 @@ export const Default: Story = {
 
 export const Active: Story = {
   args: {
-    agentId: 'ant-math-agent-v7',
-    agentName: 'Ant Math',
+    agentStepId: 'ant-math-agent-v7',
+    agentStepName: 'Ant Math',
     sessionId: '09d848b3',
     status: 'ACTIVE',
     isActive: true,
@@ -64,8 +64,8 @@ export const Active: Story = {
 
 export const WithErrors: Story = {
   args: {
-    agentId: 'error-prone-agent',
-    agentName: 'Error Prone',
+    agentStepId: 'error-prone-agent',
+    agentStepName: 'Error Prone',
     sessionId: 'abc12345',
     status: 'ERROR',
     isActive: false,
@@ -80,8 +80,8 @@ export const WithErrors: Story = {
 
 export const Clickable: Story = {
   args: {
-    agentId: 'clickable-agent',
-    agentName: 'Clickable Agent',
+    agentStepId: 'clickable-agent',
+    agentStepName: 'Clickable Agent',
     sessionId: 'click123',
     status: 'COMPLETE',
     isActive: false,
@@ -100,8 +100,8 @@ export const AllStates: Story = {
   render: () => (
     <>
       <SessionItem
-        agentId="active-agent"
-        agentName="Active Session"
+        agentStepId="active-agent"
+        agentStepName="Active Session"
         sessionId="active01"
         status="ACTIVE"
         isActive={true}
@@ -109,8 +109,8 @@ export const AllStates: Story = {
         lastActivity="just now"
       />
       <SessionItem
-        agentId="complete-agent"
-        agentName="Completed Session"
+        agentStepId="complete-agent"
+        agentStepName="Completed Session"
         sessionId="done0123"
         status="COMPLETE"
         isActive={false}
@@ -118,8 +118,8 @@ export const AllStates: Story = {
         lastActivity="1h ago"
       />
       <SessionItem
-        agentId="error-agent"
-        agentName="Error Session"
+        agentStepId="error-agent"
+        agentStepName="Error Session"
         sessionId="err12345"
         status="ERROR"
         isActive={false}

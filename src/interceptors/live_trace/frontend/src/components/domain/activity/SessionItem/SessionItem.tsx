@@ -9,10 +9,10 @@ import { SessionItemWrapper, SessionInfo, SessionMeta } from './SessionItem.styl
 export type SessionStatus = 'ACTIVE' | 'COMPLETE' | 'ERROR';
 
 export interface SessionItemProps {
-  /** Agent ID used for avatar and display name */
-  agentId: string;
-  /** Display name for the agent (formatted) */
-  agentName: string;
+  /** Agent Step ID used for avatar and display name */
+  agentStepId: string;
+  /** Display name for the agent step (formatted) */
+  agentStepName: string;
   /** Session ID (usually truncated for display) */
   sessionId: string;
   /** Session status */
@@ -57,8 +57,8 @@ const getAvatarStatus = (
 };
 
 export const SessionItem: FC<SessionItemProps> = ({
-  agentId,
-  agentName,
+  agentStepId,
+  agentStepName,
   sessionId,
   status,
   isActive,
@@ -77,13 +77,13 @@ export const SessionItem: FC<SessionItemProps> = ({
       tabIndex={onClick ? 0 : undefined}
     >
       <Avatar
-        name={agentId}
+        name={agentStepId}
         size="sm"
         status={getAvatarStatus(isActive, hasErrors)}
       />
       <SessionInfo>
         <Text size="sm" weight="medium">
-          {agentName}
+          {agentStepName}
         </Text>
         <Text size="xs" color="muted">
           {sessionId}

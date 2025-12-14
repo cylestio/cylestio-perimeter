@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 SQL_SCHEMA = """
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
+    agent_step_id TEXT NOT NULL,
     agent_workflow_id TEXT,
     created_at REAL NOT NULL,
     last_activity REAL NOT NULL,
@@ -38,14 +38,14 @@ CREATE TABLE IF NOT EXISTS sessions (
     behavioral_features TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_agent_step_id ON sessions(agent_step_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_workflow_id ON sessions(agent_workflow_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_is_completed ON sessions(is_completed);
 CREATE INDEX IF NOT EXISTS idx_sessions_is_active ON sessions(is_active);
 CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
 
-CREATE TABLE IF NOT EXISTS agents (
-    agent_id TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS agent_steps (
+    agent_step_id TEXT PRIMARY KEY,
     agent_workflow_id TEXT,
     display_name TEXT,
     description TEXT,
@@ -67,14 +67,14 @@ CREATE TABLE IF NOT EXISTS agents (
     last_analyzed_session_count INTEGER DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_agents_last_seen ON agents(last_seen);
-CREATE INDEX IF NOT EXISTS idx_agents_agent_workflow_id ON agents(agent_workflow_id);
+CREATE INDEX IF NOT EXISTS idx_agent_steps_last_seen ON agent_steps(last_seen);
+CREATE INDEX IF NOT EXISTS idx_agent_steps_agent_workflow_id ON agent_steps(agent_workflow_id);
 
 CREATE TABLE IF NOT EXISTS analysis_sessions (
     session_id TEXT PRIMARY KEY,
     agent_workflow_id TEXT NOT NULL,
     agent_workflow_name TEXT,
-    agent_id TEXT,
+    agent_step_id TEXT,
     scope TEXT DEFAULT 'WORKFLOW',
     session_type TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -115,7 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
 
 CREATE TABLE IF NOT EXISTS security_checks (
     check_id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
+    agent_step_id TEXT NOT NULL,
     agent_workflow_id TEXT,
     analysis_session_id TEXT NOT NULL,
     category_id TEXT NOT NULL,
@@ -130,14 +130,14 @@ CREATE TABLE IF NOT EXISTS security_checks (
     FOREIGN KEY (analysis_session_id) REFERENCES analysis_sessions(session_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_security_checks_agent_id ON security_checks(agent_id);
+CREATE INDEX IF NOT EXISTS idx_security_checks_agent_step_id ON security_checks(agent_step_id);
 CREATE INDEX IF NOT EXISTS idx_security_checks_analysis_session_id ON security_checks(analysis_session_id);
 CREATE INDEX IF NOT EXISTS idx_security_checks_status ON security_checks(status);
 CREATE INDEX IF NOT EXISTS idx_security_checks_category_id ON security_checks(category_id);
 
 CREATE TABLE IF NOT EXISTS behavioral_analysis (
     id TEXT PRIMARY KEY,
-    agent_id TEXT NOT NULL,
+    agent_step_id TEXT NOT NULL,
     analysis_session_id TEXT NOT NULL,
     stability_score REAL NOT NULL,
     predictability_score REAL NOT NULL,
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS behavioral_analysis (
     FOREIGN KEY (analysis_session_id) REFERENCES analysis_sessions(session_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_agent_id ON behavioral_analysis(agent_id);
+CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_agent_step_id ON behavioral_analysis(agent_step_id);
 CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_session_id ON behavioral_analysis(analysis_session_id);
 
 CREATE TABLE IF NOT EXISTS ide_connections (
@@ -183,9 +183,9 @@ CREATE INDEX IF NOT EXISTS idx_ide_connections_last_heartbeat ON ide_connections
 class SessionData:
     """Container for session-specific data."""
 
-    def __init__(self, session_id: str, agent_id: str, agent_workflow_id: Optional[str] = None):
+    def __init__(self, session_id: str, agent_step_id: str, agent_workflow_id: Optional[str] = None):
         self.session_id = session_id
-        self.agent_id = agent_id
+        self.agent_step_id = agent_step_id
         self.agent_workflow_id = agent_workflow_id
         self.events = deque(maxlen=1000)  # Last 1000 events per session
         self.created_at = datetime.now(timezone.utc)
@@ -294,11 +294,11 @@ class SessionData:
             self.behavioral_features = None
 
 
-class AgentData:
-    """Container for agent-specific data."""
+class AgentStepData:
+    """Container for agent step-specific data."""
 
-    def __init__(self, agent_id: str, agent_workflow_id: Optional[str] = None):
-        self.agent_id = agent_id
+    def __init__(self, agent_step_id: str, agent_workflow_id: Optional[str] = None):
+        self.agent_step_id = agent_step_id
         self.agent_workflow_id = agent_workflow_id
         self.display_name: Optional[str] = None  # Human-friendly name set via MCP
         self.description: Optional[str] = None   # Description of what the agent does
@@ -445,7 +445,7 @@ class TraceStore:
         """Convert SessionData to dict for SQLite storage."""
         return {
             'session_id': session.session_id,
-            'agent_id': session.agent_id,
+            'agent_step_id': session.agent_step_id,
             'agent_workflow_id': session.agent_workflow_id,
             'created_at': session.created_at.timestamp(),
             'last_activity': session.last_activity.timestamp(),
@@ -468,7 +468,7 @@ class TraceStore:
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
         """Convert SQLite row back to SessionData object."""
-        session = SessionData(row['session_id'], row['agent_id'], row['agent_workflow_id'])
+        session = SessionData(row['session_id'], row['agent_step_id'], row['agent_workflow_id'])
         session.created_at = datetime.fromtimestamp(row['created_at'], tz=timezone.utc)
         session.last_activity = datetime.fromtimestamp(row['last_activity'], tz=timezone.utc)
         session.is_active = bool(row['is_active'])
@@ -492,63 +492,63 @@ class TraceStore:
             session.behavioral_features = SessionFeatures.model_validate_json(row['behavioral_features'])
         return session
 
-    def _serialize_agent(self, agent: AgentData) -> Dict[str, Any]:
-        """Convert AgentData to dict for SQLite storage."""
+    def _serialize_agent_step(self, agent_step: AgentStepData) -> Dict[str, Any]:
+        """Convert AgentStepData to dict for SQLite storage."""
         return {
-            'agent_id': agent.agent_id,
-            'agent_workflow_id': agent.agent_workflow_id,
-            'display_name': agent.display_name,
-            'description': agent.description,
-            'first_seen': agent.first_seen.timestamp(),
-            'last_seen': agent.last_seen.timestamp(),
-            'total_sessions': agent.total_sessions,
-            'total_messages': agent.total_messages,
-            'total_tokens': agent.total_tokens,
-            'total_tools': agent.total_tools,
-            'total_errors': agent.total_errors,
-            'total_response_time_ms': agent.total_response_time_ms,
-            'response_count': agent.response_count,
-            'sessions_set': json.dumps(list(agent.sessions)),
-            'available_tools': json.dumps(list(agent.available_tools)),
-            'used_tools': json.dumps(list(agent.used_tools)),
-            'tool_usage_details': json.dumps(dict(agent.tool_usage_details)),
-            'cached_percentiles': json.dumps(agent.cached_percentiles) if agent.cached_percentiles else None,
-            'percentiles_session_count': agent.percentiles_session_count,
-            'last_analyzed_session_count': agent.last_analyzed_session_count,
+            'agent_step_id': agent_step.agent_step_id,
+            'agent_workflow_id': agent_step.agent_workflow_id,
+            'display_name': agent_step.display_name,
+            'description': agent_step.description,
+            'first_seen': agent_step.first_seen.timestamp(),
+            'last_seen': agent_step.last_seen.timestamp(),
+            'total_sessions': agent_step.total_sessions,
+            'total_messages': agent_step.total_messages,
+            'total_tokens': agent_step.total_tokens,
+            'total_tools': agent_step.total_tools,
+            'total_errors': agent_step.total_errors,
+            'total_response_time_ms': agent_step.total_response_time_ms,
+            'response_count': agent_step.response_count,
+            'sessions_set': json.dumps(list(agent_step.sessions)),
+            'available_tools': json.dumps(list(agent_step.available_tools)),
+            'used_tools': json.dumps(list(agent_step.used_tools)),
+            'tool_usage_details': json.dumps(dict(agent_step.tool_usage_details)),
+            'cached_percentiles': json.dumps(agent_step.cached_percentiles) if agent_step.cached_percentiles else None,
+            'percentiles_session_count': agent_step.percentiles_session_count,
+            'last_analyzed_session_count': agent_step.last_analyzed_session_count,
         }
 
-    def _deserialize_agent(self, row: sqlite3.Row) -> AgentData:
-        """Convert SQLite row back to AgentData object."""
-        agent = AgentData(row['agent_id'], row['agent_workflow_id'])
+    def _deserialize_agent_step(self, row: sqlite3.Row) -> AgentStepData:
+        """Convert SQLite row back to AgentStepData object."""
+        agent_step = AgentStepData(row['agent_step_id'], row['agent_workflow_id'])
         # Handle new columns that may not exist in older databases
-        agent.display_name = row['display_name'] if 'display_name' in row.keys() else None
-        agent.description = row['description'] if 'description' in row.keys() else None
-        agent.first_seen = datetime.fromtimestamp(row['first_seen'], tz=timezone.utc)
-        agent.last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
-        agent.total_sessions = row['total_sessions']
-        agent.total_messages = row['total_messages']
-        agent.total_tokens = row['total_tokens']
-        agent.total_tools = row['total_tools']
-        agent.total_errors = row['total_errors']
-        agent.total_response_time_ms = row['total_response_time_ms']
-        agent.response_count = row['response_count']
-        agent.sessions = set(json.loads(row['sessions_set']))
-        agent.available_tools = set(json.loads(row['available_tools']))
-        agent.used_tools = set(json.loads(row['used_tools']))
-        agent.tool_usage_details = defaultdict(int, json.loads(row['tool_usage_details']))
+        agent_step.display_name = row['display_name'] if 'display_name' in row.keys() else None
+        agent_step.description = row['description'] if 'description' in row.keys() else None
+        agent_step.first_seen = datetime.fromtimestamp(row['first_seen'], tz=timezone.utc)
+        agent_step.last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
+        agent_step.total_sessions = row['total_sessions']
+        agent_step.total_messages = row['total_messages']
+        agent_step.total_tokens = row['total_tokens']
+        agent_step.total_tools = row['total_tools']
+        agent_step.total_errors = row['total_errors']
+        agent_step.total_response_time_ms = row['total_response_time_ms']
+        agent_step.response_count = row['response_count']
+        agent_step.sessions = set(json.loads(row['sessions_set']))
+        agent_step.available_tools = set(json.loads(row['available_tools']))
+        agent_step.used_tools = set(json.loads(row['used_tools']))
+        agent_step.tool_usage_details = defaultdict(int, json.loads(row['tool_usage_details']))
         if row['cached_percentiles']:
-            agent.cached_percentiles = json.loads(row['cached_percentiles'])
-        agent.percentiles_session_count = row['percentiles_session_count']
+            agent_step.cached_percentiles = json.loads(row['cached_percentiles'])
+        agent_step.percentiles_session_count = row['percentiles_session_count']
         # Handle new column that may not exist in older databases (before migration runs)
-        agent.last_analyzed_session_count = row['last_analyzed_session_count'] if 'last_analyzed_session_count' in row.keys() else 0
-        return agent
+        agent_step.last_analyzed_session_count = row['last_analyzed_session_count'] if 'last_analyzed_session_count' in row.keys() else 0
+        return agent_step
 
     def _save_session(self, session: SessionData):
         """Save or update session in SQLite."""
         data = self._serialize_session(session)
         self.db.execute("""
             INSERT OR REPLACE INTO sessions VALUES (
-                :session_id, :agent_id, :agent_workflow_id, :created_at, :last_activity,
+                :session_id, :agent_step_id, :agent_workflow_id, :created_at, :last_activity,
                 :is_active, :is_completed, :completed_at,
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
@@ -558,12 +558,12 @@ class TraceStore:
         """, data)
         self.db.commit()
 
-    def _save_agent(self, agent: AgentData):
-        """Save or update agent in SQLite."""
-        data = self._serialize_agent(agent)
+    def _save_agent_step(self, agent_step: AgentStepData):
+        """Save or update agent step in SQLite."""
+        data = self._serialize_agent_step(agent_step)
         self.db.execute("""
-            INSERT OR REPLACE INTO agents VALUES (
-                :agent_id, :agent_workflow_id, :display_name, :description,
+            INSERT OR REPLACE INTO agent_steps VALUES (
+                :agent_step_id, :agent_workflow_id, :display_name, :description,
                 :first_seen, :last_seen,
                 :total_sessions, :total_messages, :total_tokens,
                 :total_tools, :total_errors, :total_response_time_ms, :response_count,
@@ -573,18 +573,24 @@ class TraceStore:
         """, data)
         self.db.commit()
 
-    def add_event(self, event: BaseEvent, session_id: Optional[str] = None, agent_id: Optional[str] = None):
-        """Add an event to the store."""
+    def add_event(self, event: BaseEvent, session_id: Optional[str] = None, agent_step_id: Optional[str] = None):
+        """Add an event to the store.
+
+        Args:
+            event: The event to add
+            session_id: Optional session ID
+            agent_step_id: Agent step ID (receives 'agent_id' from proxy layer)
+        """
         with self._lock:
             # Use event's session_id if not provided
             effective_session_id = session_id or event.session_id
 
-            # Extract agent_id from event attributes if not provided
-            if not agent_id and hasattr(event, 'attributes'):
-                agent_id = event.attributes.get('agent.id', 'unknown')
+            # Extract agent_step_id from event attributes if not provided
+            if not agent_step_id and hasattr(event, 'attributes'):
+                agent_step_id = event.attributes.get('agent.id', 'unknown')
 
-            if not agent_id:
-                agent_id = 'unknown'
+            if not agent_step_id:
+                agent_step_id = 'unknown'
 
             # Extract agent_workflow_id from event attributes
             agent_workflow_id = None
@@ -595,57 +601,57 @@ class TraceStore:
             self.events.append(event)
             self.total_events += 1
 
-            # Ensure we have session and agent data
+            # Ensure we have session and agent_step data
             if effective_session_id:
                 # Load existing session or create new one
                 session = self.get_session(effective_session_id)
                 if not session:
-                    session = SessionData(effective_session_id, agent_id, agent_workflow_id)
+                    session = SessionData(effective_session_id, agent_step_id, agent_workflow_id)
                 elif agent_workflow_id and not session.agent_workflow_id:
                     # Update agent_workflow_id if not set (allows late binding)
                     session.agent_workflow_id = agent_workflow_id
 
-                # Load existing agent or create new one
-                agent = self.get_agent(agent_id)
-                if not agent:
-                    agent = AgentData(agent_id, agent_workflow_id)
-                elif agent_workflow_id and not agent.agent_workflow_id:
+                # Load existing agent_step or create new one
+                agent_step = self.get_agent_step(agent_step_id)
+                if not agent_step:
+                    agent_step = AgentStepData(agent_step_id, agent_workflow_id)
+                elif agent_workflow_id and not agent_step.agent_workflow_id:
                     # Update agent_workflow_id if not set (allows late binding)
-                    agent.agent_workflow_id = agent_workflow_id
+                    agent_step.agent_workflow_id = agent_workflow_id
 
-                # Add session to agent if not already tracked
-                if effective_session_id not in agent.sessions:
-                    agent.add_session(effective_session_id)
+                # Add session to agent_step if not already tracked
+                if effective_session_id not in agent_step.sessions:
+                    agent_step.add_session(effective_session_id)
 
                 # Add event to session (may trigger reactivation if session was completed)
                 session.add_event(event)
 
-                # Incremental metrics update - update agent metrics as events arrive
+                # Incremental metrics update - update agent_step metrics as events arrive
                 event_name = event.name.value
                 if event_name == "llm.call.start":
-                    agent.total_messages += 1
+                    agent_step.total_messages += 1
                 elif event_name == "llm.call.finish":
                     # Update response metrics
                     duration = event.attributes.get("llm.response.duration_ms", 0)
-                    agent.total_response_time_ms += duration
-                    agent.response_count += 1
+                    agent_step.total_response_time_ms += duration
+                    agent_step.response_count += 1
 
                     # Update token metrics
                     tokens = event.attributes.get("llm.usage.total_tokens", 0)
-                    agent.total_tokens += tokens
+                    agent_step.total_tokens += tokens
                 elif event_name == "tool.execution":
-                    agent.total_tools += 1
+                    agent_step.total_tools += 1
                     # Track specific tool usage
                     tool_name = event.attributes.get("tool.name", "unknown")
-                    agent.tool_usage_details[tool_name] += 1
-                    agent.used_tools.add(tool_name)
+                    agent_step.tool_usage_details[tool_name] += 1
+                    agent_step.used_tools.add(tool_name)
                 elif event_name.endswith(".error"):
-                    agent.total_errors += 1
+                    agent_step.total_errors += 1
 
-                # Update agent's last seen timestamp
-                agent.last_seen = max(agent.last_seen, session.last_activity)
+                # Update agent_step's last seen timestamp
+                agent_step.last_seen = max(agent_step.last_seen, session.last_activity)
 
-                # Update agent's available tools (from llm.call.start events)
+                # Update agent_step's available tools (from llm.call.start events)
                 if event_name == "llm.call.start":
                     request_data = event.attributes.get("llm.request.data", {})
                     if isinstance(request_data, dict):
@@ -653,11 +659,11 @@ class TraceStore:
                         if tools:
                             for tool in tools:
                                 if isinstance(tool, dict) and "name" in tool:
-                                    agent.available_tools.add(tool["name"])
+                                    agent_step.available_tools.add(tool["name"])
 
-                # Save updated session and agent back to SQLite
+                # Save updated session and agent_step back to SQLite
                 self._save_session(session)
-                self._save_agent(agent)
+                self._save_agent_step(agent_step)
 
             # Track global tool usage and errors
             event_name = event.name.value
@@ -736,24 +742,24 @@ class TraceStore:
                 return self._deserialize_session(row)
             return None
 
-    def get_agent(self, agent_id: str) -> Optional[AgentData]:
-        """Get agent data by ID from SQLite."""
+    def get_agent_step(self, agent_step_id: str) -> Optional[AgentStepData]:
+        """Get agent step data by ID from SQLite."""
         with self._lock:
             cursor = self.db.execute(
-                "SELECT * FROM agents WHERE agent_id = ?",
-                (agent_id,)
+                "SELECT * FROM agent_steps WHERE agent_step_id = ?",
+                (agent_step_id,)
             )
             row = cursor.fetchone()
             if row:
-                return self._deserialize_agent(row)
+                return self._deserialize_agent_step(row)
             return None
 
-    def get_agent_sessions(self, agent_id: str) -> List[SessionData]:
-        """Get all sessions for a specific agent from SQLite."""
+    def get_agent_step_sessions(self, agent_step_id: str) -> List[SessionData]:
+        """Get all sessions for a specific agent step from SQLite."""
         with self._lock:
             cursor = self.db.execute(
-                "SELECT * FROM sessions WHERE agent_id = ? ORDER BY created_at DESC",
-                (agent_id,)
+                "SELECT * FROM sessions WHERE agent_step_id = ? ORDER BY created_at DESC",
+                (agent_step_id,)
             )
             return [self._deserialize_session(row) for row in cursor.fetchall()]
 
@@ -766,14 +772,14 @@ class TraceStore:
     def _build_sessions_filter_query(
         self,
         agent_workflow_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
         status: Optional[str] = None,
     ) -> Tuple[str, List[Any]]:
         """Build WHERE clause for session filtering.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
-            agent_id: Filter by agent ID.
+            agent_step_id: Filter by agent step ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
 
         Returns:
@@ -789,9 +795,9 @@ class TraceStore:
                 where_clause += " AND agent_workflow_id = ?"
                 params.append(agent_workflow_id)
 
-        if agent_id is not None:
-            where_clause += " AND agent_id = ?"
-            params.append(agent_id)
+        if agent_step_id is not None:
+            where_clause += " AND agent_step_id = ?"
+            params.append(agent_step_id)
 
         if status is not None:
             status_upper = status.upper()
@@ -807,7 +813,7 @@ class TraceStore:
     def count_sessions_filtered(
         self,
         agent_workflow_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
         status: Optional[str] = None,
     ) -> int:
         """Count sessions with optional filtering.
@@ -816,7 +822,7 @@ class TraceStore:
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
-            agent_id: Filter by agent ID.
+            agent_step_id: Filter by agent step ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
 
         Returns:
@@ -825,7 +831,7 @@ class TraceStore:
         with self._lock:
             where_clause, params = self._build_sessions_filter_query(
                 agent_workflow_id=agent_workflow_id,
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 status=status,
             )
             query = f"SELECT COUNT(*) FROM sessions{where_clause}"  # nosec B608 - parameterized
@@ -835,16 +841,16 @@ class TraceStore:
     def get_sessions_filtered(
         self,
         agent_workflow_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
         status: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Get sessions with optional filtering by agent_workflow_id, agent_id, and status.
+        """Get sessions with optional filtering by agent_workflow_id, agent_step_id, and status.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
-            agent_id: Filter by agent ID.
+            agent_step_id: Filter by agent step ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             limit: Maximum number of sessions to return.
             offset: Number of sessions to skip (for pagination).
@@ -855,7 +861,7 @@ class TraceStore:
         with self._lock:
             where_clause, params = self._build_sessions_filter_query(
                 agent_workflow_id=agent_workflow_id,
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 status=status,
             )
             query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ? OFFSET ?"  # nosec B608 - parameterized
@@ -905,8 +911,8 @@ class TraceStore:
                 sessions.append({
                     "id": row['session_id'],
                     "id_short": row['session_id'][:12],
-                    "agent_id": row['agent_id'],
-                    "agent_id_short": row['agent_id'][:12] if row['agent_id'] else None,
+                    "agent_step_id": row['agent_step_id'],
+                    "agent_step_id_short": row['agent_step_id'][:12] if row['agent_step_id'] else None,
                     "agent_workflow_id": row['agent_workflow_id'],
                     "created_at": created_at.isoformat(),
                     "last_activity": last_activity.isoformat(),
@@ -924,49 +930,49 @@ class TraceStore:
 
             return sessions
 
-    def get_all_agents(self, agent_workflow_id: Optional[str] = None) -> List[AgentData]:
-        """Get all agents from SQLite, optionally filtered by agent workflow.
+    def get_all_agent_steps(self, agent_workflow_id: Optional[str] = None) -> List[AgentStepData]:
+        """Get all agent steps from SQLite, optionally filtered by agent workflow.
 
         Args:
             agent_workflow_id: Optional workflow ID to filter by.
-                        Use "unassigned" to get agents with no agent workflow.
+                        Use "unassigned" to get agent steps with no agent workflow.
         """
         with self._lock:
             if agent_workflow_id is None:
-                cursor = self.db.execute("SELECT * FROM agents ORDER BY first_seen DESC")
+                cursor = self.db.execute("SELECT * FROM agent_steps ORDER BY first_seen DESC")
             elif agent_workflow_id == "unassigned":
                 cursor = self.db.execute(
-                    "SELECT * FROM agents WHERE agent_workflow_id IS NULL ORDER BY first_seen DESC"
+                    "SELECT * FROM agent_steps WHERE agent_workflow_id IS NULL ORDER BY first_seen DESC"
                 )
             else:
                 cursor = self.db.execute(
-                    "SELECT * FROM agents WHERE agent_workflow_id = ? ORDER BY first_seen DESC",
+                    "SELECT * FROM agent_steps WHERE agent_workflow_id = ? ORDER BY first_seen DESC",
                     (agent_workflow_id,)
                 )
-            return [self._deserialize_agent(row) for row in cursor.fetchall()]
+            return [self._deserialize_agent_step(row) for row in cursor.fetchall()]
 
-    def update_agent_info(
+    def update_agent_step_info(
         self,
-        agent_id: str,
+        agent_step_id: str,
         display_name: Optional[str] = None,
         description: Optional[str] = None,
         agent_workflow_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Update agent display name, description, and/or agent_workflow_id.
-        
+        """Update agent step display name, description, and/or agent_workflow_id.
+
         Args:
-            agent_id: The agent ID to update
-            display_name: Human-friendly name for the agent
-            description: Description of what the agent does
-            agent_workflow_id: Link this agent to an agent workflow for correlation
-            
+            agent_step_id: The agent step ID to update
+            display_name: Human-friendly name for the agent step
+            description: Description of what the agent step does
+            agent_workflow_id: Link this agent step to an agent workflow for correlation
+
         Returns:
-            Updated agent info dict, or None if agent not found
+            Updated agent step info dict, or None if agent step not found
         """
         with self._lock:
-            # Check agent exists
+            # Check agent step exists
             cursor = self.db.execute(
-                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+                "SELECT * FROM agent_steps WHERE agent_step_id = ?", (agent_step_id,)
             )
             row = cursor.fetchone()
             if not row:
@@ -986,54 +992,54 @@ class TraceStore:
                 params.append(agent_workflow_id)
 
             if updates:
-                params.append(agent_id)
+                params.append(agent_step_id)
                 self.db.execute(
-                    f"UPDATE agents SET {', '.join(updates)} WHERE agent_id = ?",  # nosec B608 - parameterized
+                    f"UPDATE agent_steps SET {', '.join(updates)} WHERE agent_step_id = ?",  # nosec B608 - parameterized
                     params
                 )
                 self.db.commit()
 
-            # Return updated agent info
+            # Return updated agent step info
             cursor = self.db.execute(
-                "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
+                "SELECT * FROM agent_steps WHERE agent_step_id = ?", (agent_step_id,)
             )
             row = cursor.fetchone()
             return {
-                'agent_id': row['agent_id'],
+                'agent_step_id': row['agent_step_id'],
                 'agent_workflow_id': row['agent_workflow_id'],
                 'display_name': row['display_name'] if 'display_name' in row.keys() else None,
                 'description': row['description'] if 'description' in row.keys() else None,
             }
 
     def get_agent_workflows(self) -> List[Dict[str, Any]]:
-        """Get all unique agent workflows with their agent counts.
+        """Get all unique agent workflows with their agent step counts.
 
         Returns:
-            List of agent workflow dicts with id, name, agent_count, and session_count.
-            Includes agent workflows from agents and sessions tables.
-            Includes "Unassigned" for agents without an agent workflow.
+            List of agent workflow dicts with id, name, agent_step_count, and session_count.
+            Includes agent workflows from agent_steps and sessions tables.
+            Includes "Unassigned" for agent steps without an agent workflow.
         """
         with self._lock:
             agent_workflows = []
 
-            # Get agent workflows with agent counts and session counts
+            # Get agent workflows with agent step counts and session counts
             cursor = self.db.execute("""
                 SELECT
                     agent_workflow_id,
                     COALESCE(MAX(agent_workflow_name), agent_workflow_id) as name,
-                    SUM(agent_count) as agent_count,
+                    SUM(agent_step_count) as agent_step_count,
                     SUM(session_count) as session_count
                 FROM (
-                    -- Agent workflows from agents
-                    SELECT agent_workflow_id, NULL as agent_workflow_name, COUNT(*) as agent_count, 0 as session_count
-                    FROM agents
+                    -- Agent workflows from agent_steps
+                    SELECT agent_workflow_id, NULL as agent_workflow_name, COUNT(*) as agent_step_count, 0 as session_count
+                    FROM agent_steps
                     WHERE agent_workflow_id IS NOT NULL
                     GROUP BY agent_workflow_id
 
                     UNION ALL
 
                     -- Agent workflows from sessions (actual agent sessions)
-                    SELECT agent_workflow_id, NULL as agent_workflow_name, 0 as agent_count, COUNT(*) as session_count
+                    SELECT agent_workflow_id, NULL as agent_workflow_name, 0 as agent_step_count, COUNT(*) as session_count
                     FROM sessions
                     WHERE agent_workflow_id IS NOT NULL
                     GROUP BY agent_workflow_id
@@ -1041,7 +1047,7 @@ class TraceStore:
                     UNION ALL
 
                     -- Agent workflows from analysis_sessions (for agent workflow names)
-                    SELECT agent_workflow_id, agent_workflow_name, 0 as agent_count, 0 as session_count
+                    SELECT agent_workflow_id, agent_workflow_name, 0 as agent_step_count, 0 as session_count
                     FROM analysis_sessions
                     WHERE agent_workflow_id IS NOT NULL
                     GROUP BY agent_workflow_id
@@ -1054,13 +1060,13 @@ class TraceStore:
                 agent_workflows.append({
                     "id": row["agent_workflow_id"],
                     "name": row["name"],
-                    "agent_count": row["agent_count"],
+                    "agent_step_count": row["agent_step_count"],
                     "session_count": row["session_count"]
                 })
 
-            # Get count of unassigned agents
+            # Get count of unassigned agent steps
             cursor = self.db.execute(
-                "SELECT COUNT(*) as count FROM agents WHERE agent_workflow_id IS NULL"
+                "SELECT COUNT(*) as count FROM agent_steps WHERE agent_workflow_id IS NULL"
             )
             unassigned_count = cursor.fetchone()["count"]
 
@@ -1068,7 +1074,7 @@ class TraceStore:
                 agent_workflows.append({
                     "id": None,
                     "name": "Unassigned",
-                    "agent_count": unassigned_count
+                    "agent_step_count": unassigned_count
                 })
 
             return agent_workflows
@@ -1099,9 +1105,9 @@ class TraceStore:
             avg_response_time = total_response_time / total_responses if total_responses > 0 else 0
             error_rate = (total_errors / self.total_events) * 100 if self.total_events > 0 else 0
 
-            # Count total agents
-            cursor = self.db.execute("SELECT COUNT(*) FROM agents")
-            total_agents = cursor.fetchone()[0]
+            # Count total agent steps
+            cursor = self.db.execute("SELECT COUNT(*) FROM agent_steps")
+            total_agent_steps = cursor.fetchone()[0]
 
             uptime_minutes = (datetime.now(timezone.utc) - self.start_time).total_seconds() / 60
 
@@ -1109,7 +1115,7 @@ class TraceStore:
                 "total_events": self.total_events,
                 "total_sessions": total_sessions,
                 "active_sessions": len(active_sessions),
-                "total_agents": total_agents,
+                "total_agent_steps": total_agent_steps,
                 "total_tokens": total_tokens,
                 "avg_response_time_ms": avg_response_time,
                 "error_rate": error_rate,
@@ -1126,7 +1132,7 @@ class TraceStore:
             timeout_seconds: Number of seconds of inactivity before marking complete
 
         Returns:
-            List of agent IDs that had sessions completed (for triggering analysis)
+            List of agent step IDs that had sessions completed (for triggering analysis)
         """
         with self._lock:
             now = datetime.now(timezone.utc)
@@ -1142,20 +1148,20 @@ class TraceStore:
 
             sessions_to_complete = [self._deserialize_session(row) for row in cursor.fetchall()]
 
-            # Track unique agent IDs that had sessions completed
-            completed_agent_ids: Set[str] = set()
+            # Track unique agent step IDs that had sessions completed
+            completed_agent_step_ids: Set[str] = set()
 
             # Mark each session as completed and save
             for session in sessions_to_complete:
                 session.mark_completed()
                 self._save_session(session)
-                completed_agent_ids.add(session.agent_id)
+                completed_agent_step_ids.add(session.agent_step_id)
 
             newly_completed = len(sessions_to_complete)
             if newly_completed > 0:
                 logger.info(f"Marked {newly_completed} sessions as completed after {timeout_seconds}s inactivity")
 
-            return list(completed_agent_ids)
+            return list(completed_agent_step_ids)
 
     # Analysis Session and Finding Methods
 
@@ -1199,7 +1205,7 @@ class TraceStore:
         agent_workflow_id: str,
         session_type: str,
         agent_workflow_name: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a new analysis session for an agent workflow/codebase."""
         with self._lock:
@@ -1208,17 +1214,17 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT INTO analysis_sessions (
-                    session_id, agent_workflow_id, agent_workflow_name, agent_id, session_type, status,
+                    session_id, agent_workflow_id, agent_workflow_name, agent_step_id, session_type, status,
                     created_at, findings_count
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (session_id, agent_workflow_id, agent_workflow_name, agent_id, session_type, 'IN_PROGRESS', created_at, 0))
+            """, (session_id, agent_workflow_id, agent_workflow_name, agent_step_id, session_type, 'IN_PROGRESS', created_at, 0))
             self.db.commit()
 
             return {
                 'session_id': session_id,
                 'agent_workflow_id': agent_workflow_id,
                 'agent_workflow_name': agent_workflow_name,
-                'agent_id': agent_id,
+                'agent_step_id': agent_step_id,
                 'session_type': session_type,
                 'status': 'IN_PROGRESS',
                 'created_at': now.isoformat(),
@@ -1480,65 +1486,65 @@ class TraceStore:
     # Security Checks Methods (persisted security assessment results)
     # =========================================================================
 
-    def get_completed_session_count(self, agent_id: str) -> int:
-        """Get the count of completed sessions for an agent.
+    def get_completed_session_count(self, agent_step_id: str) -> int:
+        """Get the count of completed sessions for an agent step.
 
         Used by the scheduler to determine if analysis should run.
         """
         with self._lock:
             cursor = self.db.execute(
-                "SELECT COUNT(*) as count FROM sessions WHERE agent_id = ? AND is_completed = 1",
-                (agent_id,)
+                "SELECT COUNT(*) as count FROM sessions WHERE agent_step_id = ? AND is_completed = 1",
+                (agent_step_id,)
             )
             row = cursor.fetchone()
             return row['count'] if row else 0
 
-    def get_agent_last_analyzed_count(self, agent_id: str) -> int:
+    def get_agent_step_last_analyzed_count(self, agent_step_id: str) -> int:
         """Get the completed session count at time of last analysis.
 
         Used by the scheduler to determine if new analysis should run.
         """
         with self._lock:
             cursor = self.db.execute(
-                "SELECT last_analyzed_session_count FROM agents WHERE agent_id = ?",
-                (agent_id,)
+                "SELECT last_analyzed_session_count FROM agent_steps WHERE agent_step_id = ?",
+                (agent_step_id,)
             )
             row = cursor.fetchone()
             return row['last_analyzed_session_count'] if row else 0
 
-    def update_agent_last_analyzed(self, agent_id: str, session_count: int) -> None:
-        """Update the last analyzed session count for an agent.
+    def update_agent_step_last_analyzed(self, agent_step_id: str, session_count: int) -> None:
+        """Update the last analyzed session count for an agent step.
 
         Called by the scheduler after analysis completes.
         """
         with self._lock:
             self.db.execute(
-                "UPDATE agents SET last_analyzed_session_count = ? WHERE agent_id = ?",
-                (session_count, agent_id)
+                "UPDATE agent_steps SET last_analyzed_session_count = ? WHERE agent_step_id = ?",
+                (session_count, agent_step_id)
             )
             self.db.commit()
-            logger.debug(f"Updated last_analyzed_session_count for {agent_id}: {session_count}")
+            logger.debug(f"Updated last_analyzed_session_count for {agent_step_id}: {session_count}")
 
-    def get_agents_needing_analysis(self, min_sessions: int = 5) -> List[str]:
-        """Get agent IDs that need analysis.
+    def get_agent_steps_needing_analysis(self, min_sessions: int = 5) -> List[str]:
+        """Get agent step IDs that need analysis.
 
-        Finds agents where:
+        Finds agent steps where:
         - Completed session count >= min_sessions
         - Completed session count > last_analyzed_session_count
 
-        Used for startup check to trigger analysis for agents missed during downtime.
+        Used for startup check to trigger analysis for agent steps missed during downtime.
         """
         with self._lock:
             cursor = self.db.execute("""
-                SELECT a.agent_id
-                FROM agents a
+                SELECT a.agent_step_id
+                FROM agent_steps a
                 WHERE (
                     SELECT COUNT(*) FROM sessions s
-                    WHERE s.agent_id = a.agent_id AND s.is_completed = 1
+                    WHERE s.agent_step_id = a.agent_step_id AND s.is_completed = 1
                 ) >= ?
                 AND (
                     SELECT COUNT(*) FROM sessions s
-                    WHERE s.agent_id = a.agent_id AND s.is_completed = 1
+                    WHERE s.agent_step_id = a.agent_step_id AND s.is_completed = 1
                 ) > COALESCE(a.last_analyzed_session_count, 0)
             """, (min_sessions,))
             return [row[0] for row in cursor.fetchall()]
@@ -1546,7 +1552,7 @@ class TraceStore:
     def store_security_check(
         self,
         check_id: str,
-        agent_id: str,
+        agent_step_id: str,
         analysis_session_id: str,
         category_id: str,
         check_type: str,
@@ -1565,13 +1571,13 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT INTO security_checks (
-                    check_id, agent_id, agent_workflow_id, analysis_session_id,
+                    check_id, agent_step_id, agent_workflow_id, analysis_session_id,
                     category_id, check_type, status, title, description,
                     value, evidence, recommendations, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 check_id,
-                agent_id,
+                agent_step_id,
                 agent_workflow_id,
                 analysis_session_id,
                 category_id,
@@ -1602,7 +1608,7 @@ class TraceStore:
 
     def get_security_checks(
         self,
-        agent_id: Optional[str] = None,
+        agent_step_id: Optional[str] = None,
         agent_workflow_id: Optional[str] = None,
         analysis_session_id: Optional[str] = None,
         category_id: Optional[str] = None,
@@ -1614,9 +1620,9 @@ class TraceStore:
             query = "SELECT * FROM security_checks WHERE 1=1"
             params = []
 
-            if agent_id:
-                query += " AND agent_id = ?"
-                params.append(agent_id)
+            if agent_step_id:
+                query += " AND agent_step_id = ?"
+                params.append(agent_step_id)
 
             if agent_workflow_id:
                 query += " AND agent_workflow_id = ?"
@@ -1640,30 +1646,30 @@ class TraceStore:
             cursor = self.db.execute(query, params)
             return [self._deserialize_security_check(row) for row in cursor.fetchall()]
 
-    def get_latest_security_checks_for_agent(self, agent_id: str) -> List[Dict[str, Any]]:
-        """Get the most recent security checks for an agent (from latest analysis session)."""
+    def get_latest_security_checks_for_agent_step(self, agent_step_id: str) -> List[Dict[str, Any]]:
+        """Get the most recent security checks for an agent step (from latest analysis session)."""
         with self._lock:
-            # Find the latest analysis session for this agent
+            # Find the latest analysis session for this agent step
             cursor = self.db.execute("""
                 SELECT DISTINCT analysis_session_id
                 FROM security_checks
-                WHERE agent_id = ?
+                WHERE agent_step_id = ?
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (agent_id,))
+            """, (agent_step_id,))
             row = cursor.fetchone()
             if not row:
                 return []
 
             analysis_session_id = row['analysis_session_id']
             return self.get_security_checks(
-                agent_id=agent_id,
+                agent_step_id=agent_step_id,
                 analysis_session_id=analysis_session_id
             )
 
     def persist_security_checks(
         self,
-        agent_id: str,
+        agent_step_id: str,
         security_report: Any,
         analysis_session_id: str,
         agent_workflow_id: Optional[str] = None,
@@ -1671,7 +1677,7 @@ class TraceStore:
         """Persist all security checks from a security report.
 
         Args:
-            agent_id: The agent being analyzed
+            agent_step_id: The agent step being analyzed
             security_report: SecurityReport containing assessment checks
             analysis_session_id: The analysis session ID for grouping
             agent_workflow_id: Optional workflow ID
@@ -1682,7 +1688,7 @@ class TraceStore:
         import uuid
         count = 0
 
-        logger.debug(f"[PERSIST] persist_security_checks called for agent {agent_id}")
+        logger.debug(f"[PERSIST] persist_security_checks called for agent step {agent_step_id}")
         logger.debug(f"[PERSIST] security_report type: {type(security_report)}")
 
         # Handle both SecurityReport object and dict
@@ -1694,7 +1700,7 @@ class TraceStore:
             logger.debug(f"[PERSIST] categories from dict.get: {categories}")
 
         if not categories:
-            logger.warning(f"[PERSIST] No categories found for agent {agent_id}, returning 0")
+            logger.warning(f"[PERSIST] No categories found for agent step {agent_step_id}, returning 0")
             return 0
 
         # Handle dict (Dict[str, AssessmentCategory]) vs list
@@ -1728,7 +1734,7 @@ class TraceStore:
 
                 self.store_security_check(
                     check_id=f"{analysis_session_id}_{check_id}",
-                    agent_id=agent_id,
+                    agent_step_id=agent_step_id,
                     analysis_session_id=analysis_session_id,
                     category_id=category_id,
                     check_type=check_type,
@@ -1748,7 +1754,7 @@ class TraceStore:
         """Convert a security_checks row to a dictionary."""
         return {
             'check_id': row['check_id'],
-            'agent_id': row['agent_id'],
+            'agent_step_id': row['agent_step_id'],
             'agent_workflow_id': row['agent_workflow_id'],
             'analysis_session_id': row['analysis_session_id'],
             'category_id': row['category_id'],
@@ -1762,37 +1768,37 @@ class TraceStore:
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
         }
 
-    def get_agent_security_summary(self, agent_id: str) -> Dict[str, Any]:
-        """Get a summary of security checks for an agent."""
+    def get_agent_step_security_summary(self, agent_step_id: str) -> Dict[str, Any]:
+        """Get a summary of security checks for an agent step."""
         with self._lock:
             # Count by status
             cursor = self.db.execute("""
                 SELECT status, COUNT(*) as count
                 FROM security_checks
-                WHERE agent_id = ?
+                WHERE agent_step_id = ?
                 GROUP BY status
-            """, (agent_id,))
+            """, (agent_step_id,))
             status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
 
             # Count by category
             cursor = self.db.execute("""
                 SELECT category_id, COUNT(*) as count
                 FROM security_checks
-                WHERE agent_id = ?
+                WHERE agent_step_id = ?
                 GROUP BY category_id
-            """, (agent_id,))
+            """, (agent_step_id,))
             category_counts = {row['category_id']: row['count'] for row in cursor.fetchall()}
 
             # Get total count
             cursor = self.db.execute("""
                 SELECT COUNT(*) as total
                 FROM security_checks
-                WHERE agent_id = ?
-            """, (agent_id,))
+                WHERE agent_step_id = ?
+            """, (agent_step_id,))
             total = cursor.fetchone()['total']
 
             return {
-                'agent_id': agent_id,
+                'agent_step_id': agent_step_id,
                 'total_checks': total,
                 'by_status': status_counts,
                 'by_category': category_counts,
@@ -1802,14 +1808,14 @@ class TraceStore:
 
     def store_behavioral_analysis(
         self,
-        agent_id: str,
+        agent_step_id: str,
         analysis_session_id: str,
         behavioral_result: Any,
     ) -> Dict[str, Any]:
         """Store behavioral analysis results.
 
         Args:
-            agent_id: The agent being analyzed
+            agent_step_id: The agent step being analyzed
             analysis_session_id: The analysis session ID
             behavioral_result: BehavioralAnalysisResult object or dict
 
@@ -1859,7 +1865,7 @@ class TraceStore:
 
             self.db.execute("""
                 INSERT OR REPLACE INTO behavioral_analysis (
-                    id, agent_id, analysis_session_id,
+                    id, agent_step_id, analysis_session_id,
                     stability_score, predictability_score, cluster_diversity,
                     num_clusters, num_outliers, total_sessions,
                     interpretation, clusters, outliers, centroid_distances,
@@ -1867,7 +1873,7 @@ class TraceStore:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 record_id,
-                agent_id,
+                agent_step_id,
                 analysis_session_id,
                 stability_score,
                 predictability_score,
@@ -1885,7 +1891,7 @@ class TraceStore:
 
             return {
                 'id': record_id,
-                'agent_id': agent_id,
+                'agent_step_id': agent_step_id,
                 'analysis_session_id': analysis_session_id,
                 'stability_score': stability_score,
                 'predictability_score': predictability_score,
@@ -1897,11 +1903,11 @@ class TraceStore:
                 'created_at': now.isoformat(),
             }
 
-    def get_latest_behavioral_analysis(self, agent_id: str) -> Optional[Dict[str, Any]]:
-        """Get the most recent behavioral analysis for an agent.
+    def get_latest_behavioral_analysis(self, agent_step_id: str) -> Optional[Dict[str, Any]]:
+        """Get the most recent behavioral analysis for an agent step.
 
         Args:
-            agent_id: The agent ID
+            agent_step_id: The agent step ID
 
         Returns:
             Dict with behavioral analysis data or None if not found
@@ -1909,10 +1915,10 @@ class TraceStore:
         with self._lock:
             cursor = self.db.execute("""
                 SELECT * FROM behavioral_analysis
-                WHERE agent_id = ?
+                WHERE agent_step_id = ?
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (agent_id,))
+            """, (agent_step_id,))
             row = cursor.fetchone()
 
             if not row:
@@ -1924,7 +1930,7 @@ class TraceStore:
         """Deserialize a behavioral_analysis row."""
         return {
             'id': row['id'],
-            'agent_id': row['agent_id'],
+            'agent_step_id': row['agent_step_id'],
             'analysis_session_id': row['analysis_session_id'],
             'stability_score': row['stability_score'],
             'predictability_score': row['predictability_score'],
