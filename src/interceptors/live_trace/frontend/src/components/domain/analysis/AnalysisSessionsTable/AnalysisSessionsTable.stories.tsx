@@ -166,7 +166,7 @@ export const InProgressSession: Story = {
 
 export const AgentExtractedFromSessionId: Story = {
   args: {
-    sessions: [mockSessions[0]], // Session without explicit agent_id, but has session_id
+    sessions: [mockSessions[0]], // Session without explicit agent_step_id, but has session_id
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {

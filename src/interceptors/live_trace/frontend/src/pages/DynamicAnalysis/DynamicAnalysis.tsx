@@ -7,7 +7,7 @@ import {
   fetchAnalysisSessions,
   fetchAgentWorkflowSecurityChecks,
   type AnalysisSession,
-  type AgentSecurityData,
+  type AgentStepSecurityData,
   type AgentWorkflowSecurityChecksSummary,
 } from '@api/endpoints/agentWorkflow';
 import type { SecurityAnalysis } from '@api/types/dashboard';
@@ -47,7 +47,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const { securityAnalysis } = useOutletContext<DynamicAnalysisContext>() || {};
 
   // State
-  const [agentsData, setAgentsData] = useState<AgentSecurityData[]>([]);
+  const [agentStepsData, setAgentStepsData] = useState<AgentStepSecurityData[]>([]);
   const [checksSummary, setChecksSummary] = useState<AgentWorkflowSecurityChecksSummary | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     setChecksLoading(true);
     try {
       const data = await fetchAgentWorkflowSecurityChecks(agentWorkflowId);
-      setAgentsData(data.agents);
+      setAgentStepsData(data.agent_steps);
       setChecksSummary(data.total_summary);
     } catch (err) {
       console.error('Failed to fetch security checks:', err);
@@ -202,8 +202,8 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
       <Section>
         <Section.Header>
           <Section.Title icon={<Shield size={16} />}>Latest Security Checks</Section.Title>
-          {checksSummary && checksSummary.agents_analyzed > 0 && (
-            <Badge variant="medium">{checksSummary.agents_analyzed} agents</Badge>
+          {checksSummary && checksSummary.agent_steps_analyzed > 0 && (
+            <Badge variant="medium">{checksSummary.agent_steps_analyzed} agent steps</Badge>
           )}
         </Section.Header>
         <Section.Content>
@@ -213,7 +213,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
             </LoaderContainer>
           ) : (
             <SecurityChecksExplorer
-              agents={agentsData}
+              agentSteps={agentStepsData}
               agentWorkflowId={agentWorkflowId || ''}
             />
           )}

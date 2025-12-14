@@ -851,7 +851,7 @@ interface FindingCardProps {
 interface Finding {
   finding_id: string;
   session_id: string;
-  agent_id: string;
+  agent_workflow_id: string;
   file_path: string;
   line_start?: number;
   line_end?: number;
@@ -897,7 +897,7 @@ interface FindingsTabProps {
 }
 
 interface FindingsSummary {
-  agent_id: string;
+  agent_workflow_id: string;
   total_findings: number;
   by_severity: Record<string, number>;
   by_status: Record<string, number>;
@@ -1134,9 +1134,9 @@ interface SessionsTableProps {
 interface SessionListItem {
   id: string;
   id_short: string;
-  agent_id: string;
-  agent_id_short: string | null;
-  workflow_id: string | null;
+  agent_step_id: string;
+  agent_step_id_short: string | null;
+  agent_workflow_id: string | null;
   created_at: string;
   last_activity: string;
   last_activity_relative: string;
