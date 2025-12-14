@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn } from 'storybook/test';
-import { AgentCard } from './AgentCard';
+import { AgentStepCard } from './AgentStepCard';
 
-const meta: Meta<typeof AgentCard> = {
-  title: 'Domain/Agents/AgentCard',
-  component: AgentCard,
+const meta: Meta<typeof AgentStepCard> = {
+  title: 'Domain/AgentSteps/AgentStepCard',
+  component: AgentStepCard,
   parameters: {
     layout: 'centered',
   },
@@ -51,7 +51,7 @@ const meta: Meta<typeof AgentCard> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentCard>;
+type Story = StoryObj<typeof AgentStepCard>;
 
 export const OK: Story = {
   args: {
@@ -70,7 +70,7 @@ export const OK: Story = {
   },
   play: async ({ canvas, args }) => {
     // Verify card renders
-    const card = canvas.getByTestId('agent-card');
+    const card = canvas.getByTestId('agent-step-card');
     await expect(card).toBeInTheDocument();
 
     // Verify agent name
@@ -121,7 +121,7 @@ export const Evaluating: Story = {
   },
   play: async ({ canvas }) => {
     // Verify card renders
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
 
     // Verify evaluating badge
     await expect(canvas.getByText('Evaluating')).toBeInTheDocument();
@@ -129,7 +129,7 @@ export const Evaluating: Story = {
     // Verify progress text
     await expect(canvas.getByText('3/5 sessions needed')).toBeInTheDocument();
 
-    // Verify agent name
+    // Verify agent step name
     await expect(canvas.getByText('MathAgent')).toBeInTheDocument();
   },
 };
@@ -149,7 +149,7 @@ export const WithErrors: Story = {
   },
   play: async ({ canvas }) => {
     // Verify card renders
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
 
     // Verify error count (should be red)
     await expect(canvas.getByText('3')).toBeInTheDocument();
@@ -175,7 +175,7 @@ export const ActionRequired: Story = {
   },
   play: async ({ canvas }) => {
     // Verify card renders
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
 
     // Verify action required message (no emoji prefix in component)
     await expect(canvas.getByText('Action required')).toBeInTheDocument();
@@ -206,7 +206,7 @@ export const MediumConfidence: Story = {
   },
   play: async ({ canvas }) => {
     // Verify card renders
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
 
     // Verify medium confidence badge
     await expect(canvas.getByText('medium')).toBeInTheDocument();
@@ -234,7 +234,7 @@ export const OKWithoutBehavioral: Story = {
   },
   play: async ({ canvas }) => {
     // Verify card renders
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
 
     // Verify OK badge
     await expect(canvas.getByText('OK')).toBeInTheDocument();
@@ -245,7 +245,7 @@ export const OKWithoutBehavioral: Story = {
   },
 };
 
-// Lifecycle Stage Stories - demonstrate different agent states
+// Lifecycle Stage Stories - demonstrate different agent step states
 export const LifecycleDev: Story = {
   args: {
     id: 'dev-agent-001',
@@ -259,7 +259,7 @@ export const LifecycleDev: Story = {
     minSessionsRequired: 5,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
     // Verify evaluating state with 0 sessions
     await expect(canvas.getByText('Evaluating')).toBeInTheDocument();
     await expect(canvas.getByText('0/5 sessions needed')).toBeInTheDocument();
@@ -279,7 +279,7 @@ export const LifecycleStatic: Story = {
     minSessionsRequired: 5,
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
     // Verify evaluating state at threshold
     await expect(canvas.getByText('Evaluating')).toBeInTheDocument();
     await expect(canvas.getByText('5/5 sessions needed')).toBeInTheDocument();
@@ -300,7 +300,7 @@ export const LifecycleDynamic: Story = {
     confidence: 'high',
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByTestId('agent-card')).toBeInTheDocument();
+    await expect(canvas.getByTestId('agent-step-card')).toBeInTheDocument();
     // Verify OK state with behavioral metrics
     await expect(canvas.getByText('OK')).toBeInTheDocument();
     await expect(canvas.getByText('88%')).toBeInTheDocument();

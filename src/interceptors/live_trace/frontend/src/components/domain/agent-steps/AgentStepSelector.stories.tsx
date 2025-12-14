@@ -2,23 +2,23 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent } from 'storybook/test';
 import styled from 'styled-components';
-import { AgentSelector, type Agent } from './AgentSelector';
+import { AgentStepSelector, type AgentStep } from './AgentStepSelector';
 
 const Container = styled.div`
   width: 260px;
   background: #0a0a0f;
 `;
 
-const mockAgents: Agent[] = [
+const mockAgentSteps: AgentStep[] = [
   { id: '1', name: 'CustomerAgent', initials: 'CA', status: 'online' },
   { id: '2', name: 'SupportBot', initials: 'SB', status: 'online' },
   { id: '3', name: 'DataAgent', initials: 'DA', status: 'offline' },
   { id: '4', name: 'ErrorAgent', initials: 'EA', status: 'error' },
 ];
 
-const meta: Meta<typeof AgentSelector> = {
-  title: 'Domain/Agents/AgentSelector',
-  component: AgentSelector,
+const meta: Meta<typeof AgentStepSelector> = {
+  title: 'Domain/AgentSteps/AgentStepSelector',
+  component: AgentStepSelector,
   tags: ['autodocs'],
   decorators: [
     (Story) => (
@@ -30,32 +30,32 @@ const meta: Meta<typeof AgentSelector> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentSelector>;
+type Story = StoryObj<typeof AgentStepSelector>;
 
 export const Default: Story = {
-  render: function AgentSelectorDefault() {
-    const [selected, setSelected] = useState(mockAgents[0]);
+  render: function AgentStepSelectorDefault() {
+    const [selected, setSelected] = useState(mockAgentSteps[0]);
     return (
-      <AgentSelector
-        agents={mockAgents}
-        selectedAgent={selected}
+      <AgentStepSelector
+        agentSteps={mockAgentSteps}
+        selectedAgentStep={selected}
         onSelect={setSelected}
       />
     );
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText('CustomerAgent')).toBeInTheDocument();
-    await expect(canvas.getByText('Active Agent')).toBeInTheDocument();
+    await expect(canvas.getByText('Active Agent Step')).toBeInTheDocument();
   },
 };
 
 export const WithStatuses: Story = {
-  render: function AgentSelectorWithStatuses() {
-    const [selected, setSelected] = useState(mockAgents[0]);
+  render: function AgentStepSelectorWithStatuses() {
+    const [selected, setSelected] = useState(mockAgentSteps[0]);
     return (
-      <AgentSelector
-        agents={mockAgents}
-        selectedAgent={selected}
+      <AgentStepSelector
+        agentSteps={mockAgentSteps}
+        selectedAgentStep={selected}
         onSelect={setSelected}
       />
     );
@@ -64,8 +64,8 @@ export const WithStatuses: Story = {
 
 export const Collapsed: Story = {
   args: {
-    agents: mockAgents,
-    selectedAgent: mockAgents[0],
+    agentSteps: mockAgentSteps,
+    selectedAgentStep: mockAgentSteps[0],
     onSelect: fn(),
     collapsed: true,
   },
@@ -73,8 +73,8 @@ export const Collapsed: Story = {
 
 export const SelectionInteraction: Story = {
   args: {
-    agents: mockAgents,
-    selectedAgent: mockAgents[0],
+    agentSteps: mockAgentSteps,
+    selectedAgentStep: mockAgentSteps[0],
     onSelect: fn(),
   },
   play: async ({ args, canvas }) => {
@@ -82,7 +82,7 @@ export const SelectionInteraction: Story = {
     const selectBox = canvas.getByRole('button');
     await userEvent.click(selectBox);
 
-    // Select a different agent
+    // Select a different agent step
     const supportBot = canvas.getByText('SupportBot');
     await userEvent.click(supportBot);
 
@@ -93,12 +93,12 @@ export const SelectionInteraction: Story = {
 };
 
 export const KeyboardNavigation: Story = {
-  render: function AgentSelectorKeyboard() {
-    const [selected, setSelected] = useState(mockAgents[0]);
+  render: function AgentStepSelectorKeyboard() {
+    const [selected, setSelected] = useState(mockAgentSteps[0]);
     return (
-      <AgentSelector
-        agents={mockAgents}
-        selectedAgent={selected}
+      <AgentStepSelector
+        agentSteps={mockAgentSteps}
+        selectedAgentStep={selected}
         onSelect={setSelected}
       />
     );

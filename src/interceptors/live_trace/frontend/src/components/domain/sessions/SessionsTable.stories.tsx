@@ -10,8 +10,8 @@ const mockSessions: SessionListItem[] = [
   {
     id: 'sess_abc123def456',
     id_short: 'sess_abc123d',
-    agent_id: 'agent_xyz789',
-    agent_id_short: 'agent_xyz78',
+    agent_step_id: 'agent_xyz789',
+    agent_step_id_short: 'agent_xyz78',
     agent_workflow_id: 'agent-workflow-001',
     created_at: new Date(Date.now() - 3600000).toISOString(),
     last_activity: new Date(Date.now() - 600000).toISOString(),
@@ -29,8 +29,8 @@ const mockSessions: SessionListItem[] = [
   {
     id: 'sess_def456ghi789',
     id_short: 'sess_def456g',
-    agent_id: 'agent_xyz789',
-    agent_id_short: 'agent_xyz78',
+    agent_step_id: 'agent_xyz789',
+    agent_step_id_short: 'agent_xyz78',
     agent_workflow_id: 'agent-workflow-001',
     created_at: new Date(Date.now() - 7200000).toISOString(),
     last_activity: new Date(Date.now() - 3600000).toISOString(),
@@ -48,8 +48,8 @@ const mockSessions: SessionListItem[] = [
   {
     id: 'sess_ghi789jkl012',
     id_short: 'sess_ghi789j',
-    agent_id: 'agent_abc123',
-    agent_id_short: 'agent_abc12',
+    agent_step_id: 'agent_abc123',
+    agent_step_id_short: 'agent_abc12',
     agent_workflow_id: 'agent-workflow-001',
     created_at: new Date(Date.now() - 86400000).toISOString(),
     last_activity: new Date(Date.now() - 82800000).toISOString(),
@@ -67,8 +67,8 @@ const mockSessions: SessionListItem[] = [
   {
     id: 'sess_jkl012mno345',
     id_short: 'sess_jkl012m',
-    agent_id: 'agent_def456',
-    agent_id_short: 'agent_def45',
+    agent_step_id: 'agent_def456',
+    agent_step_id_short: 'agent_def45',
     agent_workflow_id: 'agent-workflow-001',
     created_at: new Date(Date.now() - 172800000).toISOString(),
     last_activity: new Date(Date.now() - 172000000).toISOString(),
@@ -121,11 +121,11 @@ export const WithAgentColumn: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Agent')).toBeInTheDocument();
-    // Multiple sessions can have the same agent, so use getAllByText
-    // Component renders full agent_id, not agent_id_short
-    const agentCells = canvas.getAllByText('agent_xyz789');
-    await expect(agentCells.length).toBeGreaterThan(0);
+    await expect(canvas.getByText('Agent Step')).toBeInTheDocument();
+    // Multiple sessions can have the same agent step, so use getAllByText
+    // Component renders full agent_step_id, not agent_step_id_short
+    const agentStepCells = canvas.getAllByText('agent_xyz789');
+    await expect(agentStepCells.length).toBeGreaterThan(0);
   },
 };
 

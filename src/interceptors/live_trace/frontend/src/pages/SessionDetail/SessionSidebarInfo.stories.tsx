@@ -32,7 +32,7 @@ type Story = StoryObj<typeof SessionSidebarInfo>;
 export const Default: Story = {
   args: {
     sessionId: 'sess_a7f3b291c4e8d5f6',
-    agentId: 'agent_8c2e1f4a9b3d7e6c',
+    agentStepId: 'agent_8c2e1f4a9b3d7e6c',
     isActive: true,
     totalTokens: 15730,
     messageCount: 24,
@@ -51,7 +51,7 @@ export const Default: Story = {
 export const CompletedWithErrors: Story = {
   args: {
     sessionId: 'sess_b8f4c392d5e9a6g7',
-    agentId: 'agent_9d3f2g5b0c4e8h7i',
+    agentStepId: 'agent_9d3f2g5b0c4e8h7i',
     isActive: false,
     totalTokens: 28450,
     messageCount: 42,
@@ -70,7 +70,7 @@ export const CompletedWithErrors: Story = {
 export const LongRunningSession: Story = {
   args: {
     sessionId: 'sess_c9g5d4e3f6h7i8j9',
-    agentId: 'agent_0e4g3h6c1d5f9i8j',
+    agentStepId: 'agent_0e4g3h6c1d5f9i8j',
     isActive: true,
     totalTokens: 156000,
     messageCount: 180,
@@ -99,7 +99,7 @@ export const MinimalData: Story = {
 export const WideLayout: Story = {
   args: {
     sessionId: 'sess_a7f3b291c4e8d5f6',
-    agentId: 'agent_8c2e1f4a9b3d7e6c',
+    agentStepId: 'agent_8c2e1f4a9b3d7e6c',
     isActive: true,
     totalTokens: 15730,
     messageCount: 24,

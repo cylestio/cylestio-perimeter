@@ -1,12 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent } from 'storybook/test';
 
-import type { APIAgent } from '@api/types/dashboard';
+import type { APIAgentStep } from '@api/types/dashboard';
 
-import { AgentListItem } from './AgentListItem';
+import { AgentStepListItem } from './AgentStepListItem';
 
-// Mock agent data
-const mockAgentOk: APIAgent = {
+// Mock agent step data
+const mockAgentStepOk: APIAgentStep = {
   id: 'prompt-a8b9ef35309f',
   id_short: 'a8b9ef35',
   agent_workflow_id: 'test-agent-workflow-123',
@@ -26,15 +26,15 @@ const mockAgentOk: APIAgent = {
   min_sessions_required: 5,
 };
 
-const mockAgentEvaluating: APIAgent = {
-  ...mockAgentOk,
+const mockAgentStepEvaluating: APIAgentStep = {
+  ...mockAgentStepOk,
   id: 'prompt-eval1234abcd',
   risk_status: 'evaluating',
   current_sessions: 2,
 };
 
-const mockAgentRequiresAction: APIAgent = {
-  ...mockAgentOk,
+const mockAgentStepRequiresAction: APIAgentStep = {
+  ...mockAgentStepOk,
   id: 'prompt-action5678efgh',
   analysis_summary: {
     action_required: true,
@@ -51,9 +51,9 @@ const mockAgentRequiresAction: APIAgent = {
   },
 };
 
-const meta: Meta<typeof AgentListItem> = {
-  title: 'Domain/Agents/AgentListItem',
-  component: AgentListItem,
+const meta: Meta<typeof AgentStepListItem> = {
+  title: 'Domain/AgentSteps/AgentStepListItem',
+  component: AgentStepListItem,
   tags: ['autodocs'],
   decorators: [
     (Story) => (
@@ -65,11 +65,11 @@ const meta: Meta<typeof AgentListItem> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentListItem>;
+type Story = StoryObj<typeof AgentStepListItem>;
 
 export const StatusOk: Story = {
   args: {
-    agent: mockAgentOk,
+    agentStep: mockAgentStepOk,
     onClick: fn(),
   },
   play: async ({ canvas }) => {
@@ -81,7 +81,7 @@ export const StatusOk: Story = {
 
 export const StatusEvaluating: Story = {
   args: {
-    agent: mockAgentEvaluating,
+    agentStep: mockAgentStepEvaluating,
     onClick: fn(),
   },
   play: async ({ canvas }) => {
@@ -91,7 +91,7 @@ export const StatusEvaluating: Story = {
 
 export const StatusRequiresAction: Story = {
   args: {
-    agent: mockAgentRequiresAction,
+    agentStep: mockAgentStepRequiresAction,
     onClick: fn(),
   },
   play: async ({ canvas }) => {
@@ -101,7 +101,7 @@ export const StatusRequiresAction: Story = {
 
 export const Active: Story = {
   args: {
-    agent: mockAgentOk,
+    agentStep: mockAgentStepOk,
     active: true,
     onClick: fn(),
   },
@@ -112,7 +112,7 @@ export const Active: Story = {
 
 export const Collapsed: Story = {
   args: {
-    agent: mockAgentOk,
+    agentStep: mockAgentStepOk,
     collapsed: true,
     onClick: fn(),
   },
@@ -132,7 +132,7 @@ export const Collapsed: Story = {
 
 export const ClickInteraction: Story = {
   args: {
-    agent: mockAgentOk,
+    agentStep: mockAgentStepOk,
     onClick: fn(),
   },
   play: async ({ args, canvas }) => {
