@@ -57,8 +57,8 @@ const mockSessionsData = {
   sessions: [
     {
       session_id: 'sess_001',
-      agent_id: 'agent_001',
-      agent_name: 'Customer Support Bot',
+      agent_step_id: 'agent_001',
+      agent_step_name: 'Customer Support Bot',
       start_time: new Date(Date.now() - 3600000).toISOString(),
       duration_minutes: 45,
       errors: 1,
@@ -67,8 +67,8 @@ const mockSessionsData = {
     },
     {
       session_id: 'sess_002',
-      agent_id: 'agent_002',
-      agent_name: 'Code Assistant',
+      agent_step_id: 'agent_002',
+      agent_step_name: 'Code Assistant',
       start_time: new Date(Date.now() - 1800000).toISOString(),
       duration_minutes: 30,
       errors: 0,

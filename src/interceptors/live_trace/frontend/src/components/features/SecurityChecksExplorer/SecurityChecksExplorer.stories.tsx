@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 
-import type { AgentSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
+import type { AgentStepSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
 
 import { SecurityChecksExplorer } from './SecurityChecksExplorer';
 
@@ -9,7 +9,7 @@ import { SecurityChecksExplorer } from './SecurityChecksExplorer';
 const mockChecks: AgentWorkflowSecurityCheck[] = [
   {
     check_id: 'check_001',
-    agent_id: 'agent_abc123',
+    agent_step_id: 'agent_abc123',
     agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'RESOURCE_MANAGEMENT',
@@ -21,7 +21,7 @@ const mockChecks: AgentWorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_002',
-    agent_id: 'agent_abc123',
+    agent_step_id: 'agent_abc123',
     agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'RESOURCE_MANAGEMENT',
@@ -33,7 +33,7 @@ const mockChecks: AgentWorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_003',
-    agent_id: 'agent_abc123',
+    agent_step_id: 'agent_abc123',
     agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'ENVIRONMENT',
@@ -44,7 +44,7 @@ const mockChecks: AgentWorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_004',
-    agent_id: 'agent_abc123',
+    agent_step_id: 'agent_abc123',
     agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'BEHAVIORAL',
@@ -56,7 +56,7 @@ const mockChecks: AgentWorkflowSecurityCheck[] = [
   },
   {
     check_id: 'check_005',
-    agent_id: 'agent_abc123',
+    agent_step_id: 'agent_abc123',
     agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'BEHAVIORAL',
@@ -68,9 +68,9 @@ const mockChecks: AgentWorkflowSecurityCheck[] = [
   },
 ];
 
-const mockAgent: AgentSecurityData = {
-  agent_id: 'agent_abc123def456',
-  agent_name: 'math-agent',
+const mockAgentStep: AgentStepSecurityData = {
+  agent_step_id: 'agent_abc123def456',
+  agent_step_name: 'math-agent',
   checks: mockChecks,
   latest_check_at: new Date(Date.now() - 300 * 1000).toISOString(), // 5 minutes ago
   summary: {
@@ -81,14 +81,14 @@ const mockAgent: AgentSecurityData = {
   },
 };
 
-const mockAgentWithManyChecks: AgentSecurityData = {
-  agent_id: 'agent_xyz789',
-  agent_name: 'assistant-v2',
+const mockAgentStepWithManyChecks: AgentStepSecurityData = {
+  agent_step_id: 'agent_xyz789',
+  agent_step_name: 'assistant-v2',
   checks: [
-    ...mockChecks.map((c, i) => ({ ...c, check_id: `check_1${i}`, agent_id: 'agent_xyz789' })),
+    ...mockChecks.map((c, i) => ({ ...c, check_id: `check_1${i}`, agent_step_id: 'agent_xyz789' })),
     {
       check_id: 'check_106',
-      agent_id: 'agent_xyz789',
+      agent_step_id: 'agent_xyz789',
       agent_workflow_id: 'agent-workflow-001',
       analysis_session_id: 'session_002',
       category_id: 'ENVIRONMENT',
@@ -123,15 +123,15 @@ const meta: Meta<typeof SecurityChecksExplorer> = {
 export default meta;
 type Story = StoryObj<typeof SecurityChecksExplorer>;
 
-export const SingleAgent: Story = {
+export const SingleAgentStep: Story = {
   args: {
-    agents: [mockAgent],
+    agentSteps: [mockAgentStep],
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByTestId('security-checks-explorer')).toBeInTheDocument();
-    // Shows agent_id not agent_name
+    // Shows agent_step_id not agent_step_name
     await expect(canvas.getByText('agent_abc123def456')).toBeInTheDocument();
     await expect(canvas.getByText('3 passed')).toBeInTheDocument();
     await expect(canvas.getByText('1 warnings')).toBeInTheDocument();
@@ -139,29 +139,29 @@ export const SingleAgent: Story = {
   },
 };
 
-export const MultipleAgents: Story = {
+export const MultipleAgentSteps: Story = {
   args: {
-    agents: [mockAgent, mockAgentWithManyChecks],
+    agentSteps: [mockAgentStep, mockAgentStepWithManyChecks],
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component now shows "Agent X of Y"
-    await expect(canvas.getByText('Agent 1 of 2')).toBeInTheDocument();
+    // Component now shows "Agent Step X of Y"
+    await expect(canvas.getByText('Agent Step 1 of 2')).toBeInTheDocument();
     await expect(canvas.getByText('agent_abc123def456')).toBeInTheDocument();
 
-    // Navigate to next agent
-    const nextButton = canvas.getByLabelText('Next agent');
+    // Navigate to next agent step
+    const nextButton = canvas.getByLabelText('Next agent step');
     await userEvent.click(nextButton);
 
-    await expect(canvas.getByText('Agent 2 of 2')).toBeInTheDocument();
+    await expect(canvas.getByText('Agent Step 2 of 2')).toBeInTheDocument();
     await expect(canvas.getByText('agent_xyz789')).toBeInTheDocument();
   },
 };
 
 export const WithCategories: Story = {
   args: {
-    agents: [mockAgent],
+    agentSteps: [mockAgentStep],
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
@@ -174,7 +174,7 @@ export const WithCategories: Story = {
 
 export const WithTimestamp: Story = {
   args: {
-    agents: [mockAgent],
+    agentSteps: [mockAgentStep],
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
@@ -186,7 +186,7 @@ export const WithTimestamp: Story = {
 
 export const Empty: Story = {
   args: {
-    agents: [],
+    agentSteps: [],
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
@@ -195,11 +195,11 @@ export const Empty: Story = {
   },
 };
 
-export const AgentWithNoChecks: Story = {
+export const AgentStepWithNoChecks: Story = {
   args: {
-    agents: [{
-      agent_id: 'agent_empty',
-      agent_name: 'empty-agent',
+    agentSteps: [{
+      agent_step_id: 'agent_empty',
+      agent_step_name: 'empty-agent',
       checks: [],
       summary: { total: 0, passed: 0, warnings: 0, critical: 0 },
     }],
@@ -207,16 +207,16 @@ export const AgentWithNoChecks: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component says "agent" instead of "system prompt"
-    await expect(canvas.getByText('No checks for this agent yet.')).toBeInTheDocument();
+    // Component says "agent step" instead of "system prompt"
+    await expect(canvas.getByText('No checks for this agent step yet.')).toBeInTheDocument();
   },
 };
 
 export const AllPassedChecks: Story = {
   args: {
-    agents: [{
-      agent_id: 'agent_perfect',
-      agent_name: 'perfect-agent',
+    agentSteps: [{
+      agent_step_id: 'agent_perfect',
+      agent_step_name: 'perfect-agent',
       checks: mockChecks.filter(c => c.status === 'passed').map((c, i) => ({
         ...c,
         check_id: `perfect_${i}`,

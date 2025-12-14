@@ -21,7 +21,7 @@ const mockSessions: AnalysisSession[] = [
     session_id: 'analysis_ant-assistant-v2_20251211_085500',
     agent_workflow_id: 'agent-workflow-001',
     agent_workflow_name: 'math-agent-workflow',
-    agent_id: 'agent_xyz789',
+    agent_step_id: 'agent_xyz789',
     session_type: 'DYNAMIC',
     status: 'IN_PROGRESS',
     created_at: new Date(Date.now() - 300000).toISOString(), // 5 min ago
