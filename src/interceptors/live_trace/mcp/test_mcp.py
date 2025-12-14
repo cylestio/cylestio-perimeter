@@ -491,12 +491,12 @@ class TestToolHandlers:
         
         assert result["finding"]["status"] == "FIXED"
     
-    def test_get_agents_empty(self, store):
-        """Test get_agents with no agents."""
-        result = call_tool("get_agents", {}, store)
+    def test_get_agent_steps_empty(self, store):
+        """Test get_agent_steps with no agent steps."""
+        result = call_tool("get_agent_steps", {}, store)
         
         assert result["total_count"] == 0
-        assert result["agents"] == []
+        assert result["agent_steps"] == []
     
     def test_handler_registry_complete(self):
         """Test that all MCP tools have handlers registered."""

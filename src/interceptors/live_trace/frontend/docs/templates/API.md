@@ -36,7 +36,7 @@ export interface APIAgent {
 }
 
 export interface DashboardResponse {
-  agents: APIAgent[];
+  agent_steps: APIAgentStep[];
   sessions: APISession[];
   last_updated: string;
 }
@@ -45,7 +45,7 @@ export interface DashboardResponse {
 Export from `src/api/types/index.ts`:
 
 ```typescript
-export type { APIAgent, DashboardResponse } from './dashboard';
+export type { APIAgentStep, DashboardResponse } from './dashboard';
 ```
 
 ---
@@ -93,15 +93,15 @@ export { fetchDashboard } from './endpoints';
 
 ```typescript
 import { fetchDashboard } from '@api';
-import type { APIAgent } from '@api';
+import type { APIAgentStep } from '@api';
 
-const [agents, setAgents] = useState<APIAgent[]>([]);
+const [agentSteps, setAgentSteps] = useState<APIAgentStep[]>([]);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState<string | null>(null);
 
 useEffect(() => {
   fetchDashboard()
-    .then(data => setAgents(data.agents))
+    .then(data => setAgentSteps(data.agent_steps))
     .catch(err => setError(err instanceof Error ? err.message : 'Failed'))
     .finally(() => setLoading(false));
 }, []);
@@ -116,7 +116,7 @@ Always handle errors and provide user feedback:
 ```typescript
 try {
   const data = await fetchDashboard();
-  setAgents(data.agents);
+  setAgentSteps(data.agent_steps);
 } catch (err) {
   const message = err instanceof Error ? err.message : 'Failed to load data';
   setError(message);

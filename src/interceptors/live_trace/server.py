@@ -120,14 +120,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting stats: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/agents")
-    async def api_agents():
-        """Get all agents as JSON."""
+    @app.get("/api/agent-steps")
+    async def api_agent_steps():
+        """Get all agent steps as JSON."""
         try:
             data = await insights.get_dashboard_data()
-            return JSONResponse(data["agents"])
+            return JSONResponse(data["agent_steps"])
         except Exception as e:
-            logger.error(f"Error getting agents: {e}")
+            logger.error(f"Error getting agent steps: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/sessions")

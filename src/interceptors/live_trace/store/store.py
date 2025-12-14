@@ -603,14 +603,6 @@ class TraceStore:
 
             # Ensure we have session and agent_step data
             if effective_session_id:
-                # Load existing session or create new one
-                session = self.get_session(effective_session_id)
-                if not session:
-                    session = SessionData(effective_session_id, agent_step_id, agent_workflow_id)
-                elif agent_workflow_id and not session.agent_workflow_id:
-                    # Update agent_workflow_id if not set (allows late binding)
-                    session.agent_workflow_id = agent_workflow_id
-
                 # Load existing agent_step or create new one
                 agent_step = self.get_agent_step(agent_step_id)
                 if not agent_step:
@@ -618,6 +610,18 @@ class TraceStore:
                 elif agent_workflow_id and not agent_step.agent_workflow_id:
                     # Update agent_workflow_id if not set (allows late binding)
                     agent_step.agent_workflow_id = agent_workflow_id
+                
+                # If agent_workflow_id wasn't provided, try to get it from the agent step
+                if not agent_workflow_id and agent_step.agent_workflow_id:
+                    agent_workflow_id = agent_step.agent_workflow_id
+                
+                # Load existing session or create new one
+                session = self.get_session(effective_session_id)
+                if not session:
+                    session = SessionData(effective_session_id, agent_step_id, agent_workflow_id)
+                elif agent_workflow_id and not session.agent_workflow_id:
+                    # Update agent_workflow_id if not set (allows late binding)
+                    session.agent_workflow_id = agent_workflow_id
 
                 # Add session to agent_step if not already tracked
                 if effective_session_id not in agent_step.sessions:
@@ -997,6 +1001,14 @@ class TraceStore:
                     f"UPDATE agent_steps SET {', '.join(updates)} WHERE agent_step_id = ?",  # nosec B608 - parameterized
                     params
                 )
+                
+                # If agent_workflow_id was updated, also update all sessions for this agent step
+                if agent_workflow_id is not None:
+                    self.db.execute(
+                        "UPDATE sessions SET agent_workflow_id = ? WHERE agent_step_id = ?",
+                        (agent_workflow_id, agent_step_id)
+                    )
+                
                 self.db.commit()
 
             # Return updated agent step info

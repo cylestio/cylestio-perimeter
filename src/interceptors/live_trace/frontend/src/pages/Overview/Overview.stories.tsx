@@ -21,7 +21,7 @@ type Story = StoryObj<typeof Overview>;
 
 // Mock dashboard data
 const mockDashboardData = {
-  agents: [
+  agent_steps: [
     {
       id: 'agent_001',
       id_short: 'agent_001',
@@ -119,7 +119,7 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Overview')).toBeInTheDocument();
-    await expect(await canvas.findByText('Agents')).toBeInTheDocument();
+    await expect(await canvas.findByText('Agent Steps')).toBeInTheDocument();
     await expect(await canvas.findByText('Total Sessions')).toBeInTheDocument();
   },
 };
@@ -128,7 +128,7 @@ export const Empty: Story = {
   decorators: [
     (Story) => {
       window.fetch = createMockFetch(
-        { agents: [], sessions_count: 0, last_updated: new Date().toISOString() },
+        { agent_steps: [], sessions_count: 0, last_updated: new Date().toISOString() },
         { sessions: [], total: 0 }
       ) as typeof fetch;
       return (
@@ -150,7 +150,7 @@ export const WithErrors: Story = {
     (Story) => {
       const dataWithErrors = {
         ...mockDashboardData,
-        agents: mockDashboardData.agents.map((a, i) => ({
+        agent_steps: mockDashboardData.agent_steps.map((a, i) => ({
           ...a,
           total_errors: i === 0 ? 15 : 8,
         })),

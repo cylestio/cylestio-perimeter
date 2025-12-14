@@ -10,23 +10,23 @@ class MockStore:
     """Mock store for testing SessionMonitor."""
 
     def __init__(self):
-        self.completed_agent_ids = []
+        self.completed_agent_step_ids = []
         self.check_count = 0
 
     def check_and_complete_sessions(self, timeout_seconds: int):
-        """Return the configured completed agent IDs and track calls."""
+        """Return the configured completed agent step IDs and track calls."""
         self.check_count += 1
-        return self.completed_agent_ids
+        return self.completed_agent_step_ids
 
 
 class MockAnalysisRunner:
     """Mock analysis runner for testing SessionMonitor."""
 
     def __init__(self):
-        self.triggered_agents = []
+        self.triggered_agent_steps = []
 
-    def trigger(self, agent_id: str) -> None:
-        self.triggered_agents.append(agent_id)
+    def trigger(self, agent_step_id: str) -> None:
+        self.triggered_agent_steps.append(agent_step_id)
 
     async def check_pending_on_startup(self):
         return []
@@ -54,10 +54,10 @@ class TestSessionMonitor:
         monitor.stop()
         assert monitor.is_running is False
 
-    def test_triggers_analysis_for_completed_agents(self):
-        """Test that monitor triggers analysis for agents with completed sessions."""
+    def test_triggers_analysis_for_completed_agent_steps(self):
+        """Test that monitor triggers analysis for agent steps with completed sessions."""
         store = MockStore()
-        store.completed_agent_ids = ["agent-1", "agent-2"]
+        store.completed_agent_step_ids = ["agent-step-1", "agent-step-2"]
         runner = MockAnalysisRunner()
         config = {"session_completion_timeout": 30, "completion_check_interval": 0.1}
 
@@ -69,14 +69,14 @@ class TestSessionMonitor:
 
         monitor.stop()
 
-        # Should have triggered both agents
-        assert "agent-1" in runner.triggered_agents
-        assert "agent-2" in runner.triggered_agents
+        # Should have triggered both agent steps
+        assert "agent-step-1" in runner.triggered_agent_steps
+        assert "agent-step-2" in runner.triggered_agent_steps
 
     def test_does_not_trigger_when_no_completed_sessions(self):
         """Test that monitor doesn't trigger when no sessions completed."""
         store = MockStore()
-        store.completed_agent_ids = []  # No completed agents
+        store.completed_agent_step_ids = []  # No completed agent steps
         runner = MockAnalysisRunner()
         config = {"session_completion_timeout": 30, "completion_check_interval": 0.1}
 
@@ -88,8 +88,8 @@ class TestSessionMonitor:
 
         monitor.stop()
 
-        # Should not have triggered any agents
-        assert len(runner.triggered_agents) == 0
+        # Should not have triggered any agent steps
+        assert len(runner.triggered_agent_steps) == 0
 
     def test_uses_config_values(self):
         """Test that monitor uses configuration values."""
@@ -170,7 +170,7 @@ class TestSessionMonitorEdgeCases:
     def test_handles_runner_exception(self):
         """Test that monitor handles exceptions from runner gracefully."""
         store = MockStore()
-        store.completed_agent_ids = ["agent-1"]
+        store.completed_agent_step_ids = ["agent-step-1"]
         runner = MagicMock()
         runner.trigger.side_effect = Exception("Runner error")
         config = {"session_completion_timeout": 30, "completion_check_interval": 0.1}

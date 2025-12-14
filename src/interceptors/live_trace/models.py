@@ -45,7 +45,7 @@ class Finding(BaseModel):
     """Full model for a security finding (storage/retrieval)."""
     finding_id: str
     session_id: str
-    agent_id: str
+    agent_workflow_id: str
     file_path: str
     line_start: Optional[int] = None
     line_end: Optional[int] = None
@@ -86,8 +86,8 @@ class FindingUpdate(BaseModel):
 class AnalysisSession(BaseModel):
     """Analysis session model."""
     session_id: str
-    agent_id: str
-    agent_name: Optional[str] = None
+    agent_workflow_id: str
+    agent_workflow_name: Optional[str] = None
     session_type: SessionType
     status: SessionStatus
     created_at: str
@@ -101,8 +101,8 @@ class AnalysisSession(BaseModel):
 
 class AnalysisSessionCreate(BaseModel):
     """Input model for creating an analysis session."""
-    agent_id: str
-    agent_name: Optional[str] = None
+    agent_workflow_id: str
+    agent_workflow_name: Optional[str] = None
     session_type: SessionType = SessionType.STATIC
 
 

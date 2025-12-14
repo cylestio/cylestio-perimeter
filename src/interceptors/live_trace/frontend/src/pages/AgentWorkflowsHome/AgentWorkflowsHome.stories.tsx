@@ -18,7 +18,7 @@ export default meta;
 type Story = StoryObj<typeof AgentWorkflowsHome>;
 
 // Mock fetch for agent workflows and dashboard
-const createMockFetch = (agentWorkflows: unknown[], unassignedAgents: unknown[]) => {
+const createMockFetch = (agentWorkflows: unknown[], unassignedAgentSteps: unknown[]) => {
   return (url: string) => {
     if (url === '/api/agent-workflows') {
       return Promise.resolve({
@@ -30,7 +30,7 @@ const createMockFetch = (agentWorkflows: unknown[], unassignedAgents: unknown[])
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
-          agents: unassignedAgents,
+          agent_steps: unassignedAgentSteps,
           sessions_count: 0,
           latest_session: null,
           last_updated: new Date().toISOString(),
@@ -123,7 +123,7 @@ export const WithTwelveAgentWorkflows: Story = {
   },
 };
 
-export const WithUnassignedAgents: Story = {
+export const WithUnassignedAgentSteps: Story = {
   decorators: [
     (Story) => {
       // Mock fetch with some agent workflows and unassigned agents
@@ -138,14 +138,14 @@ export const WithUnassignedAgents: Story = {
     const canvas = within(canvasElement);
     // Wait for loading and verify both sections appear
     await expect(await canvas.findByText('E-Commerce Platform')).toBeInTheDocument();
-    await expect(canvas.getByText('Unassigned Agents')).toBeInTheDocument();
+    await expect(canvas.getByText('Unassigned Agent Steps')).toBeInTheDocument();
   },
 };
 
-export const OnlyUnassignedAgents: Story = {
+export const OnlyUnassignedAgentSteps: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch with no agent workflows but some unassigned agents
+      // Mock fetch with no agent workflows but some unassigned agent steps
       window.fetch = createMockFetch([], generateUnassignedAgents(3)) as typeof fetch;
       return <Story />;
     },
@@ -154,6 +154,6 @@ export const OnlyUnassignedAgents: Story = {
     const canvas = within(canvasElement);
     // Should show empty agent workflows and unassigned section
     await expect(await canvas.findByText('No agent workflows yet')).toBeInTheDocument();
-    await expect(canvas.getByText('Unassigned Agents')).toBeInTheDocument();
+    await expect(canvas.getByText('Unassigned Agent Steps')).toBeInTheDocument();
   },
 };

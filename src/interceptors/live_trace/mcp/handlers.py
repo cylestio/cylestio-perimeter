@@ -357,7 +357,7 @@ def handle_get_agent_workflow_correlation(args: Dict[str, Any], store: Any) -> D
     return {
         "agent_workflow_id": agent_workflow_id,
         "has_static_data": len(findings) > 0,
-        "has_dynamic_data": len(agents) > 0,
+        "has_dynamic_data": len(agent_steps) > 0,
         "static_findings": findings_summary,
         "static_findings_count": len(findings),
         "dynamic_tools_used": list(dynamic_tools_used),

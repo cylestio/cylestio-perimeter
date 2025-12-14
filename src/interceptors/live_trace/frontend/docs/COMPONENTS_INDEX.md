@@ -1533,10 +1533,10 @@ interface Agent {
   status: 'online' | 'offline' | 'error';
 }
 
-interface AgentSelectorProps {
-  agents: Agent[];
-  selectedAgent: Agent;
-  onSelect: (agent: Agent) => void;
+interface AgentStepSelectorProps {
+  agent_steps: AgentStep[];
+  selectedAgentStep: AgentStep;
+  onSelect: (agentStep: AgentStep) => void;
   collapsed?: boolean;
 }
 ```
