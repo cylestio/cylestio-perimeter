@@ -38,9 +38,13 @@ const transformAgent = (agent: APIAgent) => ({
   currentSessions: agent.current_sessions,
   minSessionsRequired: agent.min_sessions_required,
   hasCriticalFinding: agent.analysis_summary?.action_required ?? false,
-  // Behavioral metrics (when evaluation complete)
-  stability: agent.analysis_summary?.behavioral?.stability,
-  predictability: agent.analysis_summary?.behavioral?.predictability,
+  // Behavioral metrics (when evaluation complete) - convert 0-1 to 0-100 scale
+  stability: agent.analysis_summary?.behavioral?.stability !== undefined
+    ? Math.round(agent.analysis_summary.behavioral.stability * 100)
+    : undefined,
+  predictability: agent.analysis_summary?.behavioral?.predictability !== undefined
+    ? Math.round(agent.analysis_summary.behavioral.predictability * 100)
+    : undefined,
   confidence: agent.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
   failedChecks: agent.analysis_summary?.failed_checks ?? 0,
   warnings: agent.analysis_summary?.warnings ?? 0,

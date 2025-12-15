@@ -129,43 +129,70 @@ export const AlertText = styled.span`
   color: ${({ theme }) => theme.colors.white90};
 `;
 
-// Compact Inline Stats Bar (neutral colors)
+// Stats Bar with Groups
 export const StatsBar = styled.div`
   display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[4]};
-  padding: ${({ theme }) => theme.spacing[4]};
+  align-items: stretch;
   background: ${({ theme }) => theme.colors.surface};
   border: 1px solid ${({ theme }) => theme.colors.borderMedium};
   border-radius: ${({ theme }) => theme.radii.md};
-  flex-wrap: wrap;
+  overflow: hidden;
+`;
+
+export const StatGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  flex: 1;
+  min-width: 0;
+
+  &:not(:last-child) {
+    border-right: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  }
+`;
+
+export const StatGroupLabel = styled.span`
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white30};
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const StatGroupItems = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: ${({ theme }) => theme.spacing[3]};
+  flex: 1;
 `;
 
 export const StatItem = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing[1]};
-  min-width: 60px;
+  gap: 2px;
+  cursor: help;
 `;
 
 export const StatValue = styled.span`
   font-family: ${({ theme }) => theme.typography.fontMono};
-  font-size: ${({ theme }) => theme.typography.textLg};
+  font-size: ${({ theme }) => theme.typography.textMd};
   font-weight: ${({ theme }) => theme.typography.weightBold};
   color: ${({ theme }) => theme.colors.white};
 `;
 
 export const StatLabel = styled.span`
-  font-size: ${({ theme }) => theme.typography.textXs};
+  font-size: 10px;
   color: ${({ theme }) => theme.colors.white50};
   text-transform: lowercase;
 `;
 
 export const StatDivider = styled.div`
   width: 1px;
-  height: 32px;
-  background: ${({ theme }) => theme.colors.borderMedium};
+  height: 20px;
+  background: ${({ theme }) => theme.colors.borderSubtle};
 `;
 
 // Security Section - Simplified
@@ -260,7 +287,7 @@ export const CheckValue = styled.span`
   font-family: ${({ theme }) => theme.typography.fontMono};
 `;
 
-// Behavioral Section - Side-by-side layout
+// Behavioral Section - Chart top, scores below
 export const BehavioralMetrics = styled.div`
   display: flex;
   flex-direction: column;
@@ -268,19 +295,28 @@ export const BehavioralMetrics = styled.div`
 `;
 
 export const BehavioralGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const ScoresRow = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: ${({ theme }) => theme.spacing[5]};
+  grid-template-columns: repeat(3, 1fr);
+  gap: ${({ theme }) => theme.spacing[4]};
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
   }
 `;
 
-export const ScoresColumn = styled.div`
+export const ScoreItem = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[4]};
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.md};
 `;
 
 export const ChartColumn = styled.div`

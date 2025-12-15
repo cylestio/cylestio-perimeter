@@ -40,6 +40,9 @@ import {
   CriticalAlertBanner,
   AlertText,
   StatsBar,
+  StatGroup,
+  StatGroupLabel,
+  StatGroupItems,
   StatItem,
   StatValue,
   StatLabel,
@@ -54,10 +57,10 @@ import {
   CheckValue,
   BehavioralMetrics,
   BehavioralGrid,
-  ScoresColumn,
+  ScoresRow,
+  ScoreItem,
   ChartColumn,
   ChartLabel,
-  MetricRow,
   MetricRowHeader,
   MetricRowLabel,
   MetricRowValue,
@@ -74,6 +77,17 @@ interface Check {
   value?: string | number;
   categoryName?: string;
 }
+
+// Tooltip descriptions for stats
+const STAT_TOOLTIPS = {
+  sessions: 'Total number of conversation sessions with this agent',
+  messages: 'Total messages exchanged across all sessions',
+  tokens: 'Total tokens consumed (input + output) across all sessions',
+  tools: 'Total number of tool calls made by the agent',
+  avgDuration: 'Average session duration in minutes',
+  avgTokens: 'Average tokens consumed per session',
+  avgCost: 'Average cost per session based on model pricing',
+};
 
 // Table columns for sessions
 const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[] => [
@@ -210,6 +224,17 @@ export const AgentDetail: FC = () => {
 
   const allIssues = [...failedChecks, ...warningChecks];
 
+  // Calculate average metrics
+  const avgDuration = data.sessions?.length
+    ? data.sessions.reduce((sum, s) => sum + s.duration_minutes, 0) / data.sessions.length
+    : 0;
+  const avgTokens = agent.total_sessions > 0
+    ? (data.analytics?.token_summary?.total_tokens ?? 0) / agent.total_sessions
+    : 0;
+  const avgCost = agent.total_sessions > 0
+    ? (data.analytics?.token_summary?.total_cost ?? 0) / agent.total_sessions
+    : 0;
+
   return (
     <Page>
       {/* Agent Header */}
@@ -240,27 +265,68 @@ export const AgentDetail: FC = () => {
         </CriticalAlertBanner>
       )}
 
-      {/* Stats Bar - full width */}
+      {/* Stats Bar - grouped with tooltips */}
       <StatsBar>
-        <StatItem>
-          <StatValue>{agent.total_sessions}</StatValue>
-          <StatLabel>sessions</StatLabel>
-        </StatItem>
-        <StatDivider />
-        <StatItem>
-          <StatValue>{formatCompactNumber(agent.total_messages)}</StatValue>
-          <StatLabel>messages</StatLabel>
-        </StatItem>
-        <StatDivider />
-        <StatItem>
-          <StatValue>{formatCompactNumber(agent.total_tokens)}</StatValue>
-          <StatLabel>tokens</StatLabel>
-        </StatItem>
-        <StatDivider />
-        <StatItem>
-          <StatValue>{agent.total_tools}</StatValue>
-          <StatLabel>tools</StatLabel>
-        </StatItem>
+        {/* Averages Group */}
+        <StatGroup>
+          <StatGroupLabel>Averages</StatGroupLabel>
+          <StatGroupItems>
+            <Tooltip content={STAT_TOOLTIPS.avgDuration}>
+              <StatItem>
+                <StatValue>{avgDuration.toFixed(1)}m</StatValue>
+                <StatLabel>duration</StatLabel>
+              </StatItem>
+            </Tooltip>
+            <StatDivider />
+            <Tooltip content={STAT_TOOLTIPS.avgTokens}>
+              <StatItem>
+                <StatValue>{formatCompactNumber(avgTokens)}</StatValue>
+                <StatLabel>tokens</StatLabel>
+              </StatItem>
+            </Tooltip>
+            <StatDivider />
+            <Tooltip content={STAT_TOOLTIPS.avgCost}>
+              <StatItem>
+                <StatValue>${avgCost.toFixed(3)}</StatValue>
+                <StatLabel>cost</StatLabel>
+              </StatItem>
+            </Tooltip>
+          </StatGroupItems>
+        </StatGroup>
+
+        {/* Totals Group */}
+        <StatGroup>
+          <StatGroupLabel>Totals</StatGroupLabel>
+          <StatGroupItems>
+            <Tooltip content={STAT_TOOLTIPS.sessions}>
+              <StatItem>
+                <StatValue>{agent.total_sessions}</StatValue>
+                <StatLabel>sessions</StatLabel>
+              </StatItem>
+            </Tooltip>
+            <StatDivider />
+            <Tooltip content={STAT_TOOLTIPS.messages}>
+              <StatItem>
+                <StatValue>{formatCompactNumber(agent.total_messages)}</StatValue>
+                <StatLabel>messages</StatLabel>
+              </StatItem>
+            </Tooltip>
+            <StatDivider />
+            <Tooltip content={STAT_TOOLTIPS.tokens}>
+              <StatItem>
+                <StatValue>{formatCompactNumber(agent.total_tokens)}</StatValue>
+                <StatLabel>tokens</StatLabel>
+              </StatItem>
+            </Tooltip>
+            <StatDivider />
+            <Tooltip content={STAT_TOOLTIPS.tools}>
+              <StatItem>
+                <StatValue>{agent.total_tools}</StatValue>
+                <StatLabel>tools</StatLabel>
+              </StatItem>
+            </Tooltip>
+          </StatGroupItems>
+        </StatGroup>
       </StatsBar>
 
       {/* Two-column Layout */}
@@ -300,12 +366,27 @@ export const AgentDetail: FC = () => {
                       </ActiveSessionsNote>
                     )}
 
-                    {/* Side-by-side layout: Scores + Chart */}
+                    {/* Chart on top, scores below */}
                     <BehavioralGrid>
-                      {/* Left column: Scores */}
-                      <ScoresColumn>
+                      {/* Cluster Visualization */}
+                      {(riskAnalysis.behavioral_analysis.clusters?.length ?? 0) > 0 && (
+                        <ChartColumn>
+                          <ChartLabel>Cluster Map</ChartLabel>
+                          <ClusterVisualization
+                            nodes={buildVisualizationNodes(
+                              riskAnalysis.behavioral_analysis.clusters,
+                              riskAnalysis.behavioral_analysis.outliers
+                            )}
+                            height={160}
+                            showLegend={true}
+                          />
+                        </ChartColumn>
+                      )}
+
+                      {/* Scores row: Stability, Predictability, Confidence */}
+                      <ScoresRow>
                         {/* Stability */}
-                        <MetricRow>
+                        <ScoreItem>
                           <MetricRowHeader>
                             <Tooltip content={BEHAVIORAL_TOOLTIPS.stability}>
                               <MetricRowLabel>
@@ -328,10 +409,10 @@ export const AgentDetail: FC = () => {
                             }
                             size="sm"
                           />
-                        </MetricRow>
+                        </ScoreItem>
 
                         {/* Predictability */}
-                        <MetricRow>
+                        <ScoreItem>
                           <MetricRowHeader>
                             <Tooltip content={BEHAVIORAL_TOOLTIPS.predictability}>
                               <MetricRowLabel>
@@ -357,48 +438,35 @@ export const AgentDetail: FC = () => {
                             }
                             size="sm"
                           />
-                        </MetricRow>
+                        </ScoreItem>
 
                         {/* Confidence */}
-                        <ConfidenceRow>
-                          <Tooltip content={BEHAVIORAL_TOOLTIPS.confidence}>
-                            <MetricRowLabel>
-                              <span>Confidence</span>
-                              <span>i</span>
-                            </MetricRowLabel>
-                          </Tooltip>
-                          <Badge
-                            variant={
-                              riskAnalysis.behavioral_analysis.confidence === 'high'
-                                ? 'success'
+                        <ScoreItem>
+                          <ConfidenceRow>
+                            <Tooltip content={BEHAVIORAL_TOOLTIPS.confidence}>
+                              <MetricRowLabel>
+                                <span>Confidence</span>
+                                <span>i</span>
+                              </MetricRowLabel>
+                            </Tooltip>
+                            <Badge
+                              variant={
+                                riskAnalysis.behavioral_analysis.confidence === 'high'
+                                  ? 'success'
+                                  : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                    ? 'info'
+                                    : 'medium'
+                              }
+                            >
+                              {riskAnalysis.behavioral_analysis.confidence === 'high'
+                                ? 'High'
                                 : riskAnalysis.behavioral_analysis.confidence === 'medium'
-                                  ? 'info'
-                                  : 'medium'
-                            }
-                          >
-                            {riskAnalysis.behavioral_analysis.confidence === 'high'
-                              ? 'High'
-                              : riskAnalysis.behavioral_analysis.confidence === 'medium'
-                                ? 'Medium'
-                                : 'Low'}
-                          </Badge>
-                        </ConfidenceRow>
-                      </ScoresColumn>
-
-                      {/* Right column: Cluster Visualization */}
-                      {(riskAnalysis.behavioral_analysis.clusters?.length ?? 0) > 0 && (
-                        <ChartColumn>
-                          <ChartLabel>Cluster Map</ChartLabel>
-                          <ClusterVisualization
-                            nodes={buildVisualizationNodes(
-                              riskAnalysis.behavioral_analysis.clusters,
-                              riskAnalysis.behavioral_analysis.outliers
-                            )}
-                            height={160}
-                            showLegend={true}
-                          />
-                        </ChartColumn>
-                      )}
+                                  ? 'Medium'
+                                  : 'Low'}
+                            </Badge>
+                          </ConfidenceRow>
+                        </ScoreItem>
+                      </ScoresRow>
                     </BehavioralGrid>
                   </BehavioralMetrics>
                 ) : (
@@ -410,27 +478,6 @@ export const AgentDetail: FC = () => {
               </Section.Content>
             </Section>
           )}
-
-          {/* Sessions Table */}
-          <Section>
-            <Section.Header>
-              <Section.Title>Sessions ({data.sessions?.length || 0})</Section.Title>
-            </Section.Header>
-            <Section.Content noPadding>
-              {data.sessions && data.sessions.length > 0 ? (
-                <Table<AgentSession>
-                  columns={getSessionColumns(agentWorkflowId || 'unassigned')}
-                  data={data.sessions}
-                  keyExtractor={(session) => session.id}
-                  emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
-                />
-              ) : (
-                <EmptySessions>
-                  <p>No sessions found for this agent.</p>
-                </EmptySessions>
-              )}
-            </Section.Content>
-          </Section>
         </Column>
 
         {/* Right Column: Security */}
@@ -520,6 +567,27 @@ export const AgentDetail: FC = () => {
           {/* Future: Analysis Log Section */}
         </Column>
       </ContentGrid>
+
+      {/* Sessions Table - Full Width */}
+      <Section>
+        <Section.Header>
+          <Section.Title>Sessions ({data.sessions?.length || 0})</Section.Title>
+        </Section.Header>
+        <Section.Content noPadding>
+          {data.sessions && data.sessions.length > 0 ? (
+            <Table<AgentSession>
+              columns={getSessionColumns(agentWorkflowId || 'unassigned')}
+              data={data.sessions}
+              keyExtractor={(session) => session.id}
+              emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
+            />
+          ) : (
+            <EmptySessions>
+              <p>No sessions found for this agent.</p>
+            </EmptySessions>
+          )}
+        </Section.Content>
+      </Section>
     </Page>
   );
 };
