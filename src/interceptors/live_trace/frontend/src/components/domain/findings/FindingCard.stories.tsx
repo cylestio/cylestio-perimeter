@@ -46,7 +46,8 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Potential prompt injection vulnerability')).toBeInTheDocument();
     await expect(canvas.getByText('HIGH')).toBeInTheDocument();
-    await expect(canvas.getByText('OPEN')).toBeInTheDocument();
+    // OPEN status is intentionally not shown as a badge - severity alone indicates open items
+    await expect(canvas.queryByText('OPEN')).not.toBeInTheDocument();
   },
 };
 
