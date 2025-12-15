@@ -32,7 +32,7 @@
 | `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/analytics/` | TokenUsageInsights, ModelUsageAnalytics, ToolUsageAnalytics |
-| `domain/charts/` | LineChart, BarChart, PieChart |
+| `domain/charts/` | LineChart, BarChart, PieChart, DistributionBar |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
@@ -1385,8 +1385,51 @@ interface BarChartProps {
 />
 ```
 
+### DistributionBar
+
+Horizontal stacked bar showing distribution of segments with labels and percentages. Useful for showing proportional breakdowns (e.g., input vs output tokens, request distribution by model).
+
+```typescript
+type DistributionColor = 'cyan' | 'purple' | 'green' | 'orange' | 'red';
+
+interface DistributionSegment {
+  name: string;
+  value: number;
+  color: DistributionColor;
+}
+
+interface DistributionBarProps {
+  segments: DistributionSegment[];
+  formatValue?: (value: number) => string;
+  showPercent?: boolean;    // Show percentage labels (default: true)
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Token distribution (input vs output)
+<DistributionBar
+  segments={[
+    { name: 'Input', value: 45000, color: 'cyan' },
+    { name: 'Output', value: 15000, color: 'purple' },
+  ]}
+  formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
+/>
+
+// Model request distribution
+<DistributionBar
+  segments={[
+    { name: 'claude-sonnet-4', value: 150, color: 'cyan' },
+    { name: 'gpt-4o', value: 80, color: 'purple' },
+    { name: 'claude-haiku', value: 45, color: 'green' },
+  ]}
+  formatValue={(v) => `${v}`}
+/>
+```
+
 **Notes:**
-- Both components show an empty state with icon when `data` is empty
+- LineChart and BarChart show an empty state with icon when `data` is empty
 - Charts are responsive and fill their container width
 - Tooltips show formatted values and labels
 - Data is automatically sorted by value (descending) for BarChart

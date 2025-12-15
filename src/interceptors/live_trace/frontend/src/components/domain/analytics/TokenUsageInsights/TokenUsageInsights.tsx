@@ -1,13 +1,13 @@
 import type { FC } from 'react';
 
-import { Coins, TrendingUp, Layers, Clock, DollarSign, Hash } from 'lucide-react';
+import { Coins, TrendingUp, Clock, DollarSign, Hash } from 'lucide-react';
 
 import type { AgentAnalytics } from '@api/types/agent';
 
 import { Section } from '@ui/layout/Section';
 import { StatsBar, type Stat } from '@ui/data-display';
 
-import { BarChart } from '@domain/charts';
+import { BarChart, DistributionBar } from '@domain/charts';
 
 import {
   Container,
@@ -16,13 +16,6 @@ import {
   ChartTitle,
   ChartSubtitle,
   PricingNote,
-  TokenDistributionContainer,
-  TokenDistributionBar,
-  TokenDistributionLabels,
-  TokenLabel,
-  TokenColorDot,
-  TokenLabelText,
-  TokenLabelValue,
 } from './TokenUsageInsights.styles';
 
 export interface TokenUsageInsightsProps {
@@ -59,15 +52,6 @@ export const TokenUsageInsights: FC<TokenUsageInsightsProps> = ({
   if (!token_summary) {
     return null;
   }
-
-  const inputPercent =
-    token_summary.total_tokens > 0
-      ? (token_summary.input_tokens / token_summary.total_tokens) * 100
-      : 0;
-  const outputPercent =
-    token_summary.total_tokens > 0
-      ? (token_summary.output_tokens / token_summary.total_tokens) * 100
-      : 0;
 
   // Calculate per-session averages
   const avgCostPerSession = totalSessions > 0 ? token_summary.total_cost / totalSessions : 0;
@@ -124,23 +108,13 @@ export const TokenUsageInsights: FC<TokenUsageInsightsProps> = ({
             <ChartSection>
               <ChartSubtitle>Distribution by Type</ChartSubtitle>
               <ChartTitle>Input vs Output Tokens</ChartTitle>
-              <TokenDistributionContainer>
-                <TokenDistributionBar $inputPercent={inputPercent} />
-                <TokenDistributionLabels>
-                  <TokenLabel>
-                    <TokenColorDot $color="cyan" />
-                    <TokenLabelText>Input</TokenLabelText>
-                    <TokenLabelValue>{formatNumber(token_summary.input_tokens)}</TokenLabelValue>
-                    <TokenLabelText>({inputPercent.toFixed(1)}%)</TokenLabelText>
-                  </TokenLabel>
-                  <TokenLabel>
-                    <TokenColorDot $color="purple" />
-                    <TokenLabelText>Output</TokenLabelText>
-                    <TokenLabelValue>{formatNumber(token_summary.output_tokens)}</TokenLabelValue>
-                    <TokenLabelText>({outputPercent.toFixed(1)}%)</TokenLabelText>
-                  </TokenLabel>
-                </TokenDistributionLabels>
-              </TokenDistributionContainer>
+              <DistributionBar
+                segments={[
+                  { name: 'Input', value: token_summary.input_tokens, color: 'cyan' },
+                  { name: 'Output', value: token_summary.output_tokens, color: 'purple' },
+                ]}
+                formatValue={formatNumber}
+              />
             </ChartSection>
 
             {/* Token by Model Bar Chart */}

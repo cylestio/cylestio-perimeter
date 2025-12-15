@@ -2,8 +2,6 @@ import styled from 'styled-components';
 
 export const ChartContainer = styled.div`
   width: 100%;
-  height: 100%;
-  min-height: 200px;
 
   .recharts-cartesian-grid-horizontal line,
   .recharts-cartesian-grid-vertical line {

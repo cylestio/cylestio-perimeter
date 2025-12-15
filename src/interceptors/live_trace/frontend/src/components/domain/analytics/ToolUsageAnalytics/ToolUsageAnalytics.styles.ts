@@ -7,7 +7,6 @@ export const Container = styled.div`
 `;
 
 export const TabContent = styled.div`
-  min-height: 300px;
 `;
 
 export const ChartRow = styled.div`

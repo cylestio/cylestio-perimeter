@@ -7,9 +7,7 @@ import type { AgentAnalytics } from '@api/types/agent';
 import { Section } from '@ui/layout/Section';
 import { Tabs } from '@ui/navigation/Tabs';
 
-import { PieChart } from '@domain/charts';
-import { BarChart } from '@domain/charts';
-import { LineChart } from '@domain/charts';
+import { DistributionBar, BarChart, LineChart, PieChart } from '@domain/charts';
 
 import {
   Container,
@@ -86,12 +84,12 @@ export const ModelUsageAnalytics: FC<ModelUsageAnalyticsProps> = ({ analytics, c
   const totalCost = models.reduce((sum, m) => sum + m.cost, 0);
   const totalErrors = models.reduce((sum, m) => sum + m.errors, 0);
 
-  // Prepare pie chart data for request distribution
+  // Prepare distribution bar data for request distribution
   const requestDistributionData = sortedModels.map((m, i) => ({
     name: m.model,
     value: m.requests,
     color: (['cyan', 'purple', 'green', 'orange', 'red'] as const)[i % 5],
-  }));
+  })) as { name: string; value: number; color: 'cyan' | 'purple' | 'green' | 'orange' | 'red' }[];
 
   // Prepare bar chart data for response times
   const responseTimeData = sortedModels.map((m) => ({
@@ -141,12 +139,9 @@ export const ModelUsageAnalytics: FC<ModelUsageAnalyticsProps> = ({ analytics, c
                 <ChartColumn>
                   <ChartSubtitle>Distribution</ChartSubtitle>
                   <ChartTitle>Request Distribution by Model</ChartTitle>
-                  <PieChart
-                    data={requestDistributionData}
-                    height={240}
-                    innerRadius={50}
-                    outerRadius={80}
-                    formatValue={(v: number) => `${v} requests`}
+                  <DistributionBar
+                    segments={requestDistributionData}
+                    formatValue={(v: number) => `${v}`}
                   />
                 </ChartColumn>
 

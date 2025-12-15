@@ -7,7 +7,6 @@ export const Container = styled.div`
 `;
 
 export const TabContent = styled.div`
-  min-height: 300px;
 `;
 
 export const ChartRow = styled.div`
@@ -28,6 +27,8 @@ interface ChartColumnProps {
 export const ChartColumn = styled.div<ChartColumnProps>`
   display: flex;
   flex-direction: column;
+
+  padding: ${({ theme }) => theme.spacing[5]};
 
   ${({ $grow }) =>
     $grow &&
