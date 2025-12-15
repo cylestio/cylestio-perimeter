@@ -85,13 +85,13 @@ def handle_get_fix_template(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 
 @register_handler("create_analysis_session")
 def handle_create_analysis_session(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Create a new analysis session for a workflow/codebase."""
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    """Create a new analysis session for an agent workflow/codebase."""
+    agent_workflow_id = args.get("agent_workflow_id")
+    if not agent_workflow_id:
+        return {"error": "agent_workflow_id is required"}
 
     session_type = args.get("session_type", "STATIC")
-    workflow_name = args.get("workflow_name")
+    agent_workflow_name = args.get("agent_workflow_name")
 
     try:
         session_type_enum = SessionType(session_type.upper())
@@ -101,9 +101,9 @@ def handle_create_analysis_session(args: Dict[str, Any], store: Any) -> Dict[str
     session_id = generate_session_id()
     session = store.create_analysis_session(
         session_id=session_id,
-        workflow_id=workflow_id,
+        agent_workflow_id=agent_workflow_id,
         session_type=session_type_enum.value,
-        workflow_name=workflow_name,
+        agent_workflow_name=agent_workflow_name,
     )
     return {"session": session}
 
@@ -152,7 +152,7 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     finding = store.store_finding(
         finding_id=finding_id,
         session_id=session_id,
-        workflow_id=session["workflow_id"],
+        agent_workflow_id=session["agent_workflow_id"],
         file_path=args.get("file_path"),
         finding_type=args.get("finding_type"),
         severity=severity_enum.value,
@@ -170,7 +170,7 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 def handle_get_findings(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get stored findings with optional filtering."""
     findings = store.get_findings(
-        workflow_id=args.get("workflow_id"),
+        agent_workflow_id=args.get("agent_workflow_id"),
         session_id=args.get("session_id"),
         severity=args.get("severity", "").upper() if args.get("severity") else None,
         status=args.get("status", "").upper() if args.get("status") else None,
@@ -192,24 +192,24 @@ def handle_update_finding_status(args: Dict[str, Any], store: Any) -> Dict[str, 
     return {"finding": finding}
 
 
-# ==================== Workflow Lifecycle Tools ====================
+# ==================== Agent Workflow Lifecycle Tools ====================
 
-@register_handler("get_workflow_state")
-def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Get the current lifecycle state of a workflow.
+@register_handler("get_agent_workflow_state")
+def handle_get_agent_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get the current lifecycle state of an agent workflow.
     
     Returns state, available data, and recommended next steps.
     """
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_workflow_id = args.get("agent_workflow_id")
+    if not agent_workflow_id:
+        return {"error": "agent_workflow_id is required"}
 
     # Get static analysis data
-    static_sessions = store.get_analysis_sessions(workflow_id=workflow_id)
-    findings = store.get_findings(workflow_id=workflow_id)
+    static_sessions = store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
+    findings = store.get_findings(agent_workflow_id=agent_workflow_id)
     
     # Get dynamic data (agents running through proxy)
-    dynamic_agents = store.get_all_agents(workflow_id=workflow_id)
+    dynamic_agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
     
     has_static = len(static_sessions) > 0
     has_dynamic = len(dynamic_agents) > 0
@@ -222,7 +222,7 @@ def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any
     elif has_static and not has_dynamic:
         state = "STATIC_ONLY"
         if open_findings:
-            recommendation = f"Static analysis found {len(open_findings)} open findings. To validate these findings with runtime behavior, configure your agent to use base_url='http://localhost:4000/workflow/{workflow_id}' and run test scenarios."
+            recommendation = f"Static analysis found {len(open_findings)} open findings. To validate these findings with runtime behavior, configure your agent to use base_url='http://localhost:4000/agent-workflow/{agent_workflow_id}' and run test scenarios."
         else:
             recommendation = "Static analysis complete with no open findings. Run dynamic tests to validate runtime behavior."
     elif has_dynamic and not has_static:
@@ -230,10 +230,10 @@ def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any
         recommendation = "Dynamic runtime data captured. Run static analysis now to identify code-level security issues and correlate with observed runtime behavior."
     else:
         state = "COMPLETE"
-        recommendation = f"Both static and dynamic data available! Use get_workflow_correlation to see which of your {len(open_findings)} findings are validated by runtime tests."
+        recommendation = f"Both static and dynamic data available! Use get_agent_workflow_correlation to see which of your {len(open_findings)} findings are validated by runtime tests."
 
     return {
-        "workflow_id": workflow_id,
+        "agent_workflow_id": agent_workflow_id,
         "state": state,
         "has_static_analysis": has_static,
         "has_dynamic_sessions": has_dynamic,
@@ -242,23 +242,23 @@ def handle_get_workflow_state(args: Dict[str, Any], store: Any) -> Dict[str, Any
         "findings_count": len(findings),
         "open_findings_count": len(open_findings),
         "recommendation": recommendation,
-        "dashboard_url": f"http://localhost:7100/workflow/{workflow_id}",
+        "dashboard_url": f"http://localhost:7100/agent-workflow/{agent_workflow_id}",
     }
 
 
 @register_handler("get_tool_usage_summary")
 def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get tool usage patterns from dynamic sessions."""
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_workflow_id = args.get("agent_workflow_id")
+    if not agent_workflow_id:
+        return {"error": "agent_workflow_id is required"}
 
-    agents = store.get_all_agents(workflow_id=workflow_id)
+    agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
     if not agents:
         return {
-            "workflow_id": workflow_id,
+            "agent_workflow_id": agent_workflow_id,
             "message": "No dynamic sessions found. Run your agent through the proxy to capture tool usage.",
-            "setup_hint": f"Configure agent: base_url='http://localhost:4000/workflow/{workflow_id}'",
+            "setup_hint": f"Configure agent: base_url='http://localhost:4000/agent-workflow/{agent_workflow_id}'",
             "tool_usage": {},
             "total_sessions": 0,
         }
@@ -286,7 +286,7 @@ def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str,
     unused_tools = list(available_tools - used_tools)
 
     return {
-        "workflow_id": workflow_id,
+        "agent_workflow_id": agent_workflow_id,
         "total_sessions": total_sessions,
         "tool_usage": sorted_usage,
         "tools_defined": len(available_tools),
@@ -296,37 +296,37 @@ def handle_get_tool_usage_summary(args: Dict[str, Any], store: Any) -> Dict[str,
     }
 
 
-@register_handler("get_workflow_correlation")
-def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+@register_handler("get_agent_workflow_correlation")
+def handle_get_agent_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Correlate static findings with dynamic runtime observations.
     
     Computed on-the-fly by matching tool references in findings
     with actual tool usage from dynamic sessions.
     """
-    workflow_id = args.get("workflow_id")
-    if not workflow_id:
-        return {"error": "workflow_id is required"}
+    agent_workflow_id = args.get("agent_workflow_id")
+    if not agent_workflow_id:
+        return {"error": "agent_workflow_id is required"}
 
     # Get static findings
-    findings = store.get_findings(workflow_id=workflow_id)
-    static_sessions = store.get_analysis_sessions(workflow_id=workflow_id)
+    findings = store.get_findings(agent_workflow_id=agent_workflow_id)
+    static_sessions = store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
     
     # Get dynamic data
-    agents = store.get_all_agents(workflow_id=workflow_id)
+    agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
     
     if not static_sessions:
         return {
-            "workflow_id": workflow_id,
+            "agent_workflow_id": agent_workflow_id,
             "error": "No static analysis data. Run a security scan first.",
             "hint": "Use get_security_patterns and create_analysis_session to begin.",
         }
     
     if not agents:
         return {
-            "workflow_id": workflow_id,
+            "agent_workflow_id": agent_workflow_id,
             "message": "Static analysis exists but no dynamic data yet.",
             "findings_count": len(findings),
-            "hint": f"Run your agent with base_url='http://localhost:4000/workflow/{workflow_id}' to capture runtime data.",
+            "hint": f"Run your agent with base_url='http://localhost:4000/agent-workflow/{agent_workflow_id}' to capture runtime data.",
             "correlations": [],
         }
 
@@ -355,7 +355,7 @@ def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[st
     ]
 
     return {
-        "workflow_id": workflow_id,
+        "agent_workflow_id": agent_workflow_id,
         "has_static_data": len(findings) > 0,
         "has_dynamic_data": len(agents) > 0,
         "static_findings": findings_summary,
@@ -372,16 +372,16 @@ def handle_get_workflow_correlation(args: Dict[str, Any], store: Any) -> Dict[st
 @register_handler("get_agents")
 def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """List all agents discovered during dynamic sessions."""
-    workflow_id = args.get("workflow_id")
+    agent_workflow_id = args.get("agent_workflow_id")
     include_stats = args.get("include_stats", True)
     
     # Handle special "unlinked" filter
-    if workflow_id == "unlinked":
-        agents = store.get_all_agents(workflow_id=None)
-        # Filter to only agents with no workflow_id
-        agents = [a for a in agents if not a.workflow_id]
-    elif workflow_id:
-        agents = store.get_all_agents(workflow_id=workflow_id)
+    if agent_workflow_id == "unlinked":
+        agents = store.get_all_agents(agent_workflow_id=None)
+        # Filter to only agents with no agent_workflow_id
+        agents = [a for a in agents if not a.agent_workflow_id]
+    elif agent_workflow_id:
+        agents = store.get_all_agents(agent_workflow_id=agent_workflow_id)
     else:
         agents = store.get_all_agents()
     
@@ -390,7 +390,7 @@ def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         agent_info = {
             "agent_id": agent.agent_id,
             "agent_id_short": agent.agent_id[:12] if len(agent.agent_id) > 12 else agent.agent_id,
-            "workflow_id": agent.workflow_id,
+            "agent_workflow_id": agent.agent_workflow_id,
             "display_name": getattr(agent, 'display_name', None),
             "description": getattr(agent, 'description', None),
         }
@@ -411,30 +411,30 @@ def handle_get_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     return {
         "agents": result,
         "total_count": len(result),
-        "filter": workflow_id if workflow_id else "all",
+        "filter": agent_workflow_id if agent_workflow_id else "all",
     }
 
 
 @register_handler("update_agent_info")
 def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Update an agent's display name, description, or link to workflow."""
+    """Update an agent's display name, description, or link to agent workflow."""
     agent_id = args.get("agent_id")
     if not agent_id:
         return {"error": "agent_id is required"}
     
     display_name = args.get("display_name")
     description = args.get("description")
-    workflow_id = args.get("workflow_id")
+    agent_workflow_id = args.get("agent_workflow_id")
     
     # Check at least one field to update
-    if not any([display_name, description, workflow_id]):
-        return {"error": "Provide at least one of: display_name, description, workflow_id"}
+    if not any([display_name, description, agent_workflow_id]):
+        return {"error": "Provide at least one of: display_name, description, agent_workflow_id"}
     
     result = store.update_agent_info(
         agent_id=agent_id,
         display_name=display_name,
         description=description,
-        workflow_id=workflow_id,
+        agent_workflow_id=agent_workflow_id,
     )
     
     if not result:
@@ -462,7 +462,7 @@ def handle_register_ide_connection(args: Dict[str, Any], store: Any) -> Dict[str
     connection = store.register_ide_connection(
         connection_id=connection_id,
         ide_type=ide_type,
-        workflow_id=args.get("workflow_id"),
+        agent_workflow_id=args.get("agent_workflow_id"),
         host=args.get("host"),
         user=args.get("user"),
         workspace_path=args.get("workspace_path"),
@@ -485,12 +485,12 @@ def handle_ide_heartbeat(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         return {"error": "connection_id is required"}
 
     is_developing = args.get("is_developing", False)
-    workflow_id = args.get("workflow_id")
+    agent_workflow_id = args.get("agent_workflow_id")
 
     connection = store.update_ide_heartbeat(
         connection_id=connection_id,
         is_developing=is_developing,
-        workflow_id=workflow_id,
+        agent_workflow_id=agent_workflow_id,
     )
 
     if not connection:
@@ -525,9 +525,9 @@ def handle_disconnect_ide(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
 @register_handler("get_ide_connection_status")
 def handle_get_ide_connection_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get current IDE connection status."""
-    workflow_id = args.get("workflow_id")
+    agent_workflow_id = args.get("agent_workflow_id")
 
-    status = store.get_ide_connection_status(workflow_id=workflow_id)
+    status = store.get_ide_connection_status(agent_workflow_id=agent_workflow_id)
 
     if status["is_connected"]:
         ide = status["connected_ide"]

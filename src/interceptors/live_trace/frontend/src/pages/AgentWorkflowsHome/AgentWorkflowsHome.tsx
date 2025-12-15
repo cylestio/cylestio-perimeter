@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { Folder, Bot } from 'lucide-react';
 
 import type { APIAgent } from '@api/types/dashboard';
-import type { APIWorkflow } from '@api/types/workflows';
+import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchDashboard } from '@api/endpoints/dashboard';
-import { fetchWorkflows } from '@api/endpoints/dashboard';
+import { fetchAgentWorkflows } from '@api/endpoints/dashboard';
 import { formatAgentName } from '@utils/formatting';
 
 import { Badge } from '@ui/core/Badge';
@@ -15,7 +15,7 @@ import { Skeleton } from '@ui/feedback/Skeleton';
 import { Page } from '@ui/layout/Page';
 import { Stack } from '@ui/layout/Grid';
 
-import { WorkflowCard } from '@domain/workflows';
+import { AgentWorkflowCard } from '@domain/agent-workflows';
 
 import { usePageMeta } from '../../context';
 import {
@@ -26,13 +26,13 @@ import {
   SectionHeader,
   SectionTitle,
   SectionBadge,
-  WorkflowsGrid,
+  AgentWorkflowsGrid,
   UnassignedSection,
-  EmptyWorkflows,
+  EmptyAgentWorkflows,
   EmptyIcon,
   EmptyTitle,
   EmptyDescription,
-} from './WorkflowsHome.styles';
+} from './AgentWorkflowsHome.styles';
 
 // Table row type for unassigned agents
 interface AgentRow {
@@ -54,11 +54,11 @@ const toAgentRow = (agent: APIAgent): AgentRow => ({
   status: agent.risk_status,
 });
 
-// Table columns for unassigned system prompts
+// Table columns for unassigned agents
 const agentColumns: Column<AgentRow>[] = [
   {
     key: 'name',
-    header: 'System prompt',
+    header: 'Agent',
     render: (row) => (
       <span style={{ fontWeight: 500 }}>{row.name}</span>
     ),
@@ -106,26 +106,27 @@ const agentColumns: Column<AgentRow>[] = [
   },
 ];
 
-export const WorkflowsHome: FC = () => {
+export const AgentWorkflowsHome: FC = () => {
   const navigate = useNavigate();
-  const [workflows, setWorkflows] = useState<APIWorkflow[]>([]);
+  const [agentWorkflows, setAgentWorkflows] = useState<APIAgentWorkflow[]>([]);
   const [unassignedAgents, setUnassignedAgents] = useState<APIAgent[]>([]);
   const [loading, setLoading] = useState(true);
 
   usePageMeta({
-    breadcrumbs: [{ label: 'Agents', href: '/' }],
+    breadcrumbs: [{ label: 'Agent Workflows', href: '/' }],
   });
 
   const loadData = useCallback(async () => {
     try {
-      const [workflowsRes, unassignedRes] = await Promise.all([
-        fetchWorkflows(),
+      const [agentWorkflowsRes, unassignedRes] = await Promise.all([
+        fetchAgentWorkflows(),
         fetchDashboard('unassigned'),
       ]);
-      setWorkflows(workflowsRes.workflows.filter(w => w.id !== null));
+      console.log('agentWorkflowsRes', agentWorkflowsRes);
+      setAgentWorkflows(agentWorkflowsRes.agent_workflows.filter(w => w.id !== null));
       setUnassignedAgents(unassignedRes.agents);
     } catch (error) {
-      console.error('Failed to load workflows data:', error);
+      console.error('Failed to load agent workflows data:', error);
     } finally {
       setLoading(false);
     }
@@ -138,15 +139,15 @@ export const WorkflowsHome: FC = () => {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  const handleWorkflowClick = (agentId: string) => {
-    navigate(`/agent/${agentId}`);
+  const handleAgentWorkflowClick = (agentWorkflowId: string) => {
+    navigate(`/agent-workflow/${agentWorkflowId}`);
   };
 
   const handleAgentClick = (agent: AgentRow) => {
-    navigate(`/agent/unassigned/system-prompt/${agent.id}`);
+    navigate(`/agent-workflow/unassigned/agent/${agent.id}`);
   };
 
-  const hasWorkflows = workflows.length > 0;
+  const hasAgentWorkflows = agentWorkflows.length > 0;
   const hasUnassignedAgents = unassignedAgents.length > 0;
 
   return (
@@ -155,66 +156,66 @@ export const WorkflowsHome: FC = () => {
         {/* Hero Section */}
         <HeroSection>
           <HeroTitle>
-            Your <HeroHighlight>Agents</HeroHighlight>
+            Your <HeroHighlight>Agent Workflows</HeroHighlight>
           </HeroTitle>
           <HeroSubtitle>
-            Agents organize your system prompts by project. Each agent can have its own
-            static analysis, security scans, and recommendations. Select an agent
+            Agent Workflows organize your agents by project. Each agent workflow can have its own
+            static analysis, security scans, and recommendations. Select an agent workflow
             to view detailed insights.
           </HeroSubtitle>
         </HeroSection>
 
-        {/* Agents Grid */}
+        {/* Agent Workflows Grid */}
         <div>
           <SectionHeader>
             <SectionTitle>
               <Folder size={18} />
-              Agents
-              {hasWorkflows && <SectionBadge>{workflows.length}</SectionBadge>}
+              Agent Workflows
+              {hasAgentWorkflows && <SectionBadge>{agentWorkflows.length}</SectionBadge>}
             </SectionTitle>
           </SectionHeader>
 
-          <WorkflowsGrid>
+          <AgentWorkflowsGrid>
             {loading ? (
               <>
                 <Skeleton variant="rect" height={180} />
                 <Skeleton variant="rect" height={180} />
                 <Skeleton variant="rect" height={180} />
               </>
-            ) : hasWorkflows ? (
-              workflows.map((workflow) => (
-                <WorkflowCard
-                  key={workflow.id}
-                  id={workflow.id!}
-                  name={workflow.name}
-                  agentCount={workflow.agent_count}
-                  sessionCount={workflow.session_count}
-                  onClick={() => handleWorkflowClick(workflow.id!)}
+            ) : hasAgentWorkflows ? (
+              agentWorkflows.map((agentWorkflow) => (
+                <AgentWorkflowCard
+                  key={agentWorkflow.id}
+                  id={agentWorkflow.id!}
+                  name={agentWorkflow.name}
+                  agentCount={agentWorkflow.agent_count}
+                  sessionCount={agentWorkflow.session_count}
+                  onClick={() => handleAgentWorkflowClick(agentWorkflow.id!)}
                 />
               ))
             ) : (
-              <EmptyWorkflows>
+              <EmptyAgentWorkflows>
                 <EmptyIcon>
                   <Folder size={24} />
                 </EmptyIcon>
-                <EmptyTitle>No agents yet</EmptyTitle>
+                <EmptyTitle>No agent workflows yet</EmptyTitle>
                 <EmptyDescription>
-                  Connect a system prompt with an agent ID to create your first agent.
+                  Connect an agent with an agent workflow ID to create your first agent workflow.
                   Go to the Connect page for instructions.
                 </EmptyDescription>
-              </EmptyWorkflows>
+              </EmptyAgentWorkflows>
             )}
-          </WorkflowsGrid>
+          </AgentWorkflowsGrid>
         </div>
 
-        {/* Unassigned System Prompts Section - only show if there are any */}
+        {/* Unassigned Agents Section - only show if there are any */}
         {(hasUnassignedAgents || loading) && (
           <UnassignedSection>
             <Table
               header={
                 <SectionTitle>
                   <Bot size={18} />
-                  Unassigned System Prompts
+                  Unassigned Agents
                   {hasUnassignedAgents && <SectionBadge>{unassignedAgents.length}</SectionBadge>}
                 </SectionTitle>
               }
@@ -225,7 +226,7 @@ export const WorkflowsHome: FC = () => {
               keyExtractor={(row) => row.id}
               emptyState={
                 <div style={{ padding: '24px', textAlign: 'center', color: 'var(--color-white-50)' }}>
-                  No unassigned system prompts
+                  No unassigned agents
                 </div>
               }
             />

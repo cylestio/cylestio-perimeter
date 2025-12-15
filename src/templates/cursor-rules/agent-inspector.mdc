@@ -15,7 +15,7 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 | Tool | Description |
 |------|-------------|
 | `get_security_patterns` | Get OWASP LLM Top 10 patterns for analysis |
-| `create_analysis_session` | Start session for workflow (requires workflow_id) |
+| `create_analysis_session` | Start session for agent workflow (requires agent_workflow_id) |
 | `store_finding` | Record a security finding |
 | `complete_analysis_session` | Finalize session and calculate risk score |
 | `get_findings` | Retrieve stored findings |
@@ -27,18 +27,18 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 | `get_owasp_control` | Get specific OWASP control details (LLM01-LLM10) |
 | `get_fix_template` | Get remediation template for a finding type |
 
-### Workflow Lifecycle Tools
+### Agent Workflow Lifecycle Tools
 | Tool | Description |
 |------|-------------|
-| `get_workflow_state` | Check what analysis exists (static/dynamic/both) |
+| `get_agent_workflow_state` | Check what analysis exists (static/dynamic/both) |
 | `get_tool_usage_summary` | Get tool usage patterns from dynamic sessions |
-| `get_workflow_correlation` | Correlate static findings with dynamic runtime |
+| `get_agent_workflow_correlation` | Correlate static findings with dynamic runtime |
 
 ### Agent Discovery Tools
 | Tool | Description |
 |------|-------------|
-| `get_agents` | List agents (filter by workflow_id or "unlinked") |
-| `update_agent_info` | Link agents to workflows, set display names |
+| `get_agents` | List agents (filter by agent_workflow_id or "unlinked") |
+| `update_agent_info` | Link agents to agent workflows, set display names |
 
 ### IDE Connection Tools
 | Tool | Description |
@@ -59,10 +59,10 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 ### Step 2: Register with ALL Parameters
 ```
 register_ide_connection(
-  ide_type="cursor",              // "cursor" or "claude-code"
-  workflow_id="{workflow_id}",    // from folder name
-  workspace_path="{full_path}",   // workspace path
-  model="{your_model_name}"       // e.g., "claude-opus-4.5"
+  ide_type="cursor",                      // "cursor" or "claude-code"
+  agent_workflow_id="{agent_workflow_id}",    // from folder name
+  workspace_path="{full_path}",           // workspace path
+  model="{your_model_name}"               // e.g., "claude-opus-4.5"
 )
 ```
 
@@ -85,7 +85,7 @@ ide_heartbeat(connection_id="{id}", is_developing=true)
 
 **When user asks for security analysis, follow this flow automatically:**
 
-### Step 1: Derive workflow_id
+### Step 1: Derive agent_workflow_id
 Auto-derive from (priority order):
 1. Git remote: `github.com/acme/my-agent.git` → `my-agent`
 2. Package name: `pyproject.toml` or `package.json`
@@ -93,7 +93,7 @@ Auto-derive from (priority order):
 
 ### Step 2: Check Current State
 ```
-get_workflow_state(workflow_id)
+get_agent_workflow_state(agent_workflow_id)
 ```
 
 This returns one of:
@@ -108,7 +108,7 @@ get_agents("unlinked")
 ```
 If unlinked agents found, link them:
 ```
-update_agent_info(agent_id, workflow_id="the-workflow-id")
+update_agent_info(agent_id, agent_workflow_id="the-agent-workflow-id")
 ```
 
 ### Step 4: Based on State
@@ -124,7 +124,7 @@ This is the typical flow when user asks "run a security scan":
 
 2. **Create Session**
    ```
-   create_analysis_session(workflow_id, "STATIC")
+   create_analysis_session(agent_workflow_id, "STATIC")
    ```
 
 3. **Analyze Code & Store Findings**
@@ -139,26 +139,26 @@ This is the typical flow when user asks "run a security scan":
 
 5. **Check for Dynamic Data**
    ```
-   get_workflow_state(workflow_id)
+   get_agent_workflow_state(agent_workflow_id)
    ```
    - If state is `COMPLETE`: Run correlation
    - If state is `STATIC_ONLY`: Inform user how to run dynamic tests
 
 6. **Report Results**
-   Include dashboard URL: `http://localhost:7100/workflow/{workflow_id}`
+   Include dashboard URL: `http://localhost:7100/agent-workflow/{agent_workflow_id}`
 
 #### Scenario B: Dynamic Analysis First (Runtime Captured)
 When user ran their agent first, then asks for security review:
 
 1. Check state shows `DYNAMIC_ONLY`
 2. Run static analysis (steps above)
-3. Correlate with `get_workflow_correlation(workflow_id)`
+3. Correlate with `get_agent_workflow_correlation(agent_workflow_id)`
 4. Report which findings are VALIDATED vs UNEXERCISED
 
 ### Step 5: Correlation (when both static + dynamic exist)
 ```
-get_workflow_correlation(workflow_id)
-get_tool_usage_summary(workflow_id)
+get_agent_workflow_correlation(agent_workflow_id)
+get_tool_usage_summary(agent_workflow_id)
 ```
 
 Report:
@@ -173,20 +173,20 @@ update_agent_info(agent_id, display_name="Customer Support Bot", description="Ha
 
 ## Dynamic Analysis Setup
 
-Tell user to configure their agent's base_url with workflow_id:
+Tell user to configure their agent's base_url with agent_workflow_id:
 
 ```python
 # OpenAI
-client = OpenAI(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
+client = OpenAI(base_url=f"http://localhost:4000/agent-workflow/{AGENT_WORKFLOW_ID}")
 
 # Anthropic
-client = Anthropic(base_url=f"http://localhost:4000/workflow/{WORKFLOW_ID}")
+client = Anthropic(base_url=f"http://localhost:4000/agent-workflow/{AGENT_WORKFLOW_ID}")
 ```
 
 ## Fixing Issues
 
 ```
-get_findings(workflow_id, status="OPEN")
+get_findings(agent_workflow_id, status="OPEN")
 get_fix_template(finding_type)
 # Apply fix
 update_finding_status(finding_id, "FIXED", notes="Applied input validation")
@@ -197,12 +197,12 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 1. **Register IDE ALWAYS** - Call `register_ide_connection` at the start of each session
 2. **Retry if failed** - If registration fails, retry on EVERY subsequent MCP call until successful
 3. **Send heartbeats** - Call `ide_heartbeat` before/after significant actions
-4. **Auto-derive** workflow_id - don't ask user
+4. **Auto-derive** agent_workflow_id - don't ask user
 5. **Auto-link** unlinked agents via `update_agent_info`
 6. **Auto-correlate** when both static + dynamic data exist
 7. **Never hardcode** security patterns - always fetch from MCP
-8. **Same workflow_id** for static and dynamic = unified results
-9. **Dashboard URL**: `http://localhost:7100/workflow/{workflow_id}`
+8. **Same agent_workflow_id** for static and dynamic = unified results
+9. **Dashboard URL**: `http://localhost:7100/agent-workflow/{agent_workflow_id}`
 
 ## IDE CONNECTION (Only When Using Agent Inspector)
 
@@ -213,7 +213,7 @@ update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 // 1. Register (idempotent - safe to repeat)
 register_ide_connection(
   ide_type="cursor",
-  workflow_id="{folder_name}",
+  agent_workflow_id="{folder_name}",
   workspace_path="{path}",
   model="claude-opus-4.5"  // or your model
 )

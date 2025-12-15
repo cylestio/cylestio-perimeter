@@ -43,7 +43,7 @@ import {
 } from './Connect.styles';
 
 type ConnectionStatus = 'loading' | 'waiting' | 'connected';
-type UrlMode = 'standard' | 'workflow';
+type UrlMode = 'standard' | 'agent-workflow';
 
 export const Connect: FC = () => {
   const navigate = useNavigate();
@@ -57,7 +57,7 @@ export const Connect: FC = () => {
   const [agentCount, setAgentCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [urlMode, setUrlMode] = useState<UrlMode>('standard');
-  const [workflowId, setWorkflowId] = useState('my-project');
+  const [agentWorkflowId, setAgentWorkflowId] = useState('my-project');
 
   const checkAgentStatus = useCallback(async () => {
     try {
@@ -93,8 +93,8 @@ export const Connect: FC = () => {
     ? `http://localhost:${config.proxy_port}`
     : 'http://localhost:4000';
 
-  const proxyUrl = urlMode === 'workflow'
-    ? `${baseUrl}/agent/${workflowId}`
+  const proxyUrl = urlMode === 'agent-workflow'
+    ? `${baseUrl}/agent-workflow/${agentWorkflowId}`
     : baseUrl;
 
   const handleCopy = async () => {
@@ -113,7 +113,7 @@ export const Connect: FC = () => {
         <HeroSection>
         <LogoOrb />
         <HeroTitle>
-          Connect Your <HeroHighlight>Agent</HeroHighlight>
+          Connect Your <HeroHighlight>Agent Workflow</HeroHighlight>
         </HeroTitle>
         <HeroSubtitle>
           Point your client to this proxy URL to start capturing requests
@@ -136,10 +136,10 @@ export const Connect: FC = () => {
                   Standard
                 </ToggleOption>
                 <ToggleOption
-                  $active={urlMode === 'workflow'}
-                  onClick={() => setUrlMode('workflow')}
+                  $active={urlMode === 'agent-workflow'}
+                  onClick={() => setUrlMode('agent-workflow')}
                 >
-                  With Agent
+                  With Agent Workflow
                 </ToggleOption>
               </WorkflowToggle>
 
@@ -148,12 +148,12 @@ export const Connect: FC = () => {
                   Set your <Code>base_url</Code> to:
                 </Text>
 
-                {urlMode === 'workflow' && (
+                {urlMode === 'agent-workflow' && (
                   <WorkflowInputGroup>
                     <WorkflowInput
                       type="text"
-                      value={workflowId}
-                      onChange={(e) => setWorkflowId(e.target.value)}
+                      value={agentWorkflowId}
+                      onChange={(e) => setAgentWorkflowId(e.target.value)}
                       placeholder="my-project"
                     />
                   </WorkflowInputGroup>
@@ -173,12 +173,12 @@ export const Connect: FC = () => {
                   </Button>
                 </UrlBox>
 
-                {urlMode === 'workflow' && (
+                {urlMode === 'agent-workflow' && (
                   <WorkflowNote>
                     <Info size={14} style={{ flexShrink: 0, marginTop: 2 }} />
                     <span>
-                      Use an agent ID to group system prompts and link static analysis findings to your project.
-                      The same agent_id should be used in MCP tools when running security scans.
+                      Use an agent workflow ID to group agents and link static analysis findings to your project.
+                      The same agent_workflow_id should be used in MCP tools when running security scans.
                     </span>
                   </WorkflowNote>
                 )}
@@ -222,7 +222,7 @@ export const Connect: FC = () => {
             <OrbLoader size="sm" />
           </StatusSpinner>
           <Text size="sm" weight="medium" color="muted">
-            Listening for system prompt activity
+            Listening for agent activity
           </Text>
         </StatusBanner>
       )}
@@ -231,7 +231,7 @@ export const Connect: FC = () => {
       {isConnected && (
         <ConnectionSuccess
           agentCount={agentCount}
-          onViewAgents={() => navigate('/')}
+          onViewAgentWorkflows={() => navigate('/')}
         />
       )}
 

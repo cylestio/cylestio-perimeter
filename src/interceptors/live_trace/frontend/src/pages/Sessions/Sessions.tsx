@@ -6,7 +6,7 @@ import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import type { APIAgent } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
@@ -23,7 +23,7 @@ import { LoadingContainer } from './Sessions.styles';
 const PAGE_SIZE = 10;
 
 export const Sessions: FC = () => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // Sessions data
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -31,42 +31,42 @@ export const Sessions: FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // System prompts for filtering
-  const [systemPrompts, setSystemPrompts] = useState<APIAgent[]>([]);
+  // Agents for filtering
+  const [agents, setAgents] = useState<APIAgent[]>([]);
 
   // Filter and pagination state
-  const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Set page metadata
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Sessions' })
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Sessions' })
       : [{ label: 'Sessions', href: '/sessions' }],
   });
 
-  // Fetch system prompts (agents) for filter options
-  const loadSystemPrompts = useCallback(async () => {
-    if (!agentId) return;
+  // Fetch agents for filter options
+  const loadAgents = useCallback(async () => {
+    if (!agentWorkflowId) return;
 
     try {
-      const data = await fetchDashboard(agentId);
-      setSystemPrompts(data.agents || []);
+      const data = await fetchDashboard(agentWorkflowId);
+      setAgents(data.agents || []);
     } catch (err) {
-      console.error('Failed to fetch system prompts:', err);
+      console.error('Failed to fetch agents:', err);
     }
-  }, [agentId]);
+  }, [agentWorkflowId]);
 
   // Fetch sessions with current filters and pagination
   const loadSessions = useCallback(async () => {
-    if (!agentId) return;
+    if (!agentWorkflowId) return;
 
     try {
       setError(null);
       const offset = (currentPage - 1) * PAGE_SIZE;
       const data = await fetchSessions({
-        workflow_id: agentId,
-        agent_id: selectedSystemPrompt || undefined,
+        agent_workflow_id: agentWorkflowId,
+        agent_id: selectedAgent || undefined,
         limit: PAGE_SIZE,
         offset,
       });
@@ -78,12 +78,12 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [agentId, selectedSystemPrompt, currentPage]);
+  }, [agentWorkflowId, selectedAgent, currentPage]);
 
-  // Initial load of system prompts
+  // Initial load of agents
   useEffect(() => {
-    loadSystemPrompts();
-  }, [loadSystemPrompts]);
+    loadAgents();
+  }, [loadAgents]);
 
   // Initial load and reload when filters change
   useEffect(() => {
@@ -97,32 +97,32 @@ export const Sessions: FC = () => {
   }, [loadSessions]);
 
   // Reset to page 1 when filter changes
-  const handleSystemPromptSelect = (id: string | null) => {
-    setSelectedSystemPrompt(id);
+  const handleAgentSelect = (id: string | null) => {
+    setSelectedAgent(id);
     setCurrentPage(1);
   };
 
-  // Build system prompt options for filter
-  const systemPromptOptions: SystemPromptOption[] = useMemo(() => {
-    return systemPrompts.map((agent) => ({
+  // Build agent options for filter
+  const agentOptions: SystemPromptOption[] = useMemo(() => {
+    return agents.map((agent) => ({
       id: agent.id,
       id_short: agent.id_short,
       sessionCount: agent.total_sessions,
     }));
-  }, [systemPrompts]);
+  }, [agents]);
 
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // Build description text
   const descriptionText = useMemo(() => {
-    if (selectedSystemPrompt) {
-      const selected = systemPrompts.find((sp) => sp.id === selectedSystemPrompt);
-      const name = selected?.id_short || selectedSystemPrompt.substring(0, 12);
-      return `${totalCount} session${totalCount !== 1 ? 's' : ''} from system prompt ${name}`;
+    if (selectedAgent) {
+      const selected = agents.find((a) => a.id === selectedAgent);
+      const name = selected?.id_short || selectedAgent.substring(0, 12);
+      return `${totalCount} session${totalCount !== 1 ? 's' : ''} from agent ${name}`;
     }
-    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all system prompts in this agent`;
-  }, [totalCount, selectedSystemPrompt, systemPrompts]);
+    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all agents in this agent workflow`;
+  }, [totalCount, selectedAgent, agents]);
 
   if (loading) {
     return (
@@ -154,18 +154,18 @@ export const Sessions: FC = () => {
       />
 
       <SystemPromptFilter
-        systemPrompts={systemPromptOptions}
-        selectedId={selectedSystemPrompt}
-        onSelect={handleSystemPromptSelect}
+        systemPrompts={agentOptions}
+        selectedId={selectedAgent}
+        onSelect={handleAgentSelect}
       />
 
       <Card>
         <Card.Content noPadding>
           <SessionsTable
             sessions={sessions}
-            agentId={agentId || 'unassigned'}
-            showAgentColumn={!selectedSystemPrompt}
-            emptyMessage="No sessions recorded for this agent yet. Sessions will appear here once system prompts start processing requests."
+            agentWorkflowId={agentWorkflowId || 'unassigned'}
+            showAgentColumn={!selectedAgent}
+            emptyMessage="No sessions recorded for this agent workflow yet. Sessions will appear here once agents start processing requests."
           />
           <Pagination
             currentPage={currentPage}

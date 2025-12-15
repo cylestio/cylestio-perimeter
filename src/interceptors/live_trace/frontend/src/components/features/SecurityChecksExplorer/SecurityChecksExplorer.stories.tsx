@@ -1,16 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 
-import type { AgentSecurityData, WorkflowSecurityCheck } from '@api/endpoints/workflow';
+import type { AgentSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
 
 import { SecurityChecksExplorer } from './SecurityChecksExplorer';
 
 // Mock data
-const mockChecks: WorkflowSecurityCheck[] = [
+const mockChecks: AgentWorkflowSecurityCheck[] = [
   {
     check_id: 'check_001',
     agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'RESOURCE_MANAGEMENT',
     check_type: 'session_duration',
@@ -22,7 +22,7 @@ const mockChecks: WorkflowSecurityCheck[] = [
   {
     check_id: 'check_002',
     agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'RESOURCE_MANAGEMENT',
     check_type: 'token_usage',
@@ -34,7 +34,7 @@ const mockChecks: WorkflowSecurityCheck[] = [
   {
     check_id: 'check_003',
     agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'ENVIRONMENT',
     check_type: 'model_pinning',
@@ -45,7 +45,7 @@ const mockChecks: WorkflowSecurityCheck[] = [
   {
     check_id: 'check_004',
     agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'BEHAVIORAL',
     check_type: 'stability_score',
@@ -57,7 +57,7 @@ const mockChecks: WorkflowSecurityCheck[] = [
   {
     check_id: 'check_005',
     agent_id: 'agent_abc123',
-    workflow_id: 'workflow_001',
+    agent_workflow_id: 'agent-workflow-001',
     analysis_session_id: 'session_001',
     category_id: 'BEHAVIORAL',
     check_type: 'anomaly_detection',
@@ -89,7 +89,7 @@ const mockAgentWithManyChecks: AgentSecurityData = {
     {
       check_id: 'check_106',
       agent_id: 'agent_xyz789',
-      workflow_id: 'workflow_001',
+      agent_workflow_id: 'agent-workflow-001',
       analysis_session_id: 'session_002',
       category_id: 'ENVIRONMENT',
       check_type: 'tool_authorization',
@@ -126,7 +126,7 @@ type Story = StoryObj<typeof SecurityChecksExplorer>;
 export const SingleAgent: Story = {
   args: {
     agents: [mockAgent],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -142,19 +142,19 @@ export const SingleAgent: Story = {
 export const MultipleAgents: Story = {
   args: {
     agents: [mockAgent, mockAgentWithManyChecks],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component now shows "System prompt X of Y"
-    await expect(canvas.getByText('System prompt 1 of 2')).toBeInTheDocument();
+    // Component now shows "Agent X of Y"
+    await expect(canvas.getByText('Agent 1 of 2')).toBeInTheDocument();
     await expect(canvas.getByText('agent_abc123def456')).toBeInTheDocument();
 
-    // Navigate to next system prompt
-    const nextButton = canvas.getByLabelText('Next system prompt');
+    // Navigate to next agent
+    const nextButton = canvas.getByLabelText('Next agent');
     await userEvent.click(nextButton);
 
-    await expect(canvas.getByText('System prompt 2 of 2')).toBeInTheDocument();
+    await expect(canvas.getByText('Agent 2 of 2')).toBeInTheDocument();
     await expect(canvas.getByText('agent_xyz789')).toBeInTheDocument();
   },
 };
@@ -162,7 +162,7 @@ export const MultipleAgents: Story = {
 export const WithCategories: Story = {
   args: {
     agents: [mockAgent],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -175,7 +175,7 @@ export const WithCategories: Story = {
 export const WithTimestamp: Story = {
   args: {
     agents: [mockAgent],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -187,7 +187,7 @@ export const WithTimestamp: Story = {
 export const Empty: Story = {
   args: {
     agents: [],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -203,12 +203,12 @@ export const AgentWithNoChecks: Story = {
       checks: [],
       summary: { total: 0, passed: 0, warnings: 0, critical: 0 },
     }],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component now says "system prompt" instead of "agent"
-    await expect(canvas.getByText('No checks for this system prompt yet.')).toBeInTheDocument();
+    // Component says "agent" instead of "system prompt"
+    await expect(canvas.getByText('No checks for this agent yet.')).toBeInTheDocument();
   },
 };
 
@@ -224,7 +224,7 @@ export const AllPassedChecks: Story = {
       latest_check_at: new Date(Date.now() - 120 * 1000).toISOString(),
       summary: { total: 3, passed: 3, warnings: 0, critical: 0 },
     }],
-    agentId: 'agent_001',
+    agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

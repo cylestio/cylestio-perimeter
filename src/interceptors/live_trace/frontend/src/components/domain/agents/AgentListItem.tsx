@@ -39,7 +39,7 @@ const getAgentStatus = (agent: APIAgent): AgentStatus => {
 
 // Status tooltip text
 const statusTooltips: Record<Exclude<AgentStatus, 'ok'>, string> = {
-  evaluating: 'Evaluating system prompt behavior',
+  evaluating: 'Evaluating agent behavior',
   requires_action: 'Action required',
 };
 

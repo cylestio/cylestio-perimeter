@@ -121,7 +121,7 @@ export const Clickable: Story = {
 export const WithRoute: Story = {
   parameters: {
     router: {
-      initialEntries: ['/workflow/abc123/agent/xyz'],
+      initialEntries: ['/agent-workflow/abc123/agent/xyz'],
     },
   },
 };

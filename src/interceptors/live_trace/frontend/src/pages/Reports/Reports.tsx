@@ -13,7 +13,7 @@ import {
 import { useParams } from 'react-router-dom';
 
 import { ReportsIcon } from '@constants/pageIcons';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
 import { Page } from '@ui/layout/Page';
@@ -96,13 +96,13 @@ const reportTemplates: ReportTemplate[] = [
 const mockReports: GeneratedReport[] = [];
 
 export const Reports: FC<ReportsProps> = ({ className }) => {
-  const { agentId } = useParams<{ agentId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
   const [reports] = useState<GeneratedReport[]>(mockReports);
 
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Reports' })
-      : [{ label: 'Agents', href: '/' }, { label: 'Reports' }],
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Reports' })
+      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Reports' }],
   });
 
   const handleGenerateReport = (templateId: string) => {

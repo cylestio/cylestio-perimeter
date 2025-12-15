@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
-import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   getAgentStatus,
@@ -130,25 +130,25 @@ const getCategorySeverity = (
 };
 
 export const AgentReport: FC = () => {
-  const { agentId, systemPromptId } = useParams<{ agentId: string; systemPromptId: string }>();
+  const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
-    if (!systemPromptId) return Promise.reject(new Error('No system prompt ID'));
-    return fetchAgent(systemPromptId);
-  }, [systemPromptId]);
+    if (!agentId) return Promise.reject(new Error('No agent ID'));
+    return fetchAgent(agentId);
+  }, [agentId]);
 
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
-    enabled: !!systemPromptId,
+    enabled: !!agentId,
   });
 
-  // Set breadcrumbs with agent context
+  // Set breadcrumbs with agent workflow context
   usePageMeta({
-    breadcrumbs: buildAgentBreadcrumbs(
-      agentId,
-      { label: 'System prompt', href: agentLink(agentId, `/system-prompt/${systemPromptId}`) },
-      { label: systemPromptId?.substring(0, 12) + '...' || '', href: agentLink(agentId, `/system-prompt/${systemPromptId}`) },
+    breadcrumbs: buildAgentWorkflowBreadcrumbs(
+      agentWorkflowId,
+      { label: 'Agent', href: agentWorkflowLink(agentWorkflowId, `/agent/${agentId}`) },
+      { label: agentId?.substring(0, 12) + '...' || '', href: agentWorkflowLink(agentWorkflowId, `/agent/${agentId}`) },
       { label: 'Full Report' }
     ),
   });
@@ -169,7 +169,7 @@ export const AgentReport: FC = () => {
   }
 
   if (error || !data) {
-    return <EmptyState title="Failed to load report" description={error || 'System prompt not found'} />;
+    return <EmptyState title="Failed to load report" description={error || 'Agent not found'} />;
   }
 
   const agent = data.agent;
@@ -187,9 +187,9 @@ export const AgentReport: FC = () => {
     <Page>
       <ReportLayout>
         <ReportSidebar>
-        {/* System Prompt Identity Card */}
+        {/* Agent Identity Card */}
         <InfoCard
-          title="System Prompt Identity"
+          title="Agent Identity"
           primaryLabel="ID"
           primaryValue={agent.id}
           stats={[
@@ -267,7 +267,7 @@ export const AgentReport: FC = () => {
               />
               <EvaluationDescription style={{ marginTop: '12px' }}>
                 We need at least {status.minSessionsRequired} sessions to provide meaningful risk
-                analysis. Keep using your system prompt to build up session history.
+                analysis. Keep using your agent to build up session history.
               </EvaluationDescription>
             </Section.Content>
           </Section>
@@ -512,7 +512,7 @@ export const AgentReport: FC = () => {
                 </CategoryBadges>
               </CategoryTitleRow>
               <CategoryDescription>
-                Analyze behavior, flag outliers, and forecast the probability your system prompt stays on
+                Analyze behavior, flag outliers, and forecast the probability your agent stays on
                 track, predictable, and stable.
               </CategoryDescription>
             </BehavioralHeader>
@@ -627,7 +627,7 @@ export const AgentReport: FC = () => {
                 </>
               ) : (
                 <InterpretationBox>
-                  Behavioral scores require cluster formation. Once the system prompt has more sessions
+                  Behavioral scores require cluster formation. Once the agent has more sessions
                   with similar patterns, clustering will occur and detailed stability metrics will
                   be available.
                 </InterpretationBox>
@@ -651,7 +651,7 @@ export const AgentReport: FC = () => {
                       <OutlierCard key={outlier.session_id} $severity={outlier.severity}>
                         <OutlierHeader>
                           <Link
-                            to={agentLink(agentId, `/session/${outlier.session_id}`)}
+                            to={agentWorkflowLink(agentWorkflowId, `/session/${outlier.session_id}`)}
                             style={{
                               fontSize: '13px',
                               fontFamily: 'var(--font-mono)',

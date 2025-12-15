@@ -20,7 +20,7 @@ import { fetchSessions } from '@api/endpoints/session';
 import type { AgentResponse, ToolAnalytics } from '@api/types/agent';
 import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration, formatLatency, formatTokens, formatCost, formatThroughput } from '@utils/formatting';
 
 import { Avatar, Badge, TimeAgo } from '@ui/core';
@@ -115,7 +115,7 @@ const recentSessionsColumns: Column<SessionListItem>[] = [
 
 export const Overview: FC<OverviewProps> = ({ className }) => {
   const navigate = useNavigate();
-  const { agentId } = useParams<{ agentId: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // State
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
@@ -126,12 +126,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   // Fetch data
   const fetchData = useCallback(async () => {
-    if (!agentId) return;
+    if (!agentWorkflowId) return;
 
     try {
       const [dashData, sessionsData] = await Promise.all([
-        fetchDashboard(agentId),
-        fetchSessions({ workflow_id: agentId, limit: 100 }),
+        fetchDashboard(agentWorkflowId),
+        fetchSessions({ agent_workflow_id: agentWorkflowId, limit: 100 }),
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
@@ -154,7 +154,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     } finally {
       setLoading(false);
     }
-  }, [agentId]);
+  }, [agentWorkflowId]);
 
   useEffect(() => {
     fetchData();
@@ -162,9 +162,9 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
 
   // Set breadcrumbs
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'Overview' })
-      : [{ label: 'Agents', href: '/' }, { label: 'Overview' }],
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Overview' })
+      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Overview' }],
   });
 
   if (loading) {
@@ -230,7 +230,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
       {/* Header */}
       <PageHeader
         title="Overview"
-        description={`Aggregated metrics for agent: ${agentId}`}
+        description={`Aggregated metrics for agent workflow: ${agentWorkflowId}`}
       />
 
       {/* Key Metrics Row */}
@@ -238,7 +238,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
         <StatCard
           icon={<Bot size={16} />}
           iconColor="cyan"
-          label="System Prompts"
+          label="Agents"
           value={agents.length}
           detail={`${metrics.activeAgents} active`}
           size="sm"
@@ -354,7 +354,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
               data={sessions.slice(0, 4)}
               keyExtractor={(session) => session.id}
               onRowClick={(session) => {
-                navigate(`/agent/${agentId}/session/${session.id}`);
+                navigate(`/agent-workflow/${agentWorkflowId}/session/${session.id}`);
               }}
               emptyState={
                 <EmptyState
@@ -409,12 +409,12 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
               <Card.Content>
                 <ToolsList>
                   <ToolItem>
-                    <ToolName>Tools discovered across all system prompts</ToolName>
+                    <ToolName>Tools discovered across all agents</ToolName>
                     <ToolCount>{metrics.totalTools}</ToolCount>
                   </ToolItem>
                 </ToolsList>
                 <p style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '16px' }}>
-                  Detailed tool usage data will appear after tools are executed in sessions.
+Detailed tool usage data will appear after tools are executed in sessions.
                 </p>
               </Card.Content>
             </Card>

@@ -5,7 +5,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
 import type { APIAgent } from '@api/types/dashboard';
-import { buildAgentBreadcrumbs } from '@utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatAgentName } from '@utils/formatting';
 
 import { EmptyState } from '@ui/feedback/EmptyState';
@@ -48,13 +48,13 @@ const transformAgent = (agent: APIAgent) => ({
 
 export const Portfolio: FC = () => {
   const navigate = useNavigate();
-  const { agentId } = useParams<{ agentId?: string }>();
+  const { agentWorkflowId } = useParams<{ agentWorkflowId?: string }>();
   const { agents, loading } = useOutletContext<PortfolioContext>();
 
   usePageMeta({
-    breadcrumbs: agentId
-      ? buildAgentBreadcrumbs(agentId, { label: 'System prompts' })
-      : [{ label: 'Agents', href: '/' }],
+    breadcrumbs: agentWorkflowId
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Agents' })
+      : [{ label: 'Agent Workflows', href: '/' }],
   });
 
   // Calculate summary stats from agents
@@ -73,7 +73,7 @@ export const Portfolio: FC = () => {
           <StatCard
             icon={<Bot size={16} />}
             iconColor="cyan"
-            label="Total System Prompts"
+            label="Total Agents"
             value={isLoading ? '-' : totalAgents}
             detail={`${activeAgents} active sessions`}
             size="sm"
@@ -84,7 +84,7 @@ export const Portfolio: FC = () => {
             label="Total Errors"
             value={isLoading ? '-' : totalErrors}
             valueColor={totalErrors > 0 ? 'red' : undefined}
-            detail="Across all system prompts"
+            detail="Across all agents"
             size="sm"
           />
           <StatCard
@@ -93,7 +93,7 @@ export const Portfolio: FC = () => {
             label="OK Status"
             value={isLoading ? '-' : agents.filter((a) => a.risk_status === 'ok').length}
             valueColor="green"
-            detail="Evaluated system prompts"
+            detail="Evaluated agents"
             size="sm"
           />
           <StatCard
@@ -129,8 +129,8 @@ export const Portfolio: FC = () => {
           ) : agents.length === 0 ? (
             <EmptyState
               icon={<Bot size={24} />}
-              title="No system prompts yet"
-              description="Connect your first system prompt to get started. Go to the Connect page for instructions."
+              title="No agents yet"
+              description="Connect your first agent to get started. Go to the Connect page for instructions."
             />
           ) : (
             agents.map((agent) => (
@@ -138,8 +138,8 @@ export const Portfolio: FC = () => {
                 key={agent.id}
                 {...transformAgent(agent)}
                 onClick={() => {
-                  const currentAgentId = agentId || agent.workflow_id || 'unassigned';
-                  navigate(`/agent/${currentAgentId}/system-prompt/${agent.id}`);
+                  const currentAgentWorkflowId = agentWorkflowId || agent.agent_workflow_id || 'unassigned';
+                  navigate(`/agent-workflow/${currentAgentWorkflowId}/agent/${agent.id}`);
                 }}
               />
             ))

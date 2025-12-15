@@ -11,7 +11,7 @@ const meta: Meta<typeof Recommendations> = {
   parameters: {
     layout: 'fullscreen',
     router: {
-      initialEntries: ['/agent/test-agent/recommendations'],
+      initialEntries: ['/agent-workflow/test-agent-workflow/recommendations'],
     },
   },
 };
@@ -24,7 +24,7 @@ const mockFindings = [
   {
     finding_id: 'find_001',
     session_id: 'sess_001',
-    workflow_id: 'test-agent',
+    agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/handlers/auth.py',
     line_start: 42,
     finding_type: 'LLM01',
@@ -38,7 +38,7 @@ const mockFindings = [
   {
     finding_id: 'find_002',
     session_id: 'sess_001',
-    workflow_id: 'test-agent',
+    agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/utils/logging.py',
     line_start: 15,
     finding_type: 'LLM06',
@@ -52,7 +52,7 @@ const mockFindings = [
   {
     finding_id: 'find_003',
     session_id: 'sess_001',
-    workflow_id: 'test-agent',
+    agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/models/chat.py',
     line_start: 88,
     finding_type: 'LLM02',
@@ -68,7 +68,7 @@ const mockFindings = [
 // Create mock fetch function
 const createMockFetch = (findings: unknown[]) => {
   return (url: string) => {
-    if (url.includes('/api/workflow/') && url.includes('/findings')) {
+    if (url.includes('/api/agent-workflow/') && url.includes('/findings')) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ findings }),
@@ -81,7 +81,7 @@ const createMockFetch = (findings: unknown[]) => {
 // Wrapper to provide route params
 const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
   <Routes>
-    <Route path="/agent/:agentId/recommendations" element={children} />
+    <Route path="/agent-workflow/:agentWorkflowId/recommendations" element={children} />
   </Routes>
 );
 

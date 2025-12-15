@@ -6,7 +6,7 @@ import { useParams, Link } from 'react-router-dom';
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, AgentSession } from '@api/types/agent';
 import { usePolling } from '@hooks/usePolling';
-import { buildAgentBreadcrumbs, agentLink } from '../../utils/breadcrumbs';
+import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
   formatCompactNumber,
   getAgentStatus,
@@ -76,13 +76,13 @@ interface Check {
 }
 
 // Table columns for sessions
-const getSessionColumns = (agentId: string): TableColumn<AgentSession>[] => [
+const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[] => [
   {
     key: 'id',
     header: 'Session ID',
     render: (session) => (
       <Link
-        to={`/agent/${agentId}/session/${session.id}`}
+        to={`/agent-workflow/${agentWorkflowId}/session/${session.id}`}
         style={{
           color: 'var(--color-cyan)',
           textDecoration: 'none',
@@ -154,24 +154,24 @@ const getSessionColumns = (agentId: string): TableColumn<AgentSession>[] => [
 ];
 
 export const AgentDetail: FC = () => {
-  const { agentId, systemPromptId } = useParams<{ agentId: string; systemPromptId: string }>();
+  const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
 
   const fetchFn = useCallback(() => {
-    if (!systemPromptId) return Promise.reject(new Error('No system prompt ID'));
-    return fetchAgent(systemPromptId);
-  }, [systemPromptId]);
+    if (!agentId) return Promise.reject(new Error('No agent ID'));
+    return fetchAgent(agentId);
+  }, [agentId]);
 
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
-    enabled: !!systemPromptId,
+    enabled: !!agentId,
   });
 
-  // Set breadcrumbs with agent context
+  // Set breadcrumbs with agent workflow context
   usePageMeta({
-    breadcrumbs: buildAgentBreadcrumbs(
-      agentId,
-      { label: 'System prompt' },
-      { label: systemPromptId?.substring(0, 12) + '...' || '' }
+    breadcrumbs: buildAgentWorkflowBreadcrumbs(
+      agentWorkflowId,
+      { label: 'Agent' },
+      { label: agentId?.substring(0, 12) + '...' || '' }
     ),
   });
 
@@ -184,13 +184,13 @@ export const AgentDetail: FC = () => {
   }
 
   if (error || !data) {
-    return <EmptyState title="Failed to load system prompt" description={error || 'System prompt not found'} />;
+    return <EmptyState title="Failed to load agent" description={error || 'Agent not found'} />;
   }
 
   const agent = data.agent;
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
-  const reportLink = agentLink(agentId, `/system-prompt/${agent.id}/report`);
+  const reportLink = agentWorkflowLink(agentWorkflowId, `/agent/${agent.id}/report`);
 
   // Build failed and warning check lists
   const failedChecks: Check[] = [];
@@ -403,7 +403,7 @@ export const AgentDetail: FC = () => {
                   </BehavioralMetrics>
                 ) : (
                   <PlaceholderMessage>
-                    Behavioral scores require cluster formation. Once the system prompt has more sessions with
+                    Behavioral scores require cluster formation. Once the agent has more sessions with
                     similar patterns, detailed stability metrics will be available.
                   </PlaceholderMessage>
                 )}
@@ -419,14 +419,14 @@ export const AgentDetail: FC = () => {
             <Section.Content noPadding>
               {data.sessions && data.sessions.length > 0 ? (
                 <Table<AgentSession>
-                  columns={getSessionColumns(agentId || 'unassigned')}
+                  columns={getSessionColumns(agentWorkflowId || 'unassigned')}
                   data={data.sessions}
                   keyExtractor={(session) => session.id}
-                  emptyState={<EmptySessions>No sessions found for this system prompt.</EmptySessions>}
+                  emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
                 />
               ) : (
                 <EmptySessions>
-                  <p>No sessions found for this system prompt.</p>
+                  <p>No sessions found for this agent.</p>
                 </EmptySessions>
               )}
             </Section.Content>
@@ -477,7 +477,7 @@ export const AgentDetail: FC = () => {
 
                   {/* Inline PII note */}
                   {riskAnalysis?.summary?.pii_disabled && (
-                    <PIINote>PII detection unavailable for this system prompt</PIINote>
+                    <PIINote>PII detection unavailable for this agent</PIINote>
                   )}
 
                   {/* Issues list */}

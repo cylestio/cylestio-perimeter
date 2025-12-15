@@ -1,29 +1,29 @@
-import type { WorkflowFindingsResponse, AnalysisSessionsResponse } from '../types/findings';
+import type { AgentWorkflowFindingsResponse, AnalysisSessionsResponse } from '../types/findings';
 
 // Re-export for convenience
 export type { AnalysisSession, AnalysisSessionsResponse } from '../types/findings';
 
-export interface FetchWorkflowFindingsParams {
+export interface FetchAgentWorkflowFindingsParams {
   severity?: string;
   status?: string;
   limit?: number;
 }
 
-export const fetchWorkflowFindings = async (
-  workflowId: string,
-  params?: FetchWorkflowFindingsParams
-): Promise<WorkflowFindingsResponse> => {
+export const fetchAgentWorkflowFindings = async (
+  agentWorkflowId: string,
+  params?: FetchAgentWorkflowFindingsParams
+): Promise<AgentWorkflowFindingsResponse> => {
   const queryParams = new URLSearchParams();
   if (params?.severity) queryParams.set('severity', params.severity);
   if (params?.status) queryParams.set('status', params.status);
   if (params?.limit) queryParams.set('limit', String(params.limit));
 
   const queryString = queryParams.toString();
-  const url = `/api/workflow/${workflowId}/findings${queryString ? '?' + queryString : ''}`;
+  const url = `/api/agent-workflow/${agentWorkflowId}/findings${queryString ? '?' + queryString : ''}`;
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch workflow findings: ${response.statusText}`);
+    throw new Error(`Failed to fetch agent workflow findings: ${response.statusText}`);
   }
   const data = await response.json();
   if (data.error) {
@@ -33,9 +33,9 @@ export const fetchWorkflowFindings = async (
 };
 
 export const fetchAnalysisSessions = async (
-  workflowId: string
+  agentWorkflowId: string
 ): Promise<AnalysisSessionsResponse> => {
-  const response = await fetch(`/api/sessions/analysis?workflow_id=${workflowId}`);
+  const response = await fetch(`/api/sessions/analysis?agent_workflow_id=${agentWorkflowId}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch analysis sessions: ${response.statusText}`);
   }
@@ -47,10 +47,10 @@ export const fetchAnalysisSessions = async (
 };
 
 // Security Checks Types
-export interface WorkflowSecurityCheck {
+export interface AgentWorkflowSecurityCheck {
   check_id: string;
   agent_id: string;
-  workflow_id?: string;
+  agent_workflow_id?: string;
   analysis_session_id: string;
   category_id: string;
   check_type: string;
@@ -73,12 +73,12 @@ export interface AgentChecksSummary {
 export interface AgentSecurityData {
   agent_id: string;
   agent_name: string;
-  checks: WorkflowSecurityCheck[];
+  checks: AgentWorkflowSecurityCheck[];
   latest_check_at?: string;
   summary: AgentChecksSummary;
 }
 
-export interface WorkflowSecurityChecksSummary {
+export interface AgentWorkflowSecurityChecksSummary {
   total_checks: number;
   passed: number;
   warnings: number;
@@ -86,16 +86,16 @@ export interface WorkflowSecurityChecksSummary {
   agents_analyzed: number;
 }
 
-export interface WorkflowSecurityChecksResponse {
-  workflow_id: string;
+export interface AgentWorkflowSecurityChecksResponse {
+  agent_workflow_id: string;
   agents: AgentSecurityData[];
-  total_summary: WorkflowSecurityChecksSummary;
+  total_summary: AgentWorkflowSecurityChecksSummary;
 }
 
-export const fetchWorkflowSecurityChecks = async (
-  workflowId: string
-): Promise<WorkflowSecurityChecksResponse> => {
-  const response = await fetch(`/api/workflow/${workflowId}/security-checks`);
+export const fetchAgentWorkflowSecurityChecks = async (
+  agentWorkflowId: string
+): Promise<AgentWorkflowSecurityChecksResponse> => {
+  const response = await fetch(`/api/agent-workflow/${agentWorkflowId}/security-checks`);
   if (!response.ok) {
     throw new Error(`Failed to fetch security checks: ${response.statusText}`);
   }

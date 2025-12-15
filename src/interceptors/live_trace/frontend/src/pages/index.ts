@@ -1,5 +1,7 @@
 export { AgentDetail } from './AgentDetail';
 export { AgentReport } from './AgentReport';
+export { AgentWorkflowDetail } from './AgentWorkflowDetail';
+export { AgentWorkflowsHome } from './AgentWorkflowsHome';
 export { AttackSurface } from './AttackSurface';
 export { Connect } from './Connect';
 export { DevConnection } from './DevConnection';
@@ -11,5 +13,3 @@ export { Reports } from './Reports';
 export { SessionDetail } from './SessionDetail';
 export { Sessions } from './Sessions';
 export { StaticAnalysis } from './StaticAnalysis';
-export { WorkflowDetail } from './WorkflowDetail';
-export { WorkflowsHome } from './WorkflowsHome';

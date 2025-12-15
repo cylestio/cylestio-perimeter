@@ -58,7 +58,7 @@ export interface SessionListItem {
   id_short: string;
   agent_id: string;
   agent_id_short: string | null;
-  workflow_id: string | null;
+  agent_workflow_id: string | null;
   created_at: string;
   last_activity: string;
   last_activity_relative: string;
@@ -74,7 +74,7 @@ export interface SessionListItem {
 }
 
 export interface SessionsListFilters {
-  workflow_id?: string;
+  agent_workflow_id?: string;
   agent_id?: string;
   status?: LiveSessionStatus;
   limit: number;

@@ -7,12 +7,12 @@ import type { IDEConnectionStatus, IDEConnectionsResponse } from '../types/ide';
 const API_BASE = '/api';
 
 /**
- * Fetch IDE connection status for a workflow
+ * Fetch IDE connection status for an agent workflow
  */
-export async function fetchIDEConnectionStatus(workflowId?: string): Promise<IDEConnectionStatus> {
+export async function fetchIDEConnectionStatus(agentWorkflowId?: string): Promise<IDEConnectionStatus> {
   const params = new URLSearchParams();
-  if (workflowId) {
-    params.append('workflow_id', workflowId);
+  if (agentWorkflowId) {
+    params.append('agent_workflow_id', agentWorkflowId);
   }
 
   const url = `${API_BASE}/ide/status${params.toString() ? `?${params.toString()}` : ''}`;
@@ -29,15 +29,15 @@ export async function fetchIDEConnectionStatus(workflowId?: string): Promise<IDE
  * Fetch IDE connections list
  */
 export async function fetchIDEConnections(options?: {
-  workflowId?: string;
+  agentWorkflowId?: string;
   ideType?: string;
   activeOnly?: boolean;
   limit?: number;
 }): Promise<IDEConnectionsResponse> {
   const params = new URLSearchParams();
-  
-  if (options?.workflowId) {
-    params.append('workflow_id', options.workflowId);
+
+  if (options?.agentWorkflowId) {
+    params.append('agent_workflow_id', options.agentWorkflowId);
   }
   if (options?.ideType) {
     params.append('ide_type', options.ideType);
