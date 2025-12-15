@@ -97,7 +97,8 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Model Usage Analytics')).toBeInTheDocument();
     await expect(canvas.getByText('Overview')).toBeInTheDocument();
-    await expect(canvas.getByText('claude-sonnet-4')).toBeInTheDocument();
+    // Model name appears in both DistributionBar and the table
+    await expect(canvas.getAllByText('claude-sonnet-4').length).toBeGreaterThan(0);
   },
 };
 
@@ -159,8 +160,10 @@ export const SingleModel: Story = {
       ],
     }),
   },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByText('claude-sonnet-4')).toBeInTheDocument();
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Model name appears in both DistributionBar and the table
+    await expect(canvas.getAllByText('claude-sonnet-4').length).toBeGreaterThan(0);
   },
 };
 
@@ -171,7 +174,8 @@ export const NoModels: Story = {
       models: [],
     }),
   },
-  play: async ({ canvas }) => {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
     await expect(canvas.getByText('No model usage data available')).toBeInTheDocument();
   },
 };
@@ -250,8 +254,10 @@ export const ManyModels: Story = {
       ],
     }),
   },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByText('claude-haiku')).toBeInTheDocument();
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Model names appear in both DistributionBar and the table
+    await expect(canvas.getAllByText('claude-haiku').length).toBeGreaterThan(0);
   },
 };
 
@@ -316,7 +322,8 @@ export const NoCostData: Story = {
     const canvas = within(canvasElement);
     const costTab = canvas.getByText('Cost Analysis');
     await userEvent.click(costTab);
-    await expect(canvas.getByText('No cost data available')).toBeInTheDocument();
+    // There are two "No cost data available" messages (one for each chart column)
+    await expect(canvas.getAllByText('No cost data available').length).toBeGreaterThan(0);
   },
 };
 
