@@ -211,6 +211,70 @@ def handle_update_finding_status(args: Dict[str, Any], store: Any) -> Dict[str, 
     return {"finding": finding}
 
 
+@register_handler("update_finding_correlation")
+def handle_update_finding_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Update a finding's correlation state.
+    
+    Correlation states:
+    - VALIDATED: Static finding confirmed by runtime evidence
+    - UNEXERCISED: Static finding, code path never executed at runtime
+    - RUNTIME_ONLY: Issue found at runtime, no static counterpart
+    - THEORETICAL: Static finding, but safe at runtime
+    """
+    finding_id = args.get("finding_id")
+    if not finding_id:
+        return {"error": "finding_id is required"}
+    
+    correlation_state = args.get("correlation_state", "").upper()
+    valid_states = {'VALIDATED', 'UNEXERCISED', 'RUNTIME_ONLY', 'THEORETICAL'}
+    if correlation_state not in valid_states:
+        return {"error": f"Invalid correlation_state: {correlation_state}. Must be one of {list(valid_states)}"}
+    
+    correlation_evidence = args.get("correlation_evidence")
+    
+    finding = store.update_finding_correlation(
+        finding_id=finding_id,
+        correlation_state=correlation_state,
+        correlation_evidence=correlation_evidence,
+    )
+    
+    if not finding:
+        return {"error": f"Finding '{finding_id}' not found"}
+    
+    return {
+        "finding": finding,
+        "message": f"Finding {finding_id} marked as {correlation_state}",
+    }
+
+
+@register_handler("get_correlation_summary")
+def handle_get_correlation_summary(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get correlation summary for an agent workflow.
+    
+    Returns counts of findings by correlation state.
+    """
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+    
+    summary = store.get_correlation_summary(workflow_id)
+    
+    # Add helpful message
+    if summary['uncorrelated'] > 0:
+        message = f"💡 {summary['uncorrelated']} findings not yet correlated. Use /correlate to correlate them with runtime data."
+    elif summary['validated'] > 0:
+        message = f"⚠️ {summary['validated']} findings are VALIDATED - active risks confirmed at runtime. Prioritize fixing these!"
+    elif summary['is_correlated']:
+        message = "✅ All findings correlated. No validated active risks."
+    else:
+        message = "No findings to correlate yet."
+    
+    return {
+        **summary,
+        "message": message,
+    }
+
+
 # ==================== Agent Workflow Lifecycle Tools ====================
 
 @register_handler("get_agent_workflow_state")

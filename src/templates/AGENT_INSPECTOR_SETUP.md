@@ -166,7 +166,7 @@ If template not found, create the rules file with this minimal content:
 
 ```markdown
 ---
-description: Agent Inspector - AI Agent Security Analysis (scan, fix, correlate)
+description: Agent Inspector - AI Agent Security Analysis (scan, analyze, fix, correlate)
 globs: ["**/*.py", "**/*.ts", "**/*.js"]
 ---
 
@@ -177,12 +177,15 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 
 ## Commands
 
-- `/scan` - Run security scan on current workspace
+- `/scan` - Run static security scan on current workspace
 - `/scan path/` - Scan specific folder
+- `/analyze` - Run dynamic runtime analysis
+- `/correlate` - Correlate static findings with runtime data
 - `/fix REC-XXX` - Fix a specific recommendation
 - `/fix` - Fix highest priority blocking issue
+- `/status` - Get dynamic analysis status
 
-## 7 Security Categories
+## Static Analysis - 7 Security Categories
 
 1. PROMPT - Injection, jailbreak (LLM01)
 2. OUTPUT - Insecure output handling (LLM02)
@@ -191,6 +194,20 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 5. MEMORY - RAG/context security
 6. SUPPLY - Unpinned dependencies (LLM05)
 7. BEHAVIOR - Excessive agency (LLM08/09)
+
+## Dynamic Analysis - 4 Check Categories
+
+1. Resource Management - Token/tool bounds, variance
+2. Environment - Model pinning, tool coverage
+3. Behavioral - Stability, predictability, outliers
+4. Data - PII detection at runtime
+
+## Correlation States (Phase 5)
+
+- VALIDATED - Static issue confirmed at runtime (FIX FIRST!)
+- UNEXERCISED - Code path never executed
+- THEORETICAL - Static issue, but safe at runtime
+- RUNTIME_ONLY - Found only during runtime
 
 ## Fix Workflow
 
@@ -486,10 +503,13 @@ A security analysis platform for AI agents - find vulnerabilities, understand be
 
 | Command | Description |
 |---------|-------------|
-| `/scan` | Run security scan on current workspace |
-| `/scan path/to/folder` | Run security scan on specific folder |
+| `/scan` | Run static security scan on current workspace |
+| `/scan path/to/folder` | Run static scan on specific folder |
+| `/analyze` | Run dynamic analysis on runtime sessions |
+| `/correlate` | Correlate static findings with runtime data |
 | `/fix REC-001` | Fix a specific recommendation (AI-powered, contextual) |
 | `/fix` | Fix the next highest-priority blocking recommendation |
+| `/status` | Get dynamic analysis status (sessions available, etc.) |
 
 #### The `/fix` Command - AI-Powered Security Fixes
 
@@ -525,6 +545,43 @@ PENDING → FIXING → FIXED → VERIFIED
 Your agent has a **Production Gate**:
 - 🔒 **BLOCKED**: CRITICAL or HIGH issues remain open → can't ship
 - ✅ **UNBLOCKED**: All blocking issues resolved → ready to ship
+
+#### The `/analyze` Command - Dynamic Runtime Analysis
+
+When you say `/analyze`, I will:
+
+1. **Check for available sessions** - runtime sessions from agent traffic through proxy
+2. **Trigger on-demand analysis** - only analyzes NEW sessions since last run
+3. **Run 16 security checks** across 4 categories:
+   - **Resource Management**: Token/tool call bounds, variance analysis
+   - **Environment**: Model pinning, tool coverage, unused tools
+   - **Behavioral**: Stability, outliers, predictability, clustering
+   - **Data**: PII detection in prompts and responses
+4. **Create findings & recommendations** - just like static analysis
+5. **Auto-resolve old issues** - issues not found in new sessions are marked resolved
+
+**Key points:**
+- Analysis is **ON-DEMAND** - only runs when you ask
+- Each run analyzes only **NEW sessions** (incremental)
+- Results reflect the **current state** of your agent
+
+#### The `/correlate` Command - Cross-Analysis Correlation
+
+When you say `/correlate`, I will:
+
+1. **Get static findings** - issues found in code analysis
+2. **Get runtime data** - tool usage patterns from dynamic sessions
+3. **Correlate findings** with one of these states:
+   - **VALIDATED**: Static issue confirmed at runtime (highest priority!)
+   - **UNEXERCISED**: Code path never executed at runtime
+   - **THEORETICAL**: Static issue, but safe at runtime (other safeguards)
+   - **RUNTIME_ONLY**: Issue found only at runtime
+4. **Update finding correlation** - stores evidence and state
+
+**Why correlate?**
+- Prioritize **VALIDATED** issues - they're real and active
+- Deprioritize **UNEXERCISED** code - may be dead code
+- Understand your agent's actual risk surface
 
 #### The 7 Security Checks
 
@@ -575,15 +632,46 @@ The rules file ensures I'll use these tools when you ask about security - even i
 
 ## POST-INSTALLATION: Using Agent Inspector
 
-### Security Scan Workflow
+### Static Scan Workflow (`/scan`)
 
 ```
-/scan → Creates findings → Generates recommendations → Shows gate status
+/scan → Analyzes code → Creates findings → Generates recommendations → Shows gate status
 ```
 
 Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
 
-### Fix Workflow
+### Dynamic Analysis Workflow (`/analyze`)
+
+```
+/analyze → Analyzes runtime sessions → Creates security checks → Updates gate status
+```
+
+**Prerequisites:**
+1. Agent must send traffic through the proxy (`base_url="http://localhost:4000"`)
+2. At least 1 completed session available
+
+**Key behaviors:**
+- **On-demand only** - never auto-triggers
+- **Incremental** - only analyzes NEW sessions since last run
+- **Auto-resolves** - old issues not in new sessions are marked resolved
+
+### Correlation Workflow (`/correlate`)
+
+```
+/correlate → Gets static findings + runtime data → Updates correlation states
+```
+
+**When to use:**
+- After running BOTH static scan AND dynamic analysis
+- To prioritize which issues are real risks vs theoretical
+
+**Correlation states:**
+- **VALIDATED**: Issue exists in code AND was triggered at runtime → **FIX FIRST!**
+- **UNEXERCISED**: Issue in code, but code path never executed → lower priority
+- **THEORETICAL**: Issue in code, but runtime shows it's safe → may be OK
+- **RUNTIME_ONLY**: Issue found only at runtime → add static check
+
+### Fix Workflow (`/fix`)
 
 ```
 /fix REC-001 → Reads code → Applies contextual fix → Updates status
@@ -597,21 +685,50 @@ The fix is tracked in an audit trail for compliance (who fixed what, when, how).
 |-----|---------------|
 | http://localhost:7100 | Dashboard home |
 | http://localhost:7100/agent-workflow/{id}/static-analysis | Static scan findings |
+| http://localhost:7100/agent-workflow/{id}/dynamic-analysis | Dynamic runtime analysis |
 | http://localhost:7100/agent-workflow/{id}/recommendations | All recommendations |
+| http://localhost:7100/agent-workflow/{id}/sessions | Runtime session history |
 
 ### MCP Tools Reference
 
+#### Static Analysis Tools
 | Tool | Purpose |
 |------|---------|
 | `get_security_patterns` | Get OWASP LLM patterns for scanning |
-| `create_analysis_session` | Start a scan session |
+| `create_analysis_session` | Start a scan session (type: STATIC or DYNAMIC) |
 | `store_finding` | Record a security finding |
 | `complete_analysis_session` | Finalize scan, calculate risk |
+
+#### Dynamic Analysis Tools
+| Tool | Purpose |
+|------|---------|
+| `trigger_dynamic_analysis` | Trigger on-demand runtime analysis |
+| `get_dynamic_analysis_status` | Check if analysis can be triggered, session counts |
+| `get_tool_usage_patterns` | Get tool usage metrics from runtime |
+| `get_agents` | List agents discovered during runtime |
+
+#### Correlation Tools (Phase 5)
+| Tool | Purpose |
+|------|---------|
+| `update_finding_correlation` | Set finding correlation state (VALIDATED/UNEXERCISED/etc.) |
+| `get_correlation_summary` | Get counts by correlation state for workflow |
+| `get_agent_workflow_correlation` | Full correlation data: static + dynamic findings |
+
+#### Recommendation & Fix Tools
+| Tool | Purpose |
+|------|---------|
 | `get_recommendations` | List recommendations for workflow |
 | `start_fix` | Mark recommendation as FIXING |
 | `complete_fix` | Mark recommendation as FIXED |
 | `dismiss_recommendation` | Dismiss with documented reason |
+| `verify_fix` | Verify a fix was successful |
 | `get_gate_status` | Check if production is blocked |
+
+#### Lifecycle Tools
+| Tool | Purpose |
+|------|---------|
+| `get_agent_workflow_state` | Get overall workflow state (static/dynamic/both) |
+| `get_analysis_history` | View past analysis runs |
 
 ---
 

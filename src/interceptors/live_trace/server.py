@@ -1363,6 +1363,20 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting dynamic summary: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/workflow/{workflow_id}/correlation-summary")
+    async def api_get_correlation_summary(workflow_id: str):
+        """Get correlation summary for a workflow.
+        
+        Phase 5: Shows counts of findings by correlation state
+        (VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL).
+        """
+        try:
+            summary = insights.store.get_correlation_summary(workflow_id)
+            return JSONResponse(summary)
+        except Exception as e:
+            logger.error(f"Error getting correlation summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/workflow/{workflow_id}/analysis-sessions")
     async def api_get_workflow_analysis_sessions(
         workflow_id: str,

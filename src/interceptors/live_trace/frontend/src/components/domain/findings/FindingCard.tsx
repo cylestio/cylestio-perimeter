@@ -10,6 +10,8 @@ import { formatDateTime } from '@utils/formatting';
 import { Badge } from '@ui/core/Badge';
 import { Text } from '@ui/core/Text';
 
+import { CorrelationBadge, type CorrelationState } from '@domain/correlation';
+
 import {
   FindingCardWrapper,
   FindingCardHeader,
@@ -116,6 +118,22 @@ export const FindingCard: FC<FindingCardProps> = ({
             <Badge variant={getSeverityVariant(finding.severity)} size="sm">
               {finding.severity}
             </Badge>
+            {/* Phase 5: Show correlation badge if available */}
+            {finding.correlation_state && (
+              <CorrelationBadge
+                state={finding.correlation_state as CorrelationState}
+                evidence={
+                  finding.correlation_evidence
+                    ? typeof finding.correlation_evidence === 'object'
+                      ? finding.correlation_evidence.runtime_observations ||
+                        (finding.correlation_evidence.tool_calls
+                          ? `Tool called ${finding.correlation_evidence.tool_calls} times`
+                          : undefined)
+                      : String(finding.correlation_evidence)
+                    : undefined
+                }
+              />
+            )}
             {/* Only show status badge for non-OPEN statuses (FIXED, DISMISSED, etc.) */}
             {finding.status !== 'OPEN' && (
               <>

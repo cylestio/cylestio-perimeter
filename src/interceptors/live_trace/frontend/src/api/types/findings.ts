@@ -83,6 +83,16 @@ export interface FindingEvidence {
   context?: string;
 }
 
+// Correlation states for Phase 5
+export type CorrelationState = 'VALIDATED' | 'UNEXERCISED' | 'RUNTIME_ONLY' | 'THEORETICAL';
+
+export interface CorrelationEvidence {
+  tool_calls?: number;
+  session_count?: number;
+  runtime_observations?: string;
+  [key: string]: string | number | undefined;
+}
+
 export interface Finding {
   finding_id: string;
   session_id: string;
@@ -103,6 +113,9 @@ export interface Finding {
   soc2_controls?: string[];
   recommendation_id?: string;
   status: FindingStatus;
+  // Phase 5: Correlation fields
+  correlation_state?: CorrelationState;
+  correlation_evidence?: CorrelationEvidence;
   created_at: string;
   updated_at: string;
 }

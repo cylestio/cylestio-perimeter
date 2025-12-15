@@ -304,3 +304,58 @@ export const dismissRecommendation = async (
   }
   return data;
 };
+
+// Phase 5: Correlation Summary
+export interface CorrelationSummaryResponse {
+  agent_workflow_id: string;
+  validated: number;
+  unexercised: number;
+  runtime_only: number;
+  theoretical: number;
+  uncorrelated: number;
+  sessions_count: number;
+  is_correlated: boolean;
+  message?: string;
+}
+
+export const fetchCorrelationSummary = async (
+  workflowId: string
+): Promise<CorrelationSummaryResponse> => {
+  const response = await fetch(`/api/workflow/${workflowId}/correlation-summary`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch correlation summary: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+// Dynamic Summary (for correlation hint card)
+export interface DynamicSummaryResponse {
+  workflow_id: string;
+  agents_count: number;
+  total_sessions: number;
+  total_messages: number;
+  total_tokens: number;
+  total_tool_calls: number;
+  total_errors: number;
+  tools_used: string[];
+  tools_available: string[];
+  tool_coverage: number;
+}
+
+export const fetchDynamicSummary = async (
+  workflowId: string
+): Promise<DynamicSummaryResponse> => {
+  const response = await fetch(`/api/workflow/${workflowId}/dynamic-summary`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch dynamic summary: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};

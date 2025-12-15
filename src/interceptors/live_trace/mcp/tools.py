@@ -202,6 +202,44 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["finding_id", "status"]
         }
     },
+    # ==================== Correlation Tools ====================
+    {
+        "name": "update_finding_correlation",
+        "description": "Update a finding's correlation state. Use this after correlating static findings with runtime data.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "finding_id": {
+                    "type": "string",
+                    "description": "The finding ID to update"
+                },
+                "correlation_state": {
+                    "type": "string",
+                    "description": "VALIDATED (confirmed at runtime), UNEXERCISED (never triggered), RUNTIME_ONLY (runtime-only issue), THEORETICAL (safe at runtime)",
+                    "enum": ["VALIDATED", "UNEXERCISED", "RUNTIME_ONLY", "THEORETICAL"]
+                },
+                "correlation_evidence": {
+                    "type": "object",
+                    "description": "Evidence details (e.g., tool_calls, session_count, runtime_observations)"
+                }
+            },
+            "required": ["finding_id", "correlation_state"]
+        }
+    },
+    {
+        "name": "get_correlation_summary",
+        "description": "Get correlation summary for a workflow. Shows counts of findings by correlation state (VALIDATED, UNEXERCISED, etc.).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
     # ==================== Agent Workflow Lifecycle Tools ====================
     {
         "name": "get_agent_workflow_state",

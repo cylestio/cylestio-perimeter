@@ -6,7 +6,9 @@ import { useParams } from 'react-router-dom';
 import { 
   fetchStaticSummary, 
   fetchAnalysisSessions, 
-  type AnalysisSession 
+  fetchCorrelationSummary,
+  type AnalysisSession,
+  type CorrelationSummaryResponse,
 } from '@api/endpoints/agentWorkflow';
 import type { 
   StaticSummaryResponse, 
@@ -26,6 +28,8 @@ import {
   SecurityCheckCard, 
   GateProgress,
 } from '@domain/security';
+
+import { CorrelationSummary } from '@domain/correlation';
 
 import { usePageMeta } from '../../context';
 import {
@@ -51,6 +55,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   // State
   const [staticSummary, setStaticSummary] = useState<StaticSummaryResponse | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [correlationData, setCorrelationData] = useState<CorrelationSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,12 +67,14 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     setError(null);
 
     try {
-      const [summaryData, sessionsData] = await Promise.all([
+      const [summaryData, sessionsData, correlationSummary] = await Promise.all([
         fetchStaticSummary(agentWorkflowId),
         fetchAnalysisSessions(agentWorkflowId),
+        fetchCorrelationSummary(agentWorkflowId).catch(() => null), // Graceful fallback
       ]);
 
       setStaticSummary(summaryData);
+      setCorrelationData(correlationSummary);
       
       // Filter to only STATIC and AUTOFIX sessions
       const filteredSessions = (sessionsData.sessions || []).filter(
@@ -171,6 +178,19 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
           historicalSummary={staticSummary?.historical_summary}
         />
       </Section>
+
+      {/* Phase 5: Correlation Summary Card - Show when correlation data exists */}
+      {correlationData && (correlationData.is_correlated || correlationData.uncorrelated > 0) && (
+        <Section>
+          <CorrelationSummary
+            validated={correlationData.validated}
+            unexercised={correlationData.unexercised}
+            theoretical={correlationData.theoretical}
+            uncorrelated={correlationData.uncorrelated}
+            sessionsCount={correlationData.sessions_count}
+          />
+        </Section>
+      )}
 
       {/* Security Checks - 7 Categories */}
       <Section>

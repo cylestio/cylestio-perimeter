@@ -530,6 +530,9 @@ class TraceStore:
             ("cwe", "TEXT"),
             ("soc2_controls", "TEXT"),
             ("recommendation_id", "TEXT"),
+            # Phase 5: Correlation columns
+            ("correlation_state", "TEXT"),  # VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL
+            ("correlation_evidence", "TEXT"),  # JSON string with correlation details
         ]
         for col_name, col_def in new_finding_columns:
             if col_name not in columns:
@@ -1390,6 +1393,9 @@ class TraceStore:
             'soc2_controls': json.loads(row['soc2_controls']) if 'soc2_controls' in row_keys and row['soc2_controls'] else None,
             'recommendation_id': row['recommendation_id'] if 'recommendation_id' in row_keys else None,
             'status': row['status'],
+            # Phase 5: Correlation fields
+            'correlation_state': row['correlation_state'] if 'correlation_state' in row_keys else None,
+            'correlation_evidence': json.loads(row['correlation_evidence']) if 'correlation_evidence' in row_keys and row['correlation_evidence'] else None,
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
             'updated_at': datetime.fromtimestamp(row['updated_at'], tz=timezone.utc).isoformat(),
         }
@@ -1862,6 +1868,91 @@ class TraceStore:
 
             # Return the updated finding
             return self.get_finding(finding_id)
+
+    def update_finding_correlation(
+        self,
+        finding_id: str,
+        correlation_state: str,
+        correlation_evidence: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update the correlation state of a finding.
+        
+        Correlation states:
+        - VALIDATED: Static finding confirmed by runtime evidence
+        - UNEXERCISED: Static finding, code path never executed at runtime
+        - RUNTIME_ONLY: Issue found at runtime, no static counterpart
+        - THEORETICAL: Static finding, but safe at runtime (other safeguards)
+        
+        Args:
+            finding_id: The finding to update
+            correlation_state: One of VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL
+            correlation_evidence: Optional dict with evidence details (tool calls, session count, etc.)
+            
+        Returns:
+            Updated finding dict or None if not found
+        """
+        valid_states = {'VALIDATED', 'UNEXERCISED', 'RUNTIME_ONLY', 'THEORETICAL'}
+        if correlation_state.upper() not in valid_states:
+            logger.warning(f"Invalid correlation state: {correlation_state}. Must be one of {valid_states}")
+            return None
+            
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            updated_at = now.timestamp()
+            
+            evidence_json = json.dumps(correlation_evidence) if correlation_evidence else None
+            
+            self.db.execute("""
+                UPDATE findings
+                SET correlation_state = ?, correlation_evidence = ?, updated_at = ?
+                WHERE finding_id = ?
+            """, (correlation_state.upper(), evidence_json, updated_at, finding_id))
+            
+            self.db.commit()
+            
+            # Return the updated finding
+            return self.get_finding(finding_id)
+
+    def get_correlation_summary(
+        self,
+        agent_workflow_id: str,
+    ) -> Dict[str, Any]:
+        """Get correlation summary for an agent workflow.
+        
+        Returns counts of findings by correlation state and overall correlation status.
+        """
+        with self._lock:
+            cursor = self.db.execute("""
+                SELECT correlation_state, COUNT(*) as count
+                FROM findings
+                WHERE agent_workflow_id = ? AND status = 'OPEN'
+                GROUP BY correlation_state
+            """, (agent_workflow_id,))
+            
+            counts = {row['correlation_state']: row['count'] for row in cursor.fetchall()}
+            
+            # Count uncorrelated (NULL correlation_state)
+            uncorrelated = counts.pop(None, 0)
+            
+            # Get total sessions for context
+            cursor = self.db.execute("""
+                SELECT COUNT(DISTINCT session_id) as session_count
+                FROM sessions
+                WHERE agent_workflow_id = ? AND is_completed = 1
+            """, (agent_workflow_id,))
+            row = cursor.fetchone()
+            sessions_count = row['session_count'] if row else 0
+            
+            return {
+                'agent_workflow_id': agent_workflow_id,
+                'validated': counts.get('VALIDATED', 0),
+                'unexercised': counts.get('UNEXERCISED', 0),
+                'runtime_only': counts.get('RUNTIME_ONLY', 0),
+                'theoretical': counts.get('THEORETICAL', 0),
+                'uncorrelated': uncorrelated,
+                'sessions_count': sessions_count,
+                'is_correlated': uncorrelated == 0 and (counts.get('VALIDATED', 0) + counts.get('UNEXERCISED', 0) + counts.get('THEORETICAL', 0)) > 0,
+            }
 
     def get_agent_workflow_findings_summary(self, agent_workflow_id: str) -> Dict[str, Any]:
         """Get a summary of findings for an agent workflow."""

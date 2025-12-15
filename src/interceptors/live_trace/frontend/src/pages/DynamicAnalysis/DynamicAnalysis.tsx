@@ -6,6 +6,7 @@ import { useOutletContext, useParams } from 'react-router-dom';
 import {
   fetchAnalysisSessions,
   fetchAgentWorkflowSecurityChecks,
+  fetchStaticSummary,
   type AnalysisSession,
   type AgentSecurityData,
   type AgentWorkflowSecurityChecksSummary,
@@ -20,6 +21,7 @@ import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
 import { AnalysisSessionsTable } from '@domain/analysis';
+import { CorrelateHintCard } from '@domain/correlation';
 
 import { GatheringData } from '@features/GatheringData';
 import { SecurityChecksExplorer } from '@features/SecurityChecksExplorer';
@@ -147,6 +149,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const [checksSummary, setChecksSummary] = useState<AgentWorkflowSecurityChecksSummary | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
   const [analysisStatus, setAnalysisStatus] = useState<DynamicAnalysisStatus | null>(null);
+  const [staticFindingsCount, setStaticFindingsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -240,15 +243,27 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     }
   }, [agentWorkflowId, triggerLoading, fetchAnalysisStatus, fetchSessionsData, fetchChecksData]);
 
+  // Fetch static findings count for correlation hint
+  const fetchStaticCount = useCallback(async () => {
+    if (!agentWorkflowId) return;
+    try {
+      const staticData = await fetchStaticSummary(agentWorkflowId);
+      const totalFindings = staticData?.checks?.reduce((acc, c) => acc + c.findings_count, 0) || 0;
+      setStaticFindingsCount(totalFindings);
+    } catch (err) {
+      console.error('Failed to fetch static summary:', err);
+    }
+  }, [agentWorkflowId]);
+
   // Fetch data on mount
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      await Promise.all([fetchChecksData(), fetchSessionsData(), fetchAnalysisStatus()]);
+      await Promise.all([fetchChecksData(), fetchSessionsData(), fetchAnalysisStatus(), fetchStaticCount()]);
       setLoading(false);
     };
     fetchAll();
-  }, [fetchChecksData, fetchSessionsData, fetchAnalysisStatus]);
+  }, [fetchChecksData, fetchSessionsData, fetchAnalysisStatus, fetchStaticCount]);
 
   // Poll for status updates - faster when running, slower otherwise
   useEffect(() => {
@@ -436,6 +451,17 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
           </AnalysisStatusCard>
         </Section.Content>
       </Section>
+
+      {/* Phase 5: Correlation Hint Card - Show when both static and dynamic data exist */}
+      {staticFindingsCount > 0 && analysisSessions.length > 0 && (
+        <Section>
+          <CorrelateHintCard
+            staticFindingsCount={staticFindingsCount}
+            dynamicSessionsCount={analysisSessions.length}
+            connectedIde="cursor"
+          />
+        </Section>
+      )}
 
       {/* Session Progress - Show when gathering sessions */}
       {isGatheringSessions && sessionsProgress && (
