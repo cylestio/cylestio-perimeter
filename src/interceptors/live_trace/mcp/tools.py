@@ -571,6 +571,59 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 }
             }
         }
+    },
+    # ==================== Dynamic Analysis On-Demand Tools ====================
+    {
+        "name": "trigger_dynamic_analysis",
+        "description": "Trigger on-demand dynamic analysis for a workflow. Analysis processes only new sessions since last analysis. Previous issues not detected will be auto-resolved. Use /analyze as a shortcut.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_dynamic_analysis_status",
+        "description": "Get comprehensive dynamic analysis status for a workflow. Shows whether analysis can be triggered, unanalyzed session counts, and per-agent status. Use /status as a shortcut.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_analysis_history",
+        "description": "Get analysis history for a workflow. Shows past analysis runs - latest impacts gate status, historical ones are view-only records.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                },
+                "session_type": {
+                    "type": "string",
+                    "description": "Filter by type: STATIC, DYNAMIC, or AUTOFIX",
+                    "default": "DYNAMIC"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of analyses to return",
+                    "default": 20
+                }
+            },
+            "required": ["workflow_id"]
+        }
     }
 ]
 

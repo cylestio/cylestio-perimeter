@@ -167,6 +167,8 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
           summary={staticSummary?.summary || null}
           severityCounts={staticSummary?.severity_counts}
           checkStatuses={checkStatuses}
+          scanHistory={staticSummary?.scan_history}
+          historicalSummary={staticSummary?.historical_summary}
         />
       </Section>
 

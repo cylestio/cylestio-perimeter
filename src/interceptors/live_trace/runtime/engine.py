@@ -8,7 +8,7 @@ from functools import wraps
 from typing import Any, Dict, List, Optional
 
 from ..store import TraceStore
-from ..store.store import AgentData
+from ..store.store import AgentData, SessionData
 from .models import RiskAnalysisResult
 from .behavioral import analyze_agent_behavior
 from .security import generate_security_report
@@ -16,7 +16,9 @@ from .security import generate_security_report
 logger = logging.getLogger(__name__)
 
 # Minimum sessions required for risk analysis
-MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
+# Minimum sessions required - per Phase 4 spec, users can analyze with 1+ sessions
+# Behavioral analysis may be less meaningful with few sessions, but it's their choice
+MIN_SESSIONS_FOR_RISK_ANALYSIS = 1
 
 
 def _with_store_lock(func):
@@ -169,14 +171,15 @@ class AnalysisEngine:
         dynamic_completed = any(s.get("status") == "COMPLETED" for s in dynamic_sessions)
         
         # Determine dynamic status
+        # Only show "active" (spinning) when analysis is actually IN_PROGRESS
+        # Having sessions is NOT the same as running analysis
         dynamic_status = "pending"
         if dynamic_in_progress:
-            dynamic_status = "active"
+            dynamic_status = "active"  # Only spin during actual analysis
         elif dynamic_completed:
             dynamic_status = "completed"
-        elif total_current_sessions > 0:
-            # Has sessions but no dynamic analysis yet - show as gathering/active
-            dynamic_status = "active"
+        # Note: Having sessions but no analysis shows as "pending" (not spinning)
+        # The UI will show session count via sessions_progress
         
         # Session progress info for dynamic analysis
         dynamic_sessions_progress = {
@@ -1530,7 +1533,11 @@ class AnalysisEngine:
                     del self._pii_analysis_tasks[agent_id]
                     logger.info(f"[PII BACKGROUND] Cleaned up task for agent {agent_id}")
 
-    async def compute_risk_analysis(self, agent_id: str) -> Optional[RiskAnalysisResult]:
+    async def compute_risk_analysis(
+        self, 
+        agent_id: str,
+        sessions: Optional[List[SessionData]] = None,
+    ) -> Optional[RiskAnalysisResult]:
         """Compute risk analysis for an agent (behavioral + security).
 
         This is the core computation method called by AnalysisRunner.
@@ -1538,6 +1545,9 @@ class AnalysisEngine:
 
         Args:
             agent_id: Agent identifier
+            sessions: Optional list of specific sessions to analyze. If None, 
+                     analyzes ALL sessions for the agent. For incremental analysis,
+                     pass only the new sessions to analyze.
 
         Returns:
             RiskAnalysisResult or None if insufficient sessions
@@ -1546,8 +1556,11 @@ class AnalysisEngine:
         if not agent:
             return None
 
-        # Get all sessions for this agent
-        agent_sessions = self.store.get_agent_sessions(agent_id)
+        # Use provided sessions or get all sessions for this agent
+        if sessions is not None:
+            agent_sessions = sessions
+        else:
+            agent_sessions = self.store.get_agent_sessions(agent_id)
         
         # Check minimum session requirement
         if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
@@ -1568,22 +1581,28 @@ class AnalysisEngine:
         # Count completed sessions for cache key
         completed_count = len([s for s in agent_sessions if s.is_completed])
 
-        # Check cache (invalidate only if session count OR completion count changed)
-        cache_key = (len(agent_sessions), completed_count)
-        if agent_id in self._risk_analysis_cache:
-            cached_result, _cached_time, cached_key = self._risk_analysis_cache[agent_id]
-            # Cache valid if session counts match (no TTL check)
-            if cached_key == cache_key:
-                return cached_result
-            # Cache key changed (sessions added/completed) - invalidate risk cache
-            else:
-                logger.info(f"[CACHE INVALIDATION] Session count changed for {agent_id}: {cached_key} → {cache_key}")
-                # NOTE: We do NOT cancel running PII tasks - they will complete naturally
-                # The _should_run_pii_analysis helper will handle stale task detection
-                # and ensure new sessions trigger fresh analysis when appropriate
+        # Skip cache when specific sessions are provided (incremental analysis)
+        # Cache is only used when analyzing ALL sessions for an agent
+        use_cache = sessions is None
+        
+        if use_cache:
+            # Check cache (invalidate only if session count OR completion count changed)
+            cache_key = (len(agent_sessions), completed_count)
+            if agent_id in self._risk_analysis_cache:
+                cached_result, _cached_time, cached_key = self._risk_analysis_cache[agent_id]
+                # Cache valid if session counts match (no TTL check)
+                if cached_key == cache_key:
+                    return cached_result
+                # Cache key changed (sessions added/completed) - invalidate risk cache
+                else:
+                    logger.info(f"[CACHE INVALIDATION] Session count changed for {agent_id}: {cached_key} → {cache_key}")
+                    # NOTE: We do NOT cancel running PII tasks - they will complete naturally
+                    # The _should_run_pii_analysis helper will handle stale task detection
+                    # and ensure new sessions trigger fresh analysis when appropriate
 
-        # Cache miss - computing fresh analysis
-        logger.debug(f"[CACHE MISS] Computing fresh risk analysis for {agent_id} (cache_key={cache_key})")
+        # Cache miss or incremental analysis - computing fresh
+        cache_key = (len(agent_sessions), completed_count)
+        logger.debug(f"[ANALYSIS] Computing risk analysis for {agent_id} (sessions={len(agent_sessions)}, incremental={sessions is not None})")
 
         try:
             # Count completed vs active sessions for status reporting
@@ -1688,14 +1707,16 @@ class AnalysisEngine:
                 summary=summary
             )
 
-            # Always cache results (even with pending PII) to avoid re-running behavioral analysis
-            # This prevents wasting CPU on repeated behavioral clustering
-            self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), cache_key)
-
-            if pii_result is not None:
-                logger.info(f"[RISK CACHE] Cached complete result for agent {agent_id}")
+            # Only cache results when NOT doing incremental analysis
+            # Incremental results are for specific sessions and shouldn't pollute the cache
+            if use_cache:
+                self._risk_analysis_cache[agent_id] = (result, datetime.now(timezone.utc), cache_key)
+                if pii_result is not None:
+                    logger.info(f"[RISK CACHE] Cached complete result for agent {agent_id}")
+                else:
+                    logger.info(f"[RISK CACHE] Cached partial result (PII pending) for agent {agent_id}")
             else:
-                logger.info(f"[RISK CACHE] Cached partial result (PII pending) for agent {agent_id}")
+                logger.info(f"[INCREMENTAL] Skipping cache for incremental analysis of agent {agent_id}")
 
             return result
             

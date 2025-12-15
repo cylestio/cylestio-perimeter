@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import type { FC } from 'react';
 
-import { ChevronDown, ChevronRight, ExternalLink, Wrench } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Wrench, Clock, Calendar } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import type { Finding } from '@api/types/findings';
+import { formatDateTime } from '@utils/formatting';
 
 import { Badge } from '@ui/core/Badge';
 import { Text } from '@ui/core/Text';
@@ -25,6 +26,7 @@ import {
   ExpandButton,
   RecommendationLink,
   FixActionBox,
+  TimestampBadge,
 } from './FindingCard.styles';
 
 export interface FindingCardProps {
@@ -57,6 +59,8 @@ const getStatusVariant = (status: string): 'success' | 'cyan' | 'low' | undefine
     case 'FIXED':
     case 'ADDRESSED': // Normalize legacy status
       return 'success';
+    case 'RESOLVED': // Auto-resolved (issue no longer present in codebase)
+      return 'cyan';
     case 'DISMISSED':
     case 'IGNORED':
       return 'low';
@@ -68,6 +72,7 @@ const getStatusVariant = (status: string): 'success' | 'cyan' | 'low' | undefine
 // Normalize status for display (ADDRESSED -> FIXED)
 const normalizeStatus = (status: string): string => {
   if (status === 'ADDRESSED') return 'FIXED';
+  if (status === 'RESOLVED') return 'Resolved';
   return status;
 };
 
@@ -113,9 +118,18 @@ export const FindingCard: FC<FindingCardProps> = ({
             </Badge>
             {/* Only show status badge for non-OPEN statuses (FIXED, DISMISSED, etc.) */}
             {finding.status !== 'OPEN' && (
-              <Badge variant={getStatusVariant(finding.status)} size="sm">
-                {normalizeStatus(finding.status)}
-              </Badge>
+              <>
+                <Badge variant={getStatusVariant(finding.status)} size="sm">
+                  {normalizeStatus(finding.status)}
+                </Badge>
+                {/* Show resolved timestamp for non-OPEN findings */}
+                {finding.updated_at !== finding.created_at && (
+                  <TimestampBadge>
+                    <Calendar size={10} />
+                    {formatDateTime(finding.updated_at)}
+                  </TimestampBadge>
+                )}
+              </>
             )}
           </FindingCardBadges>
         </FindingCardHeaderContent>

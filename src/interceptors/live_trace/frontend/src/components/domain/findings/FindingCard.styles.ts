@@ -170,3 +170,19 @@ export const FixActionBox = styled.div`
     border-radius: ${({ theme }) => theme.radii.sm};
   }
 `;
+
+export const TimestampBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  font-size: 10px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white50};
+  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  
+  svg {
+    opacity: 0.7;
+  }
+`;

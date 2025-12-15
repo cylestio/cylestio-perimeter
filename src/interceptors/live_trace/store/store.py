@@ -2,7 +2,7 @@
 import json
 import sqlite3
 from collections import defaultdict, deque
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -487,6 +487,9 @@ class TraceStore:
         self._last_cleanup = datetime.now(timezone.utc)
         self._cleanup_interval_seconds = 60
 
+        # Clean up stale analysis sessions on startup (sessions stuck IN_PROGRESS for >1 hour)
+        self.cleanup_stale_analysis_sessions(stale_threshold_minutes=60)
+
         logger.info(f"TraceStore ready: max_events={max_events}, retention={retention_minutes}min")
 
     @property
@@ -616,6 +619,19 @@ class TraceStore:
             self.db.commit()
             logger.info("Migration: Created audit_log table")
 
+        # Migration: add last_analysis_session_id column to sessions for incremental analysis tracking
+        cursor = self.db.execute("PRAGMA table_info(sessions)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'last_analysis_session_id' not in columns:
+            self.db.execute(
+                "ALTER TABLE sessions ADD COLUMN last_analysis_session_id TEXT"
+            )
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sessions_last_analysis ON sessions(last_analysis_session_id)"
+            )
+            self.db.commit()
+            logger.info("Migration: Added last_analysis_session_id column to sessions table")
+
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
         return {
@@ -639,6 +655,7 @@ class TraceStore:
             'events_json': json.dumps([e.model_dump() for e in session.events]),
             'behavioral_signature': json.dumps(session.behavioral_signature) if session.behavioral_signature else None,
             'behavioral_features': session.behavioral_features.model_dump_json() if session.behavioral_features else None,
+            'last_analysis_session_id': getattr(session, 'last_analysis_session_id', None),
         }
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
@@ -728,7 +745,7 @@ class TraceStore:
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
                 :tool_usage_details, :available_tools, :events_json,
-                :behavioral_signature, :behavioral_features
+                :behavioral_signature, :behavioral_features, :last_analysis_session_id
             )
         """, data)
         self.db.commit()
@@ -1346,6 +1363,7 @@ class TraceStore:
             'completed_at': datetime.fromtimestamp(row['completed_at'], tz=timezone.utc).isoformat() if row['completed_at'] else None,
             'findings_count': row['findings_count'],
             'risk_score': row['risk_score'],
+            'sessions_analyzed': row['sessions_analyzed'],  # Number of runtime sessions in this scan
         }
 
     def _deserialize_finding(self, row: sqlite3.Row) -> Dict[str, Any]:
@@ -1415,21 +1433,126 @@ class TraceStore:
         session_id: str,
         findings_count: Optional[int] = None,
         risk_score: Optional[int] = None,
+        sessions_analyzed: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Mark an analysis session as completed."""
+        """Mark an analysis session as completed.
+        
+        Also auto-resolves any OPEN findings from previous scans that were not
+        found in this scan (meaning the issue no longer exists in the codebase).
+        """
         with self._lock:
             now = datetime.now(timezone.utc)
             completed_at = now.timestamp()
 
+            # Get session details first
+            session = self.get_analysis_session(session_id)
+            if not session:
+                return None
+            
+            agent_workflow_id = session.get('agent_workflow_id')
+            session_type = session.get('session_type')
+
+            # Mark session as completed (include sessions_analyzed)
             self.db.execute("""
                 UPDATE analysis_sessions
-                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count), risk_score = ?
+                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count), 
+                    risk_score = ?, sessions_analyzed = COALESCE(?, sessions_analyzed)
                 WHERE session_id = ?
-            """, ('COMPLETED', completed_at, findings_count, risk_score, session_id))
+            """, ('COMPLETED', completed_at, findings_count, risk_score, sessions_analyzed, session_id))
+            
+            # Auto-resolve old findings that are no longer present (only for STATIC scans)
+            if session_type == 'STATIC' and agent_workflow_id:
+                resolved_count = self._auto_resolve_old_findings(session_id, agent_workflow_id, completed_at)
+                if resolved_count > 0:
+                    logger.info(f"Auto-resolved {resolved_count} findings no longer present in latest scan")
+            
             self.db.commit()
 
             # Return the updated session
             return self.get_analysis_session(session_id)
+    
+    def _auto_resolve_old_findings(
+        self,
+        current_session_id: str,
+        agent_workflow_id: str,
+        resolved_at: float,
+    ) -> int:
+        """Auto-resolve OPEN findings from previous scans not found in current scan.
+        
+        If a finding (identified by file_path + finding_type) was OPEN in a previous
+        scan but not found in the current scan, it means the issue no longer exists
+        (either fixed or code was removed). Mark it as RESOLVED.
+        """
+        # Get findings from the current scan (these are the "still present" issues)
+        cursor = self.db.execute("""
+            SELECT file_path, finding_type FROM findings WHERE session_id = ?
+        """, (current_session_id,))
+        current_findings = {(row['file_path'], row['finding_type']) for row in cursor.fetchall()}
+        
+        # Find all OPEN findings from previous sessions for this workflow
+        cursor = self.db.execute("""
+            SELECT finding_id, file_path, finding_type FROM findings 
+            WHERE agent_workflow_id = ? 
+            AND session_id != ?
+            AND status = 'OPEN'
+        """, (agent_workflow_id, current_session_id))
+        
+        old_findings = cursor.fetchall()
+        
+        # Mark old findings that are NOT in current scan as RESOLVED
+        resolved_count = 0
+        for row in old_findings:
+            finding_key = (row['file_path'], row['finding_type'])
+            if finding_key not in current_findings:
+                # This finding is no longer present - auto-resolve it
+                self.db.execute("""
+                    UPDATE findings 
+                    SET status = 'RESOLVED', updated_at = ?
+                    WHERE finding_id = ?
+                """, (resolved_at, row['finding_id']))
+                
+                # Also update the linked recommendation if any
+                self.db.execute("""
+                    UPDATE recommendations 
+                    SET status = 'RESOLVED', fixed_at = ?
+                    WHERE source_finding_id = ? AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED')
+                """, (resolved_at, row['finding_id']))
+                
+                resolved_count += 1
+        
+        return resolved_count
+
+    def cleanup_stale_analysis_sessions(self, stale_threshold_minutes: int = 60) -> int:
+        """Auto-complete analysis sessions that have been IN_PROGRESS for too long.
+        
+        This cleans up orphaned sessions that were never completed (e.g., due to crashes).
+        
+        Args:
+            stale_threshold_minutes: Sessions older than this are considered stale (default: 60 min)
+            
+        Returns:
+            Number of sessions cleaned up
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            threshold_timestamp = (now - timedelta(minutes=stale_threshold_minutes)).timestamp()
+            
+            # Find and complete stale sessions
+            cursor = self.db.execute("""
+                UPDATE analysis_sessions
+                SET status = 'COMPLETED', 
+                    completed_at = ?
+                WHERE status = 'IN_PROGRESS' 
+                AND created_at < ?
+            """, (now.timestamp(), threshold_timestamp))
+            
+            count = cursor.rowcount
+            self.db.commit()
+            
+            if count > 0:
+                logger.info(f"Auto-completed {count} stale analysis sessions (older than {stale_threshold_minutes} min)")
+            
+            return count
 
     def get_analysis_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get an analysis session by ID."""
@@ -1845,6 +1968,256 @@ class TraceStore:
                 ) > COALESCE(a.last_analyzed_session_count, 0)
             """, (min_sessions,))
             return [row[0] for row in cursor.fetchall()]
+
+    # =========================================================================
+    # Dynamic Analysis Session Tracking (Incremental Analysis)
+    # =========================================================================
+
+    def _has_last_analysis_column(self) -> bool:
+        """Check if sessions table has last_analysis_session_id column."""
+        cursor = self.db.execute("PRAGMA table_info(sessions)")
+        columns = {row[1] for row in cursor.fetchall()}
+        return 'last_analysis_session_id' in columns
+
+    def get_unanalyzed_sessions(self, workflow_id: str) -> List[Dict[str, Any]]:
+        """Get sessions not yet analyzed for a workflow.
+        
+        Returns completed sessions where last_analysis_session_id is NULL.
+        Used for incremental dynamic analysis.
+        """
+        with self._lock:
+            # Check if column exists (for backwards compatibility)
+            if not self._has_last_analysis_column():
+                # Fallback: return all completed sessions
+                cursor = self.db.execute("""
+                    SELECT * FROM sessions 
+                    WHERE agent_workflow_id = ? 
+                    AND is_completed = 1 
+                    ORDER BY completed_at ASC
+                """, (workflow_id,))
+            else:
+                cursor = self.db.execute("""
+                    SELECT * FROM sessions 
+                    WHERE agent_workflow_id = ? 
+                    AND is_completed = 1 
+                    AND last_analysis_session_id IS NULL
+                    ORDER BY completed_at ASC
+                """, (workflow_id,))
+            rows = cursor.fetchall()
+            return [self._deserialize_session_to_dict(row) for row in rows]
+
+    def get_unanalyzed_session_count(self, workflow_id: str) -> int:
+        """Efficient count of unanalyzed sessions for a workflow."""
+        with self._lock:
+            # Check if column exists (for backwards compatibility)
+            if not self._has_last_analysis_column():
+                # Fallback: return all completed sessions count
+                cursor = self.db.execute("""
+                    SELECT COUNT(*) as count FROM sessions 
+                    WHERE agent_workflow_id = ? 
+                    AND is_completed = 1 
+                """, (workflow_id,))
+            else:
+                cursor = self.db.execute("""
+                    SELECT COUNT(*) as count FROM sessions 
+                    WHERE agent_workflow_id = ? 
+                    AND is_completed = 1 
+                    AND last_analysis_session_id IS NULL
+                """, (workflow_id,))
+            row = cursor.fetchone()
+            return row['count'] if row else 0
+
+    def get_unanalyzed_sessions_by_agent(self, workflow_id: str) -> Dict[str, List[str]]:
+        """Get unanalyzed session IDs grouped by agent_id.
+        
+        Used for per-agent incremental analysis.
+        """
+        with self._lock:
+            # Check if column exists (for backwards compatibility)
+            if not self._has_last_analysis_column():
+                # Fallback: return all completed sessions
+                cursor = self.db.execute("""
+                    SELECT agent_id, session_id FROM sessions 
+                    WHERE agent_workflow_id = ? 
+                    AND is_completed = 1 
+                    ORDER BY agent_id, completed_at ASC
+                """, (workflow_id,))
+            else:
+                cursor = self.db.execute("""
+                    SELECT agent_id, session_id FROM sessions 
+                    WHERE agent_workflow_id = ? 
+                    AND is_completed = 1 
+                    AND last_analysis_session_id IS NULL
+                    ORDER BY agent_id, completed_at ASC
+                """, (workflow_id,))
+            result: Dict[str, List[str]] = {}
+            for row in cursor.fetchall():
+                agent_id = row['agent_id']
+                if agent_id not in result:
+                    result[agent_id] = []
+                result[agent_id].append(row['session_id'])
+            return result
+
+    def mark_sessions_analyzed(
+        self, 
+        session_ids: List[str], 
+        analysis_session_id: str
+    ) -> int:
+        """Mark sessions as analyzed after analysis completes.
+        
+        Args:
+            session_ids: List of session IDs to mark
+            analysis_session_id: The analysis session that analyzed these
+            
+        Returns:
+            Number of sessions marked
+        """
+        if not session_ids:
+            return 0
+            
+        with self._lock:
+            placeholders = ','.join(['?' for _ in session_ids])
+            self.db.execute(f"""
+                UPDATE sessions 
+                SET last_analysis_session_id = ?
+                WHERE session_id IN ({placeholders})
+            """, [analysis_session_id] + session_ids)
+            self.db.commit()
+            logger.info(f"Marked {len(session_ids)} sessions as analyzed (analysis: {analysis_session_id})")
+            return len(session_ids)
+
+    def reset_sessions_to_unanalyzed(self, workflow_id: str) -> int:
+        """Reset all sessions in a workflow to unanalyzed state.
+        
+        Used for force re-running analysis on all sessions.
+        
+        Args:
+            workflow_id: The workflow ID
+            
+        Returns:
+            Number of sessions reset
+        """
+        with self._lock:
+            if not self._has_last_analysis_column():
+                return 0
+                
+            cursor = self.db.execute("""
+                UPDATE sessions 
+                SET last_analysis_session_id = NULL
+                WHERE agent_workflow_id = ?
+                AND is_completed = 1
+            """, (workflow_id,))
+            count = cursor.rowcount
+            self.db.commit()
+            logger.info(f"Reset {count} sessions to unanalyzed state for workflow {workflow_id}")
+            return count
+
+    def get_dynamic_analysis_status(self, workflow_id: str) -> Dict[str, Any]:
+        """Get comprehensive dynamic analysis status for a workflow.
+        
+        Returns status for UI and MCP including:
+        - Whether analysis can be triggered
+        - Unanalyzed session counts per agent
+        - Last analysis info
+        - Analysis is running indicator
+        """
+        with self._lock:
+            # Get unanalyzed sessions by agent
+            unanalyzed_by_agent = self.get_unanalyzed_sessions_by_agent(workflow_id)
+            total_unanalyzed = sum(len(sessions) for sessions in unanalyzed_by_agent.values())
+            
+            # Get all agents in workflow with session counts
+            # Use backwards-compatible query
+            has_column = self._has_last_analysis_column()
+            if has_column:
+                cursor = self.db.execute("""
+                    SELECT a.agent_id, a.display_name, a.total_sessions,
+                           (SELECT COUNT(*) FROM sessions s 
+                            WHERE s.agent_id = a.agent_id 
+                            AND s.is_completed = 1 
+                            AND s.last_analysis_session_id IS NULL) as unanalyzed_count
+                    FROM agents a
+                    WHERE a.agent_workflow_id = ?
+                    ORDER BY a.last_seen DESC
+                """, (workflow_id,))
+            else:
+                # Fallback: all completed sessions are "unanalyzed"
+                cursor = self.db.execute("""
+                    SELECT a.agent_id, a.display_name, a.total_sessions,
+                           (SELECT COUNT(*) FROM sessions s 
+                            WHERE s.agent_id = a.agent_id 
+                            AND s.is_completed = 1) as unanalyzed_count
+                    FROM agents a
+                    WHERE a.agent_workflow_id = ?
+                    ORDER BY a.last_seen DESC
+                """, (workflow_id,))
+            
+            agents_status = []
+            for row in cursor.fetchall():
+                agents_status.append({
+                    'agent_id': row['agent_id'],
+                    'display_name': row['display_name'],
+                    'total_sessions': row['total_sessions'],
+                    'unanalyzed_count': row['unanalyzed_count'],
+                })
+            
+            # Get last DYNAMIC analysis session
+            cursor = self.db.execute("""
+                SELECT * FROM analysis_sessions 
+                WHERE agent_workflow_id = ? 
+                AND session_type = 'DYNAMIC'
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (workflow_id,))
+            last_analysis_row = cursor.fetchone()
+            
+            last_analysis = None
+            is_running = False
+            if last_analysis_row:
+                is_running = last_analysis_row['status'] == 'IN_PROGRESS'
+                last_analysis = {
+                    'session_id': last_analysis_row['session_id'],
+                    'status': last_analysis_row['status'],
+                    'created_at': last_analysis_row['created_at'],
+                    'completed_at': last_analysis_row['completed_at'],
+                    'sessions_analyzed': last_analysis_row['sessions_analyzed'],
+                    'findings_count': last_analysis_row['findings_count'],
+                }
+            
+            # Determine if we can trigger analysis
+            can_trigger = total_unanalyzed > 0 and not is_running
+            
+            # Count agents with new sessions
+            agents_with_new_sessions = sum(1 for a in agents_status if a['unanalyzed_count'] > 0)
+            
+            return {
+                'workflow_id': workflow_id,
+                'can_trigger': can_trigger,
+                'is_running': is_running,
+                'total_unanalyzed_sessions': total_unanalyzed,
+                'agents_with_new_sessions': agents_with_new_sessions,
+                'agents_status': agents_status,
+                'last_analysis': last_analysis,
+            }
+
+    def _deserialize_session_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to dict for session (lightweight, no events)."""
+        return {
+            'session_id': row['session_id'],
+            'agent_id': row['agent_id'],
+            'agent_workflow_id': row['agent_workflow_id'],
+            'created_at': row['created_at'],
+            'last_activity': row['last_activity'],
+            'is_active': bool(row['is_active']),
+            'is_completed': bool(row['is_completed']),
+            'completed_at': row['completed_at'],
+            'total_events': row['total_events'],
+            'message_count': row['message_count'],
+            'tool_uses': row['tool_uses'],
+            'errors': row['errors'],
+            'total_tokens': row['total_tokens'],
+            'last_analysis_session_id': row['last_analysis_session_id'] if 'last_analysis_session_id' in row.keys() else None,
+        }
 
     def store_security_check(
         self,
@@ -2703,7 +3076,7 @@ class TraceStore:
                 params.append(category.upper())
 
             if blocking_only:
-                query += " AND severity IN ('CRITICAL', 'HIGH') AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED')"
+                query += " AND severity IN ('CRITICAL', 'HIGH') AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED')"
 
             query += " ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, created_at DESC LIMIT ?"
             params.append(limit)
@@ -2909,8 +3282,8 @@ class TraceStore:
             source_finding_id = rec.get('source_finding_id')
             if source_finding_id:
                 finding_status = 'IGNORED' if dismiss_type == 'IGNORED' else 'DISMISSED'
-                self.db.execute("""
-                    UPDATE findings SET status = ?, updated_at = ?
+            self.db.execute("""
+                UPDATE findings SET status = ?, updated_at = ?
                     WHERE finding_id = ?
                 """, (finding_status, now.timestamp(), source_finding_id))
 
@@ -2928,6 +3301,189 @@ class TraceStore:
             )
 
             return self.get_recommendation(recommendation_id)
+
+    def auto_resolve_stale_findings(
+        self,
+        workflow_id: str,
+        analysis_session_id: str,
+        current_check_ids: List[str],
+    ) -> Dict[str, Any]:
+        """Auto-resolve findings/recommendations not detected in the current scan.
+        
+        When a new dynamic analysis runs and doesn't find issues that were 
+        previously detected, those are automatically resolved since the 
+        underlying issue appears to be fixed.
+        
+        Args:
+            workflow_id: The workflow being analyzed
+            analysis_session_id: Current analysis session ID
+            current_check_ids: List of check_ids found in current analysis
+            
+        Returns:
+            Dict with counts of auto-resolved items
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            
+            # Find open recommendations from DYNAMIC source that are not in current_check_ids
+            if current_check_ids:
+                placeholders = ','.join(['?' for _ in current_check_ids])
+                
+                # Get stale recommendations (those not in the current findings)
+                cursor = self.db.execute(f"""
+                    SELECT r.recommendation_id, r.source_finding_id, r.title, f.check_id
+                    FROM recommendations r
+                    JOIN findings f ON r.source_finding_id = f.finding_id
+                    WHERE r.workflow_id = ?
+                      AND r.source_type = 'DYNAMIC'
+                      AND r.status IN ('PENDING', 'FIXING')
+                      AND (f.check_id IS NULL OR f.check_id NOT IN ({placeholders}))
+                """, [workflow_id] + current_check_ids)
+            else:
+                # No current checks means all dynamic findings are resolved
+                cursor = self.db.execute("""
+                    SELECT r.recommendation_id, r.source_finding_id, r.title, f.check_id
+                    FROM recommendations r
+                    JOIN findings f ON r.source_finding_id = f.finding_id
+                    WHERE r.workflow_id = ?
+                      AND r.source_type = 'DYNAMIC'
+                      AND r.status IN ('PENDING', 'FIXING')
+                """, (workflow_id,))
+            
+            stale_recs = cursor.fetchall()
+            
+            resolved_count = 0
+            resolved_items = []
+            
+            for row in stale_recs:
+                rec_id = row['recommendation_id']
+                finding_id = row['source_finding_id']
+                title = row['title']
+                
+                # Update recommendation status to RESOLVED
+                self.db.execute("""
+                    UPDATE recommendations
+                    SET status = 'RESOLVED',
+                        fix_notes = ?,
+                        fix_method = 'AUTO_RESOLVED',
+                        fixed_at = ?,
+                        updated_at = ?
+                    WHERE recommendation_id = ?
+                """, (
+                    f"Auto-resolved: Not detected in analysis {analysis_session_id}",
+                    now.timestamp(),
+                    now.timestamp(),
+                    rec_id,
+                ))
+                
+                # Update the underlying finding
+                if finding_id:
+                    self.db.execute("""
+                        UPDATE findings
+                        SET status = 'RESOLVED',
+                            updated_at = ?
+                        WHERE finding_id = ?
+                    """, (now.timestamp(), finding_id))
+                
+                # Log audit event
+                self.log_audit_event(
+                    entity_type='recommendation',
+                    entity_id=rec_id,
+                    action='AUTO_RESOLVED',
+                    previous_value='PENDING',
+                    new_value='RESOLVED',
+                    reason=f'Not detected in analysis {analysis_session_id}',
+                    performed_by='system',
+                )
+                
+                resolved_items.append({'id': rec_id, 'title': title})
+                resolved_count += 1
+            
+            self.db.commit()
+            
+            if resolved_count > 0:
+                logger.info(f"Auto-resolved {resolved_count} stale dynamic findings for {workflow_id}")
+            
+            return {
+                'workflow_id': workflow_id,
+                'analysis_session_id': analysis_session_id,
+                'resolved_count': resolved_count,
+                'resolved_items': resolved_items,
+            }
+
+    def resolve_all_dynamic_findings(
+        self,
+        workflow_id: str,
+        analysis_session_id: str,
+    ) -> Dict[str, Any]:
+        """Resolve ALL open dynamic findings before a new scan.
+        
+        This ensures each new scan starts fresh - only the current scan's
+        findings will be active. Previous findings are marked as superseded.
+        
+        Args:
+            workflow_id: The workflow being analyzed
+            analysis_session_id: New analysis session ID (for audit trail)
+            
+        Returns:
+            Dict with counts of resolved items
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            
+            # Find all OPEN dynamic recommendations for this workflow
+            cursor = self.db.execute("""
+                SELECT r.recommendation_id, r.source_finding_id, r.title
+                FROM recommendations r
+                WHERE r.workflow_id = ?
+                  AND r.source_type = 'DYNAMIC'
+                  AND r.status IN ('PENDING', 'FIXING')
+            """, (workflow_id,))
+            
+            open_recs = cursor.fetchall()
+            
+            resolved_count = 0
+            
+            for row in open_recs:
+                rec_id = row['recommendation_id']
+                finding_id = row['source_finding_id']
+                
+                # Mark as superseded (replaced by new scan)
+                self.db.execute("""
+                    UPDATE recommendations
+                    SET status = 'SUPERSEDED',
+                        fix_notes = ?,
+                        fix_method = 'SUPERSEDED',
+                        fixed_at = ?,
+                        updated_at = ?
+                    WHERE recommendation_id = ?
+                """, (
+                    f"Superseded by new analysis {analysis_session_id}",
+                    now.timestamp(),
+                    now.timestamp(),
+                    rec_id,
+                ))
+                
+                # Update the underlying finding
+                if finding_id:
+                    self.db.execute("""
+                        UPDATE findings
+                        SET status = 'SUPERSEDED',
+                            updated_at = ?
+                        WHERE finding_id = ?
+                    """, (now.timestamp(), finding_id))
+                
+                resolved_count += 1
+            
+            self.db.commit()
+            
+            if resolved_count > 0:
+                logger.info(f"Superseded {resolved_count} previous dynamic findings for {workflow_id} (new scan: {analysis_session_id})")
+            
+            return {
+                'workflow_id': workflow_id,
+                'superseded_count': resolved_count,
+            }
 
     def get_gate_status(self, workflow_id: str) -> Dict[str, Any]:
         """Calculate gate status for a workflow.
@@ -2947,7 +3503,7 @@ class TraceStore:
                 FROM recommendations
                 WHERE workflow_id = ?
                   AND severity IN ('CRITICAL', 'HIGH')
-                  AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED')
+                  AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED')
                 GROUP BY severity
             """, (workflow_id,))
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { AlertTriangle, FileSearch, Shield, X } from 'lucide-react';
+import { AlertTriangle, FileSearch, Play, RefreshCw, Shield, X, Clock, CheckCircle, Loader } from 'lucide-react';
 import { useOutletContext, useParams } from 'react-router-dom';
 
 import {
@@ -13,6 +13,7 @@ import {
 import type { SecurityAnalysis } from '@api/types/dashboard';
 
 import { Badge } from '@ui/core/Badge';
+import { Button } from '@ui/core/Button';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
@@ -30,6 +31,7 @@ import {
   StatValue,
   LoaderContainer,
 } from './DynamicAnalysis.styles';
+import styled from 'styled-components';
 
 // Context from App layout
 interface DynamicAnalysisContext {
@@ -38,6 +40,100 @@ interface DynamicAnalysisContext {
 
 export interface DynamicAnalysisProps {
   className?: string;
+}
+
+// Status card for on-demand analysis
+const AnalysisStatusCard = styled.div<{ $variant?: 'ready' | 'running' | 'upToDate' | 'noData' }>`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${({ theme }) => theme.spacing[4]};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  background: ${({ theme, $variant }) => {
+    switch ($variant) {
+      case 'ready':
+        return theme.colors.yellow + '15';
+      case 'running':
+        return theme.colors.cyan + '15';
+      case 'upToDate':
+        return theme.colors.green + '15';
+      default:
+        return theme.colors.surface3;
+    }
+  }};
+  border: 1px solid ${({ theme, $variant }) => {
+    switch ($variant) {
+      case 'ready':
+        return theme.colors.yellow + '40';
+      case 'running':
+        return theme.colors.cyan + '40';
+      case 'upToDate':
+        return theme.colors.green + '40';
+      default:
+        return theme.colors.borderSubtle;
+    }
+  }};
+`;
+
+const StatusInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
+`;
+
+const StatusTitle = styled.div`
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+const StatusDescription = styled.div`
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+const AgentsStatusList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing[2]};
+  margin-top: ${({ theme }) => theme.spacing[2]};
+`;
+
+const AgentStatusBadge = styled.div<{ $hasNew?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme, $hasNew }) => 
+    $hasNew ? theme.colors.yellow + '20' : theme.colors.surface3};
+  border: 1px solid ${({ theme, $hasNew }) => 
+    $hasNew ? theme.colors.yellow + '40' : theme.colors.borderSubtle};
+  font-size: ${({ theme }) => theme.typography.textXs};
+`;
+
+// Analysis status types
+interface DynamicAnalysisStatus {
+  workflow_id: string;
+  can_trigger: boolean;
+  is_running: boolean;
+  total_unanalyzed_sessions: number;
+  agents_with_new_sessions: number;
+  agents_status: Array<{
+    agent_id: string;
+    display_name: string | null;
+    total_sessions: number;
+    unanalyzed_count: number;
+  }>;
+  last_analysis: {
+    session_id: string;
+    status: string;
+    created_at: number;
+    completed_at: number | null;
+    sessions_analyzed: number;
+    findings_count: number;
+  } | null;
 }
 
 const MAX_SESSIONS_DISPLAYED = 5;
@@ -50,15 +146,32 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const [agentsData, setAgentsData] = useState<AgentSecurityData[]>([]);
   const [checksSummary, setChecksSummary] = useState<AgentWorkflowSecurityChecksSummary | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [analysisStatus, setAnalysisStatus] = useState<DynamicAnalysisStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [triggerLoading, setTriggerLoading] = useState(false);
 
   // Get dynamic analysis session progress
   const sessionsProgress = securityAnalysis?.dynamic?.sessions_progress;
   const isGatheringSessions = sessionsProgress &&
     securityAnalysis?.dynamic?.status === 'active' &&
     analysisSessions.length === 0;
+
+  // Fetch dynamic analysis status
+  const fetchAnalysisStatus = useCallback(async () => {
+    if (!agentWorkflowId) return;
+    
+    try {
+      const response = await fetch(`/api/workflow/${agentWorkflowId}/dynamic-analysis-status`);
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analysis status:', err);
+    }
+  }, [agentWorkflowId]);
 
   // Fetch security checks for this agent workflow (grouped by agent)
   const fetchChecksData = useCallback(async () => {
@@ -95,15 +208,59 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     }
   }, [agentWorkflowId]);
 
+  // Trigger on-demand analysis
+  const handleTriggerAnalysis = useCallback(async (force: boolean = false) => {
+    if (!agentWorkflowId || triggerLoading) return;
+    
+    setTriggerLoading(true);
+    try {
+      const url = force 
+        ? `/api/workflow/${agentWorkflowId}/trigger-dynamic-analysis?force=true`
+        : `/api/workflow/${agentWorkflowId}/trigger-dynamic-analysis`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        // Refresh all data after triggering
+        await Promise.all([
+          fetchAnalysisStatus(),
+          fetchSessionsData(),
+          fetchChecksData(),
+        ]);
+      } else {
+        const error = await response.json();
+        console.error('Failed to trigger analysis:', error);
+      }
+    } catch (err) {
+      console.error('Failed to trigger analysis:', err);
+    } finally {
+      setTriggerLoading(false);
+    }
+  }, [agentWorkflowId, triggerLoading, fetchAnalysisStatus, fetchSessionsData, fetchChecksData]);
+
   // Fetch data on mount
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      await Promise.all([fetchChecksData(), fetchSessionsData()]);
+      await Promise.all([fetchChecksData(), fetchSessionsData(), fetchAnalysisStatus()]);
       setLoading(false);
     };
     fetchAll();
-  }, [fetchChecksData, fetchSessionsData]);
+  }, [fetchChecksData, fetchSessionsData, fetchAnalysisStatus]);
+
+  // Poll for status updates - faster when running, slower otherwise
+  useEffect(() => {
+    // Poll every 3s when running, 10s otherwise (to detect new sessions)
+    const interval = analysisStatus?.is_running ? 3000 : 10000;
+    
+    const pollInterval = setInterval(() => {
+      fetchAnalysisStatus();
+    }, interval);
+    
+    return () => clearInterval(pollInterval);
+  }, [analysisStatus?.is_running, fetchAnalysisStatus]);
 
   // Set breadcrumbs
   usePageMeta({
@@ -123,6 +280,24 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   }
 
   const inProgressCount = analysisSessions.filter((s) => s.status === 'IN_PROGRESS').length;
+  
+  // Determine status variant
+  const getStatusVariant = (): 'ready' | 'running' | 'upToDate' | 'noData' => {
+    if (!analysisStatus) return 'noData';
+    if (analysisStatus.is_running) return 'running';
+    if (analysisStatus.can_trigger) return 'ready';
+    if (analysisStatus.last_analysis) return 'upToDate';
+    return 'noData';
+  };
+  
+  const statusVariant = getStatusVariant();
+  
+  // Format last analysis time
+  const formatLastAnalysis = (timestamp: number | null): string => {
+    if (!timestamp) return 'Never';
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleString();
+  };
 
   return (
     <Page className={className} data-testid="dynamic-analysis">
@@ -160,6 +335,108 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         }
       />
 
+      {/* On-Demand Analysis Status */}
+      <Section>
+        <Section.Header>
+          <Section.Title icon={<Play size={16} />}>Run Analysis</Section.Title>
+        </Section.Header>
+        <Section.Content>
+          <AnalysisStatusCard $variant={statusVariant}>
+            <StatusInfo>
+              <StatusTitle>
+                {statusVariant === 'running' && (
+                  <>
+                    <Loader size={16} style={{ marginRight: 8, animation: 'spin 1s linear infinite' }} />
+                    Analysis In Progress...
+                  </>
+                )}
+                {statusVariant === 'ready' && (
+                  <>
+                    <Clock size={16} style={{ marginRight: 8 }} />
+                    New Sessions Ready for Analysis
+                  </>
+                )}
+                {statusVariant === 'upToDate' && (
+                  <>
+                    <CheckCircle size={16} style={{ marginRight: 8 }} />
+                    Analysis Up to Date
+                  </>
+                )}
+                {statusVariant === 'noData' && (
+                  <>
+                    <AlertTriangle size={16} style={{ marginRight: 8 }} />
+                    No Runtime Data Yet
+                  </>
+                )}
+              </StatusTitle>
+              <StatusDescription>
+                {statusVariant === 'running' && 'Security checks are being performed on runtime data...'}
+                {statusVariant === 'ready' && (
+                  <>
+                    {analysisStatus?.total_unanalyzed_sessions} new session(s) from{' '}
+                    {analysisStatus?.agents_with_new_sessions} agent(s) ready to analyze.
+                    {analysisStatus?.last_analysis && (
+                      <> Last analysis: {formatLastAnalysis(analysisStatus.last_analysis.completed_at)}</>
+                    )}
+                  </>
+                )}
+                {statusVariant === 'upToDate' && (
+                  <>
+                    All sessions have been analyzed. Last analysis:{' '}
+                    {formatLastAnalysis(analysisStatus?.last_analysis?.completed_at || null)}
+                  </>
+                )}
+                {statusVariant === 'noData' && (
+                  <>
+                    Run your agent through the proxy to capture runtime sessions for analysis.
+                    Proxy URL: <code>http://localhost:4000/agent-workflow/{agentWorkflowId}</code>
+                  </>
+                )}
+              </StatusDescription>
+              
+              {/* Per-agent status badges */}
+              {analysisStatus?.agents_status && analysisStatus.agents_status.length > 0 && (
+                <AgentsStatusList>
+                  {analysisStatus.agents_status.map((agent) => (
+                    <AgentStatusBadge key={agent.agent_id} $hasNew={agent.unanalyzed_count > 0}>
+                      <span>{agent.display_name || agent.agent_id.slice(0, 8)}...</span>
+                      {agent.unanalyzed_count > 0 ? (
+                        <Badge variant="high" size="sm">{agent.unanalyzed_count} new</Badge>
+                      ) : (
+                        <Badge variant="medium" size="sm">{agent.total_sessions} sessions</Badge>
+                      )}
+                    </AgentStatusBadge>
+                  ))}
+                </AgentsStatusList>
+              )}
+            </StatusInfo>
+            
+            <Button
+              variant={statusVariant === 'ready' ? 'primary' : 'secondary'}
+              size="md"
+              disabled={triggerLoading || (statusVariant === 'noData')}
+              onClick={() => {
+                // Use force=true when re-running (no new sessions but has previous analysis)
+                const useForce = statusVariant === 'upToDate';
+                handleTriggerAnalysis(useForce);
+              }}
+            >
+              {triggerLoading ? (
+                <>
+                  <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  Running...
+                </>
+              ) : (
+                <>
+                  <Play size={16} />
+                  {statusVariant === 'ready' ? 'Run Analysis' : 'Re-run Analysis'}
+                </>
+              )}
+            </Button>
+          </AnalysisStatusCard>
+        </Section.Content>
+      </Section>
+
       {/* Session Progress - Show when gathering sessions */}
       {isGatheringSessions && sessionsProgress && (
         <Section>
@@ -182,7 +459,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
       <Section>
         <Section.Header>
           <Section.Title>
-            Recent Analysis Sessions ({Math.min(analysisSessions.length, MAX_SESSIONS_DISPLAYED)})
+            Analysis History ({Math.min(analysisSessions.length, MAX_SESSIONS_DISPLAYED)})
           </Section.Title>
           {inProgressCount > 0 && <Badge variant="medium">{inProgressCount} in progress</Badge>}
         </Section.Header>
@@ -193,7 +470,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
             loading={sessionsLoading}
             maxRows={MAX_SESSIONS_DISPLAYED}
             emptyMessage="No dynamic analysis sessions yet."
-            emptyDescription="Dynamic analysis runs automatically after agents collect enough sessions."
+            emptyDescription="Click 'Run Analysis' above to analyze runtime behavior."
           />
         </Section.Content>
       </Section>

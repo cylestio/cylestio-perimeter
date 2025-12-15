@@ -191,6 +191,11 @@ export const StatusBadge = styled.span<{ $status: RecommendationStatus }>`
           background: ${theme.colors.cyanSoft};
           color: ${theme.colors.cyan};
         `;
+      case 'RESOLVED':
+        return css`
+          background: ${theme.colors.cyanSoft};
+          color: ${theme.colors.cyan};
+        `;
       case 'DISMISSED':
       case 'IGNORED':
         return css`

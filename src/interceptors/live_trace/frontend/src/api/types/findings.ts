@@ -1,7 +1,7 @@
 // API Types for findings and analysis sessions
 
 export type FindingSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-export type FindingStatus = 'OPEN' | 'FIXED' | 'IGNORED' | 'ADDRESSED' | 'DISMISSED';
+export type FindingStatus = 'OPEN' | 'FIXED' | 'IGNORED' | 'ADDRESSED' | 'DISMISSED' | 'RESOLVED';
 export type SessionType = 'STATIC' | 'DYNAMIC' | 'AUTOFIX';
 export type SessionStatus = 'IN_PROGRESS' | 'COMPLETED';
 export type CheckStatus = 'PASS' | 'FAIL' | 'INFO';
@@ -118,6 +118,7 @@ export interface AnalysisSession {
   completed_at?: string | null; // ISO date string
   findings_count: number;
   risk_score?: number | null;
+  sessions_analyzed?: number | null; // Number of runtime sessions analyzed in this scan
 }
 
 export interface FindingsSummary {
@@ -137,7 +138,8 @@ export interface SecurityCheck {
   name: string;
   status: CheckStatus;  // PASS, FAIL, INFO
   owasp_llm: string[];
-  findings_count: number;
+  findings_count: number;  // Total findings (all statuses)
+  open_count?: number;     // Only OPEN findings
   max_severity: FindingSeverity | null;
   findings: Finding[];
 }
@@ -159,6 +161,29 @@ export interface StaticSummaryChecks {
   gate_status: GateStatus;
 }
 
+// Scan history entry with findings breakdown
+export interface ScanHistoryEntry {
+  session_id: string;
+  created_at: string;
+  status: string;
+  session_type: string;
+  findings_count: number;
+  severity_breakdown: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+}
+
+// Historical findings summary
+export interface HistoricalSummary {
+  total_resolved: number;
+  fixed: number;
+  resolved: number;
+  dismissed: number;
+}
+
 export interface StaticSummaryResponse {
   workflow_id: string;
   last_scan: StaticSummaryScan | null;
@@ -171,6 +196,8 @@ export interface StaticSummaryResponse {
     medium: number;
     low: number;
   };
+  scan_history?: ScanHistoryEntry[];
+  historical_summary?: HistoricalSummary;
 }
 
 // Recommendation types (from Phase 1)
@@ -180,7 +207,8 @@ export type RecommendationStatus =
   | 'FIXED' 
   | 'VERIFIED' 
   | 'DISMISSED' 
-  | 'IGNORED';
+  | 'IGNORED'
+  | 'RESOLVED';
 
 export interface Recommendation {
   recommendation_id: string;

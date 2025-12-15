@@ -225,9 +225,9 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   if (loading) {
     return (
       <Page className={className} data-testid="recommendations">
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-          <OrbLoader size="lg" />
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+        <OrbLoader size="lg" />
+      </div>
       </Page>
     );
   }
@@ -353,15 +353,15 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
 
       {/* Pending Recommendations */}
       {groupedRecommendations.pending.length > 0 && (
-        <Section>
-          <Section.Header>
+      <Section>
+        <Section.Header>
             <Section.Title>
               <SectionTitle $variant="pending">
                 PENDING FIXES ({groupedRecommendations.pending.length})
               </SectionTitle>
-            </Section.Title>
-          </Section.Header>
-          <Section.Content>
+          </Section.Title>
+        </Section.Header>
+        <Section.Content>
             <RecommendationsList>
               {groupedRecommendations.pending.map((rec) => (
                 <RecommendationCard
@@ -422,8 +422,8 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
                 </>
               )}
             </EmptyState>
-          </Section.Content>
-        </Section>
+        </Section.Content>
+      </Section>
       )}
 
       {/* Dismiss Modal */}

@@ -767,6 +767,142 @@ def handle_get_audit_log(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     }
 
 
+# ==================== Dynamic Analysis On-Demand Tools ====================
+
+@register_handler("trigger_dynamic_analysis")
+def handle_trigger_dynamic_analysis(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Trigger on-demand dynamic analysis for a workflow.
+    
+    Analysis processes only new sessions since last analysis.
+    Creates findings and recommendations for failed checks.
+    Auto-resolves issues not detected in new scans.
+    """
+    import requests
+    
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    # Get current status first
+    status = store.get_dynamic_analysis_status(workflow_id)
+    
+    if status['is_running']:
+        return {
+            "status": "already_running",
+            "message": "Analysis is already in progress. Wait for it to complete.",
+            "last_analysis": status.get('last_analysis'),
+        }
+    
+    if status['total_unanalyzed_sessions'] == 0:
+        return {
+            "status": "no_new_sessions",
+            "message": "All sessions have already been analyzed. Run more test sessions first.",
+            "last_analysis": status.get('last_analysis'),
+            "hint": f"Run your agent through the proxy at http://localhost:4000/agent-workflow/{workflow_id} to capture new sessions.",
+        }
+    
+    # Call the API endpoint to trigger the full analysis
+    # This runs security checks, creates findings/recommendations, and auto-resolves old issues
+    try:
+        response = requests.post(
+            f"http://localhost:7100/api/workflow/{workflow_id}/trigger-dynamic-analysis",
+            timeout=120  # Analysis can take time
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            result["view_results"] = f"http://localhost:7100/agent-workflow/{workflow_id}/dynamic-analysis"
+            return result
+        else:
+            return {
+                "status": "error",
+                "message": f"Failed to trigger analysis: {response.text}",
+            }
+    except requests.exceptions.ConnectionError:
+        return {
+            "status": "error", 
+            "message": "Could not connect to Agent Inspector API. Make sure the server is running on port 7100.",
+            "hint": "Start the server with: python -m src.main run --config examples/configs/live-trace.yaml",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error triggering analysis: {str(e)}",
+        }
+
+
+@register_handler("get_dynamic_analysis_status")
+def handle_get_dynamic_analysis_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get comprehensive dynamic analysis status for a workflow.
+    
+    Shows:
+    - Whether analysis can be triggered
+    - Number of unanalyzed sessions
+    - Per-agent status
+    - Last analysis info
+    """
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    status = store.get_dynamic_analysis_status(workflow_id)
+    
+    # Add helpful message based on status
+    if status['is_running']:
+        message = "🔵 Analysis in progress..."
+    elif status['total_unanalyzed_sessions'] > 0:
+        message = f"🟡 {status['total_unanalyzed_sessions']} new sessions ready to analyze. Use trigger_dynamic_analysis to run."
+    elif status.get('last_analysis'):
+        message = "✅ All sessions analyzed. Dynamic analysis is up to date."
+    else:
+        message = f"⚪ No sessions yet. Run your agent through http://localhost:4000/agent-workflow/{workflow_id} to capture sessions."
+    
+    return {
+        **status,
+        "message": message,
+    }
+
+
+@register_handler("get_analysis_history")
+def handle_get_analysis_history(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get analysis history for a workflow.
+    
+    Shows past analysis runs. Latest analysis impacts gate status,
+    historical analyses are view-only records.
+    """
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    session_type = args.get("session_type", "DYNAMIC")
+    limit = args.get("limit", 20)
+    
+    sessions = store.get_analysis_sessions(
+        agent_workflow_id=workflow_id,
+        limit=limit,
+    )
+    
+    # Filter by session_type
+    filtered = [s for s in sessions if s.get('session_type') == session_type.upper()]
+    
+    # Determine latest
+    latest_id = None
+    if filtered:
+        completed = [s for s in filtered if s.get('status') == 'COMPLETED']
+        if completed:
+            latest_id = completed[0]['session_id']
+    
+    return {
+        "workflow_id": workflow_id,
+        "session_type": session_type,
+        "analyses": filtered,
+        "latest_id": latest_id,
+        "total_count": len(filtered),
+        "message": f"Found {len(filtered)} {session_type.lower()} analysis sessions." + 
+                   (f" Latest: {latest_id}" if latest_id else ""),
+    }
+
+
 # ==================== Helpers ====================
 
 def _convert_findings_to_objects(findings: list) -> list:

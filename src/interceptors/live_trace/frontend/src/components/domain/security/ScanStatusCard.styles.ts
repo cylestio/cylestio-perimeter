@@ -148,3 +148,144 @@ export const EmptyDescription = styled.p`
   margin: 0;
   max-width: 300px;
 `;
+
+// Scan History Styles
+export const ScanHistoryToggle = styled.button<{ $expanded?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.cyan};
+  background: ${({ theme }) => theme.colors.cyanSoft};
+  border: 1px solid transparent;
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+  width: fit-content;
+  
+  &:hover {
+    background: rgba(0, 240, 255, 0.15);
+    border-color: ${({ theme }) => theme.colors.cyan}40;
+  }
+`;
+
+export const ScanHistoryPanel = styled.div`
+  background: ${({ theme }) => theme.colors.void};
+  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-radius: ${({ theme }) => theme.radii.md};
+  overflow: hidden;
+`;
+
+export const ScanHistoryList = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+export const ScanHistoryItem = styled.div<{ $isCurrent?: boolean }>`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  ${({ $isCurrent, theme }) => $isCurrent && `
+    background: ${theme.colors.surface};
+  `}
+`;
+
+export const ScanHistoryTimestamp = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white80};
+`;
+
+export const ScanHistoryDetails = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const ScanHistoryBadge = styled.span<{ $variant: 'findings' | 'clean' | 'scan' | 'autofix' }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'findings':
+        return `
+          background: ${theme.colors.yellowSoft};
+          color: ${theme.colors.yellow};
+        `;
+      case 'clean':
+        return `
+          background: ${theme.colors.greenSoft};
+          color: ${theme.colors.green};
+        `;
+      case 'autofix':
+        return `
+          background: ${theme.colors.purpleSoft};
+          color: ${theme.colors.purple};
+        `;
+      case 'scan':
+      default:
+        return `
+          background: ${theme.colors.cyanSoft};
+          color: ${theme.colors.cyan};
+        `;
+    }
+  }}
+`;
+
+export const CurrentBadge = styled.span`
+  padding: ${({ theme }) => `2px ${theme.spacing[2]}`};
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.cyan};
+  background: ${({ theme }) => theme.colors.cyanSoft};
+  border-radius: ${({ theme }) => theme.radii.sm};
+`;
+
+export const HistoricalStatsSection = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
+  border-top: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  background: ${({ theme }) => theme.colors.surface};
+`;
+
+export const HistoricalStatItem = styled.span<{ $variant: 'fixed' | 'resolved' | 'dismissed' }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  font-size: 11px;
+  font-weight: 500;
+  
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'fixed':
+        return `color: ${theme.colors.green};`;
+      case 'resolved':
+        return `color: ${theme.colors.cyan};`;
+      case 'dismissed':
+        return `color: ${theme.colors.white50};`;
+      default:
+        return `color: ${theme.colors.white70};`;
+    }
+  }}
+`;

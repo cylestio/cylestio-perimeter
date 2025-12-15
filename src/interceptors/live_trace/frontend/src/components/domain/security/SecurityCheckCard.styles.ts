@@ -126,7 +126,7 @@ export const CardHeaderRight = styled.div`
   flex-shrink: 0;
 `;
 
-export const FindingsCount = styled.div<{ $hasFindings: boolean }>`
+export const FindingsCount = styled.div<{ $hasFindings: boolean; $isResolved?: boolean }>`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[1]};
@@ -135,16 +135,26 @@ export const FindingsCount = styled.div<{ $hasFindings: boolean }>`
   font-weight: 500;
   border-radius: ${({ theme }) => theme.radii.sm};
   
-  ${({ $hasFindings, theme }) => $hasFindings
-    ? css`
+  ${({ $hasFindings, $isResolved, theme }) => {
+    if ($isResolved) {
+      // All findings resolved - show green
+      return css`
+        background: ${theme.colors.greenSoft};
+        color: ${theme.colors.green};
+      `;
+    }
+    if ($hasFindings) {
+      // Has open findings - show red
+      return css`
         background: ${theme.colors.redSoft};
         color: ${theme.colors.red};
-      `
-    : css`
-        background: ${theme.colors.surface2};
-        color: ${theme.colors.white50};
-      `
-  }
+      `;
+    }
+    return css`
+      background: ${theme.colors.surface2};
+      color: ${theme.colors.white50};
+    `;
+  }}
 `;
 
 export const SeverityBadge = styled.div<{ $severity: string }>`
@@ -206,4 +216,36 @@ export const BadgesRow = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.spacing[2]};
   margin-top: ${({ theme }) => theme.spacing[2]};
+`;
+
+// Findings grouping styles
+export const FindingsGroup = styled.div`
+  margin-top: ${({ theme }) => theme.spacing[3]};
+  
+  &:first-of-type {
+    margin-top: ${({ theme }) => theme.spacing[2]};
+  }
+`;
+
+export const FindingsGroupHeader = styled.div<{ $variant: 'open' | 'resolved' }>`
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  margin-bottom: ${({ theme }) => theme.spacing[2]};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  
+  ${({ $variant, theme }) => {
+    if ($variant === 'open') {
+      return css`
+        color: ${theme.colors.yellow};
+        background: ${theme.colors.yellowSoft};
+      `;
+    }
+    return css`
+      color: ${theme.colors.green};
+      background: ${theme.colors.greenSoft};
+    `;
+  }}
 `;

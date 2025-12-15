@@ -107,6 +107,14 @@ class AssessmentCheck(BaseModel):
     value: Optional[str] = None  # Display value: "3 violations", "0.82 score", etc.
     evidence: Dict[str, Any] = Field(default_factory=dict)
     recommendations: List[str] = Field(default_factory=list)
+    
+    # Framework mappings for compliance and security standards
+    owasp_llm: Optional[str] = None  # e.g., "LLM08"
+    owasp_llm_name: Optional[str] = None  # e.g., "Excessive Agency"
+    soc2_controls: List[str] = Field(default_factory=list)  # e.g., ["CC6.1", "CC6.8"]
+    cwe: Optional[str] = None  # e.g., "CWE-770"
+    mitre: Optional[str] = None  # e.g., "T1499"
+    cvss_score: Optional[float] = None  # Only for failed checks (0-10)
 
     @property
     def passed(self) -> bool:
