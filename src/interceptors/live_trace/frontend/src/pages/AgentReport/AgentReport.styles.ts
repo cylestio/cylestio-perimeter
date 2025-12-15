@@ -15,6 +15,9 @@ export const ReportSidebar = styled.aside`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[4]};
+  align-self: flex-start;
+  position: sticky;
+  top: ${({ theme }) => theme.spacing[4]};
 `;
 
 export const ReportMain = styled.main`
