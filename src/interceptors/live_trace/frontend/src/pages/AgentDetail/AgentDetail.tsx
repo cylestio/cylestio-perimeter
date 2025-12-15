@@ -27,6 +27,11 @@ import { Pagination } from '@ui/navigation/Pagination';
 
 import { ClusterVisualization } from '@domain/visualization';
 import { SessionsTable } from '@domain/sessions';
+import {
+  TokenUsageInsights,
+  ModelUsageAnalytics,
+  ToolUsageAnalytics,
+} from '@domain/analytics';
 
 import { GatheringData } from '@features/GatheringData';
 
@@ -72,23 +77,6 @@ import {
   WaitingMessage,
   PlaceholderMessage,
   ActiveSessionsNote,
-  ToolUtilizationContainer,
-  ToolUtilizationMetric,
-  CircularProgress,
-  CircularProgressSvg,
-  CircularProgressTrack,
-  CircularProgressFill,
-  CircularProgressContent,
-  CircularProgressValue,
-  ToolUtilizationLabel,
-  ToolUtilizationPrimary,
-  ToolUtilizationSecondary,
-  ToolUtilizationDivider,
-  ToolsList,
-  ToolTag,
-  ToolName,
-  ToolCount,
-  ToolUnused,
   ModelValue,
   ModelCount,
   ModelTooltipList,
@@ -659,74 +647,21 @@ export const AgentDetail: FC = () => {
       </ContentGrid>
       )}
 
-      {/* Tool Utilization Section */}
-      {agent.available_tools && agent.available_tools.length > 0 && (() => {
-        const usedTools = agent.available_tools
-          .filter((tool) => (agent.tool_usage_details?.[tool] || 0) > 0)
-          .sort((a, b) => {
-            const countA = agent.tool_usage_details?.[a] || 0;
-            const countB = agent.tool_usage_details?.[b] || 0;
-            return countB - countA;
-          });
-
-        const unusedTools = agent.available_tools
-          .filter((tool) => (agent.tool_usage_details?.[tool] || 0) === 0)
-          .sort();
-
-        const percent = Math.round(agent.tools_utilization_percent);
-        const progressColor =
-          percent >= 70 ? 'var(--color-green)' : percent >= 40 ? 'var(--color-orange)' : 'var(--color-red)';
-
-        return (
-          <Section>
-            <Section.Header>
-              <Section.Title>Tool Utilization (avg/session)</Section.Title>
-            </Section.Header>
-            <Section.Content>
-              <ToolUtilizationContainer>
-                <ToolUtilizationMetric>
-                  <CircularProgress>
-                    <CircularProgressSvg viewBox="0 0 40 40">
-                      <CircularProgressTrack cx="20" cy="20" r="15" />
-                      <CircularProgressFill cx="20" cy="20" r="15" $percent={percent} $color={progressColor} />
-                    </CircularProgressSvg>
-                    <CircularProgressContent>
-                      <CircularProgressValue>{percent}%</CircularProgressValue>
-                    </CircularProgressContent>
-                  </CircularProgress>
-                  <ToolUtilizationLabel>
-                    <ToolUtilizationPrimary>
-                      {usedTools.length} of {agent.available_tools.length}
-                    </ToolUtilizationPrimary>
-                    <ToolUtilizationSecondary>tools used</ToolUtilizationSecondary>
-                  </ToolUtilizationLabel>
-                </ToolUtilizationMetric>
-                <ToolUtilizationDivider />
-                <ToolsList>
-                  {usedTools.map((tool) => {
-                    const totalCount = agent.tool_usage_details?.[tool] || 0;
-                    const avgPerSession = agent.total_sessions > 0
-                      ? (totalCount / agent.total_sessions).toFixed(1)
-                      : '0';
-                    return (
-                      <ToolTag key={tool} $isUsed={true}>
-                        <ToolName $isUsed={true}>{tool}</ToolName>
-                        <ToolCount>~{avgPerSession}</ToolCount>
-                      </ToolTag>
-                    );
-                  })}
-                  {unusedTools.map((tool) => (
-                    <ToolTag key={tool} $isUsed={false}>
-                      <ToolName $isUsed={false}>{tool}</ToolName>
-                      <ToolUnused>unused</ToolUnused>
-                    </ToolTag>
-                  ))}
-                </ToolsList>
-              </ToolUtilizationContainer>
-            </Section.Content>
-          </Section>
-        );
-      })()}
+      {/* Analytics Sections */}
+      {data.analytics && (
+        <>
+          <TokenUsageInsights
+            analytics={data.analytics}
+            totalSessions={agent.total_sessions}
+            avgDurationMinutes={agent.avg_duration_minutes}
+          />
+          <ModelUsageAnalytics analytics={data.analytics} />
+          <ToolUsageAnalytics
+            analytics={data.analytics}
+            availableTools={agent.available_tools}
+          />
+        </>
+      )}
 
       {/* Sessions Table - Full Width */}
       <Section>

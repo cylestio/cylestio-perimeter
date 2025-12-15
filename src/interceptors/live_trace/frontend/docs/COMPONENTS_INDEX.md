@@ -17,7 +17,7 @@
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
-| `ui/data-display/` | Accordion, KeyValueList, Table, CodeBlock, Timeline, TimelineItem |
+| `ui/data-display/` | Accordion, KeyValueList, StatsBar, Table, CodeBlock, Timeline, TimelineItem |
 | `ui/layout/` | Grid, Content, Main, Page, PageHeader |
 | `ui/icons/` | CursorIcon, ClaudeCodeIcon |
 
@@ -31,7 +31,8 @@
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
 | `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
-| `domain/charts/` | LineChart, BarChart |
+| `domain/analytics/` | TokenUsageInsights, ModelUsageAnalytics, ToolUsageAnalytics |
+| `domain/charts/` | LineChart, BarChart, PieChart |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
@@ -626,6 +627,49 @@ interface KeyValueListProps {
     },
   ]}
   size="sm"
+/>
+```
+
+### StatsBar
+
+Horizontal bar displaying summary statistics with icons, values, and labels. Supports dividers to group related stats.
+
+```typescript
+type StatColor = 'cyan' | 'green' | 'orange' | 'red' | 'purple';
+
+interface Stat {
+  icon: ReactNode;
+  value: string | number;
+  label: string;
+  iconColor?: StatColor;
+  valueColor?: StatColor;
+}
+
+interface StatsBarProps {
+  stats: (Stat | 'divider')[];
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Basic stats bar
+<StatsBar
+  stats={[
+    { icon: <Zap size={18} />, value: '1,234', label: 'Total Executions', iconColor: 'cyan' },
+    { icon: <Clock size={18} />, value: '150ms', label: 'Avg Duration', iconColor: 'orange' },
+    { icon: <CheckCircle size={18} />, value: '98.5%', label: 'Success Rate', iconColor: 'green' },
+  ]}
+/>
+
+// With dividers to group stats
+<StatsBar
+  stats={[
+    { icon: <Coins size={18} />, value: '45.2K', label: 'Total Tokens', iconColor: 'cyan' },
+    { icon: <TrendingUp size={18} />, value: '$12.50', label: 'Total Cost', iconColor: 'orange', valueColor: 'orange' },
+    'divider',
+    { icon: <Layers size={18} />, value: '3', label: 'Models Used', iconColor: 'purple', valueColor: 'purple' },
+  ]}
 />
 ```
 

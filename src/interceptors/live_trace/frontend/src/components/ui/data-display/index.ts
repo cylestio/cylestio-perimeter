@@ -7,6 +7,9 @@ export type { CodeBlockProps } from './CodeBlock';
 export { KeyValueList } from './KeyValueList';
 export type { KeyValueListProps, KeyValuePair } from './KeyValueList';
 
+export { StatsBar } from './StatsBar';
+export type { StatsBarProps, Stat, StatColor } from './StatsBar';
+
 export { Table } from './Table';
 export type { TableProps, Column } from './Table';
 

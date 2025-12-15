@@ -3,6 +3,7 @@
 
 export * from './layout';
 export * from './agents';
+export * from './analytics';
 export * from './charts';
 export * from './metrics';
 export * from './activity';
