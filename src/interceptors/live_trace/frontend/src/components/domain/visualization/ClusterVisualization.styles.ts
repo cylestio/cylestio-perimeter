@@ -145,16 +145,16 @@ export const TooltipWrapper = styled.div<TooltipWrapperProps>`
     $type === 'dangerous' &&
     css`
       border-left: 2px solid ${theme.colors.red};
-      padding-left: 8px;
-      margin-left: -8px;
+      padding-left: ${theme.spacing[2]};
+      margin-left: -${theme.spacing[2]};
     `}
 `;
 
 export const TooltipHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: ${({ theme }) => theme.spacing[2]};
+  margin-bottom: ${({ theme }) => theme.spacing[2]};
 `;
 
 interface TooltipIndicatorProps {
@@ -162,8 +162,8 @@ interface TooltipIndicatorProps {
 }
 
 export const TooltipIndicator = styled.div<TooltipIndicatorProps>`
-  width: 8px;
-  height: 8px;
+  width: ${({ theme }) => theme.spacing[2]};
+  height: ${({ theme }) => theme.spacing[2]};
   border-radius: 50%;
   flex-shrink: 0;
 
@@ -218,7 +218,7 @@ export const TooltipLabel = styled.span<TooltipLabelProps>`
 `;
 
 export const TooltipTitle = styled.div`
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.typography.textSm};
   font-weight: 500;
   color: ${({ theme }) => theme.colors.white90};
   margin-bottom: 6px;
@@ -227,14 +227,14 @@ export const TooltipTitle = styled.div`
 export const TooltipDivider = styled.div`
   height: 1px;
   background: ${({ theme }) => theme.colors.borderSubtle};
-  margin: 8px 0;
+  margin: ${({ theme }) => theme.spacing[2]} 0;
 `;
 
 export const TooltipRow = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: ${({ theme }) => theme.spacing[3]};
   padding: 2px 0;
 `;
 
@@ -244,7 +244,7 @@ export const TooltipRowLabel = styled.span`
 `;
 
 export const TooltipRowValue = styled.span`
-  font-size: 11px;
+  font-size: ${({ theme }) => theme.typography.textXs};
   color: ${({ theme }) => theme.colors.white80};
   font-weight: 500;
   font-family: ${({ theme }) => theme.typography.fontMono};
@@ -258,7 +258,7 @@ export const TooltipSeverity = styled.span<TooltipSeverityProps>`
   font-size: 10px;
   font-weight: 600;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: ${({ theme }) => theme.radii.sm};
   text-transform: uppercase;
 
   ${({ $severity, theme }) =>
@@ -294,14 +294,14 @@ export const TooltipCause = styled.div`
   font-size: 10px;
   color: ${({ theme }) => theme.colors.white70};
   line-height: 1.4;
-  margin-top: 4px;
+  margin-top: ${({ theme }) => theme.spacing[1]};
 `;
 
 export const TooltipTags = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: ${({ theme }) => theme.spacing[1]};
+  margin-top: ${({ theme }) => theme.spacing[1]};
 `;
 
 export const TooltipTag = styled.span`
@@ -316,6 +316,6 @@ export const TooltipTag = styled.span`
 export const TooltipFooter = styled.div`
   font-size: 9px;
   color: ${({ theme }) => theme.colors.white30};
-  margin-top: 8px;
+  margin-top: ${({ theme }) => theme.spacing[2]};
   text-align: center;
 `;
