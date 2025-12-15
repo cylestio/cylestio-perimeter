@@ -356,17 +356,35 @@ ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER
 
 ### 10.2 If Code Exists, Run Static Scan
 
-If MCP is connected, use the Agent Inspector tools to:
-1. Get security patterns: `get_security_patterns()`
-2. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")`
-3. Analyze the code files for each pattern
-4. Store any findings: `store_finding(...)`
-5. Complete the session: `complete_analysis_session(session_id)`
+If MCP is connected, use the `/scan` command workflow:
 
-**Derive agent_workflow_id from folder name** (e.g., `next-rooms`).
+1. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")`
+2. Get security patterns: `get_security_patterns()`
+3. **Analyze code for ALL 7 security categories:**
+   - PROMPT (LLM01): Injection, jailbreak
+   - OUTPUT (LLM02): Insecure output handling
+   - TOOL (LLM07/08): Dangerous tools
+   - DATA (LLM06): Hardcoded secrets
+   - MEMORY: RAG/context security
+   - SUPPLY (LLM05): Dependencies
+   - BEHAVIOR (LLM08/09): Excessive agency
+4. Store findings with category: `store_finding(..., category="PROMPT")`
+5. Complete session: `complete_analysis_session(session_id)`
+
+**Report using the 7-category format:**
+```
+🔍 AI Security Scan Complete!
+
+Security Checks (7):
+✗ PROMPT Security: X Critical issues
+✓ DATA Security: Passed
+...
+
+Gate Status: 🔒 BLOCKED / ✅ OPEN
+```
 
 If MCP not connected yet, tell user:
-> "Reload Cursor, then ask me to 'run a security scan' and I'll analyze your agent code."
+> "Reload Cursor, then type `/scan` and I'll analyze your agent code."
 
 ---
 
@@ -398,15 +416,32 @@ Query the `agent-inspector` MCP server for available tools.
 
 A security analysis platform for AI agents - find vulnerabilities, understand behavior, meet compliance.
 
-#### What Can You Do?
+#### Quick Commands
 
-**List ONLY capabilities you verified from the actual MCP tools.** Don't assume features exist.
+| Command | Description |
+|---------|-------------|
+| `/scan` | Run security scan on current workspace |
+| `/scan path/to/folder` | Run security scan on specific folder |
+| `/fix REC-001` | Fix a specific recommendation |
+| `/fix` | Fix the next highest-priority recommendation |
 
-Show the user the tools you found and explain what they enable.
+#### The 7 Security Checks
+
+Your agent is evaluated against 7 security categories:
+1. **PROMPT** - Prompt injection (LLM01)
+2. **OUTPUT** - Insecure output handling (LLM02)
+3. **TOOL** - Dangerous tools (LLM07/08)
+4. **DATA** - Secrets exposure (LLM06)
+5. **MEMORY** - RAG/context security
+6. **SUPPLY** - Dependencies (LLM05)
+7. **BEHAVIOR** - Excessive agency (LLM08/09)
+
+**Gate is BLOCKED** if any HIGH or CRITICAL issues exist.
 
 #### Quick Links
 
 - **Dashboard:** http://localhost:7100  
+- **Static Analysis:** http://localhost:7100/agent-workflow/{id}/static-analysis
 - **Proxy:** http://localhost:4000
 
 #### I'll Remember Agent Inspector

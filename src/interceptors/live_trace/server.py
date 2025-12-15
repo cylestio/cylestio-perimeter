@@ -1099,44 +1099,124 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
 
     @app.get("/api/workflow/{workflow_id}/static-summary")
     async def api_get_static_summary(workflow_id: str):
-        """Get static analysis summary for a workflow."""
+        """Get static analysis summary for a workflow with 7 security check categories.
+        
+        Returns findings grouped by the 7 security check categories:
+        PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, BEHAVIOR
+        """
         try:
-            # Get findings summary
-            findings_summary = insights.store.get_agent_workflow_findings_summary(workflow_id)
-
+            # The 7 security check categories configuration
+            SECURITY_CATEGORIES = [
+                {"category_id": "PROMPT", "name": "Prompt Security", "owasp_llm": ["LLM01"]},
+                {"category_id": "OUTPUT", "name": "Output Security", "owasp_llm": ["LLM02"]},
+                {"category_id": "TOOL", "name": "Tool Security", "owasp_llm": ["LLM07", "LLM08"]},
+                {"category_id": "DATA", "name": "Data & Secrets", "owasp_llm": ["LLM06"]},
+                {"category_id": "MEMORY", "name": "Memory & Context", "owasp_llm": []},
+                {"category_id": "SUPPLY", "name": "Supply Chain", "owasp_llm": ["LLM05"]},
+                {"category_id": "BEHAVIOR", "name": "Behavioral Boundaries", "owasp_llm": ["LLM08", "LLM09"]},
+            ]
+            
+            # Severity order for determining max severity
+            severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+            
+            # Get all findings for this workflow
+            all_findings = insights.store.get_findings(
+                agent_workflow_id=workflow_id,
+                limit=1000,
+            )
+            
             # Get analysis sessions
             sessions = insights.store.get_analysis_sessions(
                 agent_workflow_id=workflow_id,
                 limit=10,
             )
             static_sessions = [s for s in sessions if s.get('session_type') == 'STATIC']
-
-            # Get recommendations summary
+            
+            # Group findings by category
+            findings_by_category = {}
+            for f in all_findings:
+                cat = f.get('category', 'PROMPT')  # Default to PROMPT if not specified
+                if cat not in findings_by_category:
+                    findings_by_category[cat] = []
+                findings_by_category[cat].append(f)
+            
+            # Build the 7 security check cards
+            checks = []
+            severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            
+            for cat_config in SECURITY_CATEGORIES:
+                cat_id = cat_config["category_id"]
+                cat_findings = findings_by_category.get(cat_id, [])
+                
+                # Get max severity in this category
+                max_severity = None
+                if cat_findings:
+                    for f in cat_findings:
+                        sev = f.get('severity', 'LOW')
+                        if max_severity is None or severity_order.get(sev, 4) < severity_order.get(max_severity, 4):
+                            max_severity = sev
+                        # Count severities
+                        sev_key = sev.lower()
+                        if sev_key in severity_counts:
+                            severity_counts[sev_key] += 1
+                
+                # Determine check status
+                # PASS: No findings, or all LOW
+                # INFO: Only MEDIUM findings
+                # FAIL: Any HIGH or CRITICAL
+                status = "PASS"
+                if cat_findings:
+                    has_critical_or_high = any(f.get('severity') in ['CRITICAL', 'HIGH'] for f in cat_findings)
+                    has_medium = any(f.get('severity') == 'MEDIUM' for f in cat_findings)
+                    if has_critical_or_high:
+                        status = "FAIL"
+                    elif has_medium:
+                        status = "INFO"
+                
+                checks.append({
+                    "category_id": cat_id,
+                    "name": cat_config["name"],
+                    "status": status,
+                    "owasp_llm": cat_config["owasp_llm"],
+                    "findings_count": len(cat_findings),
+                    "max_severity": max_severity,
+                    "findings": cat_findings[:10],  # Limit to first 10 for performance
+                })
+            
+            # Calculate summary
+            passed_count = sum(1 for c in checks if c["status"] == "PASS")
+            failed_count = sum(1 for c in checks if c["status"] == "FAIL")
+            info_count = sum(1 for c in checks if c["status"] == "INFO")
+            gate_status = "BLOCKED" if failed_count > 0 else "UNBLOCKED"
+            
+            # Get last scan info
+            last_scan = None
+            if static_sessions:
+                latest = static_sessions[0]
+                last_scan = {
+                    "timestamp": latest.get("created_at"),
+                    "scanned_by": latest.get("scanned_by", "AI Assistant"),
+                    "files_analyzed": latest.get("files_analyzed"),
+                    "duration_ms": latest.get("duration_ms"),
+                    "session_id": latest.get("session_id"),
+                }
+            
+            # Get recommendations count
             all_recs = insights.store.get_recommendations(workflow_id=workflow_id, limit=1000)
-            rec_by_status = {}
-            rec_by_severity = {}
-            rec_by_category = {}
-
-            for rec in all_recs:
-                status = rec.get('status', 'UNKNOWN')
-                severity = rec.get('severity', 'UNKNOWN')
-                category = rec.get('category', 'UNKNOWN')
-
-                rec_by_status[status] = rec_by_status.get(status, 0) + 1
-                rec_by_severity[severity] = rec_by_severity.get(severity, 0) + 1
-                rec_by_category[category] = rec_by_category.get(category, 0) + 1
-
+            
             return JSONResponse({
                 "workflow_id": workflow_id,
-                "findings": findings_summary,
-                "recommendations": {
-                    "total": len(all_recs),
-                    "by_status": rec_by_status,
-                    "by_severity": rec_by_severity,
-                    "by_category": rec_by_category,
+                "last_scan": last_scan,
+                "checks": checks,
+                "summary": {
+                    "total_checks": len(checks),
+                    "passed": passed_count,
+                    "failed": failed_count,
+                    "info": info_count,
+                    "gate_status": gate_status,
                 },
-                "static_sessions": static_sessions,
-                "latest_session": static_sessions[0] if static_sessions else None,
+                "recommendations_count": len(all_recs),
+                "severity_counts": severity_counts,
             })
         except Exception as e:
             logger.error(f"Error getting static summary: {e}")

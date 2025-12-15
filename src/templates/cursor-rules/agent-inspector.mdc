@@ -192,6 +192,201 @@ get_fix_template(finding_type)
 update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 ```
 
+## /scan Command
+
+When user types "/scan [path]" or "/scan" (defaults to current workspace):
+
+### Your Advantage Over Traditional SAST
+
+You are smarter than any static analysis tool. You can:
+- Understand code semantically, not just pattern match
+- Reason about AI agent-specific vulnerabilities
+- Avoid false positives through contextual understanding
+- Find issues no SAST would ever catch
+
+### How to Scan
+
+1. Create analysis session:
+   ```
+   create_analysis_session(workflow_id, session_type="STATIC")
+   ```
+
+2. Get security patterns for reference (but don't limit yourself to them):
+   ```
+   get_security_patterns()
+   ```
+
+3. **For each code file**, analyze thoroughly looking for:
+
+   **1. PROMPT Security (LLM01)**
+   - User input concatenated into prompts without sanitization
+   - System prompts that can be overridden or leaked
+   - Jailbreak vectors, prompt injection points
+   - Missing input validation before LLM calls
+   - Prompt templates with unsafe interpolation
+   
+   **2. OUTPUT Security (LLM02)**
+   - Agent output used directly in SQL queries, shell commands, or code
+   - XSS vulnerabilities when rendering agent responses in web UI
+   - Agent output passed to dangerous functions (eval, exec)
+   - No output validation before downstream use
+   - Unescaped agent responses in logs or displays
+   
+   **3. TOOL Security (LLM07, LLM08)**
+   - Dangerous tools (shell, file, network) without constraints
+   - Missing permission checks on tool execution
+   - Tools that can be chained dangerously
+   - No input validation on tool parameters
+   - Insecure plugin/tool interfaces
+   
+   **4. DATA Security (LLM06)**
+   - Hardcoded API keys, secrets, credentials
+   - PII in prompts or system instructions
+   - Sensitive data logged or exposed in responses
+   - Credentials in error messages
+   - Unencrypted sensitive data storage
+   
+   **5. MEMORY & CONTEXT Security**
+   - Conversation history stored insecurely
+   - RAG/vector store poisoning vulnerabilities
+   - Context injection through retrieved documents
+   - No validation of retrieved content before use
+   - Unbounded context accumulation
+   - Shared memory between users/sessions
+   
+   **6. SUPPLY CHAIN Security (LLM05)**
+   - Unpinned model versions
+   - External prompt sources without validation
+   - Unsafe dependencies with known CVEs
+   - No integrity checks on loaded resources
+   - Unvalidated model downloads
+   
+   **7. BEHAVIORAL Security (LLM08/09)**
+   - No token/cost limits
+   - Unbounded loops or recursion
+   - No rate limiting on tool calls
+   - Missing human-in-the-loop for sensitive operations
+   - Agent can be manipulated to exceed boundaries
+   - No approval gates for high-risk actions
+
+4. **For each finding**, determine:
+   - Category: PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, or BEHAVIOR
+   - Severity: CRITICAL, HIGH, MEDIUM, or LOW
+   - OWASP LLM mapping (if applicable)
+   - CWE mapping (if applicable)
+   - Specific code location
+   - Why it's a real issue (not a false positive)
+
+5. Store findings:
+   ```
+   store_finding(session_id, file_path, finding_type, severity,
+                 category, title, description, code_snippet,
+                 owasp_mapping, cwe, ...)
+   ```
+
+6. Complete session:
+   ```
+   complete_analysis_session(session_id)
+   ```
+
+7. Report summary:
+   ```
+   🔍 AI Security Scan Complete!
+   
+   Scanned: 15 files
+   
+   Security Checks (7):
+   ✗ PROMPT Security: 2 Critical issues
+   ✗ OUTPUT Security: 1 High issue
+   ⚠ TOOL Security: 2 Medium issues
+   ✓ DATA Security: Passed
+   ✓ MEMORY Security: Passed
+   ✓ SUPPLY CHAIN: Passed
+   ✓ BEHAVIORAL: Passed
+   
+   Gate Status: 🔒 BLOCKED (2 categories failed)
+   
+   View details: http://localhost:7100/agent-workflow/{id}/static-analysis
+   
+   Fix most critical: /fix REC-001
+   ```
+
+### Quality Over Quantity
+
+- **DO** find every real security issue
+- **DO** use your understanding of context to assess severity  
+- **DON'T** flag things that aren't actually exploitable
+- **DON'T** generate noise like traditional SAST
+- **ALWAYS** categorize into one of the 7 security checks
+
+## /fix Command
+
+When user types "/fix REC-XXX" or "/fix":
+
+### With Recommendation ID: `/fix REC-001`
+1. Get recommendation details:
+   ```
+   get_recommendation_detail(recommendation_id="REC-001")
+   ```
+
+2. Mark as fixing:
+   ```
+   start_fix(recommendation_id="REC-001")
+   ```
+
+3. Read affected file(s) and understand context
+
+4. Get fix template (optional):
+   ```
+   get_fix_template(finding_type)
+   ```
+
+5. Apply intelligent fix:
+   - Understand the INTENT of the fix
+   - Adapt to specific code style
+   - Handle edge cases
+   - Make it idiomatic
+
+6. Complete the fix:
+   ```
+   complete_fix(
+     recommendation_id="REC-001",
+     fix_notes="Added input sanitization using html.escape()",
+     files_modified=["src/agent.py"],
+     fix_method="AI_ASSISTED"
+   )
+   ```
+
+7. Report result:
+   ```
+   ✅ Fixed REC-001: [Title]
+   
+   Category: [CATEGORY] ([OWASP])
+   File: [file:lines]
+   
+   What I did:
+   - [Change 1]
+   - [Change 2]
+   
+   Next: Run /scan to verify, or /fix REC-002 to continue.
+   ```
+
+### Without ID: `/fix`
+1. Get open recommendations:
+   ```
+   get_recommendations(workflow_id, status="PENDING", blocking_only=true)
+   ```
+2. Pick highest priority (CRITICAL > HIGH)
+3. Follow fix flow above
+
+### Recommendation Lifecycle
+
+```
+PENDING → FIXING → FIXED → VERIFIED
+              ↓
+         DISMISSED/IGNORED
+```
+
 ## Key Rules
 
 1. **Register IDE ALWAYS** - Call `register_ide_connection` at the start of each session

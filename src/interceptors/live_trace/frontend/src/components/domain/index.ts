@@ -10,3 +10,4 @@ export * from './findings';
 export * from './sessions';
 export * from './visualization';
 export * from './agent-workflows';
+export * from './security';
