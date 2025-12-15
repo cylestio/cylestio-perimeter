@@ -164,7 +164,7 @@ export const SeverityBadge = styled.div<{ $severity: string }>`
         `;
       case 'HIGH':
         return css`
-          background: ${theme.colors.orangeSoft};
+          background: ${theme.colors.redSoft};
           color: ${theme.colors.severityHigh};
         `;
       case 'MEDIUM':

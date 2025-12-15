@@ -183,3 +183,124 @@ export const fetchRecommendations = async (
   }
   return data;
 };
+
+// Recommendation Detail with Finding and Audit Log
+export interface AuditLogEntry {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  performed_by?: string;
+  performed_at: string;
+  details?: {
+    reason?: string;
+    notes?: string;
+    files_modified?: string[];
+    old_status?: string;
+    new_status?: string;
+    fix_method?: string;
+    verification_result?: string;
+  };
+}
+
+export interface RecommendationDetailResponse {
+  recommendation: Recommendation;
+  finding: {
+    finding_id: string;
+    title: string;
+    description?: string;
+    severity: string;
+    file_path?: string;
+    line_start?: number;
+    code_snippet?: string;
+  } | null;
+  audit_log: AuditLogEntry[];
+}
+
+export const fetchRecommendationDetail = async (
+  recommendationId: string
+): Promise<RecommendationDetailResponse> => {
+  const response = await fetch(`/api/recommendations/${recommendationId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch recommendation detail: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+// Start Fix - Mark recommendation as FIXING
+export const startFix = async (
+  recommendationId: string,
+  fixedBy?: string
+): Promise<{ recommendation: Recommendation; message: string }> => {
+  const response = await fetch(`/api/recommendations/${recommendationId}/start-fix`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fixed_by: fixedBy }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to start fix: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+// Complete Fix - Mark recommendation as FIXED
+export interface CompleteFixParams {
+  fix_notes?: string;
+  files_modified?: string[];
+  fix_commit?: string;
+  fix_method?: string;
+  fixed_by?: string;
+}
+
+export const completeFix = async (
+  recommendationId: string,
+  params?: CompleteFixParams
+): Promise<{ recommendation: Recommendation; message: string }> => {
+  const response = await fetch(`/api/recommendations/${recommendationId}/complete-fix`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params || {}),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to complete fix: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+// Dismiss Recommendation - Accept risk or mark as false positive
+export interface DismissRecommendationParams {
+  reason: string;
+  dismiss_type: 'DISMISSED' | 'IGNORED';
+  dismissed_by?: string;
+}
+
+export const dismissRecommendation = async (
+  recommendationId: string,
+  params: DismissRecommendationParams
+): Promise<{ recommendation: Recommendation; message: string }> => {
+  const response = await fetch(`/api/recommendations/${recommendationId}/dismiss`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to dismiss recommendation: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { FC } from 'react';
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Wrench } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
 
 import type { Finding } from '@api/types/findings';
 
@@ -22,12 +23,16 @@ import {
   TagList,
   Tag,
   ExpandButton,
+  RecommendationLink,
+  FixActionBox,
 } from './FindingCard.styles';
 
 export interface FindingCardProps {
   finding: Finding;
   defaultExpanded?: boolean;
   className?: string;
+  /** Optional callback when view recommendation is clicked (for custom navigation) */
+  onViewRecommendation?: (recommendationId: string) => void;
 }
 
 const getSeverityVariant = (severity: string): 'critical' | 'high' | 'medium' | 'low' => {
@@ -45,17 +50,25 @@ const getSeverityVariant = (severity: string): 'critical' | 'high' | 'medium' | 
   }
 };
 
-const getStatusColor = (status: string): 'success' | 'critical' | 'low' => {
+const getStatusVariant = (status: string): 'success' | 'cyan' | 'low' | undefined => {
   switch (status) {
     case 'OPEN':
-      return 'critical';
+      return undefined; // Don't show status badge for OPEN - severity is enough
     case 'FIXED':
+    case 'ADDRESSED': // Normalize legacy status
       return 'success';
+    case 'DISMISSED':
     case 'IGNORED':
       return 'low';
     default:
-      return 'low';
+      return undefined;
   }
+};
+
+// Normalize status for display (ADDRESSED -> FIXED)
+const normalizeStatus = (status: string): string => {
+  if (status === 'ADDRESSED') return 'FIXED';
+  return status;
 };
 
 const formatLineNumbers = (lineStart?: number, lineEnd?: number): string => {
@@ -68,10 +81,13 @@ export const FindingCard: FC<FindingCardProps> = ({
   finding,
   defaultExpanded = false,
   className,
+  onViewRecommendation,
 }) => {
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const lineInfo = formatLineNumbers(finding.line_start, finding.line_end);
+  const hasRecommendation = !!finding.recommendation_id;
 
   return (
     <FindingCardWrapper className={className}>
@@ -95,9 +111,12 @@ export const FindingCard: FC<FindingCardProps> = ({
             <Badge variant={getSeverityVariant(finding.severity)} size="sm">
               {finding.severity}
             </Badge>
-            <Badge variant={getStatusColor(finding.status)} size="sm">
-              {finding.status}
-            </Badge>
+            {/* Only show status badge for non-OPEN statuses (FIXED, DISMISSED, etc.) */}
+            {finding.status !== 'OPEN' && (
+              <Badge variant={getStatusVariant(finding.status)} size="sm">
+                {normalizeStatus(finding.status)}
+              </Badge>
+            )}
           </FindingCardBadges>
         </FindingCardHeaderContent>
       </FindingCardHeader>
@@ -148,6 +167,32 @@ export const FindingCard: FC<FindingCardProps> = ({
                 ` • Updated: ${new Date(finding.updated_at).toLocaleString()}`}
             </Text>
           </FindingSection>
+
+          {/* Recommendation Link & Fix Action */}
+          {hasRecommendation && finding.status === 'OPEN' && (
+            <FindingSection>
+              <FindingSectionTitle>Take Action</FindingSectionTitle>
+              <FixActionBox>
+                <Wrench size={16} />
+                <span>Fix with: <code>/fix {finding.recommendation_id}</code></span>
+              </FixActionBox>
+              {agentWorkflowId && (
+                <RecommendationLink
+                  as={Link}
+                  to={`/agent-workflow/${agentWorkflowId}/recommendations?finding=${finding.finding_id}`}
+                  onClick={(e: React.MouseEvent) => {
+                    if (onViewRecommendation) {
+                      e.preventDefault();
+                      onViewRecommendation(finding.recommendation_id!);
+                    }
+                  }}
+                >
+                  View Recommendation {finding.recommendation_id}
+                  <ExternalLink size={12} />
+                </RecommendationLink>
+              )}
+            </FindingSection>
+          )}
         </FindingCardDetails>
       )}
     </FindingCardWrapper>

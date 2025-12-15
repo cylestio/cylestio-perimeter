@@ -126,3 +126,47 @@ export const Tag = styled.span`
   font-size: ${({ theme }) => theme.typography.textXs};
   color: ${({ theme }) => theme.colors.white70};
 `;
+
+export const RecommendationLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.colors.cyan}40;
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  color: ${({ theme }) => theme.colors.cyan};
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: ${({ theme }) => theme.spacing[2]};
+  width: fit-content;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.cyanSoft};
+    border-color: ${({ theme }) => theme.colors.cyan};
+    color: ${({ theme }) => theme.colors.white};
+  }
+`;
+
+export const FixActionBox = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px dashed ${({ theme }) => theme.colors.cyan}40;
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  color: ${({ theme }) => theme.colors.white70};
+
+  code {
+    font-family: ${({ theme }) => theme.typography.fontMono};
+    color: ${({ theme }) => theme.colors.cyan};
+    background: ${({ theme }) => theme.colors.cyanSoft};
+    padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+    border-radius: ${({ theme }) => theme.radii.sm};
+  }
+`;

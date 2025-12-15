@@ -73,9 +73,52 @@ The template provides:
 **NEVER blindly apply templates** - adapt to the specific codebase context.
 
 ### 5. Apply Intelligent Fix
-As an AI, you can:
-- Understand the INTENT of the fix template
-- Adapt it to the specific code style
+
+As an AI, you can understand context and apply smart fixes:
+
+**For PROMPT issues (LLM01)**: 
+- Add input validation (use existing validation patterns if any)
+- Sanitize/escape user input before prompt interpolation
+- Consider structured inputs (pydantic, dataclasses) if codebase uses them
+- Add length limits to prevent context overflow
+
+**For OUTPUT issues (LLM02)**:
+- Add output encoding appropriate to context (HTML, SQL, shell)
+- Validate agent output before using in dangerous contexts
+- Add escaping when rendering in UI
+
+**For TOOL issues (LLM07/08)**:
+- Add permission checks before tool execution
+- Validate tool inputs against allowlist
+- Add constraints (file paths, network hosts, etc.)
+- Implement least-privilege patterns
+
+**For DATA issues (LLM06)**:
+- Move secrets to environment variables
+- Use secret manager patterns if codebase has them
+- Redact sensitive data from logs
+- Remove hardcoded credentials
+
+**For MEMORY issues**:
+- Validate retrieved content before use
+- Sanitize context from RAG/vector stores
+- Add bounds on context size
+- Isolate user sessions
+
+**For SUPPLY CHAIN issues (LLM05)**:
+- Pin dependency versions
+- Add integrity checks for downloads
+- Validate external sources
+
+**For BEHAVIORAL issues (LLM08/09)**:
+- Add token/cost limits
+- Implement timeouts
+- Add rate limiting
+- Require human approval for sensitive operations
+
+**General principles:**
+- Understand the INTENT of the fix
+- Adapt to the specific code style
 - Handle edge cases the template doesn't cover
 - Make the fix idiomatic for the language/framework
 
@@ -194,3 +237,32 @@ PENDING → FIXING → FIXED → VERIFIED
 4. **View results**: Check dashboard at `http://localhost:7100/agent-workflow/{id}/static-analysis`
 
 **Gate opens when all CRITICAL and HIGH findings are fixed!**
+
+## Dismissing Recommendations
+
+If user wants to dismiss a recommendation (accept risk or mark as false positive):
+
+```
+dismiss_recommendation(
+  recommendation_id="REC-001",
+  reason="Clear explanation why this is being dismissed",
+  dismiss_type="DISMISSED" or "IGNORED"
+)
+```
+
+| Type | When to Use |
+|------|-------------|
+| **DISMISSED** | Risk accepted - understood but won't fix (e.g., test code, deadline, acceptable risk) |
+| **IGNORED** | False positive - not actually a security issue |
+
+**IMPORTANT**: Always require a documented reason for audit trail compliance.
+
+Report dismissal:
+```markdown
+⏭️ **Dismissed REC-001: [Title]**
+
+**Type:** Risk Accepted / False Positive
+**Reason:** [User's documented reason]
+
+**Note:** This decision is recorded in the audit trail for compliance.
+```

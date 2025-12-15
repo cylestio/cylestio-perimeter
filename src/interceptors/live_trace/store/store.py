@@ -2790,11 +2790,13 @@ class TraceStore:
                 fix_commit, fix_method, fixed_by, now.timestamp(), recommendation_id,
             ))
 
-            # Also update the finding status to ADDRESSED
-            self.db.execute("""
-                UPDATE findings SET status = ?, updated_at = ?
-                WHERE recommendation_id = ?
-            """, ('ADDRESSED', now.timestamp(), recommendation_id))
+            # Also update the underlying finding status to FIXED
+            source_finding_id = rec.get('source_finding_id')
+            if source_finding_id:
+                self.db.execute("""
+                    UPDATE findings SET status = 'FIXED', updated_at = ?
+                    WHERE finding_id = ?
+                """, (now.timestamp(), source_finding_id))
 
             self.db.commit()
 
@@ -2903,11 +2905,14 @@ class TraceStore:
                 dismissed_by, now.timestamp(), now.timestamp(), recommendation_id,
             ))
 
-            # Update finding status
-            self.db.execute("""
-                UPDATE findings SET status = ?, updated_at = ?
-                WHERE recommendation_id = ?
-            """, ('DISMISSED', now.timestamp(), recommendation_id))
+            # Update the underlying finding status to match
+            source_finding_id = rec.get('source_finding_id')
+            if source_finding_id:
+                finding_status = 'IGNORED' if dismiss_type == 'IGNORED' else 'DISMISSED'
+                self.db.execute("""
+                    UPDATE findings SET status = ?, updated_at = ?
+                    WHERE finding_id = ?
+                """, (finding_status, now.timestamp(), source_finding_id))
 
             self.db.commit()
 

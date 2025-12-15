@@ -1142,32 +1142,36 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             
             # Build the 7 security check cards
             checks = []
+            # Only count OPEN findings for severity summary
             severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
             
             for cat_config in SECURITY_CATEGORIES:
                 cat_id = cat_config["category_id"]
                 cat_findings = findings_by_category.get(cat_id, [])
                 
-                # Get max severity in this category
+                # Separate OPEN vs resolved findings
+                open_findings = [f for f in cat_findings if f.get('status') == 'OPEN']
+                
+                # Get max severity from OPEN findings only
                 max_severity = None
-                if cat_findings:
-                    for f in cat_findings:
+                if open_findings:
+                    for f in open_findings:
                         sev = f.get('severity', 'LOW')
                         if max_severity is None or severity_order.get(sev, 4) < severity_order.get(max_severity, 4):
                             max_severity = sev
-                        # Count severities
+                        # Count severities only for OPEN findings
                         sev_key = sev.lower()
                         if sev_key in severity_counts:
                             severity_counts[sev_key] += 1
                 
-                # Determine check status
-                # PASS: No findings, or all LOW
-                # INFO: Only MEDIUM findings
-                # FAIL: Any HIGH or CRITICAL
+                # Determine check status based on OPEN findings only
+                # PASS: No OPEN findings
+                # INFO: Only MEDIUM OPEN findings
+                # FAIL: Any HIGH or CRITICAL OPEN findings
                 status = "PASS"
-                if cat_findings:
-                    has_critical_or_high = any(f.get('severity') in ['CRITICAL', 'HIGH'] for f in cat_findings)
-                    has_medium = any(f.get('severity') == 'MEDIUM' for f in cat_findings)
+                if open_findings:
+                    has_critical_or_high = any(f.get('severity') in ['CRITICAL', 'HIGH'] for f in open_findings)
+                    has_medium = any(f.get('severity') == 'MEDIUM' for f in open_findings)
                     if has_critical_or_high:
                         status = "FAIL"
                     elif has_medium:
@@ -1178,16 +1182,19 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "name": cat_config["name"],
                     "status": status,
                     "owasp_llm": cat_config["owasp_llm"],
-                    "findings_count": len(cat_findings),
-                    "max_severity": max_severity,
-                    "findings": cat_findings[:10],  # Limit to first 10 for performance
+                    "findings_count": len(cat_findings),  # Total findings (all statuses)
+                    "open_count": len(open_findings),  # Only open findings
+                    "max_severity": max_severity,  # Max severity of OPEN findings only
+                    "findings": cat_findings[:10],  # All findings for display
                 })
             
-            # Calculate summary
+            # Calculate summary based on check statuses (which are based on OPEN findings)
             passed_count = sum(1 for c in checks if c["status"] == "PASS")
             failed_count = sum(1 for c in checks if c["status"] == "FAIL")
             info_count = sum(1 for c in checks if c["status"] == "INFO")
-            gate_status = "BLOCKED" if failed_count > 0 else "UNBLOCKED"
+            # Gate is blocked only if there are OPEN HIGH/CRITICAL findings
+            has_open_blocking = severity_counts["critical"] > 0 or severity_counts["high"] > 0
+            gate_status = "BLOCKED" if has_open_blocking else "UNBLOCKED"
             
             # Get last scan info
             last_scan = None

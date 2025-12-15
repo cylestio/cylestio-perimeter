@@ -53,14 +53,14 @@ export const FrameworkBadges: FC<FrameworkBadgesProps> = ({
     : [];
 
   const hasBadges = owaspArray.length > 0 || cweArray.length > 0 || 
-    (soc2Controls && soc2Controls.length > 0) || cvssScore !== undefined;
+    (soc2Controls && soc2Controls.length > 0) || (cvssScore != null && cvssScore !== undefined);
 
   if (!hasBadges) return null;
 
   return (
     <BadgesContainer className={className}>
       {/* CVSS Score Badge */}
-      {cvssScore !== undefined && (
+      {cvssScore != null && cvssScore !== undefined && (
         <FrameworkBadge $variant={`cvss-${getCvssSeverity(cvssScore)}`}>
           <AlertTriangle size={10} />
           <CvssLabel>CVSS</CvssLabel>

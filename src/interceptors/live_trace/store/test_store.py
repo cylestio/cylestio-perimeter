@@ -988,7 +988,7 @@ class TestRecommendationMethods:
 
         # Finding should also be updated
         finding = store.get_finding("find_complete_fix")
-        assert finding['status'] == "ADDRESSED"
+        assert finding['status'] == "FIXED"
 
     def test_verify_fix_success(self, store):
         """Test successful verification changes status to VERIFIED."""

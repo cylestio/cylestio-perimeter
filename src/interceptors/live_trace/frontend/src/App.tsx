@@ -22,6 +22,8 @@ import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchAgentWorkflows } from '@api/endpoints/dashboard';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
+import { fetchRecommendations } from '@api/endpoints/agentWorkflow';
+import type { Recommendation } from '@api/types/findings';
 import { usePolling } from '@hooks/index';
 import { theme, GlobalStyles } from '@theme/index';
 
@@ -85,6 +87,18 @@ function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefi
   return openCount > 0 ? openCount : undefined;
 }
 
+// Get badge color based on highest severity of open findings
+function getSeverityBadgeColor(stage: AnalysisStage | undefined): 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | undefined {
+  if (!stage?.findings?.by_severity) return undefined;
+  const sev = stage.findings.by_severity;
+  // Check highest severity first
+  if ((sev.CRITICAL ?? 0) > 0) return 'red';
+  if ((sev.HIGH ?? 0) > 0) return 'red';
+  if ((sev.MEDIUM ?? 0) > 0) return 'yellow';
+  if ((sev.LOW ?? 0) > 0) return 'cyan';
+  return undefined;
+}
+
 // Get dynamic analysis stat text (sessions progress or findings count)
 function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | undefined {
   if (!stage) return undefined;
@@ -140,6 +154,13 @@ function AppLayout() {
   
   // IDE connection state
   const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
+
+  // Open recommendations state (for sidebar badge)
+  const [openRecommendations, setOpenRecommendations] = useState<{
+    count: number;
+    highestSeverity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | null;
+    hasFixing: boolean;
+  }>({ count: 0, highestSeverity: null, hasFixing: false });
 
   // Derive selected agent workflow from URL
   const selectedAgentWorkflow = (() => {
@@ -206,6 +227,43 @@ function AppLayout() {
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch open recommendations count for sidebar badge
+  useEffect(() => {
+    if (!urlAgentWorkflowId || urlAgentWorkflowId === 'unassigned') {
+      setOpenRecommendations({ count: 0, highestSeverity: null, hasFixing: false });
+      return;
+    }
+
+    const fetchRecs = async () => {
+      try {
+        const response = await fetchRecommendations(urlAgentWorkflowId, { limit: 500 });
+        const open = response.recommendations.filter((r: Recommendation) => 
+          ['PENDING', 'FIXING'].includes(r.status)
+        );
+        
+        // Check if any are in FIXING state
+        const hasFixing = response.recommendations.some((r: Recommendation) => r.status === 'FIXING');
+        
+        // Determine highest severity
+        let highestSeverity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | null = null;
+        if (open.some((r: Recommendation) => r.severity === 'CRITICAL')) highestSeverity = 'CRITICAL';
+        else if (open.some((r: Recommendation) => r.severity === 'HIGH')) highestSeverity = 'HIGH';
+        else if (open.some((r: Recommendation) => r.severity === 'MEDIUM')) highestSeverity = 'MEDIUM';
+        else if (open.length > 0) highestSeverity = 'LOW';
+
+        setOpenRecommendations({ count: open.length, highestSeverity, hasFixing });
+      } catch {
+        // Silently fail
+        setOpenRecommendations({ count: 0, highestSeverity: null, hasFixing: false });
+      }
+    };
+
+    fetchRecs();
+    // Poll every 5 seconds
+    const interval = setInterval(fetchRecs, 5000);
+    return () => clearInterval(interval);
+  }, [urlAgentWorkflowId]);
 
   // Handle agent workflow selection - navigate to new URL
   const handleAgentWorkflowSelect = useCallback((agentWorkflow: AgentWorkflow) => {
@@ -326,6 +384,15 @@ function AppLayout() {
               <NavItem
                 icon={<RecommendationsIcon size={18} />}
                 label="Recommendations"
+                badge={openRecommendations.count > 0 ? openRecommendations.count : undefined}
+                badgeColor={
+                  openRecommendations.highestSeverity === 'CRITICAL' || openRecommendations.highestSeverity === 'HIGH'
+                    ? 'red'
+                    : openRecommendations.highestSeverity === 'MEDIUM'
+                    ? 'orange'
+                    : 'cyan'
+                }
+                iconPulsing={openRecommendations.hasFixing}
                 active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/recommendations`}
                 to={`/agent-workflow/${urlAgentWorkflowId}/recommendations`}
                 collapsed={sidebarCollapsed}
@@ -351,6 +418,7 @@ function AppLayout() {
                 label="Static Analysis"
                 status={staticStatus}
                 count={getOpenFindingsCount(data?.security_analysis?.static)}
+                badgeColor={getSeverityBadgeColor(data?.security_analysis?.static)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/static-analysis`}
@@ -362,6 +430,7 @@ function AppLayout() {
                 label="Dynamic Analysis"
                 status={dynamicStatus}
                 count={getOpenFindingsCount(data?.security_analysis?.dynamic)}
+                badgeColor={getSeverityBadgeColor(data?.security_analysis?.dynamic)}
                 stat={getDynamicAnalysisStat(data?.security_analysis?.dynamic)}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}

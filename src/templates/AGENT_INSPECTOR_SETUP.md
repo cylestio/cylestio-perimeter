@@ -150,9 +150,9 @@ Same logic as above, but:
 
 ---
 
-## STEP 5: CREATE RULES FILE
+## STEP 5: CREATE RULES/SKILLS FILE
 
-**Only for Cursor** (skip if you're Claude Code):
+### 5.1 For Cursor: `.cursor/rules/agent-inspector.mdc`
 
 ```bash
 mkdir -p {AGENT_PROJECT_FOLDER}/.cursor/rules
@@ -162,7 +162,73 @@ mkdir -p {AGENT_PROJECT_FOLDER}/.cursor/rules
 - Look for: `src/templates/cursor-rules/agent-inspector.mdc` in the installed package or repo
 - Copy to: `{AGENT_PROJECT_FOLDER}/.cursor/rules/agent-inspector.mdc`
 
-If template not found, create minimal rules file that references MCP tools discovery.
+If template not found, create the rules file with this minimal content:
+
+```markdown
+---
+description: Agent Inspector - AI Agent Security Analysis (scan, fix, correlate)
+globs: ["**/*.py", "**/*.ts", "**/*.js"]
+---
+
+# Agent Inspector Integration
+
+**MCP Server:** `http://localhost:7100/mcp`
+**Dashboard:** `http://localhost:7100`
+
+## Commands
+
+- `/scan` - Run security scan on current workspace
+- `/scan path/` - Scan specific folder
+- `/fix REC-XXX` - Fix a specific recommendation
+- `/fix` - Fix highest priority blocking issue
+
+## 7 Security Categories
+
+1. PROMPT - Injection, jailbreak (LLM01)
+2. OUTPUT - Insecure output handling (LLM02)
+3. TOOL - Dangerous tools without constraints (LLM07/08)
+4. DATA - Secrets, PII exposure (LLM06)
+5. MEMORY - RAG/context security
+6. SUPPLY - Unpinned dependencies (LLM05)
+7. BEHAVIOR - Excessive agency (LLM08/09)
+
+## Fix Workflow
+
+Recommendations follow: PENDING → FIXING → FIXED → VERIFIED
+
+Use MCP tools: `start_fix()`, `complete_fix()`, `dismiss_recommendation()`
+```
+
+### 5.2 For Claude Code: `CLAUDE.md` (Skills File)
+
+Claude Code uses a `CLAUDE.md` file at the project root for skills/context.
+
+```bash
+# Check if CLAUDE.md exists
+ls {AGENT_PROJECT_FOLDER}/CLAUDE.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+```
+
+**Copy from package template** if available:
+- Look for: `src/templates/claude-code/CLAUDE.md` in the installed package or repo
+- Copy to: `{AGENT_PROJECT_FOLDER}/CLAUDE.md`
+
+**If NOT_FOUND and no template**, create `{AGENT_PROJECT_FOLDER}/CLAUDE.md` with:
+- MCP connection details (http://localhost:7100/mcp)
+- Commands: `/scan`, `/fix REC-XXX`, `/fix`
+- 7 security categories
+- Recommendation lifecycle
+- MCP tools reference
+
+**If EXISTS**, append the Agent Inspector section if not already present.
+
+### 5.3 Detailed Skills (Both IDEs)
+
+For more comprehensive skill files, check `src/templates/skills/`:
+- `static-analysis/SKILL.md` - Complete `/scan` workflow
+- `auto-fix/SKILL.md` - Complete `/fix` workflow with prioritization
+- `dynamic-analysis/SKILL.md` - Runtime tracing setup
+
+These can be included in your project's rules/skills for more detailed guidance.
 
 ---
 
@@ -422,8 +488,43 @@ A security analysis platform for AI agents - find vulnerabilities, understand be
 |---------|-------------|
 | `/scan` | Run security scan on current workspace |
 | `/scan path/to/folder` | Run security scan on specific folder |
-| `/fix REC-001` | Fix a specific recommendation |
-| `/fix` | Fix the next highest-priority recommendation |
+| `/fix REC-001` | Fix a specific recommendation (AI-powered, contextual) |
+| `/fix` | Fix the next highest-priority blocking recommendation |
+
+#### The `/fix` Command - AI-Powered Security Fixes
+
+When you say `/fix REC-XXX`, I will:
+
+1. **Get the recommendation details** - what's the vulnerability and where
+2. **Start fix tracking** - marks status as FIXING in the audit trail
+3. **Read and analyze your code** - understand context, patterns, style
+4. **Apply an intelligent fix** - not a template, but adapted to your codebase
+5. **Complete the fix** - marks status as FIXED with notes on what changed
+
+**I'm smarter than template-based tools.** I understand your code semantically and apply fixes that match your patterns.
+
+#### Recommendation Lifecycle
+
+Every security finding has a recommendation: "what to do about it"
+
+```
+PENDING → FIXING → FIXED → VERIFIED
+              ↓
+         DISMISSED / IGNORED
+```
+
+- **PENDING**: Issue found, waiting for action
+- **FIXING**: Someone (AI or human) is working on it
+- **FIXED**: Fix applied, awaiting verification
+- **VERIFIED**: Re-scan confirmed the issue is gone
+- **DISMISSED**: Risk accepted (documented reason required)
+- **IGNORED**: False positive (documented reason required)
+
+#### Gate Status
+
+Your agent has a **Production Gate**:
+- 🔒 **BLOCKED**: CRITICAL or HIGH issues remain open → can't ship
+- ✅ **UNBLOCKED**: All blocking issues resolved → ready to ship
 
 #### The 7 Security Checks
 
@@ -456,7 +557,9 @@ The rules file ensures I'll use these tools when you ask about security - even i
 - [ ] Checked/created virtual environment
 - [ ] Ran `pip install` (saw success message)
 - [ ] Created/updated MCP config file (`.cursor/mcp.json` or `.mcp.json`)
-- [ ] Created rules file (Cursor only)
+- [ ] Created rules/skills file:
+  - [ ] Cursor: `.cursor/rules/agent-inspector.mdc`
+  - [ ] Claude Code: `CLAUDE.md` with Agent Inspector section
 - [ ] Updated agent code with `base_url`
 - [ ] Started server OR told user how to start it
 - [ ] Told user to reload IDE
@@ -467,6 +570,48 @@ The rules file ensures I'll use these tools when you ask about security - even i
 **ALL BOXES MUST BE CHECKED.**
 
 **REMEMBER:** If IDE connection registration failed, you MUST retry on every subsequent MCP call!
+
+---
+
+## POST-INSTALLATION: Using Agent Inspector
+
+### Security Scan Workflow
+
+```
+/scan → Creates findings → Generates recommendations → Shows gate status
+```
+
+Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
+
+### Fix Workflow
+
+```
+/fix REC-001 → Reads code → Applies contextual fix → Updates status
+```
+
+The fix is tracked in an audit trail for compliance (who fixed what, when, how).
+
+### Viewing Results
+
+| URL | What it shows |
+|-----|---------------|
+| http://localhost:7100 | Dashboard home |
+| http://localhost:7100/agent-workflow/{id}/static-analysis | Static scan findings |
+| http://localhost:7100/agent-workflow/{id}/recommendations | All recommendations |
+
+### MCP Tools Reference
+
+| Tool | Purpose |
+|------|---------|
+| `get_security_patterns` | Get OWASP LLM patterns for scanning |
+| `create_analysis_session` | Start a scan session |
+| `store_finding` | Record a security finding |
+| `complete_analysis_session` | Finalize scan, calculate risk |
+| `get_recommendations` | List recommendations for workflow |
+| `start_fix` | Mark recommendation as FIXING |
+| `complete_fix` | Mark recommendation as FIXED |
+| `dismiss_recommendation` | Dismiss with documented reason |
+| `get_gate_status` | Check if production is blocked |
 
 ---
 
