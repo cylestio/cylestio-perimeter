@@ -293,6 +293,7 @@ export const ItemStat = styled.span`
 
 interface ItemBadgeProps {
   $status: SecurityCheckStatus;
+  $badgeColor?: 'red' | 'orange' | 'yellow' | 'green' | 'cyan';
 }
 
 export const ItemBadge = styled.span<ItemBadgeProps>`
@@ -302,12 +303,14 @@ export const ItemBadge = styled.span<ItemBadgeProps>`
   font-family: ${({ theme }) => theme.typography.fontMono};
   padding: 2px 6px;
   border-radius: ${({ theme }) => theme.radii.sm};
-  background: ${({ $status, theme }) => {
-    const color = getStatusColor($status);
+  background: ${({ $status, $badgeColor, theme }) => {
+    // Use badgeColor if provided, otherwise fall back to status color
+    const color = $badgeColor || getStatusColor($status);
     return `${theme.colors[color as keyof typeof theme.colors]}20`;
   }};
-  color: ${({ $status, theme }) => {
-    const color = getStatusColor($status);
+  color: ${({ $status, $badgeColor, theme }) => {
+    // Use badgeColor if provided, otherwise fall back to status color
+    const color = $badgeColor || getStatusColor($status);
     return theme.colors[color as keyof typeof theme.colors];
   }};
 `;
