@@ -132,7 +132,7 @@ def handle_complete_analysis_session(args: Dict[str, Any], store: Any) -> Dict[s
 
 @register_handler("store_finding")
 def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Store a security finding."""
+    """Store a security finding and auto-create a linked recommendation."""
     session_id = args.get("session_id")
 
     session = store.get_analysis_session(session_id)
@@ -147,6 +147,8 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     evidence = {}
     if args.get("code_snippet"):
         evidence["code_snippet"] = args["code_snippet"]
+    if args.get("context"):
+        evidence["context"] = args["context"]
 
     finding_id = generate_finding_id()
     finding = store.store_finding(
@@ -162,8 +164,25 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         line_end=args.get("line_end"),
         evidence=evidence if evidence else None,
         owasp_mapping=args.get("owasp_mapping"),
+        # New Phase 1 parameters
+        source_type=args.get("source_type", "STATIC"),
+        category=args.get("category"),
+        check_id=args.get("check_id"),
+        cvss_score=args.get("cvss_score"),
+        cwe=args.get("cwe"),
+        soc2_controls=args.get("soc2_controls"),
+        auto_create_recommendation=args.get("auto_create_recommendation", True),
+        fix_hints=args.get("fix_hints"),
+        impact=args.get("impact"),
+        fix_complexity=args.get("fix_complexity"),
     )
-    return {"finding": finding}
+
+    result = {"finding": finding}
+    if finding.get("recommendation_id"):
+        result["recommendation_id"] = finding["recommendation_id"]
+        result["message"] = f"Finding stored with auto-created recommendation {finding['recommendation_id']}"
+
+    return result
 
 
 @register_handler("get_findings")
@@ -541,6 +560,210 @@ def handle_get_ide_connection_status(args: Dict[str, Any], store: Any) -> Dict[s
     return {
         **status,
         "message": message,
+    }
+
+
+# ==================== Recommendation Tools ====================
+
+@register_handler("get_recommendations")
+def handle_get_recommendations(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get recommendations for a workflow with optional filtering."""
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    recommendations = store.get_recommendations(
+        workflow_id=workflow_id,
+        status=args.get("status", "").upper() if args.get("status") else None,
+        severity=args.get("severity", "").upper() if args.get("severity") else None,
+        category=args.get("category", "").upper() if args.get("category") else None,
+        blocking_only=args.get("blocking_only", False),
+        limit=args.get("limit", 100),
+    )
+
+    return {
+        "recommendations": recommendations,
+        "total_count": len(recommendations),
+        "workflow_id": workflow_id,
+    }
+
+
+@register_handler("get_recommendation_detail")
+def handle_get_recommendation_detail(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get detailed information about a specific recommendation."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    recommendation = store.get_recommendation(recommendation_id)
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    # Get the linked finding
+    finding = store.get_finding(recommendation['source_finding_id'])
+
+    # Get audit history
+    audit_log = store.get_audit_log(
+        entity_type='recommendation',
+        entity_id=recommendation_id,
+        limit=20,
+    )
+
+    return {
+        "recommendation": recommendation,
+        "finding": finding,
+        "audit_log": audit_log,
+    }
+
+
+@register_handler("start_fix")
+def handle_start_fix(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Mark a recommendation as being worked on (FIXING status)."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    fixed_by = args.get("fixed_by")
+
+    recommendation = store.start_fix(
+        recommendation_id=recommendation_id,
+        fixed_by=fixed_by,
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    return {
+        "recommendation": recommendation,
+        "message": f"Started fix for {recommendation_id}. Status is now FIXING.",
+        "next_step": f"After applying your fix, call complete_fix(recommendation_id='{recommendation_id}', fix_notes='...') to mark it as done.",
+    }
+
+
+@register_handler("complete_fix")
+def handle_complete_fix(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Mark a recommendation as fixed."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    recommendation = store.complete_fix(
+        recommendation_id=recommendation_id,
+        fix_notes=args.get("fix_notes"),
+        files_modified=args.get("files_modified"),
+        fix_commit=args.get("fix_commit"),
+        fix_method=args.get("fix_method"),
+        fixed_by=args.get("fixed_by"),
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    return {
+        "recommendation": recommendation,
+        "message": f"Fix completed for {recommendation_id}. Status is now FIXED.",
+        "next_step": "The fix can be verified with verify_fix() or the recommendation can be dismissed if needed.",
+    }
+
+
+@register_handler("verify_fix")
+def handle_verify_fix(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Verify a fix and update status to VERIFIED or reopen if failed."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    verification_result = args.get("verification_result")
+    if not verification_result:
+        return {"error": "verification_result is required"}
+
+    success = args.get("success", True)
+
+    recommendation = store.verify_fix(
+        recommendation_id=recommendation_id,
+        verification_result=verification_result,
+        success=success,
+        verified_by=args.get("verified_by"),
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    if success:
+        message = f"Fix verified for {recommendation_id}. Status is now VERIFIED. ✅"
+    else:
+        message = f"Verification failed for {recommendation_id}. Status reverted to PENDING. ❌"
+
+    return {
+        "recommendation": recommendation,
+        "message": message,
+        "success": success,
+    }
+
+
+@register_handler("dismiss_recommendation")
+def handle_dismiss_recommendation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Dismiss or ignore a recommendation (accept the risk)."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    reason = args.get("reason")
+    if not reason:
+        return {"error": "reason is required - explain why this is being dismissed"}
+
+    dismiss_type = args.get("dismiss_type", "DISMISSED")
+
+    recommendation = store.dismiss_recommendation(
+        recommendation_id=recommendation_id,
+        reason=reason,
+        dismiss_type=dismiss_type,
+        dismissed_by=args.get("dismissed_by"),
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    return {
+        "recommendation": recommendation,
+        "message": f"Recommendation {recommendation_id} has been {dismiss_type.lower()}.",
+        "note": "This will be logged in the audit trail for compliance purposes.",
+    }
+
+
+@register_handler("get_gate_status")
+def handle_get_gate_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get the production gate status for a workflow."""
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    gate_status = store.get_gate_status(workflow_id)
+
+    if gate_status['is_blocked']:
+        message = f"🚫 Production BLOCKED: {gate_status['blocking_critical']} critical and {gate_status['blocking_high']} high severity issues must be addressed."
+    else:
+        message = "✅ Production READY: No blocking security issues."
+
+    return {
+        **gate_status,
+        "message": message,
+    }
+
+
+@register_handler("get_audit_log")
+def handle_get_audit_log(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get audit log entries for compliance reporting."""
+    entries = store.get_audit_log(
+        entity_type=args.get("entity_type"),
+        entity_id=args.get("entity_id"),
+        action=args.get("action"),
+        limit=args.get("limit", 100),
+    )
+
+    return {
+        "entries": entries,
+        "total_count": len(entries),
     }
 
 

@@ -921,6 +921,322 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error updating finding: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    # ==================== Recommendations API Endpoints ====================
+
+    @app.get("/api/workflow/{workflow_id}/recommendations")
+    async def api_get_workflow_recommendations(
+        workflow_id: str,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        category: Optional[str] = None,
+        blocking_only: bool = False,
+        limit: int = 100,
+    ):
+        """Get recommendations for a workflow."""
+        try:
+            recommendations = insights.store.get_recommendations(
+                workflow_id=workflow_id,
+                status=status.upper() if status else None,
+                severity=severity.upper() if severity else None,
+                category=category.upper() if category else None,
+                blocking_only=blocking_only,
+                limit=limit,
+            )
+            return JSONResponse({
+                "recommendations": recommendations,
+                "total_count": len(recommendations),
+                "workflow_id": workflow_id,
+            })
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/recommendations/{recommendation_id}")
+    async def api_get_recommendation(recommendation_id: str):
+        """Get a specific recommendation by ID."""
+        try:
+            recommendation = insights.store.get_recommendation(recommendation_id)
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            # Also get the linked finding details
+            finding = insights.store.get_finding(recommendation['source_finding_id'])
+
+            # Get audit history for this recommendation
+            audit_log = insights.store.get_audit_log(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                limit=20,
+            )
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "finding": finding,
+                "audit_log": audit_log,
+            })
+        except Exception as e:
+            logger.error(f"Error getting recommendation: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/start-fix")
+    async def api_start_fix(recommendation_id: str, request: Request):
+        """Start working on a fix for a recommendation."""
+        try:
+            body = await request.json() if await request.body() else {}
+            fixed_by = body.get("fixed_by")
+
+            recommendation = insights.store.start_fix(
+                recommendation_id=recommendation_id,
+                fixed_by=fixed_by,
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Fix started for {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error starting fix: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/complete-fix")
+    async def api_complete_fix(recommendation_id: str, request: Request):
+        """Mark a recommendation as fixed."""
+        try:
+            body = await request.json() if await request.body() else {}
+
+            recommendation = insights.store.complete_fix(
+                recommendation_id=recommendation_id,
+                fix_notes=body.get("fix_notes"),
+                files_modified=body.get("files_modified"),
+                fix_commit=body.get("fix_commit"),
+                fix_method=body.get("fix_method"),
+                fixed_by=body.get("fixed_by"),
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Fix completed for {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error completing fix: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/verify")
+    async def api_verify_fix(recommendation_id: str, request: Request):
+        """Verify a fix for a recommendation."""
+        try:
+            body = await request.json()
+            verification_result = body.get("verification_result")
+            success = body.get("success", True)
+            verified_by = body.get("verified_by")
+
+            if not verification_result:
+                return JSONResponse({"error": "verification_result is required"}, status_code=400)
+
+            recommendation = insights.store.verify_fix(
+                recommendation_id=recommendation_id,
+                verification_result=verification_result,
+                success=success,
+                verified_by=verified_by,
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Verification {'passed' if success else 'failed'} for {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error verifying fix: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/dismiss")
+    async def api_dismiss_recommendation(recommendation_id: str, request: Request):
+        """Dismiss or ignore a recommendation."""
+        try:
+            body = await request.json()
+            reason = body.get("reason")
+            dismiss_type = body.get("dismiss_type", "DISMISSED")
+            dismissed_by = body.get("dismissed_by")
+
+            if not reason:
+                return JSONResponse({"error": "reason is required"}, status_code=400)
+
+            recommendation = insights.store.dismiss_recommendation(
+                recommendation_id=recommendation_id,
+                reason=reason,
+                dismiss_type=dismiss_type,
+                dismissed_by=dismissed_by,
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Recommendation {recommendation_id} dismissed",
+            })
+        except Exception as e:
+            logger.error(f"Error dismissing recommendation: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/gate-status")
+    async def api_get_gate_status(workflow_id: str):
+        """Get the gate status for a workflow (blocked/open)."""
+        try:
+            gate_status = insights.store.get_gate_status(workflow_id)
+            return JSONResponse(gate_status)
+        except Exception as e:
+            logger.error(f"Error getting gate status: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/static-summary")
+    async def api_get_static_summary(workflow_id: str):
+        """Get static analysis summary for a workflow."""
+        try:
+            # Get findings summary
+            findings_summary = insights.store.get_agent_workflow_findings_summary(workflow_id)
+
+            # Get analysis sessions
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                limit=10,
+            )
+            static_sessions = [s for s in sessions if s.get('session_type') == 'STATIC']
+
+            # Get recommendations summary
+            all_recs = insights.store.get_recommendations(workflow_id=workflow_id, limit=1000)
+            rec_by_status = {}
+            rec_by_severity = {}
+            rec_by_category = {}
+
+            for rec in all_recs:
+                status = rec.get('status', 'UNKNOWN')
+                severity = rec.get('severity', 'UNKNOWN')
+                category = rec.get('category', 'UNKNOWN')
+
+                rec_by_status[status] = rec_by_status.get(status, 0) + 1
+                rec_by_severity[severity] = rec_by_severity.get(severity, 0) + 1
+                rec_by_category[category] = rec_by_category.get(category, 0) + 1
+
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "findings": findings_summary,
+                "recommendations": {
+                    "total": len(all_recs),
+                    "by_status": rec_by_status,
+                    "by_severity": rec_by_severity,
+                    "by_category": rec_by_category,
+                },
+                "static_sessions": static_sessions,
+                "latest_session": static_sessions[0] if static_sessions else None,
+            })
+        except Exception as e:
+            logger.error(f"Error getting static summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/dynamic-summary")
+    async def api_get_dynamic_summary(workflow_id: str):
+        """Get dynamic analysis summary for a workflow."""
+        try:
+            # Get agents in this workflow
+            agents = insights.store.get_all_agents(agent_workflow_id=workflow_id)
+
+            # Get analysis sessions
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                limit=10,
+            )
+            dynamic_sessions = [s for s in sessions if s.get('session_type') == 'DYNAMIC']
+
+            # Aggregate agent metrics
+            total_sessions = 0
+            total_messages = 0
+            total_tokens = 0
+            total_tools = 0
+            total_errors = 0
+            all_tools_used = set()
+            all_tools_available = set()
+
+            for agent in agents:
+                total_sessions += agent.total_sessions
+                total_messages += agent.total_messages
+                total_tokens += agent.total_tokens
+                total_tools += agent.total_tools
+                total_errors += agent.total_errors
+                all_tools_used.update(agent.used_tools)
+                all_tools_available.update(agent.available_tools)
+
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "agents_count": len(agents),
+                "total_sessions": total_sessions,
+                "total_messages": total_messages,
+                "total_tokens": total_tokens,
+                "total_tool_calls": total_tools,
+                "total_errors": total_errors,
+                "tools_used": list(all_tools_used),
+                "tools_available": list(all_tools_available),
+                "tool_coverage": round(len(all_tools_used) / len(all_tools_available) * 100, 1) if all_tools_available else 0,
+                "dynamic_sessions": dynamic_sessions,
+                "latest_session": dynamic_sessions[0] if dynamic_sessions else None,
+            })
+        except Exception as e:
+            logger.error(f"Error getting dynamic summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/analysis-sessions")
+    async def api_get_workflow_analysis_sessions(
+        workflow_id: str,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get analysis sessions for a workflow."""
+        try:
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
+            return JSONResponse({
+                "sessions": sessions,
+                "total_count": len(sessions),
+                "workflow_id": workflow_id,
+            })
+        except Exception as e:
+            logger.error(f"Error getting analysis sessions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/audit-log")
+    async def api_get_audit_log(
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        action: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get audit log entries."""
+        try:
+            entries = insights.store.get_audit_log(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                action=action,
+                limit=limit,
+            )
+            return JSONResponse({
+                "entries": entries,
+                "total_count": len(entries),
+            })
+        except Exception as e:
+            logger.error(f"Error getting audit log: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     # ==================== IDE Connection Status Endpoints ====================
 
     @app.get("/api/ide/status")

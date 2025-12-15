@@ -853,3 +853,320 @@ class TestSecurityChecksMethods:
         checks = store.get_security_checks(agent_id="test-agent")
         assert len(checks) == 2
         assert checks[0]['category_id'] == "RESOURCE_MANAGEMENT"
+
+
+class TestRecommendationMethods:
+    """Test recommendation CRUD and lifecycle operations."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store with a session and finding for recommendations."""
+        store = TraceStore(storage_mode="memory")
+        # Create a session for findings
+        store.create_analysis_session(
+            session_id="sess_recs",
+            agent_workflow_id="test_workflow",
+            session_type="STATIC"
+        )
+        return store
+
+    def test_create_recommendation(self, store):
+        """Test creating a recommendation manually."""
+        # First create a finding (without auto-creating recommendation)
+        store.store_finding(
+            finding_id="find_manual_rec",
+            session_id="sess_recs",
+            agent_workflow_id="test_workflow",
+            file_path="/path/to/file.py",
+            finding_type="PROMPT_INJECTION",
+            severity="HIGH",
+            title="Prompt Injection Vulnerability",
+            auto_create_recommendation=False
+        )
+
+        # Create recommendation manually
+        rec = store.create_recommendation(
+            workflow_id="test_workflow",
+            source_type="STATIC",
+            source_finding_id="find_manual_rec",
+            category="PROMPT",
+            severity="HIGH",
+            title="Fix prompt injection",
+            description="Sanitize user input before interpolation",
+            fix_hints="Use parameterized prompts",
+            fix_complexity="MEDIUM",
+        )
+
+        assert rec['recommendation_id'].startswith("REC-")
+        assert rec['workflow_id'] == "test_workflow"
+        assert rec['source_type'] == "STATIC"
+        assert rec['source_finding_id'] == "find_manual_rec"
+        assert rec['category'] == "PROMPT"
+        assert rec['severity'] == "HIGH"
+        assert rec['status'] == "PENDING"
+        assert rec['title'] == "Fix prompt injection"
+
+    def test_store_finding_auto_creates_recommendation(self, store):
+        """Test that storing a finding auto-creates a linked recommendation."""
+        finding = store.store_finding(
+            finding_id="find_auto_rec",
+            session_id="sess_recs",
+            agent_workflow_id="test_workflow",
+            file_path="/path/to/file.py",
+            finding_type="PROMPT_INJECTION",
+            severity="HIGH",
+            title="SQL Injection Found",
+            auto_create_recommendation=True  # Default
+        )
+
+        # Should have a recommendation_id
+        assert finding['recommendation_id'] is not None
+        assert finding['recommendation_id'].startswith("REC-")
+
+        # Get the recommendation
+        rec = store.get_recommendation(finding['recommendation_id'])
+        assert rec is not None
+        assert rec['source_finding_id'] == "find_auto_rec"
+        assert rec['status'] == "PENDING"
+
+    def test_get_recommendations_by_workflow(self, store):
+        """Test filtering recommendations by workflow."""
+        # Create findings in different workflows
+        store.create_analysis_session("sess2", "other_workflow", "STATIC")
+        
+        store.store_finding("find1", "sess_recs", "test_workflow", "/f1.py", "LLM01", "HIGH", "F1")
+        store.store_finding("find2", "sess_recs", "test_workflow", "/f2.py", "LLM02", "MEDIUM", "F2")
+        store.store_finding("find3", "sess2", "other_workflow", "/f3.py", "LLM03", "HIGH", "F3")
+
+        recs = store.get_recommendations(workflow_id="test_workflow")
+        assert len(recs) == 2
+        assert all(r['workflow_id'] == "test_workflow" for r in recs)
+
+    def test_get_recommendations_blocking_only(self, store):
+        """Test filtering for only blocking recommendations."""
+        store.store_finding("find1", "sess_recs", "test_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical")
+        store.store_finding("find2", "sess_recs", "test_workflow", "/f2.py", "LLM02", "HIGH", "High")
+        store.store_finding("find3", "sess_recs", "test_workflow", "/f3.py", "LLM03", "MEDIUM", "Medium")
+        store.store_finding("find4", "sess_recs", "test_workflow", "/f4.py", "LLM04", "LOW", "Low")
+
+        blocking = store.get_recommendations(workflow_id="test_workflow", blocking_only=True)
+        assert len(blocking) == 2  # Only CRITICAL and HIGH
+
+    def test_start_fix(self, store):
+        """Test starting a fix changes status to FIXING."""
+        finding = store.store_finding(
+            "find_start_fix", "sess_recs", "test_workflow", "/f.py", "LLM01", "HIGH", "F"
+        )
+        rec_id = finding['recommendation_id']
+
+        rec = store.start_fix(rec_id, fixed_by="developer@example.com")
+        
+        assert rec['status'] == "FIXING"
+        assert rec['fixed_by'] == "developer@example.com"
+
+    def test_complete_fix(self, store):
+        """Test completing a fix changes status to FIXED."""
+        finding = store.store_finding(
+            "find_complete_fix", "sess_recs", "test_workflow", "/f.py", "LLM01", "HIGH", "F"
+        )
+        rec_id = finding['recommendation_id']
+
+        store.start_fix(rec_id)
+        rec = store.complete_fix(
+            rec_id,
+            fix_notes="Applied input sanitization",
+            files_modified=["/f.py", "/utils.py"],
+            fix_commit="abc123",
+            fixed_by="developer@example.com"
+        )
+        
+        assert rec['status'] == "FIXED"
+        assert rec['fix_notes'] == "Applied input sanitization"
+        assert rec['files_modified'] == ["/f.py", "/utils.py"]
+        assert rec['fix_commit'] == "abc123"
+        assert rec['fixed_at'] is not None
+
+        # Finding should also be updated
+        finding = store.get_finding("find_complete_fix")
+        assert finding['status'] == "ADDRESSED"
+
+    def test_verify_fix_success(self, store):
+        """Test successful verification changes status to VERIFIED."""
+        finding = store.store_finding(
+            "find_verify_ok", "sess_recs", "test_workflow", "/f.py", "LLM01", "HIGH", "F"
+        )
+        rec_id = finding['recommendation_id']
+
+        store.start_fix(rec_id)
+        store.complete_fix(rec_id, fix_notes="Fixed")
+        rec = store.verify_fix(
+            rec_id,
+            verification_result="Tested with malicious inputs, no injection possible",
+            success=True
+        )
+        
+        assert rec['status'] == "VERIFIED"
+        assert rec['verification_result'] == "Tested with malicious inputs, no injection possible"
+        assert rec['verified_at'] is not None
+
+    def test_verify_fix_failure(self, store):
+        """Test failed verification reverts status to PENDING."""
+        finding = store.store_finding(
+            "find_verify_fail", "sess_recs", "test_workflow", "/f.py", "LLM01", "HIGH", "F"
+        )
+        rec_id = finding['recommendation_id']
+
+        store.start_fix(rec_id)
+        store.complete_fix(rec_id, fix_notes="Fixed")
+        rec = store.verify_fix(
+            rec_id,
+            verification_result="Still vulnerable to injection",
+            success=False
+        )
+        
+        assert rec['status'] == "PENDING"  # Reopened
+
+    def test_dismiss_recommendation(self, store):
+        """Test dismissing a recommendation."""
+        finding = store.store_finding(
+            "find_dismiss", "sess_recs", "test_workflow", "/f.py", "LLM01", "MEDIUM", "F"
+        )
+        rec_id = finding['recommendation_id']
+
+        rec = store.dismiss_recommendation(
+            rec_id,
+            reason="False positive - input is already validated upstream",
+            dismiss_type="DISMISSED",
+            dismissed_by="security@example.com"
+        )
+        
+        assert rec['status'] == "DISMISSED"
+        assert rec['dismissed_reason'] == "False positive - input is already validated upstream"
+        assert rec['dismissed_at'] is not None
+
+        # Finding should also be dismissed
+        finding = store.get_finding("find_dismiss")
+        assert finding['status'] == "DISMISSED"
+
+    def test_get_gate_status_blocked(self, store):
+        """Test gate status when critical/high issues exist."""
+        store.store_finding("f1", "sess_recs", "test_workflow", "/f.py", "LLM01", "CRITICAL", "Critical")
+        store.store_finding("f2", "sess_recs", "test_workflow", "/f.py", "LLM02", "HIGH", "High1")
+        store.store_finding("f3", "sess_recs", "test_workflow", "/f.py", "LLM03", "HIGH", "High2")
+        store.store_finding("f4", "sess_recs", "test_workflow", "/f.py", "LLM04", "MEDIUM", "Medium")
+
+        gate = store.get_gate_status("test_workflow")
+        
+        assert gate['gate_state'] == "BLOCKED"
+        assert gate['is_blocked'] is True
+        assert gate['blocking_critical'] == 1
+        assert gate['blocking_high'] == 2
+        assert gate['blocking_count'] == 3
+
+    def test_get_gate_status_open(self, store):
+        """Test gate status when no blocking issues."""
+        store.store_finding("f1", "sess_recs", "test_workflow", "/f.py", "LLM01", "MEDIUM", "Medium")
+        store.store_finding("f2", "sess_recs", "test_workflow", "/f.py", "LLM02", "LOW", "Low")
+
+        gate = store.get_gate_status("test_workflow")
+        
+        assert gate['gate_state'] == "OPEN"
+        assert gate['is_blocked'] is False
+        assert gate['blocking_count'] == 0
+
+    def test_get_gate_status_open_after_fixes(self, store):
+        """Test gate opens after all critical/high issues are fixed."""
+        finding = store.store_finding(
+            "f1", "sess_recs", "test_workflow", "/f.py", "LLM01", "CRITICAL", "Critical"
+        )
+        rec_id = finding['recommendation_id']
+
+        # Initially blocked
+        gate = store.get_gate_status("test_workflow")
+        assert gate['is_blocked'] is True
+
+        # Fix the issue
+        store.start_fix(rec_id)
+        store.complete_fix(rec_id, fix_notes="Fixed")
+
+        # Now open
+        gate = store.get_gate_status("test_workflow")
+        assert gate['is_blocked'] is False
+
+
+class TestAuditLogMethods:
+    """Test audit log operations."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store for testing."""
+        return TraceStore(storage_mode="memory")
+
+    def test_log_audit_event(self, store):
+        """Test logging an audit event."""
+        entry = store.log_audit_event(
+            entity_type="recommendation",
+            entity_id="REC-001",
+            action="STATUS_CHANGED",
+            previous_value="PENDING",
+            new_value="FIXING",
+            reason="Starting fix",
+            performed_by="developer@example.com",
+            metadata={"ticket": "JIRA-123"}
+        )
+
+        assert entry['id'] is not None
+        assert entry['entity_type'] == "recommendation"
+        assert entry['entity_id'] == "REC-001"
+        assert entry['action'] == "STATUS_CHANGED"
+        assert entry['previous_value'] == "PENDING"
+        assert entry['new_value'] == "FIXING"
+        assert entry['metadata']['ticket'] == "JIRA-123"
+
+    def test_get_audit_log_by_entity(self, store):
+        """Test filtering audit log by entity."""
+        store.log_audit_event("recommendation", "REC-001", "CREATED")
+        store.log_audit_event("recommendation", "REC-001", "STATUS_CHANGED", "PENDING", "FIXING")
+        store.log_audit_event("recommendation", "REC-002", "CREATED")
+        store.log_audit_event("finding", "FND-001", "CREATED")
+
+        entries = store.get_audit_log(entity_type="recommendation", entity_id="REC-001")
+        
+        assert len(entries) == 2
+        assert all(e['entity_id'] == "REC-001" for e in entries)
+
+    def test_get_audit_log_by_action(self, store):
+        """Test filtering audit log by action."""
+        store.log_audit_event("recommendation", "REC-001", "CREATED")
+        store.log_audit_event("recommendation", "REC-001", "STATUS_CHANGED")
+        store.log_audit_event("recommendation", "REC-002", "STATUS_CHANGED")
+        store.log_audit_event("recommendation", "REC-003", "DISMISSED")
+
+        entries = store.get_audit_log(action="STATUS_CHANGED")
+        
+        assert len(entries) == 2
+        assert all(e['action'] == "STATUS_CHANGED" for e in entries)
+
+    def test_recommendation_lifecycle_creates_audit_trail(self, store):
+        """Test that recommendation lifecycle creates audit entries."""
+        # Create a session and finding
+        store.create_analysis_session("sess_audit", "audit_workflow", "STATIC")
+        finding = store.store_finding(
+            "find_audit", "sess_audit", "audit_workflow", "/f.py", "LLM01", "HIGH", "Test"
+        )
+        rec_id = finding['recommendation_id']
+
+        # Go through lifecycle
+        store.start_fix(rec_id, fixed_by="dev@example.com")
+        store.complete_fix(rec_id, fix_notes="Fixed the issue")
+        store.verify_fix(rec_id, "Verified working", success=True)
+
+        # Check audit log
+        entries = store.get_audit_log(entity_type="recommendation", entity_id=rec_id)
+        
+        # Should have: CREATED, STATUS_CHANGED (FIXING), STATUS_CHANGED (FIXED), VERIFIED
+        assert len(entries) >= 4
+        actions = [e['action'] for e in entries]
+        assert "CREATED" in actions
+        assert "STATUS_CHANGED" in actions
+        assert "VERIFIED" in actions

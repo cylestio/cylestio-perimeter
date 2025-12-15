@@ -93,15 +93,22 @@ CREATE TABLE IF NOT EXISTS findings (
     finding_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     agent_workflow_id TEXT NOT NULL,
+    source_type TEXT DEFAULT 'STATIC',
+    category TEXT,
+    check_id TEXT,
     file_path TEXT NOT NULL,
     line_start INTEGER,
     line_end INTEGER,
     finding_type TEXT NOT NULL,
     severity TEXT NOT NULL,
+    cvss_score REAL,
     title TEXT NOT NULL,
     description TEXT,
     evidence TEXT,
     owasp_mapping TEXT,
+    cwe TEXT,
+    soc2_controls TEXT,
+    recommendation_id TEXT,
     status TEXT DEFAULT 'OPEN',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
@@ -112,6 +119,8 @@ CREATE INDEX IF NOT EXISTS idx_findings_session_id ON findings(session_id);
 CREATE INDEX IF NOT EXISTS idx_findings_agent_workflow_id ON findings(agent_workflow_id);
 CREATE INDEX IF NOT EXISTS idx_findings_severity ON findings(severity);
 CREATE INDEX IF NOT EXISTS idx_findings_status ON findings(status);
+CREATE INDEX IF NOT EXISTS idx_findings_category ON findings(category);
+CREATE INDEX IF NOT EXISTS idx_findings_recommendation_id ON findings(recommendation_id);
 
 CREATE TABLE IF NOT EXISTS security_checks (
     check_id TEXT PRIMARY KEY,
@@ -177,6 +186,72 @@ CREATE INDEX IF NOT EXISTS idx_ide_connections_agent_workflow_id ON ide_connecti
 CREATE INDEX IF NOT EXISTS idx_ide_connections_is_active ON ide_connections(is_active);
 CREATE INDEX IF NOT EXISTS idx_ide_connections_mcp_session_id ON ide_connections(mcp_session_id);
 CREATE INDEX IF NOT EXISTS idx_ide_connections_last_heartbeat ON ide_connections(last_heartbeat);
+
+CREATE TABLE IF NOT EXISTS recommendations (
+    recommendation_id TEXT PRIMARY KEY,
+    workflow_id TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_finding_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    cvss_score REAL,
+    owasp_llm TEXT,
+    cwe TEXT,
+    soc2_controls TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    impact TEXT,
+    fix_hints TEXT,
+    fix_complexity TEXT,
+    requires_architectural_change INTEGER DEFAULT 0,
+    file_path TEXT,
+    line_start INTEGER,
+    line_end INTEGER,
+    code_snippet TEXT,
+    related_files TEXT,
+    status TEXT DEFAULT 'PENDING',
+    fixed_by TEXT,
+    fixed_at REAL,
+    fix_method TEXT,
+    fix_commit TEXT,
+    fix_notes TEXT,
+    files_modified TEXT,
+    verified_at REAL,
+    verified_by TEXT,
+    verification_result TEXT,
+    dismissed_reason TEXT,
+    dismissed_by TEXT,
+    dismissed_at REAL,
+    dismiss_type TEXT,
+    correlation_state TEXT,
+    correlation_evidence TEXT,
+    fingerprint TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (source_finding_id) REFERENCES findings(finding_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_recommendations_workflow_id ON recommendations(workflow_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_status ON recommendations(status);
+CREATE INDEX IF NOT EXISTS idx_recommendations_severity ON recommendations(severity);
+CREATE INDEX IF NOT EXISTS idx_recommendations_category ON recommendations(category);
+CREATE INDEX IF NOT EXISTS idx_recommendations_source_finding ON recommendations(source_finding_id);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    previous_value TEXT,
+    new_value TEXT,
+    reason TEXT,
+    performed_by TEXT,
+    performed_at REAL NOT NULL,
+    metadata TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at);
 """
 
 
@@ -440,6 +515,106 @@ class TraceStore:
             )
             self.db.commit()
             logger.info("Migration: Added model column to ide_connections table")
+
+        # Migration: add new columns to findings table for Phase 1
+        cursor = self.db.execute("PRAGMA table_info(findings)")
+        columns = {row[1] for row in cursor.fetchall()}
+        new_finding_columns = [
+            ("source_type", "TEXT DEFAULT 'STATIC'"),
+            ("category", "TEXT"),
+            ("check_id", "TEXT"),
+            ("cvss_score", "REAL"),
+            ("cwe", "TEXT"),
+            ("soc2_controls", "TEXT"),
+            ("recommendation_id", "TEXT"),
+        ]
+        for col_name, col_def in new_finding_columns:
+            if col_name not in columns:
+                self.db.execute(f"ALTER TABLE findings ADD COLUMN {col_name} {col_def}")
+                logger.info(f"Migration: Added {col_name} column to findings table")
+        self.db.commit()
+
+        # Migration: create recommendations table if missing
+        cursor = self.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='recommendations'"
+        )
+        if not cursor.fetchone():
+            self.db.executescript("""
+                CREATE TABLE IF NOT EXISTS recommendations (
+                    recommendation_id TEXT PRIMARY KEY,
+                    workflow_id TEXT NOT NULL,
+                    source_type TEXT NOT NULL,
+                    source_finding_id TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    cvss_score REAL,
+                    owasp_llm TEXT,
+                    cwe TEXT,
+                    soc2_controls TEXT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    impact TEXT,
+                    fix_hints TEXT,
+                    fix_complexity TEXT,
+                    requires_architectural_change INTEGER DEFAULT 0,
+                    file_path TEXT,
+                    line_start INTEGER,
+                    line_end INTEGER,
+                    code_snippet TEXT,
+                    related_files TEXT,
+                    status TEXT DEFAULT 'PENDING',
+                    fixed_by TEXT,
+                    fixed_at REAL,
+                    fix_method TEXT,
+                    fix_commit TEXT,
+                    fix_notes TEXT,
+                    files_modified TEXT,
+                    verified_at REAL,
+                    verified_by TEXT,
+                    verification_result TEXT,
+                    dismissed_reason TEXT,
+                    dismissed_by TEXT,
+                    dismissed_at REAL,
+                    dismiss_type TEXT,
+                    correlation_state TEXT,
+                    correlation_evidence TEXT,
+                    fingerprint TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    FOREIGN KEY (source_finding_id) REFERENCES findings(finding_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_recommendations_workflow_id ON recommendations(workflow_id);
+                CREATE INDEX IF NOT EXISTS idx_recommendations_status ON recommendations(status);
+                CREATE INDEX IF NOT EXISTS idx_recommendations_severity ON recommendations(severity);
+                CREATE INDEX IF NOT EXISTS idx_recommendations_category ON recommendations(category);
+                CREATE INDEX IF NOT EXISTS idx_recommendations_source_finding ON recommendations(source_finding_id);
+            """)
+            self.db.commit()
+            logger.info("Migration: Created recommendations table")
+
+        # Migration: create audit_log table if missing
+        cursor = self.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'"
+        )
+        if not cursor.fetchone():
+            self.db.executescript("""
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entity_type TEXT NOT NULL,
+                    entity_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    previous_value TEXT,
+                    new_value TEXT,
+                    reason TEXT,
+                    performed_by TEXT,
+                    performed_at REAL NOT NULL,
+                    metadata TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+                CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at);
+            """)
+            self.db.commit()
+            logger.info("Migration: Created audit_log table")
 
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
@@ -1175,19 +1350,27 @@ class TraceStore:
 
     def _deserialize_finding(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert SQLite row to finding dict."""
+        row_keys = row.keys()
         return {
             'finding_id': row['finding_id'],
             'session_id': row['session_id'],
             'agent_workflow_id': row['agent_workflow_id'],
+            'source_type': row['source_type'] if 'source_type' in row_keys else 'STATIC',
+            'category': row['category'] if 'category' in row_keys else None,
+            'check_id': row['check_id'] if 'check_id' in row_keys else None,
             'file_path': row['file_path'],
             'line_start': row['line_start'],
             'line_end': row['line_end'],
             'finding_type': row['finding_type'],
             'severity': row['severity'],
+            'cvss_score': row['cvss_score'] if 'cvss_score' in row_keys else None,
             'title': row['title'],
             'description': row['description'],
             'evidence': json.loads(row['evidence']) if row['evidence'] else None,
             'owasp_mapping': json.loads(row['owasp_mapping']) if row['owasp_mapping'] else [],
+            'cwe': row['cwe'] if 'cwe' in row_keys else None,
+            'soc2_controls': json.loads(row['soc2_controls']) if 'soc2_controls' in row_keys and row['soc2_controls'] else None,
+            'recommendation_id': row['recommendation_id'] if 'recommendation_id' in row_keys else None,
             'status': row['status'],
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
             'updated_at': datetime.fromtimestamp(row['updated_at'], tz=timezone.utc).isoformat(),
@@ -1299,8 +1482,46 @@ class TraceStore:
         line_end: Optional[int] = None,
         evidence: Optional[Dict[str, Any]] = None,
         owasp_mapping: Optional[List[str]] = None,
+        source_type: str = 'STATIC',
+        category: Optional[str] = None,
+        check_id: Optional[str] = None,
+        cvss_score: Optional[float] = None,
+        cwe: Optional[str] = None,
+        soc2_controls: Optional[List[str]] = None,
+        auto_create_recommendation: bool = True,
+        fix_hints: Optional[str] = None,
+        impact: Optional[str] = None,
+        fix_complexity: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Store a security finding for an agent workflow."""
+        """Store a security finding for an agent workflow.
+
+        Args:
+            finding_id: Unique finding ID
+            session_id: Analysis session ID
+            agent_workflow_id: Agent workflow ID
+            file_path: Path to affected file
+            finding_type: Type of finding (e.g., PROMPT_INJECTION)
+            severity: CRITICAL, HIGH, MEDIUM, LOW
+            title: Finding title
+            description: Detailed description
+            line_start: Starting line number
+            line_end: Ending line number
+            evidence: Evidence dict (code snippet, context, etc.)
+            owasp_mapping: List of OWASP LLM control IDs
+            source_type: STATIC or DYNAMIC
+            category: Security category (PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, BEHAVIOR)
+            check_id: ID of the check that found this issue
+            cvss_score: CVSS score (0-10)
+            cwe: CWE ID
+            soc2_controls: List of SOC2 control IDs
+            auto_create_recommendation: Whether to auto-create a recommendation
+            fix_hints: Hints on how to fix (for recommendation)
+            impact: Business impact (for recommendation)
+            fix_complexity: LOW, MEDIUM, HIGH (for recommendation)
+
+        Returns:
+            Dict with finding data (including recommendation_id if created)
+        """
         with self._lock:
             now = datetime.now(timezone.utc)
             created_at = now.timestamp()
@@ -1309,16 +1530,23 @@ class TraceStore:
             # Serialize JSON fields
             evidence_json = json.dumps(evidence) if evidence else None
             owasp_mapping_json = json.dumps(owasp_mapping) if owasp_mapping else None
+            soc2_controls_json = json.dumps(soc2_controls) if soc2_controls else None
+
+            # Derive category from finding_type if not provided
+            if not category:
+                category = self._derive_category_from_type(finding_type)
 
             self.db.execute("""
                 INSERT INTO findings (
-                    finding_id, session_id, agent_workflow_id, file_path, line_start, line_end,
-                    finding_type, severity, title, description, evidence, owasp_mapping,
+                    finding_id, session_id, agent_workflow_id, source_type, category, check_id,
+                    file_path, line_start, line_end, finding_type, severity, cvss_score,
+                    title, description, evidence, owasp_mapping, cwe, soc2_controls,
                     status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                finding_id, session_id, agent_workflow_id, file_path, line_start, line_end,
-                finding_type, severity, title, description, evidence_json, owasp_mapping_json,
+                finding_id, session_id, agent_workflow_id, source_type, category, check_id,
+                file_path, line_start, line_end, finding_type, severity, cvss_score,
+                title, description, evidence_json, owasp_mapping_json, cwe, soc2_controls_json,
                 'OPEN', created_at, updated_at
             ))
 
@@ -1331,23 +1559,98 @@ class TraceStore:
 
             self.db.commit()
 
-            return {
+            finding_result = {
                 'finding_id': finding_id,
                 'session_id': session_id,
                 'agent_workflow_id': agent_workflow_id,
+                'source_type': source_type,
+                'category': category,
+                'check_id': check_id,
                 'file_path': file_path,
                 'line_start': line_start,
                 'line_end': line_end,
                 'finding_type': finding_type,
                 'severity': severity,
+                'cvss_score': cvss_score,
                 'title': title,
                 'description': description,
                 'evidence': evidence,
                 'owasp_mapping': owasp_mapping or [],
+                'cwe': cwe,
+                'soc2_controls': soc2_controls,
                 'status': 'OPEN',
                 'created_at': now.isoformat(),
                 'updated_at': now.isoformat(),
+                'recommendation_id': None,
             }
+
+            # Auto-create recommendation if enabled
+            if auto_create_recommendation:
+                code_snippet = None
+                if evidence and isinstance(evidence, dict):
+                    code_snippet = evidence.get('code_snippet')
+
+                rec = self.create_recommendation(
+                    workflow_id=agent_workflow_id,
+                    source_type=source_type,
+                    source_finding_id=finding_id,
+                    category=category or 'UNKNOWN',
+                    severity=severity,
+                    title=f"Fix: {title}",
+                    description=description,
+                    impact=impact,
+                    fix_hints=fix_hints,
+                    fix_complexity=fix_complexity,
+                    file_path=file_path,
+                    line_start=line_start,
+                    line_end=line_end,
+                    code_snippet=code_snippet,
+                    cvss_score=cvss_score,
+                    owasp_llm=owasp_mapping[0] if owasp_mapping else None,
+                    cwe=cwe,
+                    soc2_controls=soc2_controls,
+                )
+                finding_result['recommendation_id'] = rec['recommendation_id']
+
+            return finding_result
+
+    def _derive_category_from_type(self, finding_type: str) -> str:
+        """Derive a security category from finding type.
+
+        Maps finding types to the 7 security categories:
+        PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, BEHAVIOR
+        """
+        finding_type_upper = finding_type.upper()
+
+        # Prompt-related
+        if any(kw in finding_type_upper for kw in ['PROMPT', 'INJECTION', 'JAILBREAK']):
+            return 'PROMPT'
+
+        # Output-related
+        if any(kw in finding_type_upper for kw in ['OUTPUT', 'XSS', 'RESPONSE']):
+            return 'OUTPUT'
+
+        # Tool-related
+        if any(kw in finding_type_upper for kw in ['TOOL', 'PLUGIN', 'FUNCTION', 'PERMISSION']):
+            return 'TOOL'
+
+        # Data/Secrets-related
+        if any(kw in finding_type_upper for kw in ['SECRET', 'KEY', 'PII', 'DATA', 'CREDENTIAL', 'PASSWORD']):
+            return 'DATA'
+
+        # Memory/Context-related
+        if any(kw in finding_type_upper for kw in ['MEMORY', 'RAG', 'CONTEXT', 'HISTORY']):
+            return 'MEMORY'
+
+        # Supply chain
+        if any(kw in finding_type_upper for kw in ['SUPPLY', 'DEPENDENCY', 'MODEL', 'EXTERNAL']):
+            return 'SUPPLY'
+
+        # Behavioral
+        if any(kw in finding_type_upper for kw in ['BEHAVIOR', 'AGENCY', 'OVERSIGHT', 'LIMIT', 'BOUNDARY']):
+            return 'BEHAVIOR'
+
+        return 'PROMPT'  # Default to PROMPT if unknown
 
     def get_finding(self, finding_id: str) -> Optional[Dict[str, Any]]:
         """Get a finding by ID."""
@@ -2224,3 +2527,617 @@ class TraceStore:
             'disconnected_at': datetime.fromtimestamp(row['disconnected_at'], tz=timezone.utc).isoformat() if row['disconnected_at'] else None,
             'metadata': json.loads(row['metadata']) if row['metadata'] else None,
         }
+
+    # ==================== Recommendation Methods ====================
+
+    def _generate_recommendation_id(self) -> str:
+        """Generate a unique recommendation ID in REC-XXX format."""
+        # Get the current max recommendation number
+        cursor = self.db.execute(
+            "SELECT recommendation_id FROM recommendations ORDER BY created_at DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        if row:
+            # Extract number from existing ID (e.g., REC-001 -> 1)
+            try:
+                current_num = int(row['recommendation_id'].replace('REC-', ''))
+                next_num = current_num + 1
+            except (ValueError, AttributeError):
+                next_num = 1
+        else:
+            next_num = 1
+        return f"REC-{next_num:03d}"
+
+    def create_recommendation(
+        self,
+        workflow_id: str,
+        source_type: str,
+        source_finding_id: str,
+        category: str,
+        severity: str,
+        title: str,
+        description: Optional[str] = None,
+        impact: Optional[str] = None,
+        fix_hints: Optional[str] = None,
+        fix_complexity: Optional[str] = None,
+        requires_architectural_change: bool = False,
+        file_path: Optional[str] = None,
+        line_start: Optional[int] = None,
+        line_end: Optional[int] = None,
+        code_snippet: Optional[str] = None,
+        related_files: Optional[List[str]] = None,
+        cvss_score: Optional[float] = None,
+        owasp_llm: Optional[str] = None,
+        cwe: Optional[str] = None,
+        soc2_controls: Optional[List[str]] = None,
+        recommendation_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create a new recommendation linked to a finding.
+
+        Args:
+            workflow_id: The agent workflow ID
+            source_type: STATIC or DYNAMIC
+            source_finding_id: The finding ID this recommendation addresses
+            category: Security category (PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, BEHAVIOR)
+            severity: CRITICAL, HIGH, MEDIUM, LOW
+            title: Recommendation title
+            description: Detailed description
+            impact: Business impact description
+            fix_hints: Hints on how to fix
+            fix_complexity: LOW, MEDIUM, HIGH
+            requires_architectural_change: Whether fix needs architectural changes
+            file_path: Path to affected file
+            line_start: Starting line number
+            line_end: Ending line number
+            code_snippet: Relevant code snippet
+            related_files: List of related file paths
+            cvss_score: CVSS score (0-10)
+            owasp_llm: OWASP LLM control ID (e.g., LLM01)
+            cwe: CWE ID
+            soc2_controls: List of SOC2 control IDs
+            recommendation_id: Optional custom ID (auto-generated if not provided)
+
+        Returns:
+            Dict with recommendation data
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            created_at = now.timestamp()
+            updated_at = created_at
+
+            # Generate ID if not provided
+            if not recommendation_id:
+                recommendation_id = self._generate_recommendation_id()
+
+            # Serialize JSON fields
+            related_files_json = json.dumps(related_files) if related_files else None
+            soc2_controls_json = json.dumps(soc2_controls) if soc2_controls else None
+
+            self.db.execute("""
+                INSERT INTO recommendations (
+                    recommendation_id, workflow_id, source_type, source_finding_id,
+                    category, severity, cvss_score, owasp_llm, cwe, soc2_controls,
+                    title, description, impact, fix_hints, fix_complexity,
+                    requires_architectural_change, file_path, line_start, line_end,
+                    code_snippet, related_files, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                recommendation_id, workflow_id, source_type, source_finding_id,
+                category, severity, cvss_score, owasp_llm, cwe, soc2_controls_json,
+                title, description, impact, fix_hints, fix_complexity,
+                1 if requires_architectural_change else 0, file_path, line_start, line_end,
+                code_snippet, related_files_json, 'PENDING', created_at, updated_at,
+            ))
+
+            # Update the finding with the recommendation_id
+            self.db.execute("""
+                UPDATE findings SET recommendation_id = ?, updated_at = ?
+                WHERE finding_id = ?
+            """, (recommendation_id, updated_at, source_finding_id))
+
+            self.db.commit()
+
+            # Log audit event
+            self.log_audit_event(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                action='CREATED',
+                new_value='PENDING',
+                performed_by='system',
+            )
+
+            return self.get_recommendation(recommendation_id)
+
+    def get_recommendation(self, recommendation_id: str) -> Optional[Dict[str, Any]]:
+        """Get a recommendation by ID."""
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT * FROM recommendations WHERE recommendation_id = ?",
+                (recommendation_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return self._deserialize_recommendation(row)
+            return None
+
+    def get_recommendations(
+        self,
+        workflow_id: Optional[str] = None,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        category: Optional[str] = None,
+        blocking_only: bool = False,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get recommendations with optional filtering.
+
+        Args:
+            workflow_id: Filter by workflow ID
+            status: Filter by status (PENDING, FIXING, FIXED, VERIFIED, DISMISSED, IGNORED)
+            severity: Filter by severity
+            category: Filter by category
+            blocking_only: Only return blocking items (CRITICAL/HIGH that are not fixed)
+            limit: Maximum number to return
+
+        Returns:
+            List of recommendation dicts
+        """
+        with self._lock:
+            query = "SELECT * FROM recommendations WHERE 1=1"
+            params = []
+
+            if workflow_id:
+                query += " AND workflow_id = ?"
+                params.append(workflow_id)
+
+            if status:
+                query += " AND status = ?"
+                params.append(status.upper())
+
+            if severity:
+                query += " AND severity = ?"
+                params.append(severity.upper())
+
+            if category:
+                query += " AND category = ?"
+                params.append(category.upper())
+
+            if blocking_only:
+                query += " AND severity IN ('CRITICAL', 'HIGH') AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED')"
+
+            query += " ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, created_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            return [self._deserialize_recommendation(row) for row in cursor.fetchall()]
+
+    def start_fix(self, recommendation_id: str, fixed_by: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Set recommendation status to FIXING.
+
+        Args:
+            recommendation_id: The recommendation ID
+            fixed_by: Who is working on the fix
+
+        Returns:
+            Updated recommendation or None if not found
+        """
+        with self._lock:
+            # Get current state
+            rec = self.get_recommendation(recommendation_id)
+            if not rec:
+                return None
+
+            previous_status = rec['status']
+            now = datetime.now(timezone.utc)
+
+            self.db.execute("""
+                UPDATE recommendations
+                SET status = ?, fixed_by = ?, updated_at = ?
+                WHERE recommendation_id = ?
+            """, ('FIXING', fixed_by, now.timestamp(), recommendation_id))
+            self.db.commit()
+
+            # Log audit event
+            self.log_audit_event(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                action='STATUS_CHANGED',
+                previous_value=previous_status,
+                new_value='FIXING',
+                performed_by=fixed_by,
+            )
+
+            return self.get_recommendation(recommendation_id)
+
+    def complete_fix(
+        self,
+        recommendation_id: str,
+        fix_notes: Optional[str] = None,
+        files_modified: Optional[List[str]] = None,
+        fix_commit: Optional[str] = None,
+        fix_method: Optional[str] = None,
+        fixed_by: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Mark a recommendation as FIXED.
+
+        Args:
+            recommendation_id: The recommendation ID
+            fix_notes: Notes about the fix
+            files_modified: List of modified file paths
+            fix_commit: Git commit hash
+            fix_method: Method used to fix (MANUAL, AUTOFIX, etc.)
+            fixed_by: Who performed the fix
+
+        Returns:
+            Updated recommendation or None if not found
+        """
+        with self._lock:
+            rec = self.get_recommendation(recommendation_id)
+            if not rec:
+                return None
+
+            previous_status = rec['status']
+            now = datetime.now(timezone.utc)
+            files_modified_json = json.dumps(files_modified) if files_modified else None
+
+            self.db.execute("""
+                UPDATE recommendations
+                SET status = ?, fixed_at = ?, fix_notes = ?, files_modified = ?,
+                    fix_commit = ?, fix_method = ?, fixed_by = ?, updated_at = ?
+                WHERE recommendation_id = ?
+            """, (
+                'FIXED', now.timestamp(), fix_notes, files_modified_json,
+                fix_commit, fix_method, fixed_by, now.timestamp(), recommendation_id,
+            ))
+
+            # Also update the finding status to ADDRESSED
+            self.db.execute("""
+                UPDATE findings SET status = ?, updated_at = ?
+                WHERE recommendation_id = ?
+            """, ('ADDRESSED', now.timestamp(), recommendation_id))
+
+            self.db.commit()
+
+            # Log audit event
+            self.log_audit_event(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                action='STATUS_CHANGED',
+                previous_value=previous_status,
+                new_value='FIXED',
+                reason=fix_notes,
+                performed_by=fixed_by,
+                metadata={'files_modified': files_modified, 'fix_commit': fix_commit},
+            )
+
+            return self.get_recommendation(recommendation_id)
+
+    def verify_fix(
+        self,
+        recommendation_id: str,
+        verification_result: str,
+        success: bool,
+        verified_by: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Verify a fix and set status to VERIFIED or reopen if failed.
+
+        Args:
+            recommendation_id: The recommendation ID
+            verification_result: Description of verification result
+            success: Whether verification passed
+            verified_by: Who performed verification
+
+        Returns:
+            Updated recommendation or None if not found
+        """
+        with self._lock:
+            rec = self.get_recommendation(recommendation_id)
+            if not rec:
+                return None
+
+            previous_status = rec['status']
+            now = datetime.now(timezone.utc)
+            new_status = 'VERIFIED' if success else 'PENDING'  # Reopen if failed
+
+            self.db.execute("""
+                UPDATE recommendations
+                SET status = ?, verified_at = ?, verification_result = ?,
+                    verified_by = ?, updated_at = ?
+                WHERE recommendation_id = ?
+            """, (
+                new_status, now.timestamp(), verification_result,
+                verified_by, now.timestamp(), recommendation_id,
+            ))
+            self.db.commit()
+
+            # Log audit event
+            action = 'VERIFIED' if success else 'VERIFICATION_FAILED'
+            self.log_audit_event(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                action=action,
+                previous_value=previous_status,
+                new_value=new_status,
+                reason=verification_result,
+                performed_by=verified_by,
+            )
+
+            return self.get_recommendation(recommendation_id)
+
+    def dismiss_recommendation(
+        self,
+        recommendation_id: str,
+        reason: str,
+        dismiss_type: str = 'DISMISSED',
+        dismissed_by: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Dismiss or ignore a recommendation.
+
+        Args:
+            recommendation_id: The recommendation ID
+            reason: Reason for dismissal
+            dismiss_type: DISMISSED (temporary) or IGNORED (permanent)
+            dismissed_by: Who dismissed it
+
+        Returns:
+            Updated recommendation or None if not found
+        """
+        with self._lock:
+            rec = self.get_recommendation(recommendation_id)
+            if not rec:
+                return None
+
+            if dismiss_type not in ('DISMISSED', 'IGNORED'):
+                dismiss_type = 'DISMISSED'
+
+            previous_status = rec['status']
+            now = datetime.now(timezone.utc)
+
+            self.db.execute("""
+                UPDATE recommendations
+                SET status = ?, dismissed_reason = ?, dismiss_type = ?,
+                    dismissed_by = ?, dismissed_at = ?, updated_at = ?
+                WHERE recommendation_id = ?
+            """, (
+                dismiss_type, reason, dismiss_type,
+                dismissed_by, now.timestamp(), now.timestamp(), recommendation_id,
+            ))
+
+            # Update finding status
+            self.db.execute("""
+                UPDATE findings SET status = ?, updated_at = ?
+                WHERE recommendation_id = ?
+            """, ('DISMISSED', now.timestamp(), recommendation_id))
+
+            self.db.commit()
+
+            # Log audit event
+            self.log_audit_event(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                action='DISMISSED',
+                previous_value=previous_status,
+                new_value=dismiss_type,
+                reason=reason,
+                performed_by=dismissed_by,
+            )
+
+            return self.get_recommendation(recommendation_id)
+
+    def get_gate_status(self, workflow_id: str) -> Dict[str, Any]:
+        """Calculate gate status for a workflow.
+
+        Returns blocking item counts and whether the gate is open or blocked.
+
+        Args:
+            workflow_id: The workflow ID
+
+        Returns:
+            Dict with gate status information
+        """
+        with self._lock:
+            # Get blocking recommendations (CRITICAL/HIGH not fixed/verified/dismissed)
+            cursor = self.db.execute("""
+                SELECT severity, COUNT(*) as count
+                FROM recommendations
+                WHERE workflow_id = ?
+                  AND severity IN ('CRITICAL', 'HIGH')
+                  AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED')
+                GROUP BY severity
+            """, (workflow_id,))
+
+            blocking = {row['severity']: row['count'] for row in cursor.fetchall()}
+            critical_count = blocking.get('CRITICAL', 0)
+            high_count = blocking.get('HIGH', 0)
+            total_blocking = critical_count + high_count
+
+            # Get total counts by status
+            cursor = self.db.execute("""
+                SELECT status, COUNT(*) as count
+                FROM recommendations
+                WHERE workflow_id = ?
+                GROUP BY status
+            """, (workflow_id,))
+
+            by_status = {row['status']: row['count'] for row in cursor.fetchall()}
+
+            # Get total counts by severity
+            cursor = self.db.execute("""
+                SELECT severity, COUNT(*) as count
+                FROM recommendations
+                WHERE workflow_id = ?
+                GROUP BY severity
+            """, (workflow_id,))
+
+            by_severity = {row['severity']: row['count'] for row in cursor.fetchall()}
+
+            # Calculate gate state
+            gate_state = 'BLOCKED' if total_blocking > 0 else 'OPEN'
+
+            return {
+                'workflow_id': workflow_id,
+                'gate_state': gate_state,
+                'is_blocked': total_blocking > 0,
+                'blocking_count': total_blocking,
+                'blocking_critical': critical_count,
+                'blocking_high': high_count,
+                'by_status': by_status,
+                'by_severity': by_severity,
+                'total_recommendations': sum(by_status.values()) if by_status else 0,
+            }
+
+    def _deserialize_recommendation(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Deserialize a recommendations row."""
+        return {
+            'recommendation_id': row['recommendation_id'],
+            'workflow_id': row['workflow_id'],
+            'source_type': row['source_type'],
+            'source_finding_id': row['source_finding_id'],
+            'category': row['category'],
+            'severity': row['severity'],
+            'cvss_score': row['cvss_score'],
+            'owasp_llm': row['owasp_llm'],
+            'cwe': row['cwe'],
+            'soc2_controls': json.loads(row['soc2_controls']) if row['soc2_controls'] else None,
+            'title': row['title'],
+            'description': row['description'],
+            'impact': row['impact'],
+            'fix_hints': row['fix_hints'],
+            'fix_complexity': row['fix_complexity'],
+            'requires_architectural_change': bool(row['requires_architectural_change']),
+            'file_path': row['file_path'],
+            'line_start': row['line_start'],
+            'line_end': row['line_end'],
+            'code_snippet': row['code_snippet'],
+            'related_files': json.loads(row['related_files']) if row['related_files'] else None,
+            'status': row['status'],
+            'fixed_by': row['fixed_by'],
+            'fixed_at': datetime.fromtimestamp(row['fixed_at'], tz=timezone.utc).isoformat() if row['fixed_at'] else None,
+            'fix_method': row['fix_method'],
+            'fix_commit': row['fix_commit'],
+            'fix_notes': row['fix_notes'],
+            'files_modified': json.loads(row['files_modified']) if row['files_modified'] else None,
+            'verified_at': datetime.fromtimestamp(row['verified_at'], tz=timezone.utc).isoformat() if row['verified_at'] else None,
+            'verified_by': row['verified_by'],
+            'verification_result': row['verification_result'],
+            'dismissed_reason': row['dismissed_reason'],
+            'dismissed_by': row['dismissed_by'],
+            'dismissed_at': datetime.fromtimestamp(row['dismissed_at'], tz=timezone.utc).isoformat() if row['dismissed_at'] else None,
+            'dismiss_type': row['dismiss_type'],
+            'correlation_state': row['correlation_state'],
+            'correlation_evidence': row['correlation_evidence'],
+            'fingerprint': row['fingerprint'],
+            'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
+            'updated_at': datetime.fromtimestamp(row['updated_at'], tz=timezone.utc).isoformat(),
+        }
+
+    # ==================== Audit Log Methods ====================
+
+    def log_audit_event(
+        self,
+        entity_type: str,
+        entity_id: str,
+        action: str,
+        previous_value: Optional[str] = None,
+        new_value: Optional[str] = None,
+        reason: Optional[str] = None,
+        performed_by: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Log an audit event for any entity.
+
+        Args:
+            entity_type: Type of entity (recommendation, finding, etc.)
+            entity_id: ID of the entity
+            action: Action performed (CREATED, STATUS_CHANGED, DISMISSED, etc.)
+            previous_value: Previous value (for status changes)
+            new_value: New value
+            reason: Reason for the action
+            performed_by: Who performed the action
+            metadata: Additional metadata as JSON
+
+        Returns:
+            Dict with audit log entry
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            metadata_json = json.dumps(metadata) if metadata else None
+
+            cursor = self.db.execute("""
+                INSERT INTO audit_log (
+                    entity_type, entity_id, action, previous_value, new_value,
+                    reason, performed_by, performed_at, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                entity_type, entity_id, action, previous_value, new_value,
+                reason, performed_by, now.timestamp(), metadata_json,
+            ))
+            self.db.commit()
+
+            return {
+                'id': cursor.lastrowid,
+                'entity_type': entity_type,
+                'entity_id': entity_id,
+                'action': action,
+                'previous_value': previous_value,
+                'new_value': new_value,
+                'reason': reason,
+                'performed_by': performed_by,
+                'performed_at': now.isoformat(),
+                'metadata': metadata,
+            }
+
+    def get_audit_log(
+        self,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        action: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Get audit log entries with optional filtering.
+
+        Args:
+            entity_type: Filter by entity type
+            entity_id: Filter by entity ID
+            action: Filter by action
+            limit: Maximum entries to return
+
+        Returns:
+            List of audit log entries
+        """
+        with self._lock:
+            query = "SELECT * FROM audit_log WHERE 1=1"
+            params = []
+
+            if entity_type:
+                query += " AND entity_type = ?"
+                params.append(entity_type)
+
+            if entity_id:
+                query += " AND entity_id = ?"
+                params.append(entity_id)
+
+            if action:
+                query += " AND action = ?"
+                params.append(action)
+
+            query += " ORDER BY performed_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+
+            return [
+                {
+                    'id': row['id'],
+                    'entity_type': row['entity_type'],
+                    'entity_id': row['entity_id'],
+                    'action': row['action'],
+                    'previous_value': row['previous_value'],
+                    'new_value': row['new_value'],
+                    'reason': row['reason'],
+                    'performed_by': row['performed_by'],
+                    'performed_at': datetime.fromtimestamp(row['performed_at'], tz=timezone.utc).isoformat(),
+                    'metadata': json.loads(row['metadata']) if row['metadata'] else None,
+                }
+                for row in cursor.fetchall()
+            ]
