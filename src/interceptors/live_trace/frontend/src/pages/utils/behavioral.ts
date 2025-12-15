@@ -7,6 +7,10 @@ import type { ClusterNodeData } from '@domain/visualization';
  * - Outlier nodes are placed on the right side (70-95% x range)
  * - Node size is determined by cluster percentage (>40% = lg, >20% = md, else sm)
  * - Outliers with critical/high severity are marked as 'dangerous', otherwise 'outlier'
+ *
+ * Each node includes metadata for tooltips and navigation:
+ * - Clusters: clusterId for filtering sessions, size/percentage for display
+ * - Outliers: sessionId for direct navigation, severity/causes for display
  */
 export const buildVisualizationNodes = (
   clusters?: BehavioralCluster[],
@@ -23,6 +27,12 @@ export const buildVisualizationNodes = (
       size: cluster.percentage > 40 ? 'lg' : cluster.percentage > 20 ? 'md' : 'sm',
       type: 'cluster',
       label: `${cluster.cluster_id}: ${cluster.size} sessions (${cluster.percentage}%)`,
+      clusterId: cluster.cluster_id,
+      metadata: {
+        size: cluster.size,
+        percentage: cluster.percentage,
+        commonTools: cluster.characteristics?.common_tools,
+      },
     });
   });
 
@@ -35,6 +45,11 @@ export const buildVisualizationNodes = (
       size: 'sm',
       type: outlier.severity === 'critical' || outlier.severity === 'high' ? 'dangerous' : 'outlier',
       label: `Outlier: ${outlier.session_id.substring(0, 8)}... (${outlier.severity})`,
+      sessionId: outlier.session_id,
+      metadata: {
+        severity: outlier.severity,
+        primaryCauses: outlier.primary_causes,
+      },
     });
   });
 

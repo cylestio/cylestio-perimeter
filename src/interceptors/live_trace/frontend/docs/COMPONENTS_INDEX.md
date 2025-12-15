@@ -1671,3 +1671,46 @@ interface UserMenuProps {
   collapsed?: boolean;
 }
 ```
+
+---
+
+# Features Components
+
+Page-specific components that are not reusable across different pages.
+
+## GatheringData
+
+Progress indicator shown when waiting for more session data before analysis can be performed.
+
+```typescript
+interface GatheringDataProps {
+  /** Current number of sessions collected */
+  currentSessions: number;
+  /** Minimum sessions required for analysis */
+  minSessionsRequired: number;
+  /** Title text (default: "Analyzing Agent Behavior") */
+  title?: string;
+  /** Description text */
+  description?: string;
+  /** Hint text shown below progress bar (default: "More sessions improve accuracy") */
+  hint?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Default - analyzing agent behavior
+<GatheringData
+  currentSessions={2}
+  minSessionsRequired={5}
+/>
+
+// Custom content
+<GatheringData
+  currentSessions={3}
+  minSessionsRequired={5}
+  title="Building Behavioral Profile"
+  description="Behavioral analysis requires session data to identify patterns."
+  hint="Analysis improves with more data"
+/>
+```

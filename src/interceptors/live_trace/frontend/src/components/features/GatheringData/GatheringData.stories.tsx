@@ -46,3 +46,18 @@ export const JustStarted: Story = {
     await expect(canvas.getByText('0 / 5')).toBeInTheDocument();
   },
 };
+
+export const CustomContent: Story = {
+  args: {
+    currentSessions: 3,
+    minSessionsRequired: 5,
+    title: 'Building Behavioral Profile',
+    description: 'Behavioral analysis requires session data to identify patterns and anomalies.',
+    hint: 'Analysis improves with more data',
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Building Behavioral Profile')).toBeInTheDocument();
+    await expect(canvas.getByText('Analysis improves with more data')).toBeInTheDocument();
+    await expect(canvas.getByText('3 / 5')).toBeInTheDocument();
+  },
+};

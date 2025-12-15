@@ -190,6 +190,7 @@ export interface AgentDetail {
   tools_utilization_percent: number;
   avg_response_time_ms: number;
   avg_messages_per_session: number;
+  avg_duration_minutes: number;
   first_seen: string;
   last_seen: string;
   pii_disabled?: boolean;
@@ -199,5 +200,4 @@ export interface AgentResponse {
   agent: AgentDetail;
   risk_analysis: RiskAnalysis;
   analytics: AgentAnalytics;
-  sessions: AgentSession[];
 }

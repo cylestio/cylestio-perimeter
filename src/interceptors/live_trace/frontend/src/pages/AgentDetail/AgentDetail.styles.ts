@@ -604,22 +604,21 @@ export const ToolTag = styled.span<{ $isUsed: boolean }>`
   gap: ${({ theme }) => theme.spacing[2]};
   padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
   border-radius: ${({ theme }) => theme.radii.sm};
-  background: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.cyanSoft : 'transparent')};
+  background: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.surface2 : theme.colors.surface)};
   border: 1px ${({ $isUsed }) => ($isUsed ? 'solid' : 'dashed')}
-    ${({ theme, $isUsed }) => ($isUsed ? theme.colors.cyan : theme.colors.borderSubtle)};
+    ${({ theme, $isUsed }) => ($isUsed ? theme.colors.borderMedium : theme.colors.borderMedium)};
   font-size: 12px;
-  opacity: ${({ $isUsed }) => ($isUsed ? 1 : 0.6)};
-  transition: opacity 0.15s ease;
+  transition: all 0.15s ease;
 
   &:hover {
-    opacity: 1;
+    background: ${({ theme }) => theme.colors.surface3};
   }
 `;
 
 export const ToolName = styled.span<{ $isUsed: boolean }>`
   font-family: ${({ theme }) => theme.typography.fontMono};
-  color: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.cyan : theme.colors.white50)};
-  font-weight: ${({ $isUsed }) => ($isUsed ? 600 : 400)};
+  color: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.white90 : theme.colors.white70)};
+  font-weight: ${({ $isUsed }) => ($isUsed ? 500 : 400)};
 `;
 
 export const ToolCount = styled.span`
@@ -630,16 +629,59 @@ export const ToolCount = styled.span`
   height: 18px;
   padding: 2px 6px;
   border-radius: ${({ theme }) => theme.radii.sm};
-  background: ${({ theme }) => theme.colors.cyan};
+  background: ${({ theme }) => theme.colors.white08};
   font-size: 10px;
-  color: ${({ theme }) => theme.colors.void};
-  font-weight: 700;
+  color: ${({ theme }) => theme.colors.white70};
+  font-weight: 600;
   line-height: 1;
 `;
 
 export const ToolUnused = styled.span`
   font-size: 9px;
-  color: ${({ theme }) => theme.colors.white30};
+  color: ${({ theme }) => theme.colors.white50};
   text-transform: uppercase;
   letter-spacing: 0.05em;
+`;
+
+// Model Display in Stats Bar
+export const ModelValue = styled.span`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  color: ${({ theme }) => theme.colors.white};
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+export const ModelCount = styled.span`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: ${({ theme }) => theme.typography.textMd};
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  color: ${({ theme }) => theme.colors.purple};
+`;
+
+// Model Tooltip List
+export const ModelTooltipList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+export const ModelTooltipItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+`;
+
+export const ModelTooltipName = styled.span`
+  color: ${({ theme }) => theme.colors.white90};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+`;
+
+export const ModelTooltipCount = styled.span`
+  color: ${({ theme }) => theme.colors.white50};
 `;

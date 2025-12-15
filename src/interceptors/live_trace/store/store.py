@@ -35,8 +35,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     available_tools TEXT,
     events_json TEXT,
     behavioral_signature TEXT,
-    behavioral_features TEXT
+    behavioral_features TEXT,
+    cluster_id TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_sessions_cluster_id ON sessions(cluster_id);
 
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_id ON sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_agent_workflow_id ON sessions(agent_workflow_id);
@@ -210,6 +213,7 @@ class SessionData:
         self.completed_at = None  # Timestamp when session was marked completed
         self.behavioral_signature = None  # MinHash signature (computed when completed)
         self.behavioral_features = None  # SessionFeatures (computed when completed)
+        self.cluster_id = None  # Behavioral cluster ID (assigned after analysis)
 
     def add_event(self, event: BaseEvent):
         """Add an event to this session."""
@@ -292,6 +296,7 @@ class SessionData:
             # Clear previous analysis - will be recomputed when session completes again
             self.behavioral_signature = None
             self.behavioral_features = None
+            self.cluster_id = None
 
 
 class AgentData:
@@ -441,6 +446,19 @@ class TraceStore:
             self.db.commit()
             logger.info("Migration: Added model column to ide_connections table")
 
+        # Migration: add cluster_id column to sessions if missing
+        cursor = self.db.execute("PRAGMA table_info(sessions)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'cluster_id' not in columns:
+            self.db.execute(
+                "ALTER TABLE sessions ADD COLUMN cluster_id TEXT"
+            )
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sessions_cluster_id ON sessions(cluster_id)"
+            )
+            self.db.commit()
+            logger.info("Migration: Added cluster_id column to sessions table")
+
     def _serialize_session(self, session: SessionData) -> Dict[str, Any]:
         """Convert SessionData to dict for SQLite storage."""
         return {
@@ -464,6 +482,7 @@ class TraceStore:
             'events_json': json.dumps([e.model_dump() for e in session.events]),
             'behavioral_signature': json.dumps(session.behavioral_signature) if session.behavioral_signature else None,
             'behavioral_features': session.behavioral_features.model_dump_json() if session.behavioral_features else None,
+            'cluster_id': session.cluster_id,
         }
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
@@ -490,6 +509,8 @@ class TraceStore:
         if row['behavioral_features']:
             from ..runtime.models import SessionFeatures
             session.behavioral_features = SessionFeatures.model_validate_json(row['behavioral_features'])
+        # Handle cluster_id (may not exist in older databases before migration)
+        session.cluster_id = row['cluster_id'] if 'cluster_id' in row.keys() else None
         return session
 
     def _serialize_agent(self, agent: AgentData) -> Dict[str, Any]:
@@ -553,7 +574,7 @@ class TraceStore:
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
                 :tool_usage_details, :available_tools, :events_json,
-                :behavioral_signature, :behavioral_features
+                :behavioral_signature, :behavioral_features, :cluster_id
             )
         """, data)
         self.db.commit()
@@ -768,6 +789,7 @@ class TraceStore:
         agent_workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        cluster_id: Optional[str] = None,
     ) -> Tuple[str, List[Any]]:
         """Build WHERE clause for session filtering.
 
@@ -775,6 +797,7 @@ class TraceStore:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+            cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
 
         Returns:
             Tuple of (where_clause, params) - where_clause starts with " WHERE 1=1"
@@ -802,6 +825,10 @@ class TraceStore:
             elif status_upper == "COMPLETED":
                 where_clause += " AND is_completed = 1"
 
+        if cluster_id is not None:
+            where_clause += " AND cluster_id = ?"
+            params.append(cluster_id)
+
         return where_clause, params
 
     def count_sessions_filtered(
@@ -809,6 +836,7 @@ class TraceStore:
         agent_workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        cluster_id: Optional[str] = None,
     ) -> int:
         """Count sessions with optional filtering.
 
@@ -818,6 +846,7 @@ class TraceStore:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+            cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
 
         Returns:
             Count of matching sessions.
@@ -827,6 +856,7 @@ class TraceStore:
                 agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
+                cluster_id=cluster_id,
             )
             query = f"SELECT COUNT(*) FROM sessions{where_clause}"  # nosec B608 - parameterized
             cursor = self.db.execute(query, params)
@@ -837,15 +867,17 @@ class TraceStore:
         agent_workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        cluster_id: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Get sessions with optional filtering by agent_workflow_id, agent_id, and status.
+        """Get sessions with optional filtering by agent_workflow_id, agent_id, status, and cluster_id.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+            cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
             limit: Maximum number of sessions to return.
             offset: Number of sessions to skip (for pagination).
 
@@ -857,6 +889,7 @@ class TraceStore:
                 agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
+                cluster_id=cluster_id,
             )
             query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ? OFFSET ?"  # nosec B608 - parameterized
             params.append(limit)
@@ -908,6 +941,7 @@ class TraceStore:
                     "agent_id": row['agent_id'],
                     "agent_id_short": row['agent_id'][:12] if row['agent_id'] else None,
                     "agent_workflow_id": row['agent_workflow_id'],
+                    "cluster_id": row['cluster_id'] if 'cluster_id' in row.keys() else None,
                     "created_at": created_at.isoformat(),
                     "last_activity": last_activity.isoformat(),
                     "last_activity_relative": last_activity_relative,

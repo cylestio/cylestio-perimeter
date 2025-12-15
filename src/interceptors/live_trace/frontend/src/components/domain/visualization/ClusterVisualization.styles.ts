@@ -1,4 +1,5 @@
 import styled, { css, keyframes } from 'styled-components';
+
 import type { ClusterNodeType } from './ClusterVisualization';
 
 export const ClusterContainer = styled.div`
@@ -22,6 +23,18 @@ export const ClusterArea = styled.div<ClusterAreaProps>`
   );
 `;
 
+interface NodeWrapperProps {
+  $x: number;
+  $y: number;
+}
+
+export const NodeWrapper = styled.div<NodeWrapperProps>`
+  position: absolute;
+  left: ${({ $x }) => $x}%;
+  top: ${({ $y }) => $y}%;
+  transform: translate(-50%, -50%);
+`;
+
 const glowPulse = keyframes`
   0%, 100% {
     box-shadow: 0 0 8px currentColor;
@@ -31,22 +44,16 @@ const glowPulse = keyframes`
   }
 `;
 
-interface ClusterNodeProps {
-  $x: number;
-  $y: number;
+interface ClusterNodeCircleProps {
   $size: number;
   $type: ClusterNodeType;
   $clickable?: boolean;
 }
 
-export const ClusterNode = styled.div<ClusterNodeProps>`
-  position: absolute;
-  left: ${({ $x }) => $x}%;
-  top: ${({ $y }) => $y}%;
+export const ClusterNodeCircle = styled.div<ClusterNodeCircleProps>`
   width: ${({ $size }) => $size}px;
   height: ${({ $size }) => $size}px;
   border-radius: 50%;
-  transform: translate(-50%, -50%);
   transition: transform ${({ theme }) => theme.transitions.fast};
 
   ${({ $type, theme }) =>
@@ -76,7 +83,7 @@ export const ClusterNode = styled.div<ClusterNodeProps>`
       cursor: pointer;
 
       &:hover {
-        transform: translate(-50%, -50%) scale(1.2);
+        transform: scale(1.2);
       }
     `}
 `;
@@ -123,4 +130,192 @@ export const LegendDot = styled.div<LegendDotProps>`
     css`
       background: ${theme.colors.red};
     `}
+`;
+
+// Rich Tooltip Styles
+interface TooltipWrapperProps {
+  $type: ClusterNodeType;
+}
+
+export const TooltipWrapper = styled.div<TooltipWrapperProps>`
+  min-width: 180px;
+  max-width: 260px;
+
+  ${({ $type, theme }) =>
+    $type === 'dangerous' &&
+    css`
+      border-left: 2px solid ${theme.colors.red};
+      padding-left: 8px;
+      margin-left: -8px;
+    `}
+`;
+
+export const TooltipHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+`;
+
+interface TooltipIndicatorProps {
+  $type: ClusterNodeType;
+}
+
+export const TooltipIndicator = styled.div<TooltipIndicatorProps>`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  ${({ $type, theme }) =>
+    $type === 'cluster' &&
+    css`
+      border: 2px solid ${theme.colors.cyan};
+      background: ${theme.colors.cyanSoft};
+    `}
+
+  ${({ $type, theme }) =>
+    $type === 'outlier' &&
+    css`
+      background: ${theme.colors.orange};
+    `}
+
+  ${({ $type, theme }) =>
+    $type === 'dangerous' &&
+    css`
+      background: ${theme.colors.red};
+      box-shadow: 0 0 6px ${theme.colors.red};
+    `}
+`;
+
+interface TooltipLabelProps {
+  $type: ClusterNodeType;
+}
+
+export const TooltipLabel = styled.span<TooltipLabelProps>`
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  ${({ $type, theme }) =>
+    $type === 'cluster' &&
+    css`
+      color: ${theme.colors.cyan};
+    `}
+
+  ${({ $type, theme }) =>
+    $type === 'outlier' &&
+    css`
+      color: ${theme.colors.orange};
+    `}
+
+  ${({ $type, theme }) =>
+    $type === 'dangerous' &&
+    css`
+      color: ${theme.colors.red};
+    `}
+`;
+
+export const TooltipTitle = styled.div`
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white90};
+  margin-bottom: 6px;
+`;
+
+export const TooltipDivider = styled.div`
+  height: 1px;
+  background: ${({ theme }) => theme.colors.borderSubtle};
+  margin: 8px 0;
+`;
+
+export const TooltipRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0;
+`;
+
+export const TooltipRowLabel = styled.span`
+  font-size: 10px;
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+export const TooltipRowValue = styled.span`
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.white80};
+  font-weight: 500;
+  font-family: ${({ theme }) => theme.typography.fontMono};
+`;
+
+interface TooltipSeverityProps {
+  $severity: 'low' | 'medium' | 'high' | 'critical' | 'unknown';
+}
+
+export const TooltipSeverity = styled.span<TooltipSeverityProps>`
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+
+  ${({ $severity, theme }) =>
+    $severity === 'low' &&
+    css`
+      background: ${theme.colors.white08};
+      color: ${theme.colors.white70};
+    `}
+
+  ${({ $severity, theme }) =>
+    $severity === 'medium' &&
+    css`
+      background: ${theme.colors.yellowSoft};
+      color: ${theme.colors.yellow};
+    `}
+
+  ${({ $severity, theme }) =>
+    $severity === 'high' &&
+    css`
+      background: ${theme.colors.orangeSoft};
+      color: ${theme.colors.orange};
+    `}
+
+  ${({ $severity, theme }) =>
+    ($severity === 'critical' || $severity === 'unknown') &&
+    css`
+      background: ${theme.colors.redSoft};
+      color: ${theme.colors.red};
+    `}
+`;
+
+export const TooltipCause = styled.div`
+  font-size: 10px;
+  color: ${({ theme }) => theme.colors.white70};
+  line-height: 1.4;
+  margin-top: 4px;
+`;
+
+export const TooltipTags = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+`;
+
+export const TooltipTag = styled.span`
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: ${({ theme }) => theme.colors.surface4};
+  color: ${({ theme }) => theme.colors.white50};
+  font-family: ${({ theme }) => theme.typography.fontMono};
+`;
+
+export const TooltipFooter = styled.div`
+  font-size: 9px;
+  color: ${({ theme }) => theme.colors.white30};
+  margin-top: 8px;
+  text-align: center;
 `;

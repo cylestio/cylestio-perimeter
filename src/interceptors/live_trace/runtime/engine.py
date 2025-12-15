@@ -269,22 +269,12 @@ class AnalysisEngine:
             if not agent:
                 return {"error": "Agent not found"}
 
-            # Get agent's sessions (metrics are maintained incrementally)
-            agent_sessions = []
-            for session in self.store.get_agent_sessions(agent_id):
-                if session:
-                    agent_sessions.append({
-                        "id": session.session_id,
-                        "created_at": session.created_at.isoformat(),
-                        "last_activity": session.last_activity.isoformat(),
-                        "duration_minutes": session.duration_minutes,
-                        "message_count": session.message_count,
-                        "tool_uses": session.tool_uses,
-                        "errors": session.errors,
-                        "total_tokens": session.total_tokens,
-                        "is_active": session.is_active,
-                        "error_rate": session.error_rate
-                    })
+            # Get agent's sessions for computing average duration
+            sessions = self.store.get_agent_sessions(agent_id)
+
+            # Calculate average duration in minutes
+            durations = [s.duration_minutes for s in sessions if s.duration_minutes > 0]
+            avg_duration_minutes = round(sum(durations) / len(durations), 2) if durations else 0.0
 
             # Calculate tools utilization percentage
             tools_utilization = 0.0
@@ -303,6 +293,7 @@ class AnalysisEngine:
                 "total_errors": agent.total_errors,
                 "avg_response_time_ms": agent.avg_response_time_ms,
                 "avg_messages_per_session": agent.avg_messages_per_session,
+                "avg_duration_minutes": avg_duration_minutes,
                 "tool_usage_details": dict(agent.tool_usage_details),
                 "available_tools": list(agent.available_tools),
                 "used_tools": list(agent.used_tools),
@@ -310,12 +301,9 @@ class AnalysisEngine:
             }
 
             patterns = self._analyze_agent_patterns(agent)
-            
-            # Compute analytics data
-            analytics = self._compute_agent_analytics(agent, self.store.get_agent_sessions(agent_id))
 
-        # Sort sessions by last activity
-        agent_sessions.sort(key=lambda x: x["last_activity"], reverse=True)
+            # Compute analytics data
+            analytics = self._compute_agent_analytics(agent, sessions)
 
         # Read persisted risk analysis from DB (no longer compute inline)
         risk_analysis = self.get_persisted_risk_analysis(agent_id)
@@ -325,7 +313,6 @@ class AnalysisEngine:
 
         return {
             "agent": agent_dict,
-            "sessions": agent_sessions,
             "patterns": patterns,
             "analytics": analytics,
             "risk_analysis": risk_analysis,
@@ -1606,7 +1593,20 @@ class AnalysisEngine:
                 agent.cached_percentiles = frozen_percentiles
                 agent.percentiles_session_count = len(completed_sessions)
                 logger.info(f"[PERCENTILE FREEZE] Froze percentiles for agent {agent_id} at {len(completed_sessions)} sessions")
-            
+
+            # Assign cluster_id to sessions based on behavioral clustering results
+            # This enables filtering sessions by cluster in the UI
+            if behavioral_result.clusters:
+                sessions_by_id = {s.session_id: s for s in agent_sessions}
+                for cluster in behavioral_result.clusters:
+                    for session_id in cluster.session_ids:
+                        if session_id in sessions_by_id:
+                            session = sessions_by_id[session_id]
+                            if session.cluster_id != cluster.cluster_id:
+                                session.cluster_id = cluster.cluster_id
+                                self.store._save_session(session)
+                logger.info(f"[CLUSTER ASSIGNMENT] Assigned cluster_ids to {sum(len(c.session_ids) for c in behavioral_result.clusters)} sessions")
+
             logger.info(f"[RISK ANALYSIS] Behavioral analysis result: total_sessions={behavioral_result.total_sessions}, "
                        f"num_clusters={behavioral_result.num_clusters}, error={behavioral_result.error}")
             

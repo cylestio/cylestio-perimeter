@@ -1,10 +1,13 @@
-import { useCallback, type FC } from 'react';
+import { useCallback, useState, useEffect, type FC } from 'react';
 
 import { AlertTriangle } from 'lucide-react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
-import type { AgentResponse, AgentSession } from '@api/types/agent';
+import { fetchSessions } from '@api/endpoints/session';
+import type { AgentResponse } from '@api/types/agent';
+import type { SessionListItem } from '@api/types/session';
+import type { ClusterNodeData } from '@domain/visualization';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
@@ -17,12 +20,13 @@ import { Badge, TimeAgo } from '@ui/core';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
-import { Table, type Column as TableColumn } from '@ui/data-display/Table';
 import { Tooltip } from '@ui/overlays/Tooltip';
 import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
+import { Pagination } from '@ui/navigation/Pagination';
 
 import { ClusterVisualization } from '@domain/visualization';
+import { SessionsTable } from '@domain/sessions';
 
 import { GatheringData } from '@features/GatheringData';
 
@@ -67,7 +71,6 @@ import {
   ConfidenceRow,
   WaitingMessage,
   PlaceholderMessage,
-  EmptySessions,
   ActiveSessionsNote,
   ToolUtilizationContainer,
   ToolUtilizationMetric,
@@ -86,6 +89,12 @@ import {
   ToolName,
   ToolCount,
   ToolUnused,
+  ModelValue,
+  ModelCount,
+  ModelTooltipList,
+  ModelTooltipItem,
+  ModelTooltipName,
+  ModelTooltipCount,
 } from './AgentDetail.styles';
 
 interface Check {
@@ -104,98 +113,93 @@ const STAT_TOOLTIPS = {
   avgDuration: 'Average session duration in minutes',
   avgTokens: 'Average tokens consumed per session',
   avgCost: 'Average cost per session based on model pricing',
+  model: 'LLM model(s) used by this agent',
 };
 
-// Table columns for sessions
-const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[] => [
-  {
-    key: 'id',
-    header: 'Session ID',
-    render: (session) => (
-      <Link
-        to={`/agent-workflow/${agentWorkflowId}/session/${session.id}`}
-        style={{
-          color: 'var(--color-cyan)',
-          textDecoration: 'none',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '12px',
-        }}
-      >
-        {session.id.substring(0, 16)}
-        {session.id.length > 16 ? '...' : ''}
-      </Link>
-    ),
-  },
-  {
-    key: 'is_active',
-    header: 'Status',
-    render: (session) =>
-      session.is_active ? (
-        <Badge variant="success">ACTIVE</Badge>
-      ) : (
-        <Badge variant="info">COMPLETE</Badge>
-      ),
-  },
-  {
-    key: 'duration_minutes',
-    header: 'Duration',
-    render: (session) => `${session.duration_minutes.toFixed(1)}m`,
-  },
-  {
-    key: 'message_count',
-    header: 'Messages',
-  },
-  {
-    key: 'total_tokens',
-    header: 'Tokens',
-    render: (session) => formatCompactNumber(session.total_tokens),
-  },
-  {
-    key: 'tool_uses',
-    header: 'Tools',
-  },
-  {
-    key: 'error_rate',
-    header: 'Error Rate',
-    render: (session) =>
-      session.error_rate > 0 ? (
-        <span
-          style={{
-            color:
-              session.error_rate > 20
-                ? 'var(--color-red)'
-                : session.error_rate > 10
-                  ? 'var(--color-orange)'
-                  : 'var(--color-white-50)',
-          }}
-        >
-          {session.error_rate.toFixed(1)}%
-        </span>
-      ) : (
-        <span style={{ color: 'var(--color-green)' }}>0%</span>
-      ),
-  },
-  {
-    key: 'last_activity',
-    header: 'Last Activity',
-    render: (session) => (
-      <TimeAgo timestamp={session.last_activity} />
-    ),
-  },
-];
+// Helper to format model name for display (shorten long names)
+const formatModelName = (model: string): string => {
+  // Common model name shortenings
+  const shortenings: Record<string, string> = {
+    'claude-3-5-sonnet-20241022': 'claude-3.5-sonnet',
+    'claude-3-opus-20240229': 'claude-3-opus',
+    'claude-3-sonnet-20240229': 'claude-3-sonnet',
+    'claude-3-haiku-20240307': 'claude-3-haiku',
+    'gpt-4-turbo-preview': 'gpt-4-turbo',
+    'gpt-4-0125-preview': 'gpt-4-turbo',
+    'gpt-3.5-turbo-0125': 'gpt-3.5-turbo',
+  };
+  return shortenings[model] || model;
+};
+
+const PAGE_SIZE = 10;
 
 export const AgentDetail: FC = () => {
   const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
+  const navigate = useNavigate();
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
     return fetchAgent(agentId);
   }, [agentId]);
 
+  // Handle cluster visualization node clicks
+  // - Clusters: Navigate to Sessions page with both agent_id and cluster_id filters
+  // - Outliers: Navigate directly to the session detail page
+  const handleClusterNodeClick = useCallback((node: ClusterNodeData) => {
+    if (!agentWorkflowId || !agentId) return;
+
+    if (node.clusterId) {
+      // Navigate to sessions filtered by both agent and cluster
+      navigate(`/agent-workflow/${agentWorkflowId}/sessions?agent_id=${agentId}&cluster_id=${node.clusterId}`);
+    } else if (node.sessionId) {
+      // Navigate directly to the session
+      navigate(`/agent-workflow/${agentWorkflowId}/session/${node.sessionId}`);
+    }
+  }, [agentWorkflowId, agentId, navigate]);
+
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
     enabled: !!agentId,
   });
+
+  // Sessions pagination state
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessionsTotal, setSessionsTotal] = useState(0);
+  const [sessionsPage, setSessionsPage] = useState(1);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Fetch paginated sessions
+  const loadSessions = useCallback(async () => {
+    if (!agentId) return;
+    setSessionsLoading(true);
+    try {
+      const offset = (sessionsPage - 1) * PAGE_SIZE;
+      const result = await fetchSessions({
+        agent_id: agentId,
+        limit: PAGE_SIZE,
+        offset,
+      });
+      setSessions(result.sessions);
+      setSessionsTotal(result.total_count);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [agentId, sessionsPage]);
+
+  // Load sessions when component mounts or pagination changes
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // Refresh sessions when main data refreshes
+  useEffect(() => {
+    if (data) {
+      loadSessions();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.agent?.total_sessions]);
+
+  const totalPages = Math.ceil(sessionsTotal / PAGE_SIZE);
 
   // Set breadcrumbs with agent workflow context
   usePageMeta({
@@ -241,10 +245,13 @@ export const AgentDetail: FC = () => {
 
   const allIssues = [...failedChecks, ...warningChecks];
 
+  // Check if both sections need gathering data
+  const needsBehavioralGathering = !riskAnalysis?.behavioral_analysis;
+  const needsSecurityGathering = !status.hasRiskData;
+  const showFullWidthGathering = needsBehavioralGathering && needsSecurityGathering;
+
   // Calculate average metrics
-  const avgDuration = data.sessions?.length
-    ? data.sessions.reduce((sum, s) => sum + s.duration_minutes, 0) / data.sessions.length
-    : 0;
+  const avgDuration = agent.avg_duration_minutes || 0;
   const avgTokens = agent.total_sessions > 0
     ? (data.analytics?.token_summary?.total_tokens ?? 0) / agent.total_sessions
     : 0;
@@ -284,10 +291,58 @@ export const AgentDetail: FC = () => {
 
       {/* Stats Bar - grouped with tooltips */}
       <StatsBar>
+        {/* Model Group */}
+        {data.analytics?.models && data.analytics.models.length > 0 && (
+          <StatGroup>
+            <StatGroupLabel>Model</StatGroupLabel>
+            <StatGroupItems>
+              {data.analytics.models.length === 1 ? (
+                <Tooltip content={STAT_TOOLTIPS.model}>
+                  <StatItem>
+                    <ModelValue title={data.analytics.models[0].model}>
+                      {formatModelName(data.analytics.models[0].model)}
+                    </ModelValue>
+                    <StatLabel>{data.analytics.models[0].requests} requests</StatLabel>
+                  </StatItem>
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  content={
+                    <ModelTooltipList>
+                      {data.analytics.models
+                        .sort((a, b) => b.requests - a.requests)
+                        .map((m) => (
+                          <ModelTooltipItem key={m.model}>
+                            <ModelTooltipName>{formatModelName(m.model)}</ModelTooltipName>
+                            <ModelTooltipCount>{m.requests} req</ModelTooltipCount>
+                          </ModelTooltipItem>
+                        ))}
+                    </ModelTooltipList>
+                  }
+                >
+                  <StatItem>
+                    <ModelCount>{data.analytics.models.length} models</ModelCount>
+                    <StatLabel>
+                      {data.analytics.models.reduce((sum, m) => sum + m.requests, 0)} requests
+                    </StatLabel>
+                  </StatItem>
+                </Tooltip>
+              )}
+            </StatGroupItems>
+          </StatGroup>
+        )}
+
         {/* Averages Group */}
         <StatGroup>
           <StatGroupLabel>Averages</StatGroupLabel>
           <StatGroupItems>
+            <Tooltip content={STAT_TOOLTIPS.avgCost}>
+              <StatItem>
+                <StatValue>${avgCost.toFixed(3)}</StatValue>
+                <StatLabel>cost</StatLabel>
+              </StatItem>
+            </Tooltip>
+            <StatDivider />
             <Tooltip content={STAT_TOOLTIPS.avgDuration}>
               <StatItem>
                 <StatValue>{avgDuration.toFixed(1)}m</StatValue>
@@ -299,13 +354,6 @@ export const AgentDetail: FC = () => {
               <StatItem>
                 <StatValue>{formatCompactNumber(avgTokens)}</StatValue>
                 <StatLabel>tokens</StatLabel>
-              </StatItem>
-            </Tooltip>
-            <StatDivider />
-            <Tooltip content={STAT_TOOLTIPS.avgCost}>
-              <StatItem>
-                <StatValue>${avgCost.toFixed(3)}</StatValue>
-                <StatLabel>cost</StatLabel>
               </StatItem>
             </Tooltip>
           </StatGroupItems>
@@ -339,11 +387,44 @@ export const AgentDetail: FC = () => {
         </StatGroup>
       </StatsBar>
 
-      {/* Two-column Layout */}
+      {/* Full-width Gathering Data - shown when both sections need it */}
+      {showFullWidthGathering && (
+        <Section>
+          <Section.Header>
+            <Section.Title>Gathering Session Data</Section.Title>
+          </Section.Header>
+          <Section.Content noPadding>
+            <GatheringData
+              currentSessions={agent.total_sessions}
+              minSessionsRequired={status.minSessionsRequired || 5}
+            />
+          </Section.Content>
+        </Section>
+      )}
+
+      {/* Two-column Layout - only show when not showing full-width gathering */}
+      {!showFullWidthGathering && (
       <ContentGrid>
         {/* Left Column: Operational */}
         <Column>
           <ColumnHeader>Operational</ColumnHeader>
+
+          {/* Behavioral Analysis Section - Empty State */}
+          {!riskAnalysis?.behavioral_analysis && (
+            <Section>
+              <Section.Header>
+                <Section.Title>Behavioral Analysis</Section.Title>
+              </Section.Header>
+              <Section.Content noPadding>
+                <GatheringData
+                  currentSessions={agent.total_sessions}
+                  minSessionsRequired={status.minSessionsRequired || 5}
+                  title="Building Behavioral Profile"
+                  description="Behavioral analysis requires session data to identify patterns. More sessions lead to more accurate insights about agent behavior, clustering, and anomaly detection."
+                />
+              </Section.Content>
+            </Section>
+          )}
 
           {/* Behavioral Analysis Section */}
           {riskAnalysis?.behavioral_analysis && (
@@ -389,6 +470,7 @@ export const AgentDetail: FC = () => {
                             )}
                             height={160}
                             showLegend={true}
+                            onNodeClick={handleClusterNodeClick}
                           />
                         </ChartColumn>
                       )}
@@ -504,13 +586,13 @@ export const AgentDetail: FC = () => {
                 </ButtonLink>
               )}
             </Section.Header>
-            <Section.Content noPadding={status.evaluationStatus === 'INSUFFICIENT_DATA'}>
-              {status.evaluationStatus === 'INSUFFICIENT_DATA' ? (
+            <Section.Content noPadding={!status.hasRiskData}>
+              {!status.hasRiskData ? (
                 <GatheringData
-                  currentSessions={status.currentSessions || 0}
+                  currentSessions={agent.total_sessions}
                   minSessionsRequired={status.minSessionsRequired || 5}
                 />
-              ) : status.hasRiskData ? (
+              ) : (
                 <>
                   {/* Status summary row */}
                   <SecurityStatusRow>
@@ -568,8 +650,6 @@ export const AgentDetail: FC = () => {
                     </CheckList>
                   )}
                 </>
-              ) : (
-                <PlaceholderMessage>No security data available yet.</PlaceholderMessage>
               )}
             </Section.Content>
           </Section>
@@ -577,6 +657,7 @@ export const AgentDetail: FC = () => {
           {/* Future: Analysis Log Section */}
         </Column>
       </ContentGrid>
+      )}
 
       {/* Tool Utilization Section */}
       {agent.available_tools && agent.available_tools.length > 0 && (() => {
@@ -650,20 +731,22 @@ export const AgentDetail: FC = () => {
       {/* Sessions Table - Full Width */}
       <Section>
         <Section.Header>
-          <Section.Title>Sessions ({data.sessions?.length || 0})</Section.Title>
+          <Section.Title>Sessions ({sessionsTotal})</Section.Title>
         </Section.Header>
         <Section.Content noPadding>
-          {data.sessions && data.sessions.length > 0 ? (
-            <Table<AgentSession>
-              columns={getSessionColumns(agentWorkflowId || 'unassigned')}
-              data={data.sessions}
-              keyExtractor={(session) => session.id}
-              emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
+          <SessionsTable
+            sessions={sessions}
+            agentWorkflowId={agentWorkflowId || 'unassigned'}
+            loading={sessionsLoading}
+            showAgentColumn={false}
+            emptyMessage="No sessions found for this agent."
+          />
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={sessionsPage}
+              totalPages={totalPages}
+              onPageChange={setSessionsPage}
             />
-          ) : (
-            <EmptySessions>
-              <p>No sessions found for this agent.</p>
-            </EmptySessions>
           )}
         </Section.Content>
       </Section>
