@@ -1170,3 +1170,295 @@ class TestAuditLogMethods:
         assert "CREATED" in actions
         assert "STATUS_CHANGED" in actions
         assert "VERIFIED" in actions
+
+
+class TestComplianceReportMethods:
+    """Test compliance report generation and storage."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store with test data for reports."""
+        store = TraceStore(storage_mode="memory")
+        # Create a session with findings for comprehensive report testing
+        store.create_analysis_session(
+            session_id="sess_report",
+            agent_workflow_id="report_workflow",
+            session_type="STATIC"
+        )
+        return store
+
+    def test_generate_compliance_report_empty(self, store):
+        """Test generating report for workflow with no findings."""
+        report = store.generate_compliance_report("report_workflow")
+
+        assert report['workflow_id'] == "report_workflow"
+        assert report['report_type'] == "compliance"
+        assert report['generated_at'] is not None
+        assert report['executive_summary']['total_findings'] == 0
+        assert report['executive_summary']['is_blocked'] is False
+        assert report['executive_summary']['decision'] == "GO"
+
+    def test_generate_compliance_report_with_findings(self, store):
+        """Test generating report with various findings."""
+        # Create findings with different severities
+        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical Issue", 
+                          owasp_mapping=["LLM01"])
+        store.store_finding("f2", "sess_report", "report_workflow", "/f2.py", "LLM06", "HIGH", "High Issue",
+                          owasp_mapping=["LLM06"])
+        store.store_finding("f3", "sess_report", "report_workflow", "/f3.py", "LLM08", "MEDIUM", "Medium Issue",
+                          owasp_mapping=["LLM08"])
+
+        report = store.generate_compliance_report("report_workflow")
+
+        assert report['executive_summary']['total_findings'] == 3
+        assert report['executive_summary']['open_findings'] == 3
+        assert report['executive_summary']['is_blocked'] is True
+        assert report['executive_summary']['decision'] == "NO-GO"
+        assert report['executive_summary']['blocking_count'] == 2  # CRITICAL + HIGH
+
+    def test_generate_compliance_report_owasp_coverage(self, store):
+        """Test OWASP LLM coverage in report."""
+        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "HIGH", "Prompt Injection",
+                          owasp_mapping=["LLM01"])
+        
+        report = store.generate_compliance_report("report_workflow")
+
+        # LLM01 should show FAIL since there's an open HIGH finding
+        assert "LLM01" in report['owasp_llm_coverage']
+        assert report['owasp_llm_coverage']['LLM01']['status'] == "FAIL"
+        assert report['owasp_llm_coverage']['LLM01']['name'] == "Prompt Injection"
+
+    def test_generate_compliance_report_with_fixed_findings(self, store):
+        """Test report with some fixed findings."""
+        finding = store.store_finding(
+            "f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical"
+        )
+        rec_id = finding['recommendation_id']
+        
+        # Fix the finding
+        store.start_fix(rec_id)
+        store.complete_fix(rec_id, fix_notes="Fixed")
+
+        report = store.generate_compliance_report("report_workflow")
+
+        assert report['executive_summary']['total_findings'] == 1
+        assert report['executive_summary']['open_findings'] == 0
+        assert report['executive_summary']['fixed_findings'] == 1
+        assert report['executive_summary']['is_blocked'] is False  # No longer blocked
+
+    def test_save_report(self, store):
+        """Test saving a generated report."""
+        # Generate a report
+        report_data = store.generate_compliance_report("report_workflow")
+
+        # Save the report
+        report_id = store.save_report(
+            workflow_id="report_workflow",
+            report_type="security_assessment",
+            report_data=report_data,
+            report_name="Test Security Report",
+            generated_by="test@example.com"
+        )
+
+        assert report_id is not None
+        assert report_id.startswith("RPT-")
+
+    def test_get_reports(self, store):
+        """Test retrieving list of saved reports."""
+        # Generate and save multiple reports
+        report_data = store.generate_compliance_report("report_workflow")
+        
+        store.save_report("report_workflow", "security_assessment", report_data)
+        store.save_report("report_workflow", "executive_summary", report_data)
+        store.save_report("report_workflow", "customer_dd", report_data)
+
+        # Get all reports
+        reports = store.get_reports("report_workflow")
+        assert len(reports) == 3
+
+        # Filter by type
+        exec_reports = store.get_reports("report_workflow", report_type="executive_summary")
+        assert len(exec_reports) == 1
+        assert exec_reports[0]['report_type'] == "executive_summary"
+
+    def test_get_report_by_id(self, store):
+        """Test retrieving a specific report with full data."""
+        report_data = store.generate_compliance_report("report_workflow")
+        report_id = store.save_report("report_workflow", "security_assessment", report_data)
+
+        # Retrieve the full report
+        full_report = store.get_report(report_id)
+
+        assert full_report is not None
+        assert full_report['report_id'] == report_id
+        assert full_report['report_type'] == "security_assessment"
+        assert full_report['report_data'] is not None
+        assert full_report['report_data']['workflow_id'] == "report_workflow"
+
+    def test_get_nonexistent_report(self, store):
+        """Test retrieving a nonexistent report returns None."""
+        report = store.get_report("RPT-NONEXISTENT")
+        assert report is None
+
+    def test_delete_report(self, store):
+        """Test deleting a report."""
+        report_data = store.generate_compliance_report("report_workflow")
+        report_id = store.save_report("report_workflow", "security_assessment", report_data)
+
+        # Verify it exists
+        assert store.get_report(report_id) is not None
+
+        # Delete it
+        deleted = store.delete_report(report_id)
+        assert deleted is True
+
+        # Verify it's gone
+        assert store.get_report(report_id) is None
+
+    def test_delete_nonexistent_report(self, store):
+        """Test deleting a nonexistent report returns False."""
+        deleted = store.delete_report("RPT-NONEXISTENT")
+        assert deleted is False
+
+    def test_report_contains_blocking_items(self, store):
+        """Test that report includes blocking items list."""
+        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical Issue")
+        store.store_finding("f2", "sess_report", "report_workflow", "/f2.py", "LLM08", "HIGH", "High Issue")
+
+        report = store.generate_compliance_report("report_workflow")
+
+        assert len(report['blocking_items']) == 2
+        assert any(item['severity'] == "CRITICAL" for item in report['blocking_items'])
+        assert any(item['severity'] == "HIGH" for item in report['blocking_items'])
+
+    def test_report_contains_remediation_summary(self, store):
+        """Test that report includes remediation summary."""
+        finding = store.store_finding(
+            "f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "HIGH", "High Issue"
+        )
+        
+        report = store.generate_compliance_report("report_workflow")
+
+        assert 'remediation_summary' in report
+        assert report['remediation_summary']['total_recommendations'] == 1
+        assert report['remediation_summary']['pending'] == 1
+
+    def test_report_stores_with_correct_metadata(self, store):
+        """Test that saved report has correct metadata for listing."""
+        # Create a finding to have some data
+        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical")
+        
+        report_data = store.generate_compliance_report("report_workflow")
+        report_id = store.save_report(
+            workflow_id="report_workflow",
+            report_type="security_assessment",
+            report_data=report_data,
+            report_name="My Custom Report Name"
+        )
+
+        # Get from list
+        reports = store.get_reports("report_workflow")
+        assert len(reports) == 1
+        
+        saved = reports[0]
+        assert saved['report_id'] == report_id
+        assert saved['report_name'] == "My Custom Report Name"
+        assert saved['risk_score'] > 0  # Has a CRITICAL finding
+        assert saved['gate_status'] == "BLOCKED"
+        assert saved['findings_count'] == 1
+
+    def test_reports_ordered_by_date(self, store):
+        """Test that reports are returned in reverse chronological order."""
+        import time
+        
+        report_data = store.generate_compliance_report("report_workflow")
+        
+        id1 = store.save_report("report_workflow", "security_assessment", report_data, report_name="First")
+        time.sleep(0.1)  # Small delay to ensure different timestamps
+        id2 = store.save_report("report_workflow", "security_assessment", report_data, report_name="Second")
+        time.sleep(0.1)
+        id3 = store.save_report("report_workflow", "security_assessment", report_data, report_name="Third")
+
+        reports = store.get_reports("report_workflow")
+        
+        # Should be in reverse order (newest first)
+        assert reports[0]['report_id'] == id3
+        assert reports[1]['report_id'] == id2
+        assert reports[2]['report_id'] == id1
+
+    def test_report_contains_business_impact(self, store):
+        """Test that report includes business impact assessment."""
+        # Create findings with various categories to trigger business impacts
+        store.store_finding("f1", "sess_report", "report_workflow", "/tools.py", "LLM08", "CRITICAL", "Excessive Agency",
+                          category="TOOL", owasp_mapping=["LLM08"])
+        store.store_finding("f2", "sess_report", "report_workflow", "/secrets.py", "LLM06", "HIGH", "Credential Exposure",
+                          category="DATA", owasp_mapping=["LLM06"])
+
+        report = store.generate_compliance_report("report_workflow")
+
+        # Should have business_impact section
+        assert 'business_impact' in report
+        assert 'overall_risk' in report['business_impact']
+        assert 'impacts' in report['business_impact']
+        assert 'executive_bullets' in report['business_impact']
+        
+        # Should have HIGH overall risk due to CRITICAL finding
+        assert report['business_impact']['overall_risk'] == 'HIGH'
+        
+        # Should have executive bullets
+        assert len(report['business_impact']['executive_bullets']) > 0
+
+    def test_report_contains_risk_breakdown(self, store):
+        """Test that report includes risk score breakdown."""
+        # Create findings with different severities
+        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical 1")
+        store.store_finding("f2", "sess_report", "report_workflow", "/f2.py", "LLM02", "HIGH", "High 1")
+        store.store_finding("f3", "sess_report", "report_workflow", "/f3.py", "LLM03", "MEDIUM", "Medium 1")
+
+        report = store.generate_compliance_report("report_workflow")
+
+        # Should have risk_breakdown in executive_summary
+        assert 'risk_breakdown' in report['executive_summary']
+        rb = report['executive_summary']['risk_breakdown']
+        
+        assert 'formula' in rb
+        assert 'breakdown' in rb
+        assert 'final_score' in rb
+        
+        # Should have 4 breakdown items (one per severity)
+        assert len(rb['breakdown']) == 4
+        
+        # Verify breakdown calculation
+        # CRITICAL(1)*25 + HIGH(1)*15 + MEDIUM(1)*5 = 45
+        assert rb['final_score'] == 45
+
+    def test_business_impact_rce_risk(self, store):
+        """Test that TOOL category findings trigger RCE risk."""
+        store.store_finding("f1", "sess_report", "report_workflow", "/tools.py", "LLM08", "CRITICAL", "Unrestricted Tool Execution",
+                          category="TOOL", owasp_mapping=["LLM08"])
+
+        report = store.generate_compliance_report("report_workflow")
+
+        # Should detect RCE risk
+        impacts = report['business_impact']['impacts']
+        assert impacts['remote_code_execution']['risk_level'] in ['HIGH', 'MEDIUM']
+
+    def test_business_impact_data_exfil_risk(self, store):
+        """Test that DATA category findings trigger data exfiltration risk."""
+        # The title contains 'secret' which triggers data exfiltration detection
+        store.store_finding("f1", "sess_report", "report_workflow", "/secrets.py", "LLM06", "HIGH", "Hardcoded secret in code",
+                          category="DATA", owasp_mapping=["LLM06"])
+
+        report = store.generate_compliance_report("report_workflow")
+
+        # Should detect data exfiltration risk (title contains 'secret')
+        impacts = report['business_impact']['impacts']
+        assert impacts['data_exfiltration']['risk_level'] in ['HIGH', 'MEDIUM']
+
+    def test_business_impact_no_risks(self, store):
+        """Test business impact when no significant findings."""
+        report = store.generate_compliance_report("report_workflow")
+
+        # Should have NONE overall risk
+        assert report['business_impact']['overall_risk'] == 'NONE'
+        assert 'No critical security risks' in report['business_impact']['executive_bullets'][0]

@@ -61,7 +61,7 @@ export const HintCommand = styled.div`
 export const CommandCode = styled.code`
   font-family: ${({ theme }) => theme.typography.fontMono};
   color: ${({ theme }) => theme.colors.cyan};
-  background: ${({ theme }) => theme.colors.surface1};
+  background: ${({ theme }) => theme.colors.surface};
   padding: 2px 8px;
   border-radius: ${({ theme }) => theme.radii.sm};
 `;

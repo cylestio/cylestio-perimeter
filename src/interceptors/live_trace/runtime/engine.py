@@ -116,27 +116,29 @@ class AnalysisEngine:
         """Get unified security analysis for the agent workflow.
 
         Returns status for each analysis type with embedded findings:
-        - static: status, findings
-        - dynamic: status, findings
+        - static: status, findings (only STATIC source_type)
+        - dynamic: status, findings (only DYNAMIC source_type)
         - recommendations: status, findings
         """
         # Get analysis sessions for this agent workflow
         analysis_sessions = self.store.get_analysis_sessions(agent_workflow_id=agent_workflow_id)
 
-        # Get findings summary
-        findings_summary = None
+        # Get findings summary filtered by source_type
+        static_findings_summary = None
         try:
-            findings_summary = self.store.get_agent_workflow_findings_summary(agent_workflow_id)
+            static_findings_summary = self.store.get_agent_workflow_findings_summary(
+                agent_workflow_id, source_type='STATIC'
+            )
         except Exception as e:
-            logger.warning(f"Failed to get findings summary for agent workflow {agent_workflow_id}: {e}")
+            logger.warning(f"Failed to get static findings summary for agent workflow {agent_workflow_id}: {e}")
 
-        # Normalize findings summary to standard format
-        findings_data = None
-        if findings_summary:
-            findings_data = {
-                "total": findings_summary.get("total_findings", 0),
-                "by_severity": findings_summary.get("by_severity", {}),
-                "by_status": findings_summary.get("by_status", {}),
+        # Normalize static findings to standard format
+        static_findings_data = None
+        if static_findings_summary:
+            static_findings_data = {
+                "total": static_findings_summary.get("total_findings", 0),
+                "by_severity": static_findings_summary.get("by_severity", {}),
+                "by_status": static_findings_summary.get("by_status", {}),
             }
 
         # Static Analysis status
@@ -151,7 +153,7 @@ class AnalysisEngine:
             static_status = "active"
         elif static_completed:
             static_status = "completed"
-            static_findings = findings_data
+            static_findings = static_findings_data
 
         # Dynamic Analysis status - based on session gathering progress
         # Get all agents (system prompts) for this agent workflow to compute session progress

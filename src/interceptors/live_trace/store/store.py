@@ -252,6 +252,24 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_performed_at ON audit_log(performed_at);
+
+CREATE TABLE IF NOT EXISTS generated_reports (
+    report_id TEXT PRIMARY KEY,
+    agent_workflow_id TEXT NOT NULL,
+    report_type TEXT NOT NULL,
+    report_name TEXT,
+    generated_at REAL NOT NULL,
+    generated_by TEXT,
+    risk_score INTEGER,
+    gate_status TEXT,
+    findings_count INTEGER,
+    recommendations_count INTEGER,
+    report_data TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_generated_reports_agent_workflow_id ON generated_reports(agent_workflow_id);
+CREATE INDEX IF NOT EXISTS idx_generated_reports_report_type ON generated_reports(report_type);
+CREATE INDEX IF NOT EXISTS idx_generated_reports_generated_at ON generated_reports(generated_at);
 """
 
 
@@ -1954,35 +1972,52 @@ class TraceStore:
                 'is_correlated': uncorrelated == 0 and (counts.get('VALIDATED', 0) + counts.get('UNEXERCISED', 0) + counts.get('THEORETICAL', 0)) > 0,
             }
 
-    def get_agent_workflow_findings_summary(self, agent_workflow_id: str) -> Dict[str, Any]:
-        """Get a summary of findings for an agent workflow."""
+    def get_agent_workflow_findings_summary(
+        self, 
+        agent_workflow_id: str,
+        source_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get a summary of findings for an agent workflow.
+        
+        Args:
+            agent_workflow_id: The workflow ID
+            source_type: Optional filter by source type ('STATIC' or 'DYNAMIC').
+                        If None, returns all findings.
+        """
         with self._lock:
-            # Count by severity
-            cursor = self.db.execute("""
+            # Build WHERE clause with optional source_type filter
+            base_where = "WHERE agent_workflow_id = ?"
+            params = [agent_workflow_id]
+            if source_type:
+                base_where += " AND source_type = ?"
+                params.append(source_type)
+            
+            # Count by severity (only OPEN findings for severity breakdown)
+            cursor = self.db.execute(f"""
                 SELECT severity, COUNT(*) as count
                 FROM findings
-                WHERE agent_workflow_id = ? AND status = 'OPEN'
+                {base_where} AND status = 'OPEN'
                 GROUP BY severity
-            """, (agent_workflow_id,))
+            """, params)
 
             severity_counts = {row['severity']: row['count'] for row in cursor.fetchall()}
 
             # Count by status
-            cursor = self.db.execute("""
+            cursor = self.db.execute(f"""
                 SELECT status, COUNT(*) as count
                 FROM findings
-                WHERE agent_workflow_id = ?
+                {base_where}
                 GROUP BY status
-            """, (agent_workflow_id,))
+            """, params)
 
             status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
 
             # Get total count
-            cursor = self.db.execute("""
+            cursor = self.db.execute(f"""
                 SELECT COUNT(*) as total
                 FROM findings
-                WHERE agent_workflow_id = ?
-            """, (agent_workflow_id,))
+                {base_where}
+            """, params)
 
             total = cursor.fetchone()['total']
 
@@ -2036,7 +2071,7 @@ class TraceStore:
             self.db.commit()
             logger.debug(f"Updated last_analyzed_session_count for {agent_id}: {session_count}")
 
-    def get_agents_needing_analysis(self, min_sessions: int = 5) -> List[str]:
+    def get_agents_needing_analysis(self, min_sessions: int = 1) -> List[str]:
         """Get agent IDs that need analysis.
 
         Finds agents where:
@@ -2044,6 +2079,10 @@ class TraceStore:
         - Completed session count > last_analyzed_session_count
 
         Used for startup check to trigger analysis for agents missed during downtime.
+        
+        Note: min_sessions default is 1 (per Phase 4 spec). Some checks like variance
+        analysis require 2+ sessions for meaningful results, but analysis can still
+        run with 1 session.
         """
         with self._lock:
             cursor = self.db.execute("""
@@ -3793,3 +3832,682 @@ class TraceStore:
                 }
                 for row in cursor.fetchall()
             ]
+
+    # ==================== Compliance Report Methods ====================
+
+    def generate_compliance_report(self, workflow_id: str) -> Dict[str, Any]:
+        """Generate a compliance report for CISO/auditors.
+
+        Compiles all security findings, recommendations, audit log, and compliance
+        mappings into a comprehensive report structure.
+
+        Args:
+            workflow_id: The workflow ID
+
+        Returns:
+            Dict containing the full compliance report data
+        """
+        now = datetime.now(timezone.utc)
+
+        # Get all required data
+        findings = self.get_findings(agent_workflow_id=workflow_id, limit=1000)
+        recommendations = self.get_recommendations(workflow_id=workflow_id, limit=1000)
+        audit_log = self.get_audit_log(limit=50)  # Last 50 entries
+        gate_status = self.get_gate_status(workflow_id)
+
+        # Group findings by OWASP LLM category
+        by_owasp = self._group_findings_by_owasp(findings)
+
+        # Group findings by SOC2 controls
+        by_soc2 = self._group_findings_by_soc2(findings)
+
+        # Group findings by category (the 7 security checks)
+        by_category = self._group_findings_by_category(findings)
+
+        # Calculate statistics
+        open_findings = [f for f in findings if f.get('status') == 'OPEN']
+        fixed_findings = [f for f in findings if f.get('status') == 'FIXED']
+        dismissed_findings = [f for f in findings if f.get('status') in ['DISMISSED', 'IGNORED']]
+
+        # Calculate risk score
+        risk_score = self._calculate_risk_score(open_findings)
+        risk_breakdown = self._calculate_risk_breakdown(open_findings)
+        
+        # Calculate business impact
+        business_impact = self._calculate_business_impact(findings, recommendations)
+
+        # Get analysis sessions for scan info
+        sessions = self.get_analysis_sessions(agent_workflow_id=workflow_id, limit=10)
+        static_sessions = [s for s in sessions if s.get('session_type') == 'STATIC']
+        dynamic_sessions = [s for s in sessions if s.get('session_type') == 'DYNAMIC']
+
+        # Get dynamic analysis stats
+        dynamic_stats = self._get_dynamic_stats_for_report(workflow_id)
+
+        return {
+            "report_type": "compliance",
+            "workflow_id": workflow_id,
+            "generated_at": now.isoformat(),
+
+            "executive_summary": {
+                "gate_status": gate_status["gate_state"],
+                "is_blocked": gate_status["is_blocked"],
+                "risk_score": risk_score,
+                "risk_breakdown": risk_breakdown,
+                "decision": "NO-GO" if gate_status["is_blocked"] else "GO",
+                "decision_message": self._get_decision_message(gate_status),
+                "total_findings": len(findings),
+                "open_findings": len(open_findings),
+                "fixed_findings": len(fixed_findings),
+                "dismissed_findings": len(dismissed_findings),
+                "blocking_count": gate_status["blocking_count"],
+                "blocking_critical": gate_status["blocking_critical"],
+                "blocking_high": gate_status["blocking_high"],
+            },
+            
+            "business_impact": business_impact,
+
+            "owasp_llm_coverage": {
+                "LLM01": self._owasp_status("LLM01", by_owasp.get("LLM01", [])),
+                "LLM02": self._owasp_status("LLM02", by_owasp.get("LLM02", [])),
+                "LLM03": {"status": "N/A", "message": "Training data out of scope", "findings": []},
+                "LLM04": {"status": "N/A", "message": "Model DoS out of scope", "findings": []},
+                "LLM05": self._owasp_status("LLM05", by_owasp.get("LLM05", [])),
+                "LLM06": self._owasp_status("LLM06", by_owasp.get("LLM06", [])),
+                "LLM07": self._owasp_status("LLM07", by_owasp.get("LLM07", [])),
+                "LLM08": self._owasp_status("LLM08", by_owasp.get("LLM08", [])),
+                "LLM09": self._owasp_status("LLM09", by_owasp.get("LLM09", [])),
+                "LLM10": {"status": "N/A", "message": "Model theft out of scope", "findings": []},
+            },
+
+            "soc2_compliance": {
+                "CC6.1": self._soc2_status("CC6.1", by_soc2.get("CC6.1", []), "Logical Access"),
+                "CC6.5": self._soc2_status("CC6.5", by_soc2.get("CC6.5", []), "Data Classification"),
+                "CC6.6": self._soc2_status("CC6.6", by_soc2.get("CC6.6", []), "System Boundaries"),
+                "CC6.7": self._soc2_status("CC6.7", by_soc2.get("CC6.7", []), "External Access"),
+                "CC7.2": self._soc2_status("CC7.2", by_soc2.get("CC7.2", []), "System Monitoring"),
+                "PI1.1": self._soc2_status("PI1.1", by_soc2.get("PI1.1", []), "Privacy Controls"),
+            },
+
+            "security_checks": {
+                "PROMPT": self._category_status("PROMPT", by_category.get("PROMPT", []), "Prompt Security"),
+                "OUTPUT": self._category_status("OUTPUT", by_category.get("OUTPUT", []), "Output Security"),
+                "TOOL": self._category_status("TOOL", by_category.get("TOOL", []), "Tool Security"),
+                "DATA": self._category_status("DATA", by_category.get("DATA", []), "Data & Secrets"),
+                "MEMORY": self._category_status("MEMORY", by_category.get("MEMORY", []), "Memory & Context"),
+                "SUPPLY": self._category_status("SUPPLY", by_category.get("SUPPLY", []), "Supply Chain"),
+                "BEHAVIOR": self._category_status("BEHAVIOR", by_category.get("BEHAVIOR", []), "Behavioral Boundaries"),
+            },
+
+            "static_analysis": {
+                "sessions_count": len(static_sessions),
+                "last_scan": static_sessions[0] if static_sessions else None,
+                "findings_count": len([f for f in findings if f.get('source_type') == 'STATIC']),
+            },
+
+            "dynamic_analysis": {
+                "sessions_count": len(dynamic_sessions),
+                "last_analysis": dynamic_sessions[0] if dynamic_sessions else None,
+                **dynamic_stats,
+            },
+
+            "remediation_summary": {
+                "total_recommendations": len(recommendations),
+                "pending": len([r for r in recommendations if r.get('status') == 'PENDING']),
+                "fixing": len([r for r in recommendations if r.get('status') == 'FIXING']),
+                "fixed": len([r for r in recommendations if r.get('status') == 'FIXED']),
+                "verified": len([r for r in recommendations if r.get('status') == 'VERIFIED']),
+                "dismissed": len([r for r in recommendations if r.get('status') in ['DISMISSED', 'IGNORED']]),
+                "resolved": len([r for r in recommendations if r.get('status') in ['RESOLVED', 'SUPERSEDED']]),
+            },
+
+            "audit_trail": audit_log,
+
+            "blocking_items": self._get_blocking_items(recommendations),
+
+            "findings_detail": findings[:50],  # Top 50 findings
+            "recommendations_detail": recommendations[:50],  # Top 50 recommendations
+        }
+
+    def _group_findings_by_owasp(self, findings: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Group findings by OWASP LLM mapping."""
+        result: Dict[str, List[Dict[str, Any]]] = {}
+        for f in findings:
+            owasp_mapping = f.get('owasp_mapping')
+            if owasp_mapping:
+                mappings = owasp_mapping if isinstance(owasp_mapping, list) else [owasp_mapping]
+                for owasp in mappings:
+                    if owasp not in result:
+                        result[owasp] = []
+                    result[owasp].append(f)
+        return result
+
+    def _group_findings_by_soc2(self, findings: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Group findings by SOC2 controls."""
+        result: Dict[str, List[Dict[str, Any]]] = {}
+        for f in findings:
+            soc2_controls = f.get('soc2_controls')
+            if soc2_controls:
+                controls = soc2_controls if isinstance(soc2_controls, list) else [soc2_controls]
+                for ctrl in controls:
+                    if ctrl not in result:
+                        result[ctrl] = []
+                    result[ctrl].append(f)
+        return result
+
+    def _group_findings_by_category(self, findings: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+        """Group findings by security category."""
+        result: Dict[str, List[Dict[str, Any]]] = {}
+        for f in findings:
+            category = f.get('category', 'PROMPT')
+            if category not in result:
+                result[category] = []
+            result[category].append(f)
+        return result
+
+    def _calculate_risk_score(self, open_findings: List[Dict[str, Any]]) -> int:
+        """Calculate risk score from open findings (0-100)."""
+        if not open_findings:
+            return 0
+
+        # Weight by severity
+        severity_weights = {'CRITICAL': 25, 'HIGH': 15, 'MEDIUM': 5, 'LOW': 2}
+        total_weight = sum(severity_weights.get(f.get('severity', 'LOW'), 1) for f in open_findings)
+
+        # Cap at 100
+        return min(100, total_weight)
+
+    def _calculate_risk_breakdown(self, open_findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate detailed risk score breakdown for reports."""
+        severity_weights = {'CRITICAL': 25, 'HIGH': 15, 'MEDIUM': 5, 'LOW': 2}
+        
+        by_severity = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+        for f in open_findings:
+            sev = f.get('severity', 'LOW')
+            by_severity[sev] = by_severity.get(sev, 0) + 1
+        
+        return {
+            "formula": "CRITICAL×25 + HIGH×15 + MEDIUM×5 + LOW×2 (capped at 100)",
+            "breakdown": [
+                {"severity": "CRITICAL", "count": by_severity['CRITICAL'], "weight": 25, "subtotal": by_severity['CRITICAL'] * 25},
+                {"severity": "HIGH", "count": by_severity['HIGH'], "weight": 15, "subtotal": by_severity['HIGH'] * 15},
+                {"severity": "MEDIUM", "count": by_severity['MEDIUM'], "weight": 5, "subtotal": by_severity['MEDIUM'] * 5},
+                {"severity": "LOW", "count": by_severity['LOW'], "weight": 2, "subtotal": by_severity['LOW'] * 2},
+            ],
+            "raw_total": sum(severity_weights.get(f.get('severity', 'LOW'), 1) for f in open_findings),
+            "final_score": min(100, sum(severity_weights.get(f.get('severity', 'LOW'), 1) for f in open_findings)),
+        }
+
+    def _calculate_business_impact(self, findings: List[Dict[str, Any]], recommendations: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Assess business impact for CISO/executive summary."""
+        open_findings = [f for f in findings if f.get('status') == 'OPEN']
+        
+        # Helper to compare risk levels
+        def higher_risk(current: str, new: str) -> str:
+            order = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
+            return new if order.get(new, 0) > order.get(current, 0) else current
+        
+        # Categorize by business impact type
+        impacts = {
+            "remote_code_execution": {
+                "risk_level": "NONE",
+                "description": "No RCE risk detected",
+                "affected_components": [],
+            },
+            "data_exfiltration": {
+                "risk_level": "NONE", 
+                "description": "No data exfiltration risk detected",
+                "affected_components": [],
+            },
+            "privilege_escalation": {
+                "risk_level": "NONE",
+                "description": "No privilege escalation risk detected", 
+                "affected_components": [],
+            },
+            "supply_chain": {
+                "risk_level": "NONE",
+                "description": "No supply chain risk detected",
+                "affected_components": [],
+            },
+            "compliance_violation": {
+                "risk_level": "NONE",
+                "description": "No compliance violations detected",
+                "affected_components": [],
+            },
+        }
+        
+        for f in open_findings:
+            category = f.get('category', '')
+            finding_type = f.get('finding_type', '')
+            severity = f.get('severity', 'LOW')
+            title = f.get('title', '')
+            file_path = f.get('file_path', '')
+            owasp_str = str(f.get('owasp_mapping', []))
+            title_lower = title.lower()
+            
+            # Remote Code Execution risk (TOOL issues, excessive agency)
+            if category == 'TOOL' or 'LLM08' in owasp_str or 'agency' in title_lower or 'execution' in title_lower:
+                if severity in ['CRITICAL', 'HIGH']:
+                    new_level = "HIGH" if severity == 'CRITICAL' else "MEDIUM"
+                    impacts["remote_code_execution"]["risk_level"] = higher_risk(impacts["remote_code_execution"]["risk_level"], new_level)
+                    impacts["remote_code_execution"]["affected_components"].append(file_path or title)
+                    impacts["remote_code_execution"]["description"] = "Agent tools may allow uncontrolled system access or code execution"
+            
+            # Data Exfiltration risk (DATA issues, sensitive info disclosure)
+            if category == 'DATA' or 'LLM06' in owasp_str or 'secret' in title_lower or 'credential' in title_lower or 'pii' in title_lower:
+                if severity in ['CRITICAL', 'HIGH']:
+                    new_level = "HIGH" if severity == 'CRITICAL' else "MEDIUM"
+                    impacts["data_exfiltration"]["risk_level"] = higher_risk(impacts["data_exfiltration"]["risk_level"], new_level)
+                    impacts["data_exfiltration"]["affected_components"].append(file_path or title)
+                    impacts["data_exfiltration"]["description"] = "Sensitive data (credentials, PII) may be exposed through agent responses"
+            
+            # Privilege Escalation (PROMPT injection, insecure output)
+            if category == 'PROMPT' or 'LLM01' in owasp_str or 'injection' in title_lower:
+                if severity in ['CRITICAL', 'HIGH']:
+                    new_level = "HIGH" if severity == 'CRITICAL' else "MEDIUM"
+                    impacts["privilege_escalation"]["risk_level"] = higher_risk(impacts["privilege_escalation"]["risk_level"], new_level)
+                    impacts["privilege_escalation"]["affected_components"].append(file_path or title)
+                    impacts["privilege_escalation"]["description"] = "Prompt injection may allow attackers to bypass security controls"
+            
+            # Supply Chain risk
+            if category == 'SUPPLY' or 'LLM05' in owasp_str:
+                if severity in ['CRITICAL', 'HIGH', 'MEDIUM']:
+                    new_level = "MEDIUM" if severity in ['CRITICAL', 'HIGH'] else "LOW"
+                    impacts["supply_chain"]["risk_level"] = higher_risk(impacts["supply_chain"]["risk_level"], new_level)
+                    impacts["supply_chain"]["affected_components"].append(file_path or title)
+                    impacts["supply_chain"]["description"] = "Third-party dependencies may introduce vulnerabilities"
+            
+            # Compliance risk (any critical/high finding)
+            if severity in ['CRITICAL', 'HIGH']:
+                impacts["compliance_violation"]["risk_level"] = "HIGH"
+                impacts["compliance_violation"]["description"] = "Unresolved critical/high issues may violate compliance requirements (SOC2, GDPR)"
+        
+        # Dedupe affected components
+        for key in impacts:
+            impacts[key]["affected_components"] = list(set(impacts[key]["affected_components"]))[:5]
+        
+        # Calculate overall business risk
+        risk_levels = [impacts[k]["risk_level"] for k in impacts]
+        if "HIGH" in risk_levels:
+            overall = "HIGH"
+            overall_desc = "Critical security gaps that could result in data breach, unauthorized access, or compliance violations"
+        elif "MEDIUM" in risk_levels:
+            overall = "MEDIUM"
+            overall_desc = "Significant security issues that should be addressed before production deployment"
+        elif "LOW" in risk_levels:
+            overall = "LOW"
+            overall_desc = "Minor security concerns that should be tracked and addressed in due course"
+        else:
+            overall = "NONE"
+            overall_desc = "No significant security risks identified"
+        
+        return {
+            "overall_risk": overall,
+            "overall_description": overall_desc,
+            "impacts": impacts,
+            "executive_bullets": self._generate_executive_bullets(impacts, open_findings),
+        }
+
+    def _generate_executive_bullets(self, impacts: Dict[str, Any], open_findings: List[Dict[str, Any]]) -> List[str]:
+        """Generate executive summary bullet points."""
+        bullets = []
+        
+        critical_count = len([f for f in open_findings if f.get('severity') == 'CRITICAL'])
+        high_count = len([f for f in open_findings if f.get('severity') == 'HIGH'])
+        
+        if critical_count > 0:
+            bullets.append(f"🔴 {critical_count} critical security issue(s) require immediate attention")
+        if high_count > 0:
+            bullets.append(f"🟠 {high_count} high severity issue(s) should be resolved before deployment")
+        
+        if impacts["remote_code_execution"]["risk_level"] in ["HIGH", "MEDIUM"]:
+            bullets.append("⚠️ RCE Risk: Agent tools may allow uncontrolled system access")
+        if impacts["data_exfiltration"]["risk_level"] in ["HIGH", "MEDIUM"]:
+            bullets.append("⚠️ Data Risk: Potential exposure of sensitive data through agent responses")
+        if impacts["privilege_escalation"]["risk_level"] in ["HIGH", "MEDIUM"]:
+            bullets.append("⚠️ Access Risk: Prompt injection vulnerabilities may bypass security controls")
+        if impacts["compliance_violation"]["risk_level"] == "HIGH":
+            bullets.append("⚠️ Compliance Risk: Unresolved issues may violate SOC2/regulatory requirements")
+        
+        if not bullets:
+            bullets.append("✅ No critical security risks identified")
+        
+        return bullets
+
+    def _owasp_status(self, owasp_id: str, findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate status for an OWASP LLM control."""
+        owasp_names = {
+            "LLM01": "Prompt Injection",
+            "LLM02": "Insecure Output Handling",
+            "LLM05": "Supply Chain Vulnerabilities",
+            "LLM06": "Sensitive Information Disclosure",
+            "LLM07": "Insecure Plugin Design",
+            "LLM08": "Excessive Agency",
+            "LLM09": "Overreliance",
+        }
+
+        open_findings = [f for f in findings if f.get('status') == 'OPEN']
+        fixed_findings = [f for f in findings if f.get('status') == 'FIXED']
+
+        if not findings:
+            return {
+                "status": "PASS",
+                "message": "No issues found",
+                "name": owasp_names.get(owasp_id, owasp_id),
+                "findings_count": 0,
+                "open_count": 0,
+                "fixed_count": 0,
+            }
+
+        has_critical = any(f.get('severity') == 'CRITICAL' for f in open_findings)
+        has_high = any(f.get('severity') == 'HIGH' for f in open_findings)
+
+        if has_critical or has_high:
+            status = "FAIL"
+        elif open_findings:
+            status = "WARNING"
+        else:
+            status = "PASS"
+
+        return {
+            "status": status,
+            "name": owasp_names.get(owasp_id, owasp_id),
+            "message": f"{len(open_findings)} open, {len(fixed_findings)} fixed" if findings else "No issues found",
+            "findings_count": len(findings),
+            "open_count": len(open_findings),
+            "fixed_count": len(fixed_findings),
+            "findings": findings[:5],  # Include top 5 findings for detail
+        }
+
+    def _soc2_status(self, control_id: str, findings: List[Dict[str, Any]], name: str) -> Dict[str, Any]:
+        """Calculate status for a SOC2 control."""
+        open_findings = [f for f in findings if f.get('status') == 'OPEN']
+        fixed_findings = [f for f in findings if f.get('status') == 'FIXED']
+
+        if not findings:
+            return {
+                "status": "COMPLIANT",
+                "name": name,
+                "message": "No issues affecting this control",
+                "findings_count": 0,
+            }
+
+        if open_findings:
+            return {
+                "status": "NON-COMPLIANT",
+                "name": name,
+                "message": f"{len(open_findings)} open issues",
+                "findings_count": len(findings),
+            }
+
+        return {
+            "status": "COMPLIANT",
+            "name": name,
+            "message": f"{len(fixed_findings)} issues resolved",
+            "findings_count": len(findings),
+        }
+
+    def _category_status(self, category_id: str, findings: List[Dict[str, Any]], name: str) -> Dict[str, Any]:
+        """Calculate status for a security category."""
+        open_findings = [f for f in findings if f.get('status') == 'OPEN']
+        fixed_findings = [f for f in findings if f.get('status') == 'FIXED']
+
+        has_critical = any(f.get('severity') == 'CRITICAL' for f in open_findings)
+        has_high = any(f.get('severity') == 'HIGH' for f in open_findings)
+        has_medium = any(f.get('severity') == 'MEDIUM' for f in open_findings)
+
+        if has_critical or has_high:
+            status = "FAIL"
+        elif has_medium:
+            status = "WARNING"
+        elif open_findings:
+            status = "INFO"
+        else:
+            status = "PASS"
+
+        max_severity = None
+        for sev in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+            if any(f.get('severity') == sev for f in open_findings):
+                max_severity = sev
+                break
+
+        return {
+            "status": status,
+            "name": name,
+            "findings_count": len(findings),
+            "open_count": len(open_findings),
+            "fixed_count": len(fixed_findings),
+            "max_severity": max_severity,
+        }
+
+    def _get_decision_message(self, gate_status: Dict[str, Any]) -> str:
+        """Generate the decision message for the report."""
+        if gate_status["is_blocked"]:
+            blocking = gate_status["blocking_count"]
+            critical = gate_status["blocking_critical"]
+            high = gate_status["blocking_high"]
+            parts = []
+            if critical > 0:
+                parts.append(f"{critical} critical")
+            if high > 0:
+                parts.append(f"{high} high")
+            severity_text = " and ".join(parts) if parts else str(blocking)
+            return f"Do not deploy to production. {severity_text} severity issues must be resolved."
+        return "Cleared for production deployment. All critical and high security issues have been addressed."
+
+    def _get_blocking_items(self, recommendations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Get list of items blocking production."""
+        blocking = []
+        for r in recommendations:
+            if r.get('severity') in ['CRITICAL', 'HIGH'] and r.get('status') not in ['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED']:
+                blocking.append({
+                    "recommendation_id": r.get('recommendation_id'),
+                    "title": r.get('title'),
+                    "description": r.get('description'),
+                    "severity": r.get('severity'),
+                    "category": r.get('category'),
+                    "source_type": r.get('source_type'),
+                    "file_path": r.get('file_path'),
+                    "line_start": r.get('line_start'),
+                    "line_end": r.get('line_end'),
+                    "code_snippet": r.get('code_snippet'),
+                    "fix_hints": r.get('fix_hints'),
+                    "impact": r.get('impact'),
+                    "owasp_mapping": r.get('owasp_mapping'),
+                    "cvss_score": r.get('cvss_score'),
+                })
+        return blocking
+
+    def _get_dynamic_stats_for_report(self, workflow_id: str) -> Dict[str, Any]:
+        """Get dynamic analysis statistics for the report."""
+        # This would be enhanced with actual dynamic analysis data
+        # For now, return basic structure
+        return {
+            "sessions_analyzed": 0,
+            "checks_total": 0,
+            "checks_passed": 0,
+            "behavioral_stability": None,
+        }
+
+    # ========================================
+    # Report Storage Methods
+    # ========================================
+
+    def save_report(
+        self,
+        workflow_id: str,
+        report_type: str,
+        report_data: Dict[str, Any],
+        report_name: Optional[str] = None,
+        generated_by: Optional[str] = None,
+    ) -> str:
+        """Save a generated report to history.
+
+        Args:
+            workflow_id: The workflow ID
+            report_type: Type of report (security_assessment, executive_summary, customer_dd)
+            report_data: The full report data as a dictionary
+            report_name: Optional custom name for the report
+            generated_by: Optional user/entity that generated the report
+
+        Returns:
+            The report_id of the saved report
+        """
+        import uuid
+        import json
+
+        now = datetime.now(timezone.utc)
+        report_id = f"RPT-{uuid.uuid4().hex[:8].upper()}"
+
+        # Extract key metrics for indexing
+        exec_summary = report_data.get("executive_summary", {})
+        risk_score = exec_summary.get("risk_score", 0)
+        gate_status = exec_summary.get("gate_status", "UNKNOWN")
+        findings_count = exec_summary.get("total_findings", 0)
+        recommendations_count = report_data.get("remediation_summary", {}).get("total_recommendations", 0)
+
+        # Default report name
+        if not report_name:
+            type_names = {
+                "security_assessment": "Security Assessment",
+                "executive_summary": "Executive Summary",
+                "customer_dd": "Customer Due Diligence",
+            }
+            report_name = f"{type_names.get(report_type, report_type)} - {now.strftime('%B %d, %Y')}"
+
+        with self._lock:
+            self.db.execute(
+                """
+                INSERT INTO generated_reports (
+                    report_id, agent_workflow_id, report_type, report_name,
+                    generated_at, generated_by, risk_score, gate_status,
+                    findings_count, recommendations_count, report_data
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report_id,
+                    workflow_id,
+                    report_type,
+                    report_name,
+                    now.timestamp(),
+                    generated_by,
+                    risk_score,
+                    gate_status,
+                    findings_count,
+                    recommendations_count,
+                    json.dumps(report_data),
+                ),
+            )
+            self.db.commit()
+            logger.info(f"Saved report {report_id} for workflow {workflow_id}")
+            return report_id
+
+    def get_reports(
+        self,
+        workflow_id: str,
+        report_type: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Get list of generated reports for a workflow.
+
+        Args:
+            workflow_id: The workflow ID
+            report_type: Optional filter by report type
+            limit: Maximum number of reports to return
+
+        Returns:
+            List of report metadata (not including full report_data)
+        """
+        with self._lock:
+            query = """
+                SELECT report_id, agent_workflow_id, report_type, report_name,
+                       generated_at, generated_by, risk_score, gate_status,
+                       findings_count, recommendations_count
+                FROM generated_reports
+                WHERE agent_workflow_id = ?
+            """
+            params: List[Any] = [workflow_id]
+
+            if report_type:
+                query += " AND report_type = ?"
+                params.append(report_type)
+
+            query += " ORDER BY generated_at DESC LIMIT ?"
+            params.append(limit)
+
+            cursor = self.db.execute(query, params)
+            rows = cursor.fetchall()
+
+            reports = []
+            for row in rows:
+                reports.append({
+                    "report_id": row[0],
+                    "agent_workflow_id": row[1],
+                    "report_type": row[2],
+                    "report_name": row[3],
+                    "generated_at": datetime.fromtimestamp(row[4], tz=timezone.utc).isoformat() if row[4] else None,
+                    "generated_by": row[5],
+                    "risk_score": row[6],
+                    "gate_status": row[7],
+                    "findings_count": row[8],
+                    "recommendations_count": row[9],
+                })
+            return reports
+
+    def get_report(self, report_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific report by ID including full report data.
+
+        Args:
+            report_id: The report ID
+
+        Returns:
+            Full report data or None if not found
+        """
+        import json
+
+        with self._lock:
+            cursor = self.db.execute(
+                """
+                SELECT report_id, agent_workflow_id, report_type, report_name,
+                       generated_at, generated_by, risk_score, gate_status,
+                       findings_count, recommendations_count, report_data
+                FROM generated_reports
+                WHERE report_id = ?
+                """,
+                (report_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                return None
+
+            return {
+                "report_id": row[0],
+                "agent_workflow_id": row[1],
+                "report_type": row[2],
+                "report_name": row[3],
+                "generated_at": datetime.fromtimestamp(row[4], tz=timezone.utc).isoformat() if row[4] else None,
+                "generated_by": row[5],
+                "risk_score": row[6],
+                "gate_status": row[7],
+                "findings_count": row[8],
+                "recommendations_count": row[9],
+                "report_data": json.loads(row[10]) if row[10] else {},
+            }
+
+    def delete_report(self, report_id: str) -> bool:
+        """Delete a report by ID.
+
+        Args:
+            report_id: The report ID
+
+        Returns:
+            True if deleted, False if not found
+        """
+        with self._lock:
+            cursor = self.db.execute(
+                "DELETE FROM generated_reports WHERE report_id = ?",
+                (report_id,),
+            )
+            self.db.commit()
+            return cursor.rowcount > 0

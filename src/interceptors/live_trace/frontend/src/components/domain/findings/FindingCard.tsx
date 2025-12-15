@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FC } from 'react';
 
-import { ChevronDown, ChevronRight, ExternalLink, Wrench, Clock, Calendar } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Wrench, Calendar } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 
 import type { Finding } from '@api/types/findings';
@@ -54,7 +54,7 @@ const getSeverityVariant = (severity: string): 'critical' | 'high' | 'medium' | 
   }
 };
 
-const getStatusVariant = (status: string): 'success' | 'cyan' | 'low' | undefined => {
+const getStatusVariant = (status: string): 'success' | 'info' | 'low' | undefined => {
   switch (status) {
     case 'OPEN':
       return undefined; // Don't show status badge for OPEN - severity is enough
@@ -62,7 +62,7 @@ const getStatusVariant = (status: string): 'success' | 'cyan' | 'low' | undefine
     case 'ADDRESSED': // Normalize legacy status
       return 'success';
     case 'RESOLVED': // Auto-resolved (issue no longer present in codebase)
-      return 'cyan';
+      return 'info'; // Use 'info' instead of 'cyan' which isn't a valid BadgeVariant
     case 'DISMISSED':
     case 'IGNORED':
       return 'low';

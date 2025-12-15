@@ -1097,6 +1097,86 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting gate status: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/workflow/{workflow_id}/compliance-report")
+    async def api_get_compliance_report(workflow_id: str, report_type: str = "security_assessment", save: bool = False):
+        """Generate a compliance report for the workflow.
+
+        Query params:
+        - report_type: security_assessment, executive_summary, or customer_dd
+        - save: if true, saves the report to history
+
+        Returns a comprehensive report including:
+        - Executive summary with gate status and decision
+        - OWASP LLM Top 10 coverage
+        - SOC2 compliance status
+        - Security checks by category
+        - Remediation summary
+        - Audit trail
+        - Blocking items detail
+        """
+        try:
+            report = insights.store.generate_compliance_report(workflow_id)
+            report["report_type"] = report_type
+
+            # Save to history if requested
+            if save:
+                report_id = insights.store.save_report(
+                    workflow_id=workflow_id,
+                    report_type=report_type,
+                    report_data=report,
+                )
+                report["report_id"] = report_id
+
+            return JSONResponse(report)
+        except Exception as e:
+            logger.error(f"Error generating compliance report: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/reports")
+    async def api_get_reports(workflow_id: str, report_type: str = None, limit: int = 50):
+        """Get list of generated reports for a workflow.
+
+        Query params:
+        - report_type: Optional filter by report type
+        - limit: Maximum number of reports to return (default 50)
+
+        Returns list of report metadata (not including full report data).
+        """
+        try:
+            reports = insights.store.get_reports(
+                workflow_id=workflow_id,
+                report_type=report_type,
+                limit=limit,
+            )
+            return JSONResponse({"reports": reports})
+        except Exception as e:
+            logger.error(f"Error getting reports: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/reports/{report_id}")
+    async def api_get_report(report_id: str):
+        """Get a specific report by ID including full report data."""
+        try:
+            report = insights.store.get_report(report_id)
+            if not report:
+                return JSONResponse({"error": "Report not found"}, status_code=404)
+            return JSONResponse(report)
+        except Exception as e:
+            logger.error(f"Error getting report: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.delete("/api/reports/{report_id}")
+    async def api_delete_report(report_id: str):
+        """Delete a report by ID."""
+        try:
+            deleted = insights.store.delete_report(report_id)
+            if not deleted:
+                return JSONResponse({"error": "Report not found"}, status_code=404)
+            return JSONResponse({"success": True, "report_id": report_id})
+        except Exception as e:
+            logger.error(f"Error deleting report: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/workflow/{workflow_id}/static-summary")
     async def api_get_static_summary(workflow_id: str):
         """Get static analysis summary for a workflow with 7 security check categories.

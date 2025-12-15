@@ -359,3 +359,228 @@ export const fetchDynamicSummary = async (
   }
   return data;
 };
+
+// Phase 6: Compliance Report Types
+
+export interface OwaspCoverageItem {
+  status: 'PASS' | 'FAIL' | 'WARNING' | 'N/A';
+  name: string;
+  message: string;
+  findings_count: number;
+  open_count?: number;
+  fixed_count?: number;
+  findings?: unknown[];
+}
+
+export interface Soc2ComplianceItem {
+  status: 'COMPLIANT' | 'NON-COMPLIANT';
+  name: string;
+  message: string;
+  findings_count: number;
+}
+
+export interface SecurityCheckStatus {
+  status: 'PASS' | 'FAIL' | 'WARNING' | 'INFO';
+  name: string;
+  findings_count: number;
+  open_count: number;
+  fixed_count: number;
+  max_severity: string | null;
+}
+
+export interface BlockingItem {
+  recommendation_id: string;
+  title: string;
+  description?: string;
+  severity: string;
+  category: string;
+  source_type?: string;
+  file_path?: string;
+  line_start?: number;
+  line_end?: number;
+  code_snippet?: string;
+  fix_hints?: string;
+  impact?: string;
+  owasp_mapping?: string | string[];
+  cvss_score?: number;
+}
+
+export interface RiskBreakdownItem {
+  severity: string;
+  count: number;
+  weight: number;
+  subtotal: number;
+}
+
+export interface RiskBreakdown {
+  formula: string;
+  breakdown: RiskBreakdownItem[];
+  raw_total: number;
+  final_score: number;
+}
+
+export interface BusinessImpactCategory {
+  risk_level: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+  description: string;
+  affected_components?: string[];
+}
+
+export interface BusinessImpact {
+  overall_risk: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+  overall_description: string;
+  impacts: {
+    remote_code_execution: BusinessImpactCategory;
+    data_exfiltration: BusinessImpactCategory;
+    privilege_escalation: BusinessImpactCategory;
+    supply_chain: BusinessImpactCategory;
+    compliance_violation: BusinessImpactCategory;
+  };
+  executive_bullets: string[];
+}
+
+export type ReportType = 'security_assessment' | 'executive_summary' | 'customer_dd';
+
+export interface ComplianceReportResponse {
+  report_type: ReportType;
+  report_id?: string; // Present if report was saved
+  workflow_id: string;
+  generated_at: string;
+
+  executive_summary: {
+    gate_status: 'OPEN' | 'BLOCKED';
+    is_blocked: boolean;
+    risk_score: number;
+    risk_breakdown?: RiskBreakdown;
+    decision: 'GO' | 'NO-GO';
+    decision_message: string;
+    total_findings: number;
+    open_findings: number;
+    fixed_findings: number;
+    dismissed_findings: number;
+    blocking_count: number;
+    blocking_critical: number;
+    blocking_high: number;
+  };
+
+  business_impact?: BusinessImpact;
+
+  owasp_llm_coverage: Record<string, OwaspCoverageItem>;
+
+  soc2_compliance: Record<string, Soc2ComplianceItem>;
+
+  security_checks: Record<string, SecurityCheckStatus>;
+
+  static_analysis: {
+    sessions_count: number;
+    last_scan: unknown | null;
+    findings_count: number;
+  };
+
+  dynamic_analysis: {
+    sessions_count: number;
+    last_analysis: unknown | null;
+    sessions_analyzed?: number;
+    checks_total?: number;
+    checks_passed?: number;
+    behavioral_stability?: number | null;
+  };
+
+  remediation_summary: {
+    total_recommendations: number;
+    pending: number;
+    fixing: number;
+    fixed: number;
+    verified: number;
+    dismissed: number;
+    resolved: number;
+  };
+
+  audit_trail: AuditLogEntry[];
+
+  blocking_items: BlockingItem[];
+
+  findings_detail: unknown[];
+  recommendations_detail: unknown[];
+}
+
+// Report History
+export interface ReportListItem {
+  report_id: string;
+  agent_workflow_id: string;
+  report_type: ReportType;
+  report_name: string;
+  generated_at: string;
+  generated_by?: string;
+  risk_score: number;
+  gate_status: 'OPEN' | 'BLOCKED';
+  findings_count: number;
+  recommendations_count: number;
+}
+
+export interface StoredReport extends ReportListItem {
+  report_data: ComplianceReportResponse;
+}
+
+export const fetchComplianceReport = async (
+  workflowId: string,
+  reportType: ReportType = 'security_assessment',
+  save: boolean = false
+): Promise<ComplianceReportResponse> => {
+  const params = new URLSearchParams({
+    report_type: reportType,
+    save: save.toString(),
+  });
+  const response = await fetch(`/api/workflow/${workflowId}/compliance-report?${params}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch compliance report: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+export const fetchReportHistory = async (
+  workflowId: string,
+  reportType?: ReportType,
+  limit: number = 50
+): Promise<{ reports: ReportListItem[] }> => {
+  const params = new URLSearchParams({ limit: limit.toString() });
+  if (reportType) {
+    params.set('report_type', reportType);
+  }
+  const response = await fetch(`/api/workflow/${workflowId}/reports?${params}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch report history: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+export const fetchStoredReport = async (reportId: string): Promise<StoredReport> => {
+  const response = await fetch(`/api/reports/${reportId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch report: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+export const deleteReport = async (reportId: string): Promise<{ success: boolean }> => {
+  const response = await fetch(`/api/reports/${reportId}`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw new Error(`Failed to delete report: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};

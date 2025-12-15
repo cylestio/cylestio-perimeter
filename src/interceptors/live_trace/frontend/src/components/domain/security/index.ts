@@ -13,3 +13,6 @@ export type { ScanStatusCardProps } from './ScanStatusCard';
 
 export { FixActionCard, FixActionInline } from './FixActionCard';
 export type { FixActionCardProps, FixActionInlineProps, ConnectedIde } from './FixActionCard';
+
+export { ProductionGateCard } from './ProductionGateCard';
+export type { ProductionGateCardProps, BlockingItem } from './ProductionGateCard';
