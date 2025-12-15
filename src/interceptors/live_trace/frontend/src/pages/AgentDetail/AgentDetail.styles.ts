@@ -504,3 +504,142 @@ export const MetricValue = styled.div`
   font-weight: ${({ theme }) => theme.typography.weightBold};
   color: ${({ theme }) => theme.colors.cyan};
 `;
+
+// Tool Utilization Section - Compact horizontal layout
+export const ToolUtilizationContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const ToolUtilizationMetric = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  flex-shrink: 0;
+`;
+
+// Compact circular progress ring
+export const CircularProgress = styled.div`
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+`;
+
+export const CircularProgressSvg = styled.svg`
+  transform: rotate(-90deg);
+  width: 40px;
+  height: 40px;
+`;
+
+export const CircularProgressTrack = styled.circle`
+  fill: none;
+  stroke: ${({ theme }) => theme.colors.borderSubtle};
+  stroke-width: 3;
+`;
+
+export const CircularProgressFill = styled.circle<{ $percent: number; $color: string }>`
+  fill: none;
+  stroke: ${({ $color }) => $color};
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: ${({ $percent }) => `${$percent * 0.94} 94`};
+  transition: stroke-dasharray 0.5s ease;
+`;
+
+export const CircularProgressContent = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+`;
+
+export const CircularProgressValue = styled.div`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  color: ${({ theme }) => theme.colors.white};
+  line-height: 1;
+`;
+
+export const ToolUtilizationLabel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+`;
+
+export const ToolUtilizationPrimary = styled.span`
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const ToolUtilizationSecondary = styled.span`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+export const ToolUtilizationDivider = styled.div`
+  width: 1px;
+  height: 32px;
+  background: ${({ theme }) => theme.colors.borderMedium};
+  flex-shrink: 0;
+`;
+
+// Tools list - flows horizontally
+export const ToolsList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing[2]};
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+`;
+
+export const ToolTag = styled.span<{ $isUsed: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.cyanSoft : 'transparent')};
+  border: 1px ${({ $isUsed }) => ($isUsed ? 'solid' : 'dashed')}
+    ${({ theme, $isUsed }) => ($isUsed ? theme.colors.cyan : theme.colors.borderSubtle)};
+  font-size: 12px;
+  opacity: ${({ $isUsed }) => ($isUsed ? 1 : 0.6)};
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+`;
+
+export const ToolName = styled.span<{ $isUsed: boolean }>`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  color: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.cyan : theme.colors.white50)};
+  font-weight: ${({ $isUsed }) => ($isUsed ? 600 : 400)};
+`;
+
+export const ToolCount = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 18px;
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.cyan};
+  font-size: 10px;
+  color: ${({ theme }) => theme.colors.void};
+  font-weight: 700;
+  line-height: 1;
+`;
+
+export const ToolUnused = styled.span`
+  font-size: 9px;
+  color: ${({ theme }) => theme.colors.white30};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+`;

@@ -69,6 +69,23 @@ import {
   PlaceholderMessage,
   EmptySessions,
   ActiveSessionsNote,
+  ToolUtilizationContainer,
+  ToolUtilizationMetric,
+  CircularProgress,
+  CircularProgressSvg,
+  CircularProgressTrack,
+  CircularProgressFill,
+  CircularProgressContent,
+  CircularProgressValue,
+  ToolUtilizationLabel,
+  ToolUtilizationPrimary,
+  ToolUtilizationSecondary,
+  ToolUtilizationDivider,
+  ToolsList,
+  ToolTag,
+  ToolName,
+  ToolCount,
+  ToolUnused,
 } from './AgentDetail.styles';
 
 interface Check {
@@ -318,13 +335,6 @@ export const AgentDetail: FC = () => {
                 <StatLabel>tokens</StatLabel>
               </StatItem>
             </Tooltip>
-            <StatDivider />
-            <Tooltip content={STAT_TOOLTIPS.tools}>
-              <StatItem>
-                <StatValue>{agent.total_tools}</StatValue>
-                <StatLabel>tools</StatLabel>
-              </StatItem>
-            </Tooltip>
           </StatGroupItems>
         </StatGroup>
       </StatsBar>
@@ -567,6 +577,75 @@ export const AgentDetail: FC = () => {
           {/* Future: Analysis Log Section */}
         </Column>
       </ContentGrid>
+
+      {/* Tool Utilization Section */}
+      {agent.available_tools && agent.available_tools.length > 0 && (() => {
+        const usedTools = agent.available_tools
+          .filter((tool) => (agent.tool_usage_details?.[tool] || 0) > 0)
+          .sort((a, b) => {
+            const countA = agent.tool_usage_details?.[a] || 0;
+            const countB = agent.tool_usage_details?.[b] || 0;
+            return countB - countA;
+          });
+
+        const unusedTools = agent.available_tools
+          .filter((tool) => (agent.tool_usage_details?.[tool] || 0) === 0)
+          .sort();
+
+        const percent = Math.round(agent.tools_utilization_percent);
+        const progressColor =
+          percent >= 70 ? 'var(--color-green)' : percent >= 40 ? 'var(--color-orange)' : 'var(--color-red)';
+
+        return (
+          <Section>
+            <Section.Header>
+              <Section.Title>Tool Utilization (avg/session)</Section.Title>
+            </Section.Header>
+            <Section.Content>
+              <ToolUtilizationContainer>
+                <ToolUtilizationMetric>
+                  <CircularProgress>
+                    <CircularProgressSvg viewBox="0 0 40 40">
+                      <CircularProgressTrack cx="20" cy="20" r="15" />
+                      <CircularProgressFill cx="20" cy="20" r="15" $percent={percent} $color={progressColor} />
+                    </CircularProgressSvg>
+                    <CircularProgressContent>
+                      <CircularProgressValue>{percent}%</CircularProgressValue>
+                    </CircularProgressContent>
+                  </CircularProgress>
+                  <ToolUtilizationLabel>
+                    <ToolUtilizationPrimary>
+                      {usedTools.length} of {agent.available_tools.length}
+                    </ToolUtilizationPrimary>
+                    <ToolUtilizationSecondary>tools used</ToolUtilizationSecondary>
+                  </ToolUtilizationLabel>
+                </ToolUtilizationMetric>
+                <ToolUtilizationDivider />
+                <ToolsList>
+                  {usedTools.map((tool) => {
+                    const totalCount = agent.tool_usage_details?.[tool] || 0;
+                    const avgPerSession = agent.total_sessions > 0
+                      ? (totalCount / agent.total_sessions).toFixed(1)
+                      : '0';
+                    return (
+                      <ToolTag key={tool} $isUsed={true}>
+                        <ToolName $isUsed={true}>{tool}</ToolName>
+                        <ToolCount>~{avgPerSession}</ToolCount>
+                      </ToolTag>
+                    );
+                  })}
+                  {unusedTools.map((tool) => (
+                    <ToolTag key={tool} $isUsed={false}>
+                      <ToolName $isUsed={false}>{tool}</ToolName>
+                      <ToolUnused>unused</ToolUnused>
+                    </ToolTag>
+                  ))}
+                </ToolsList>
+              </ToolUtilizationContainer>
+            </Section.Content>
+          </Section>
+        );
+      })()}
 
       {/* Sessions Table - Full Width */}
       <Section>
