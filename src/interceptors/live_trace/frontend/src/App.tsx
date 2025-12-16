@@ -69,8 +69,9 @@ function stageToSecurityStatus(stage: AnalysisStage | undefined): SecurityCheckS
       if (stage.findings) {
         const openCritical = stage.findings.by_severity?.CRITICAL ?? 0;
         const openHigh = stage.findings.by_severity?.HIGH ?? 0;
-        if (openCritical > 0) return 'critical';
-        if (openHigh > 0) return 'warning';
+        const openMedium = stage.findings.by_severity?.MEDIUM ?? 0;
+        if (openCritical > 0 || openHigh > 0) return 'critical';
+        if (openMedium > 0) return 'warning';
         return 'ok';
       }
       return 'ok';
