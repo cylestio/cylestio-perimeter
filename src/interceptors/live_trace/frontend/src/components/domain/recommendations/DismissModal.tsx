@@ -26,16 +26,18 @@ export type DismissType = 'DISMISSED' | 'IGNORED';
 
 export interface DismissModalProps {
   recommendationId: string;
+  defaultType?: DismissType;
   onConfirm: (type: DismissType, reason: string) => void;
   onCancel: () => void;
 }
 
 export const DismissModal: FC<DismissModalProps> = ({
   recommendationId,
+  defaultType = 'DISMISSED',
   onConfirm,
   onCancel,
 }) => {
-  const [type, setType] = useState<DismissType>('DISMISSED');
+  const [type, setType] = useState<DismissType>(defaultType);
   const [reason, setReason] = useState('');
 
   // Handle escape key

@@ -180,11 +180,14 @@ export const FindingCard: FC<FindingCardProps> = ({
             </FindingSection>
           )}
 
-          {finding.owasp_mapping && finding.owasp_mapping.length > 0 && (
+          {finding.owasp_mapping && (
             <FindingSection>
               <FindingSectionTitle>OWASP Mapping</FindingSectionTitle>
               <TagList>
-                {finding.owasp_mapping.map((tag) => (
+                {(Array.isArray(finding.owasp_mapping) 
+                  ? finding.owasp_mapping 
+                  : [finding.owasp_mapping]
+                ).map((tag) => (
                   <Tag key={tag}>{tag}</Tag>
                 ))}
               </TagList>

@@ -52,8 +52,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
-            "http://localhost:5173",    # Vite dev server
+            "http://localhost:5173",    # Vite dev server (legacy)
             "http://127.0.0.1:5173",
+            "http://localhost:7500",    # Vite dev server (current)
+            "http://127.0.0.1:7500",
             "http://localhost:7100",    # Dashboard itself
             "http://127.0.0.1:7100",
         ],
@@ -871,30 +873,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting analysis session: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/session/{session_id}/findings")
-    async def api_get_session_findings(
-        session_id: str,
-        severity: Optional[str] = None,
-        status: Optional[str] = None,
-        limit: int = 100,
-    ):
-        """Get findings for a specific analysis session."""
-        try:
-            findings = insights.store.get_findings(
-                session_id=session_id,
-                severity=severity.upper() if severity else None,
-                status=status.upper() if status else None,
-                limit=limit,
-            )
-            session = insights.store.get_analysis_session(session_id)
-            return JSONResponse({
-                "session": session,
-                "findings": findings,
-                "total_count": len(findings),
-            })
-        except Exception as e:
-            logger.error(f"Error getting session findings: {e}")
-            return JSONResponse({"error": str(e)}, status_code=500)
+    # Note: api_get_session_findings is defined later in the file with additional
+    # severity_breakdown field. That definition handles all use cases.
 
     @app.patch("/api/finding/{finding_id}")
     async def api_update_finding(finding_id: str, request: Request):
@@ -1363,16 +1343,30 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/session/{session_id}/findings")
-    async def api_get_session_findings(session_id: str):
-        """Get findings for a specific analysis session (for viewing historical scans)."""
+    async def api_get_session_findings(
+        session_id: str,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 1000,
+    ):
+        """Get findings for a specific analysis session (for viewing historical scans).
+        
+        Supports optional filtering by severity and status.
+        Returns findings with severity breakdown.
+        """
         try:
             # Get the session info
             session = insights.store.get_analysis_session(session_id)
             if not session:
                 return JSONResponse({"error": "Session not found"}, status_code=404)
             
-            # Get findings for this session
-            findings = insights.store.get_findings(session_id=session_id, limit=1000)
+            # Get findings for this session with optional filters
+            findings = insights.store.get_findings(
+                session_id=session_id,
+                severity=severity.upper() if severity else None,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
             
             # Calculate severity breakdown
             severity_breakdown = {
@@ -1387,6 +1381,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "session": session,
                 "findings": findings,
                 "findings_count": len(findings),
+                "total_count": len(findings),  # Alias for backwards compatibility
                 "severity_breakdown": severity_breakdown,
             })
         except Exception as e:

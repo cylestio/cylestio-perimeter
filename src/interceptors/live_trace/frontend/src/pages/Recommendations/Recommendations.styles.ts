@@ -71,52 +71,14 @@ export const FiltersBar = styled.div`
   flex-wrap: wrap;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[4]};
-  padding: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[4]};
   background: ${({ theme }) => theme.colors.surface2};
   border-radius: ${({ theme }) => theme.radii.lg};
-`;
-
-export const FilterGroup = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const FilterLabel = styled.label`
-  font-size: 12px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-export const FilterSelect = styled.select`
-  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  border-radius: ${({ theme }) => theme.radii.md};
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.white};
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-
-  &:focus {
-    outline: none;
-    border-color: ${({ theme }) => theme.colors.cyan};
+  
+  /* RichSelect styling within FiltersBar */
+  > div {
+    min-width: 150px;
   }
-
-  &:hover {
-    border-color: ${({ theme }) => theme.colors.borderMedium};
-  }
-
-  option {
-    background: ${({ theme }) => theme.colors.surface};
-  }
-`;
-
-export const FilterCheckbox = styled.input`
-  width: 16px;
-  height: 16px;
-  accent-color: ${({ theme }) => theme.colors.cyan};
-  cursor: pointer;
 `;
 
 const spin = keyframes`
@@ -162,6 +124,39 @@ export const RecommendationsList = styled.div`
   gap: ${({ theme }) => theme.spacing[3]};
 `;
 
+// Severity-based section headers
+interface SeveritySectionHeaderProps {
+  $severity: 'critical' | 'high' | 'other' | 'resolved';
+}
+
+export const SeveritySectionHeader = styled.div<SeveritySectionHeaderProps>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ $severity, theme }) => {
+    switch ($severity) {
+      case 'critical':
+        return `${theme.colors.red}10`;
+      case 'high':
+        return `${theme.colors.orange}10`;
+      case 'resolved':
+        return `${theme.colors.green}10`;
+      default:
+        return theme.colors.surface2;
+    }
+  }};
+`;
+
+export const SeveritySectionTitle = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+// Legacy SectionTitle for backwards compat
 interface SectionTitleProps {
   $variant: 'pending' | 'resolved';
 }

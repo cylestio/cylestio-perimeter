@@ -19,6 +19,7 @@ export default defineConfig({
   },
   server: {
     port: 7500,
+    host: true, // Expose on network to fix Cursor browser localhost issue
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:7100',

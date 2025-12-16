@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useMemo, type FC } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, RefreshCw } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
+import styled from 'styled-components';
 
 import { RecommendationsIcon } from '@constants/pageIcons';
 import { 
@@ -8,54 +9,173 @@ import {
   fetchGateStatus,
   completeFix,
   dismissRecommendation,
-  type RecommendationsResponse,
   type GateStatusResponse,
 } from '@api/endpoints/agentWorkflow';
 import type { 
   Recommendation, 
   SecurityCheckCategory,
-  RecommendationStatus,
-  GateStatus,
+  FindingSeverity,
 } from '@api/types/findings';
-import { SECURITY_CHECK_CATEGORIES } from '@api/types/findings';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
+import { Tabs, type Tab } from '@ui/navigation/Tabs';
+import { ToggleGroup } from '@ui/navigation/ToggleGroup';
 
-import { RecommendationCard } from '@domain/recommendations/RecommendationCard';
 import { DismissModal, type DismissType } from '@domain/recommendations/DismissModal';
-import { ProgressSummary } from '@domain/recommendations/ProgressSummary';
+import {
+  SummaryStatsBar,
+  SeverityProgressBar,
+  IssueCard,
+  CategoryDonut,
+  SourceDistribution,
+  DetectionTimeline,
+} from '@domain/recommendations/dashboard';
 
 import { usePageMeta } from '../../context';
-import {
-  FiltersBar,
-  FilterGroup,
-  FilterLabel,
-  FilterSelect,
-  FilterCheckbox,
-  RefreshButton,
-  RecommendationsList,
-  SectionTitle,
-  EmptyState,
-  ErrorState,
-  RetryButton,
-} from './Recommendations.styles';
 
+// Styled Components
+const DashboardContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[5]};
+`;
+
+const TabContent = styled.div`
+  margin-top: ${({ theme }) => theme.spacing[5]};
+`;
+
+const ChartsGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: ${({ theme }) => theme.spacing[4]};
+  
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const IssuesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+const SectionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
+`;
+
+const SectionTitle = styled.h2`
+  font-size: 16px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.white};
+  margin: 0;
+`;
+
+const FiltersRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-radius: ${({ theme }) => theme.radii.lg};
+`;
+
+const FilterLabel = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+const ActiveFilter = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.cyan};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  background: ${({ theme }) => theme.colors.cyanSoft};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  cursor: pointer;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+`;
+
+const RefreshButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white70};
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.surface2};
+    color: ${({ theme }) => theme.colors.white};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${({ theme }) => theme.spacing[12]};
+  text-align: center;
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-radius: ${({ theme }) => theme.radii.lg};
+
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: ${({ theme }) => theme.colors.white};
+    margin: 0 0 ${({ theme }) => theme.spacing[2]};
+  }
+
+  p {
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.white50};
+    margin: 0;
+  }
+`;
+
+const ErrorState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${({ theme }) => theme.spacing[12]};
+  text-align: center;
+  color: ${({ theme }) => theme.colors.red};
+`;
+
+// Types
 export interface RecommendationsProps {
   className?: string;
 }
 
-type SourceFilter = 'ALL' | 'STATIC' | 'DYNAMIC';
-type StatusFilter = 'ALL' | 'PENDING' | 'FIXING' | 'FIXED' | 'VERIFIED' | 'DISMISSED' | 'IGNORED';
-type CategoryFilter = 'ALL' | SecurityCheckCategory;
+type DashboardTab = 'overview' | 'by-severity' | 'resolved';
 
+// Component
 export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   // State
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -64,21 +184,25 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Filters from URL
-  const sourceFilter = (searchParams.get('source') as SourceFilter) || 'ALL';
-  const statusFilter = (searchParams.get('status') as StatusFilter) || 'ALL';
-  const categoryFilter = (searchParams.get('category') as CategoryFilter) || 'ALL';
-  const blockingOnly = searchParams.get('blocking') === 'true';
+  // Tab state
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const [selectedSeverity, setSelectedSeverity] = useState<FindingSeverity | 'ALL'>('ALL');
+  
+  // Filter state (from charts)
+  const [selectedCategory, setSelectedCategory] = useState<SecurityCheckCategory | null>(null);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [selectedSourceType, setSelectedSourceType] = useState<'STATIC' | 'DYNAMIC' | null>(null);
 
   // Dismiss modal state
   const [dismissModalOpen, setDismissModalOpen] = useState(false);
   const [dismissingRecId, setDismissingRecId] = useState<string | null>(null);
+  const [dismissType, setDismissType] = useState<'DISMISSED' | 'IGNORED'>('DISMISSED');
 
   // Set page meta
   usePageMeta({
     breadcrumbs: agentWorkflowId
-      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Recommendations' })
-      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Recommendations' }],
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Security Dashboard' })
+      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Security Dashboard' }],
   });
 
   // Fetch data
@@ -111,77 +235,60 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
 
   useEffect(() => {
     fetchData();
-    // Poll for updates every 5 seconds to catch status changes from /fix commands
     const interval = setInterval(() => fetchData(), 5000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Filter recommendations
-  const filteredRecommendations = useMemo(() => {
-    let filtered = [...recommendations];
+  // Computed data
+  const isResolved = (status: string) => 
+    ['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(status);
 
-    // Source filter
-    if (sourceFilter !== 'ALL') {
-      filtered = filtered.filter(r => r.source_type === sourceFilter);
+  const pendingRecommendations = useMemo(() => 
+    recommendations.filter(r => !isResolved(r.status)),
+    [recommendations]
+  );
+
+  const resolvedRecommendations = useMemo(() => 
+    recommendations.filter(r => isResolved(r.status)),
+    [recommendations]
+  );
+
+  // Filter by severity, category, file
+  const filteredByTab = useMemo(() => {
+    let filtered = activeTab === 'resolved' 
+      ? resolvedRecommendations 
+      : pendingRecommendations;
+
+    if (selectedSeverity !== 'ALL') {
+      filtered = filtered.filter(r => r.severity === selectedSeverity);
     }
 
-    // Status filter
-    if (statusFilter !== 'ALL') {
-      filtered = filtered.filter(r => r.status === statusFilter);
+    if (selectedCategory) {
+      filtered = filtered.filter(r => r.category === selectedCategory);
     }
 
-    // Category filter
-    if (categoryFilter !== 'ALL') {
-      filtered = filtered.filter(r => r.category === categoryFilter);
-    }
-
-    // Blocking only filter
-    if (blockingOnly) {
-      filtered = filtered.filter(r => 
-        r.severity === 'CRITICAL' || r.severity === 'HIGH'
-      );
+    if (selectedSource) {
+      filtered = filtered.filter(r => {
+        if (selectedSourceType === 'STATIC') {
+          return r.file_path === selectedSource;
+        } else {
+          return (r.file_path || 'Runtime Detection') === selectedSource;
+        }
+      });
     }
 
     return filtered;
-  }, [recommendations, sourceFilter, statusFilter, categoryFilter, blockingOnly]);
+  }, [activeTab, pendingRecommendations, resolvedRecommendations, selectedSeverity, selectedCategory, selectedSource, selectedSourceType]);
 
-  // Severity sort order: CRITICAL > HIGH > MEDIUM > LOW
-  const SEVERITY_ORDER: Record<string, number> = {
-    CRITICAL: 0,
-    HIGH: 1,
-    MEDIUM: 2,
-    LOW: 3,
-  };
+  // Severity counts for pills
+  const severityCounts = useMemo(() => ({
+    CRITICAL: pendingRecommendations.filter(r => r.severity === 'CRITICAL').length,
+    HIGH: pendingRecommendations.filter(r => r.severity === 'HIGH').length,
+    MEDIUM: pendingRecommendations.filter(r => r.severity === 'MEDIUM').length,
+    LOW: pendingRecommendations.filter(r => r.severity === 'LOW').length,
+  }), [pendingRecommendations]);
 
-  const sortBySeverity = (a: Recommendation, b: Recommendation) => {
-    const aOrder = SEVERITY_ORDER[a.severity] ?? 99;
-    const bOrder = SEVERITY_ORDER[b.severity] ?? 99;
-    return aOrder - bOrder;
-  };
-
-  // Group recommendations by status, sorted by severity
-  const groupedRecommendations = useMemo(() => {
-    const pending = filteredRecommendations
-      .filter(r => ['PENDING', 'FIXING'].includes(r.status))
-      .sort(sortBySeverity);
-    const resolved = filteredRecommendations
-      .filter(r => ['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(r.status))
-      .sort(sortBySeverity);
-    return { pending, resolved };
-  }, [filteredRecommendations]);
-
-  // Update filter in URL
-  const updateFilter = (key: string, value: string) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (value === 'ALL' || value === 'false') {
-      newParams.delete(key);
-    } else {
-      newParams.set(key, value);
-    }
-    setSearchParams(newParams);
-  };
-
-  // Handle mark as fixed
+  // Handlers
   const handleMarkFixed = async (recId: string) => {
     try {
       await completeFix(recId, {
@@ -194,9 +301,9 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
     }
   };
 
-  // Handle dismiss
-  const handleOpenDismiss = (recId: string, type: DismissType) => {
+  const handleOpenDismiss = (recId: string, type: 'DISMISSED' | 'IGNORED' = 'DISMISSED') => {
     setDismissingRecId(recId);
+    setDismissType(type);
     setDismissModalOpen(true);
   };
 
@@ -216,18 +323,49 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
     }
   };
 
-  // Navigate to finding
-  const handleViewFinding = (findingId: string) => {
-    navigate(`/agent-workflow/${agentWorkflowId}/static-analysis?finding=${findingId}`);
+  const clearFilters = () => {
+    setSelectedCategory(null);
+    setSelectedSource(null);
+    setSelectedSourceType(null);
   };
+
+  const handleSourceClick = (source: string | null, type: 'STATIC' | 'DYNAMIC') => {
+    if (source === null) {
+      setSelectedSource(null);
+      setSelectedSourceType(null);
+    } else {
+      setSelectedSource(source);
+      setSelectedSourceType(type);
+    }
+  };
+
+  // Blocking counts
+  const blockingCritical = severityCounts.CRITICAL;
+  const blockingHigh = severityCounts.HIGH;
+
+  // Tab config
+  const tabs: Tab[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'by-severity', label: 'By Severity', count: pendingRecommendations.length },
+    { id: 'resolved', label: 'Resolved', count: resolvedRecommendations.length },
+  ];
+
+  // Severity pills for By Severity tab
+  const severityOptions = [
+    { id: 'ALL', label: 'All', active: selectedSeverity === 'ALL' },
+    { id: 'CRITICAL', label: `Critical (${severityCounts.CRITICAL})`, active: selectedSeverity === 'CRITICAL' },
+    { id: 'HIGH', label: `High (${severityCounts.HIGH})`, active: selectedSeverity === 'HIGH' },
+    { id: 'MEDIUM', label: `Medium (${severityCounts.MEDIUM})`, active: selectedSeverity === 'MEDIUM' },
+    { id: 'LOW', label: `Low (${severityCounts.LOW})`, active: selectedSeverity === 'LOW' },
+  ];
 
   // Loading state
   if (loading) {
     return (
-      <Page className={className} data-testid="recommendations">
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-        <OrbLoader size="lg" />
-      </div>
+      <Page className={className} data-testid="security-dashboard">
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+          <OrbLoader size="lg" />
+        </div>
       </Page>
     );
   }
@@ -235,37 +373,29 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   // Error state
   if (error) {
     return (
-      <Page className={className} data-testid="recommendations">
+      <Page className={className} data-testid="security-dashboard">
         <PageHeader
           icon={<RecommendationsIcon size={24} />}
-          title="Recommendations"
-          description="Security recommendations and fix workflow"
+          title="Security Dashboard"
+          description="AI-powered security analysis and recommendations"
         />
         <ErrorState>
           <p>{error}</p>
-          <RetryButton onClick={() => fetchData()}>
+          <RefreshButton onClick={() => fetchData()}>
             <RefreshCw size={14} />
             Retry
-          </RetryButton>
+          </RefreshButton>
         </ErrorState>
       </Page>
     );
   }
 
-  // Count blocking issues
-  const blockingCritical = recommendations.filter(r => 
-    r.severity === 'CRITICAL' && ['PENDING', 'FIXING'].includes(r.status)
-  ).length;
-  const blockingHigh = recommendations.filter(r => 
-    r.severity === 'HIGH' && ['PENDING', 'FIXING'].includes(r.status)
-  ).length;
-
   return (
-    <Page className={className} data-testid="recommendations">
+    <Page className={className} data-testid="security-dashboard">
       <PageHeader
         icon={<RecommendationsIcon size={24} />}
-        title="Recommendations"
-        description="AI-powered security recommendations with fix workflow"
+        title="Security Dashboard"
+        description="AI-powered security analysis and recommendations"
         actions={
           <RefreshButton onClick={() => fetchData(true)} disabled={refreshing}>
             <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
@@ -274,162 +404,181 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
         }
       />
 
-      {/* Progress Summary */}
-      {gateStatus && (
-        <Section>
-          <Section.Content>
-            <ProgressSummary
-              gateStatus={gateStatus.gate_status}
-              recommendations={recommendations}
-              blockingCritical={blockingCritical}
-              blockingHigh={blockingHigh}
+      <Section>
+        <Section.Content>
+          <DashboardContainer>
+            {/* Tabs Navigation */}
+            <Tabs
+              tabs={tabs}
+              activeTab={activeTab}
+              onChange={(tabId) => {
+                setActiveTab(tabId as DashboardTab);
+                clearFilters();
+                setSelectedSeverity('ALL');
+              }}
+              variant="pills"
             />
-          </Section.Content>
-        </Section>
-      )}
 
-      {/* Filters */}
-      <Section>
-        <Section.Content>
-          <FiltersBar>
-            <FilterGroup>
-              <Filter size={14} />
-              <FilterLabel>Source:</FilterLabel>
-              <FilterSelect
-                value={sourceFilter}
-                onChange={(e) => updateFilter('source', e.target.value)}
-              >
-                <option value="ALL">All Sources</option>
-                <option value="STATIC">Static Scan</option>
-                <option value="DYNAMIC">Dynamic Scan</option>
-              </FilterSelect>
-            </FilterGroup>
+            {/* Overview Tab */}
+            {activeTab === 'overview' && gateStatus && (
+              <TabContent>
+                {/* Summary Stats */}
+                <SummaryStatsBar
+                  recommendations={recommendations}
+                  gateStatus={gateStatus.gate_status}
+                  blockingCritical={blockingCritical}
+                  blockingHigh={blockingHigh}
+                />
 
-            <FilterGroup>
-              <FilterLabel>Category:</FilterLabel>
-              <FilterSelect
-                value={categoryFilter}
-                onChange={(e) => updateFilter('category', e.target.value)}
-              >
-                <option value="ALL">All Categories</option>
-                {SECURITY_CHECK_CATEGORIES.map(cat => (
-                  <option key={cat.category_id} value={cat.category_id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </FilterSelect>
-            </FilterGroup>
+                {/* Progress Bar */}
+                <div style={{ marginTop: '20px' }}>
+                  <SeverityProgressBar recommendations={recommendations} />
+                </div>
 
-            <FilterGroup>
-              <FilterLabel>Status:</FilterLabel>
-              <FilterSelect
-                value={statusFilter}
-                onChange={(e) => updateFilter('status', e.target.value)}
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="FIXING">Fixing</option>
-                <option value="FIXED">Fixed</option>
-                <option value="VERIFIED">Verified</option>
-                <option value="DISMISSED">Dismissed</option>
-                <option value="IGNORED">Ignored</option>
-              </FilterSelect>
-            </FilterGroup>
+                {/* Charts Row */}
+                <ChartsGrid style={{ marginTop: '20px' }}>
+                  <CategoryDonut
+                    recommendations={recommendations}
+                    selectedCategory={selectedCategory}
+                    onCategoryClick={setSelectedCategory}
+                  />
+                  <SourceDistribution
+                    recommendations={recommendations}
+                    selectedSource={selectedSource}
+                    onSourceClick={handleSourceClick}
+                  />
+                </ChartsGrid>
 
-            <FilterGroup>
-              <FilterCheckbox
-                type="checkbox"
-                id="blocking-only"
-                checked={blockingOnly}
-                onChange={(e) => updateFilter('blocking', String(e.target.checked))}
-              />
-              <FilterLabel htmlFor="blocking-only" style={{ cursor: 'pointer' }}>
-                Blocking Only
-              </FilterLabel>
-            </FilterGroup>
-          </FiltersBar>
+                {/* Timeline */}
+                <div style={{ marginTop: '20px' }}>
+                  <DetectionTimeline recommendations={recommendations} />
+                </div>
+
+                {/* Active Filters and Filtered Issues */}
+                {(selectedCategory || selectedSource) && (
+                  <>
+                    <FiltersRow style={{ marginTop: '20px' }}>
+                      <FilterLabel>Filters:</FilterLabel>
+                      {selectedCategory && (
+                        <ActiveFilter onClick={() => setSelectedCategory(null)}>
+                          Category: {selectedCategory} ✕
+                        </ActiveFilter>
+                      )}
+                      {selectedSource && (
+                        <ActiveFilter onClick={() => { setSelectedSource(null); setSelectedSourceType(null); }}>
+                          {selectedSourceType}: {selectedSource.split('/').pop()} ✕
+                        </ActiveFilter>
+                      )}
+                    </FiltersRow>
+
+                    <div style={{ marginTop: '16px' }}>
+                      <SectionHeader>
+                        <SectionTitle>Filtered Issues ({filteredByTab.length})</SectionTitle>
+                      </SectionHeader>
+                      
+                      {filteredByTab.length > 0 ? (
+                        <IssuesList>
+                          {filteredByTab.map(rec => (
+                            <IssueCard
+                              key={rec.recommendation_id}
+                              recommendation={rec}
+                              onMarkFixed={() => handleMarkFixed(rec.recommendation_id)}
+                              onDismiss={(type) => handleOpenDismiss(rec.recommendation_id, type)}
+                            />
+                          ))}
+                        </IssuesList>
+                      ) : (
+                        <EmptyState>
+                          <h3>No issues match filters</h3>
+                          <p>Try adjusting your filter criteria.</p>
+                        </EmptyState>
+                      )}
+                    </div>
+                  </>
+                )}
+              </TabContent>
+            )}
+
+            {/* By Severity Tab */}
+            {activeTab === 'by-severity' && (
+              <TabContent>
+                <ToggleGroup
+                  options={severityOptions}
+                  onChange={(val) => setSelectedSeverity(val as FindingSeverity | 'ALL')}
+                />
+
+                <div style={{ marginTop: '20px' }}>
+                  {filteredByTab.length > 0 ? (
+                    <IssuesList>
+                      {filteredByTab.map(rec => (
+                        <IssueCard
+                          key={rec.recommendation_id}
+                          recommendation={rec}
+                          onMarkFixed={() => handleMarkFixed(rec.recommendation_id)}
+                          onDismiss={(type) => handleOpenDismiss(rec.recommendation_id, type)}
+                        />
+                      ))}
+                    </IssuesList>
+                  ) : (
+                    <EmptyState>
+                      <h3>No issues found</h3>
+                      <p>
+                        {selectedSeverity === 'ALL' 
+                          ? 'No pending issues to display.'
+                          : `No ${selectedSeverity.toLowerCase()} severity issues.`
+                        }
+                      </p>
+                    </EmptyState>
+                  )}
+                </div>
+              </TabContent>
+            )}
+
+            {/* Resolved Tab */}
+            {activeTab === 'resolved' && (
+              <TabContent>
+                {resolvedRecommendations.length > 0 ? (
+                  <>
+                    <FiltersRow>
+                      <FilterLabel>
+                        Fixed: {resolvedRecommendations.filter(r => r.status === 'FIXED' || r.status === 'VERIFIED').length}
+                      </FilterLabel>
+                      <FilterLabel>|</FilterLabel>
+                      <FilterLabel>
+                        Dismissed: {resolvedRecommendations.filter(r => r.status === 'DISMISSED' || r.status === 'IGNORED').length}
+                      </FilterLabel>
+                      <FilterLabel>|</FilterLabel>
+                      <FilterLabel>
+                        Total: {resolvedRecommendations.length}
+                      </FilterLabel>
+                    </FiltersRow>
+
+                    <IssuesList>
+                      {resolvedRecommendations.map(rec => (
+                        <IssueCard
+                          key={rec.recommendation_id}
+                          recommendation={rec}
+                        />
+                      ))}
+                    </IssuesList>
+                  </>
+                ) : (
+                  <EmptyState>
+                    <h3>No resolved issues</h3>
+                    <p>Issues that are fixed or dismissed will appear here.</p>
+                  </EmptyState>
+                )}
+              </TabContent>
+            )}
+          </DashboardContainer>
         </Section.Content>
       </Section>
-
-      {/* Pending Recommendations */}
-      {groupedRecommendations.pending.length > 0 && (
-      <Section>
-        <Section.Header>
-            <Section.Title>
-              <SectionTitle $variant="pending">
-                PENDING FIXES ({groupedRecommendations.pending.length})
-              </SectionTitle>
-          </Section.Title>
-        </Section.Header>
-        <Section.Content>
-            <RecommendationsList>
-              {groupedRecommendations.pending.map((rec) => (
-                <RecommendationCard
-                  key={rec.recommendation_id}
-                  recommendation={rec}
-                  onMarkFixed={() => handleMarkFixed(rec.recommendation_id)}
-                  onDismiss={(type) => handleOpenDismiss(rec.recommendation_id, type)}
-                  onViewFinding={handleViewFinding}
-                />
-              ))}
-            </RecommendationsList>
-          </Section.Content>
-        </Section>
-      )}
-
-      {/* Resolved Recommendations */}
-      {groupedRecommendations.resolved.length > 0 && (
-        <Section>
-          <Section.Header>
-            <Section.Title>
-              <SectionTitle $variant="resolved">
-                RESOLVED ({groupedRecommendations.resolved.length})
-              </SectionTitle>
-            </Section.Title>
-          </Section.Header>
-          <Section.Content>
-            <RecommendationsList>
-              {groupedRecommendations.resolved.map((rec) => (
-                <RecommendationCard
-                  key={rec.recommendation_id}
-                  recommendation={rec}
-                  showFixAction={false}
-                  onViewFinding={handleViewFinding}
-                />
-              ))}
-            </RecommendationsList>
-          </Section.Content>
-        </Section>
-      )}
-
-      {/* Empty State */}
-      {filteredRecommendations.length === 0 && (
-        <Section>
-          <Section.Content>
-            <EmptyState>
-              {recommendations.length === 0 ? (
-                <>
-                  <h3>No recommendations yet</h3>
-                  <p>
-                    Run a security scan on your agent code to generate recommendations.
-                    Use <code>/scan</code> in your IDE chat.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h3>No recommendations match filters</h3>
-                  <p>Try adjusting your filter criteria.</p>
-                </>
-              )}
-            </EmptyState>
-        </Section.Content>
-      </Section>
-      )}
 
       {/* Dismiss Modal */}
       {dismissModalOpen && dismissingRecId && (
         <DismissModal
           recommendationId={dismissingRecId}
+          defaultType={dismissType}
           onConfirm={handleDismissConfirm}
           onCancel={() => {
             setDismissModalOpen(false);

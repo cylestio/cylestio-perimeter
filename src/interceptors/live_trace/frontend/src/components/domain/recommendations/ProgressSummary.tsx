@@ -1,22 +1,26 @@
 import type { FC } from 'react';
-import { Lock, Unlock } from 'lucide-react';
-import type { GateStatus, Recommendation } from '@api/types/findings';
+import { ShieldCheck, ShieldAlert } from 'lucide-react';
+
+import type { GateStatus, Recommendation, FindingSeverity } from '@api/types/findings';
+
+import { SeverityDot } from '@ui/core/Badge';
+import { ProgressBar } from '@ui/feedback/ProgressBar';
+
 import {
   Container,
   Header,
   Title,
   GateBadge,
   Description,
-  ProgressBarContainer,
-  ProgressBarTrack,
-  ProgressBarFill,
+  ProgressContainer,
   ProgressLabel,
-  Stats,
-  StatItem,
-  StatValue,
-  StatLabel,
-  SourceBreakdown,
-  SourceItem,
+  SeverityGrid,
+  SeverityCard,
+  SeverityCardHeader,
+  SeverityCardCount,
+  SeverityCardLabel,
+  SeverityCardResolved,
+  CallToAction,
 } from './ProgressSummary.styles';
 
 export interface ProgressSummaryProps {
@@ -25,6 +29,14 @@ export interface ProgressSummaryProps {
   blockingCritical: number;
   blockingHigh: number;
 }
+
+interface SeverityStats {
+  total: number;
+  resolved: number;
+  pending: number;
+}
+
+const SEVERITIES: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 export const ProgressSummary: FC<ProgressSummaryProps> = ({
   gateStatus,
@@ -35,83 +47,91 @@ export const ProgressSummary: FC<ProgressSummaryProps> = ({
   const isBlocked = gateStatus === 'BLOCKED';
   const totalBlocking = blockingCritical + blockingHigh;
   
-  // Count recommendations by status
-  const pending = recommendations.filter(r => r.status === 'PENDING').length;
-  const fixing = recommendations.filter(r => r.status === 'FIXING').length;
-  const fixed = recommendations.filter(r => r.status === 'FIXED' || r.status === 'VERIFIED').length;
-  const dismissed = recommendations.filter(r => r.status === 'DISMISSED' || r.status === 'IGNORED').length;
-  
-  // Count by source
-  const staticCount = recommendations.filter(r => r.source_type === 'STATIC').length;
-  const dynamicCount = recommendations.filter(r => r.source_type === 'DYNAMIC').length;
-  
-  // Calculate progress percentage (fixed + dismissed out of total)
+  // Calculate stats by severity
+  const severityStats: Record<FindingSeverity, SeverityStats> = {
+    CRITICAL: { total: 0, resolved: 0, pending: 0 },
+    HIGH: { total: 0, resolved: 0, pending: 0 },
+    MEDIUM: { total: 0, resolved: 0, pending: 0 },
+    LOW: { total: 0, resolved: 0, pending: 0 },
+  };
+
+  recommendations.forEach(rec => {
+    const isResolved = ['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(rec.status);
+    severityStats[rec.severity].total += 1;
+    if (isResolved) {
+      severityStats[rec.severity].resolved += 1;
+    } else {
+      severityStats[rec.severity].pending += 1;
+    }
+  });
+
+  // Calculate overall progress percentage
   const total = recommendations.length;
-  const resolved = fixed + dismissed;
+  const resolved = Object.values(severityStats).reduce((acc, s) => acc + s.resolved, 0);
   const progressPercent = total > 0 ? Math.round((resolved / total) * 100) : 100;
 
   return (
     <Container $blocked={isBlocked}>
       <Header>
         <Title>
-          {isBlocked ? <Lock size={16} /> : <Unlock size={16} />}
-          {isBlocked ? 'TO UNBLOCK PRODUCTION' : 'PRODUCTION READY'}
+          {isBlocked ? <ShieldAlert size={20} /> : <ShieldCheck size={20} />}
+          {isBlocked ? 'PRODUCTION BLOCKED' : 'PRODUCTION READY'}
         </Title>
         <GateBadge $status={gateStatus}>
-          {isBlocked ? '🔒 Blocked' : '✅ Open'}
+          {isBlocked ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
+          {isBlocked ? 'Blocked' : 'Open'}
         </GateBadge>
       </Header>
 
+      <ProgressContainer>
+        <ProgressBar 
+          value={progressPercent} 
+          variant={isBlocked ? 'warning' : 'success'}
+          size="md"
+        />
+        <ProgressLabel>
+          <span>{resolved} of {total} resolved</span>
+          <span>{progressPercent}%</span>
+        </ProgressLabel>
+      </ProgressContainer>
+
+      {isBlocked && (
+        <SeverityGrid>
+          {SEVERITIES.map(severity => {
+            const stats = severityStats[severity];
+            const isBlocking = severity === 'CRITICAL' || severity === 'HIGH';
+            
+            // Only show severities that have issues
+            if (stats.total === 0) return null;
+            
+            return (
+              <SeverityCard key={severity} $isBlocking={isBlocking}>
+                <SeverityCardHeader>
+                  <SeverityDot 
+                    severity={severity.toLowerCase() as 'critical' | 'high' | 'medium' | 'low'} 
+                    glow={isBlocking && stats.pending > 0}
+                    size="sm"
+                  />
+                  <SeverityCardCount>{stats.total}</SeverityCardCount>
+                </SeverityCardHeader>
+                <SeverityCardLabel>{severity}</SeverityCardLabel>
+                <SeverityCardResolved $allResolved={stats.resolved === stats.total}>
+                  {stats.resolved} resolved
+                </SeverityCardResolved>
+              </SeverityCard>
+            );
+          })}
+        </SeverityGrid>
+      )}
+
       {isBlocked ? (
-        <Description>
-          Fix {totalBlocking} blocking issue{totalBlocking !== 1 ? 's' : ''} to enable Production deployment
-          {blockingCritical > 0 && ` (${blockingCritical} critical)`}
-          {blockingHigh > 0 && ` (${blockingHigh} high)`}
-        </Description>
+        <CallToAction>
+          Fix {totalBlocking} critical/high issue{totalBlocking !== 1 ? 's' : ''} to unblock production
+        </CallToAction>
       ) : (
         <Description>
           All critical and high severity issues have been addressed. Your agent is ready for production.
         </Description>
-      )}
-
-      <ProgressBarContainer>
-        <ProgressBarTrack>
-          <ProgressBarFill $percent={progressPercent} $blocked={isBlocked} />
-        </ProgressBarTrack>
-        <ProgressLabel>
-          <span>Progress: {resolved} of {total} resolved</span>
-          <span>{progressPercent}%</span>
-        </ProgressLabel>
-      </ProgressBarContainer>
-
-      <Stats>
-        <StatItem>
-          <StatValue $color={pending > 0 ? 'orange' : 'default'}>{pending}</StatValue>
-          <StatLabel>Pending</StatLabel>
-        </StatItem>
-        <StatItem>
-          <StatValue $color={fixing > 0 ? 'yellow' : 'default'}>{fixing}</StatValue>
-          <StatLabel>Fixing</StatLabel>
-        </StatItem>
-        <StatItem>
-          <StatValue $color="green">{fixed}</StatValue>
-          <StatLabel>Fixed</StatLabel>
-        </StatItem>
-        <StatItem>
-          <StatValue>{dismissed}</StatValue>
-          <StatLabel>Dismissed</StatLabel>
-        </StatItem>
-      </Stats>
-
-      {(staticCount > 0 || dynamicCount > 0) && (
-        <SourceBreakdown>
-          {staticCount > 0 && (
-            <SourceItem>📝 Static: {staticCount}</SourceItem>
-          )}
-          {dynamicCount > 0 && (
-            <SourceItem>🔄 Dynamic: {dynamicCount}</SourceItem>
-          )}
-        </SourceBreakdown>
       )}
     </Container>
   );

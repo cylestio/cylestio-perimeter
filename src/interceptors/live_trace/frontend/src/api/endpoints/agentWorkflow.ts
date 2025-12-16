@@ -4,12 +4,10 @@ import type {
   StaticSummaryResponse,
   GateStatusResponse,
   Recommendation,
-  SecurityCheck,
-  SECURITY_CHECK_CATEGORIES,
 } from '../types/findings';
 
 // Re-export for convenience
-export type { AnalysisSession, AnalysisSessionsResponse } from '../types/findings';
+export type { AnalysisSession, AnalysisSessionsResponse, GateStatusResponse } from '../types/findings';
 
 export interface FetchAgentWorkflowFindingsParams {
   severity?: string;

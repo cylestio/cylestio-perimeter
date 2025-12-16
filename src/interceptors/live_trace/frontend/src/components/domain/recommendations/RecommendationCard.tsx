@@ -1,45 +1,26 @@
 import { type FC, useState, useRef, useEffect } from 'react';
-import { ExternalLink, ChevronDown, ChevronUp, Copy, Check, Wrench, Lightbulb, AlertTriangle } from 'lucide-react';
-import type { Recommendation, FindingSeverity } from '@api/types/findings';
-import { FrameworkBadges } from '@domain/security/FrameworkBadges';
+import { ExternalLink, ChevronDown, Copy, Check, Terminal, MoreHorizontal } from 'lucide-react';
+
+import type { Recommendation } from '@api/types/findings';
+
+import { SeverityDot } from '@ui/core/Badge';
+
 import {
   CardContainer,
   CardHeader,
-  RecommendationId,
-  SourceBadge,
-  CardTitle,
+  TitleRow,
   TitleText,
-  SeverityIcon,
+  CvssScore,
+  DescriptionText,
   MetadataRow,
-  CategoryBadge,
-  LocationText,
-  DynamicInfo,
-  StatusBadge,
+  MetadataItem,
+  MetadataSeparator,
   CardActions,
+  FixButton,
   LinkButton,
-  ActionButton,
-  DismissDropdownContainer,
+  MoreButton,
   DropdownMenu,
   DropdownItem,
-  FixActionBox,
-  FixIcon,
-  FixContent,
-  FixLabel,
-  FixCommand,
-  CopyButton,
-  DescriptionText,
-  DetailsSection,
-  DetailItem,
-  DetailLabel,
-  DetailValue,
-  CodeSnippetContainer,
-  CodeSnippetHeader,
-  CodeSnippetFile,
-  CodeSnippetBody,
-  ExpandButton,
-  FixHintsBox,
-  FixHintsIcon,
-  FixHintsText,
 } from './RecommendationCard.styles';
 
 export interface RecommendationCardProps {
@@ -51,13 +32,6 @@ export interface RecommendationCardProps {
   showFixAction?: boolean;
 }
 
-const SEVERITY_ICONS: Record<FindingSeverity, string> = {
-  CRITICAL: '🔴',
-  HIGH: '🔴',  // Changed from orange to red
-  MEDIUM: '🟠',
-  LOW: '🟡',
-};
-
 export const RecommendationCard: FC<RecommendationCardProps> = ({
   recommendation,
   onCopyCommand,
@@ -68,14 +42,15 @@ export const RecommendationCard: FC<RecommendationCardProps> = ({
 }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [expanded, setExpanded] = useState(true); // Default expanded to show details
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const fixCommand = `/fix ${recommendation.recommendation_id}`;
+  // Truncate ID to last 8 characters for display
+  const shortId = recommendation.recommendation_id.slice(-8);
+  const fixCommand = `/fix ${shortId}`;
 
   const handleCopyCommand = async () => {
     try {
-      await navigator.clipboard.writeText(fixCommand);
+      await navigator.clipboard.writeText(`/fix ${recommendation.recommendation_id}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       onCopyCommand?.();
@@ -99,185 +74,105 @@ export const RecommendationCard: FC<RecommendationCardProps> = ({
   }, [showDropdown]);
 
   const isResolved = ['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(recommendation.status);
-  const hasDetails = recommendation.description || recommendation.code_snippet || 
-                     recommendation.impact || recommendation.fix_hints;
+
+  // Clean title - remove "Fix:" prefix if present
+  const cleanTitle = recommendation.title.replace(/^Fix:\s*/i, '');
 
   return (
-    <CardContainer $severity={recommendation.severity}>
-      {/* Header with ID and Source Badge */}
+    <CardContainer $severity={recommendation.severity} $resolved={isResolved}>
+      {/* Header: Title with severity dot and CVSS score */}
       <CardHeader>
-        <RecommendationId>{recommendation.recommendation_id}</RecommendationId>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <StatusBadge $status={recommendation.status}>
-            {recommendation.status}
-          </StatusBadge>
-          <SourceBadge $type={recommendation.source_type}>
-            {recommendation.source_type === 'STATIC' ? '📝 Static Scan' : '🔄 Dynamic Scan'}
-          </SourceBadge>
-          {hasDetails && (
-            <ExpandButton $expanded={expanded} onClick={() => setExpanded(!expanded)}>
-              {expanded ? 'Less' : 'More'}
-              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </ExpandButton>
-          )}
-        </div>
+        <TitleRow>
+          <SeverityDot 
+            severity={recommendation.severity.toLowerCase() as 'critical' | 'high' | 'medium' | 'low'} 
+            glow={!isResolved && (recommendation.severity === 'CRITICAL' || recommendation.severity === 'HIGH')}
+          />
+          <TitleText $resolved={isResolved}>{cleanTitle}</TitleText>
+        </TitleRow>
+        {recommendation.cvss_score && (
+          <CvssScore>CVSS {recommendation.cvss_score}</CvssScore>
+        )}
       </CardHeader>
 
-      {/* Title with Severity Icon */}
-      <CardTitle>
-        <SeverityIcon $severity={recommendation.severity}>
-          {SEVERITY_ICONS[recommendation.severity]}
-        </SeverityIcon>
-        <TitleText>{recommendation.title}</TitleText>
-      </CardTitle>
-
-      {/* Description - always show if available */}
+      {/* Description - single line, truncated */}
       {recommendation.description && (
         <DescriptionText>{recommendation.description}</DescriptionText>
       )}
 
-      {/* Metadata Row */}
+      {/* Compact metadata line: ID • Source • Framework */}
       <MetadataRow>
-        <CategoryBadge>{recommendation.category}</CategoryBadge>
-        <FrameworkBadges
-          owaspLlm={recommendation.owasp_llm}
-          cwe={recommendation.cwe ? [recommendation.cwe] : undefined}
-          soc2Controls={recommendation.soc2_controls}
-          cvssScore={recommendation.cvss_score}
-        />
+        <MetadataItem>{shortId}</MetadataItem>
+        <MetadataSeparator>•</MetadataSeparator>
+        <MetadataItem>{recommendation.source_type === 'STATIC' ? 'Static' : 'Dynamic'}</MetadataItem>
+        {recommendation.owasp_llm && (
+          <>
+            <MetadataSeparator>•</MetadataSeparator>
+            <MetadataItem>{recommendation.owasp_llm}</MetadataItem>
+          </>
+        )}
       </MetadataRow>
 
-      {/* Location or Dynamic Info */}
-      {recommendation.source_type === 'STATIC' ? (
-        recommendation.file_path && (
-          <LocationText>
-            📁 {recommendation.file_path}
-            {recommendation.line_start && `:${recommendation.line_start}`}
-            {recommendation.line_end && recommendation.line_end !== recommendation.line_start && 
-              `-${recommendation.line_end}`}
-          </LocationText>
-        )
-      ) : (
-        <DynamicInfo>
-          Detected during runtime analysis
-        </DynamicInfo>
-      )}
-
-      {/* Expanded Details */}
-      {expanded && hasDetails && (
-        <DetailsSection>
-          {/* Impact */}
-          {recommendation.impact && (
-            <DetailItem>
-              <DetailLabel>
-                <AlertTriangle size={10} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                Impact
-              </DetailLabel>
-              <DetailValue>{recommendation.impact}</DetailValue>
-            </DetailItem>
-          )}
-
-          {/* Code Snippet */}
-          {recommendation.code_snippet && (
-            <CodeSnippetContainer>
-              <CodeSnippetHeader>
-                <CodeSnippetFile>
-                  {recommendation.file_path || 'Code Snippet'}
-                  {recommendation.line_start && ` (line ${recommendation.line_start})`}
-                </CodeSnippetFile>
-              </CodeSnippetHeader>
-              <CodeSnippetBody>{recommendation.code_snippet}</CodeSnippetBody>
-            </CodeSnippetContainer>
-          )}
-
-          {/* Fix Hints */}
-          {recommendation.fix_hints && (
-            <FixHintsBox>
-              <FixHintsIcon>
-                <Lightbulb size={16} />
-              </FixHintsIcon>
-              <FixHintsText>{recommendation.fix_hints}</FixHintsText>
-            </FixHintsBox>
-          )}
-
-          {/* Fix Complexity */}
-          {recommendation.fix_complexity && (
-            <DetailItem>
-              <DetailLabel>Fix Complexity</DetailLabel>
-              <DetailValue>{recommendation.fix_complexity}</DetailValue>
-            </DetailItem>
-          )}
-        </DetailsSection>
-      )}
-
-      {/* Fix Action Box - only show for pending/fixing status */}
-      {showFixAction && !isResolved && (
-        <FixActionBox>
-          <FixIcon>
-            <Wrench size={20} />
-          </FixIcon>
-          <FixContent>
-            <FixLabel>FIX WITH CURSOR</FixLabel>
-            <FixCommand>{fixCommand}</FixCommand>
-          </FixContent>
-          <CopyButton onClick={handleCopyCommand}>
-            {copied ? (
-              <>
-                <Check size={14} />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy size={14} />
-                Copy Command
-              </>
-            )}
-          </CopyButton>
-        </FixActionBox>
-      )}
-
-      {/* Actions */}
+      {/* Compact actions row */}
       <CardActions>
-        {/* Link to source finding */}
+        {/* Fix button - compact, primary action */}
+        {showFixAction && !isResolved && (
+          <FixButton onClick={handleCopyCommand} $copied={copied}>
+            {copied ? <Check size={14} /> : <Terminal size={14} />}
+            {copied ? 'Copied!' : fixCommand}
+          </FixButton>
+        )}
+
+        {/* View Finding link */}
         {recommendation.source_finding_id && onViewFinding && (
           <LinkButton onClick={() => onViewFinding(recommendation.source_finding_id)}>
-            View Finding {recommendation.source_finding_id.slice(0, 8)}...
+            View Finding
             <ExternalLink size={12} />
           </LinkButton>
         )}
 
-        {/* Mark Fixed button - only show for FIXING status */}
-        {recommendation.status === 'FIXING' && onMarkFixed && (
-          <ActionButton $variant="primary" onClick={onMarkFixed}>
-            <Check size={14} />
-            Mark Fixed
-          </ActionButton>
-        )}
-
-        {/* Dismiss dropdown - only show for pending/fixing status */}
-        {!isResolved && onDismiss && (
-          <DismissDropdownContainer ref={dropdownRef}>
-            <ActionButton onClick={() => setShowDropdown(!showDropdown)}>
-              Dismiss
-              <ChevronDown size={12} />
-            </ActionButton>
+        {/* More actions dropdown */}
+        {!isResolved && (onDismiss || onMarkFixed) && (
+          <div ref={dropdownRef} style={{ position: 'relative' }}>
+            <MoreButton onClick={() => setShowDropdown(!showDropdown)}>
+              <MoreHorizontal size={16} />
+            </MoreButton>
             {showDropdown && (
               <DropdownMenu>
-                <DropdownItem onClick={() => {
-                  onDismiss('DISMISSED');
-                  setShowDropdown(false);
-                }}>
-                  Risk Accepted - I understand the risk
-                </DropdownItem>
-                <DropdownItem onClick={() => {
-                  onDismiss('IGNORED');
-                  setShowDropdown(false);
-                }}>
-                  False Positive - Not a real issue
-                </DropdownItem>
+                {recommendation.status === 'FIXING' && onMarkFixed && (
+                  <DropdownItem onClick={() => {
+                    onMarkFixed();
+                    setShowDropdown(false);
+                  }}>
+                    <Check size={14} />
+                    Mark as Fixed
+                  </DropdownItem>
+                )}
+                {onDismiss && (
+                  <>
+                    <DropdownItem onClick={() => {
+                      onDismiss('DISMISSED');
+                      setShowDropdown(false);
+                    }}>
+                      Dismiss - Risk Accepted
+                    </DropdownItem>
+                    <DropdownItem onClick={() => {
+                      onDismiss('IGNORED');
+                      setShowDropdown(false);
+                    }}>
+                      Dismiss - False Positive
+                    </DropdownItem>
+                  </>
+                )}
               </DropdownMenu>
             )}
-          </DismissDropdownContainer>
+          </div>
+        )}
+
+        {/* Status badge for resolved items */}
+        {isResolved && (
+          <MetadataItem style={{ marginLeft: 'auto', opacity: 0.7 }}>
+            {recommendation.status}
+          </MetadataItem>
         )}
       </CardActions>
     </CardContainer>
