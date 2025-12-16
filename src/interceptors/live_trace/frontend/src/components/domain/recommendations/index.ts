@@ -9,3 +9,6 @@ export type { AuditTrailProps, AuditLogEntry } from './AuditTrail';
 
 export { ProgressSummary } from './ProgressSummary';
 export type { ProgressSummaryProps } from './ProgressSummary';
+
+// Dashboard components
+export * from './dashboard';
