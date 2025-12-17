@@ -17,7 +17,7 @@
 | `ui/feedback/` | OrbLoader, Skeleton, Toast, EmptyState, ProgressBar |
 | `ui/navigation/` | NavItem, Tabs, Breadcrumb, ToggleGroup, Pagination |
 | `ui/overlays/` | Modal, ConfirmDialog, Tooltip, Popover, Dropdown, Drawer |
-| `ui/data-display/` | Accordion, KeyValueList, Table, CodeBlock, Timeline, TimelineItem |
+| `ui/data-display/` | Accordion, KeyValueList, StatsBar, Table, CodeBlock, Timeline, TimelineItem |
 | `ui/layout/` | Grid, Content, Main, Page, PageHeader |
 | `ui/icons/` | CursorIcon, ClaudeCodeIcon |
 
@@ -31,6 +31,8 @@
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
 | `domain/sessions/` | SessionsTable, SystemPromptFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
+| `domain/analytics/` | TokenUsageInsights, ModelUsageAnalytics, ToolUsageAnalytics |
+| `domain/charts/` | LineChart, BarChart, PieChart, DistributionBar |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
 | `domain/recommendations/` | RecommendationCard, DismissModal, ProgressSummary, AuditTrail |
@@ -627,6 +629,49 @@ interface KeyValueListProps {
     },
   ]}
   size="sm"
+/>
+```
+
+### StatsBar
+
+Horizontal bar displaying summary statistics with icons, values, and labels. Supports dividers to group related stats.
+
+```typescript
+type StatColor = 'cyan' | 'green' | 'orange' | 'red' | 'purple';
+
+interface Stat {
+  icon: ReactNode;
+  value: string | number;
+  label: string;
+  iconColor?: StatColor;
+  valueColor?: StatColor;
+}
+
+interface StatsBarProps {
+  stats: (Stat | 'divider')[];
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Basic stats bar
+<StatsBar
+  stats={[
+    { icon: <Zap size={18} />, value: '1,234', label: 'Total Executions', iconColor: 'cyan' },
+    { icon: <Clock size={18} />, value: '150ms', label: 'Avg Duration', iconColor: 'orange' },
+    { icon: <CheckCircle size={18} />, value: '98.5%', label: 'Success Rate', iconColor: 'green' },
+  ]}
+/>
+
+// With dividers to group stats
+<StatsBar
+  stats={[
+    { icon: <Coins size={18} />, value: '45.2K', label: 'Total Tokens', iconColor: 'cyan' },
+    { icon: <TrendingUp size={18} />, value: '$12.50', label: 'Total Cost', iconColor: 'orange', valueColor: 'orange' },
+    'divider',
+    { icon: <Layers size={18} />, value: '3', label: 'Models Used', iconColor: 'purple', valueColor: 'purple' },
+  ]}
 />
 ```
 
@@ -1237,6 +1282,160 @@ interface RiskScoreProps {
 }
 ```
 
+---
+
+## Chart Components
+
+### LineChart
+
+Time-series line chart using Recharts. Displays data points connected by a smooth line with interactive tooltips.
+
+```typescript
+type ChartColor = 'cyan' | 'purple' | 'red' | 'green' | 'orange';
+
+interface LineChartDataPoint {
+  date: string;      // Date string (e.g., "2025-12-12")
+  value: number;     // Numeric value for the Y-axis
+  label?: string;    // Optional label for tooltip
+}
+
+interface LineChartProps {
+  data: LineChartDataPoint[];
+  color?: ChartColor;                    // Line color (default: 'cyan')
+  height?: number;                       // Chart height in pixels (default: 200)
+  formatValue?: (value: number) => string;  // Y-axis value formatter
+  formatDate?: (date: string) => string;    // X-axis date formatter
+  emptyMessage?: string;                 // Message when no data
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Sessions over time chart
+<LineChart
+  data={[
+    { date: '2025-12-10', value: 15 },
+    { date: '2025-12-11', value: 23 },
+    { date: '2025-12-12', value: 18 },
+  ]}
+  color="purple"
+  height={200}
+  formatValue={(v) => `${v} sessions`}
+  emptyMessage="No session data yet"
+/>
+
+// Error rate trend
+<LineChart
+  data={errorRateData}
+  color="red"
+  formatValue={(v) => `${v.toFixed(1)}%`}
+/>
+```
+
+### BarChart
+
+Horizontal or vertical bar chart using Recharts. Displays categorical data with interactive tooltips.
+
+```typescript
+type BarChartColor = 'cyan' | 'purple' | 'red' | 'green' | 'orange';
+
+interface BarChartDataPoint {
+  name: string;           // Category label
+  value: number;          // Numeric value
+  color?: BarChartColor;  // Per-bar color override
+}
+
+interface BarChartProps {
+  data: BarChartDataPoint[];
+  color?: BarChartColor;                    // Default bar color (default: 'cyan')
+  height?: number;                          // Chart height in pixels (default: 200)
+  horizontal?: boolean;                     // Horizontal bars (default: false)
+  formatValue?: (value: number) => string;  // Value formatter for tooltips
+  emptyMessage?: string;                    // Message when no data
+  maxBars?: number;                         // Limit number of bars (default: 10)
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Horizontal tool usage chart
+<BarChart
+  data={[
+    { name: 'web_search', value: 42 },
+    { name: 'code_editor', value: 28 },
+    { name: 'file_reader', value: 15 },
+  ]}
+  color="green"
+  height={200}
+  horizontal
+  maxBars={10}
+  formatValue={(v) => `${v} calls`}
+  emptyMessage="No tool usage data"
+/>
+
+// Vertical chart with custom colors per bar
+<BarChart
+  data={[
+    { name: 'Critical', value: 3, color: 'red' },
+    { name: 'High', value: 8, color: 'orange' },
+    { name: 'Medium', value: 15, color: 'purple' },
+    { name: 'Low', value: 25, color: 'cyan' },
+  ]}
+  height={250}
+/>
+```
+
+### DistributionBar
+
+Horizontal stacked bar showing distribution of segments with labels and percentages. Useful for showing proportional breakdowns (e.g., input vs output tokens, request distribution by model).
+
+```typescript
+type DistributionColor = 'cyan' | 'purple' | 'green' | 'orange' | 'red';
+
+interface DistributionSegment {
+  name: string;
+  value: number;
+  color: DistributionColor;
+}
+
+interface DistributionBarProps {
+  segments: DistributionSegment[];
+  formatValue?: (value: number) => string;
+  showPercent?: boolean;    // Show percentage labels (default: true)
+  className?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Token distribution (input vs output)
+<DistributionBar
+  segments={[
+    { name: 'Input', value: 45000, color: 'cyan' },
+    { name: 'Output', value: 15000, color: 'purple' },
+  ]}
+  formatValue={(v) => `${(v / 1000).toFixed(1)}K`}
+/>
+
+// Model request distribution
+<DistributionBar
+  segments={[
+    { name: 'claude-sonnet-4', value: 150, color: 'cyan' },
+    { name: 'gpt-4o', value: 80, color: 'purple' },
+    { name: 'claude-haiku', value: 45, color: 'green' },
+  ]}
+  formatValue={(v) => `${v}`}
+/>
+```
+
+**Notes:**
+- LineChart and BarChart show an empty state with icon when `data` is empty
+- Charts are responsive and fill their container width
+- Tooltips show formatted values and labels
+- Data is automatically sorted by value (descending) for BarChart
+
 ### LifecycleProgress
 
 Security lifecycle stage indicator.
@@ -1563,6 +1762,47 @@ interface UserMenuProps {
 ```
 
 ---
+
+# Features Components
+
+
+## GatheringData
+
+Progress indicator shown when waiting for more session data before analysis can be performed.
+
+```typescript
+interface GatheringDataProps {
+  /** Current number of sessions collected */
+  currentSessions: number;
+  /** Minimum sessions required for analysis */
+  minSessionsRequired: number;
+  /** Title text (default: "Analyzing Agent Behavior") */
+  title?: string;
+  /** Description text */
+  description?: string;
+  /** Hint text shown below progress bar (default: "More sessions improve accuracy") */
+  hint?: string;
+}
+```
+
+**Usage:**
+```tsx
+// Default - analyzing agent behavior
+<GatheringData
+  currentSessions={2}
+  minSessionsRequired={5}
+/>
+
+// Custom content
+<GatheringData
+  currentSessions={3}
+  minSessionsRequired={5}
+  title="Building Behavioral Profile"
+  description="Behavioral analysis requires session data to identify patterns."
+  hint="Analysis improves with more data"
+/>
+```
+
 
 ## Recommendations Components
 

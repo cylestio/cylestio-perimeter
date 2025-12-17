@@ -1,27 +1,23 @@
-import { useState, useEffect, useCallback, type FC } from 'react';
+import type { FC } from 'react';
 
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import { Activity, AlertTriangle, Bot, CheckCircle, Target } from 'lucide-react';
 
 import type { APIAgent } from '@api/types/dashboard';
-import type { SessionListItem } from '@api/types/session';
-import { fetchSessions } from '@api/endpoints/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
-import { formatAgentName, formatDuration } from '@utils/formatting';
+import { formatAgentName } from '@utils/formatting';
 
-import { Card } from '@ui/core/Card';
 import { EmptyState } from '@ui/feedback/EmptyState';
 import { Skeleton } from '@ui/feedback/Skeleton';
 import { Page } from '@ui/layout/Page';
-import { StatsRow, TwoColumn, Stack } from '@ui/layout/Grid';
+import { StatsRow, Stack } from '@ui/layout/Grid';
 
-import { SessionItem } from '@domain/activity';
 import { AgentCard } from '@domain/agents';
 import { StatCard } from '@domain/metrics/StatCard';
 
 import { usePageMeta } from '../../context';
-import { AgentsGrid, SessionsList } from './Portfolio.styles';
+import { AgentsGrid } from './Portfolio.styles';
 
 // Context type from App.tsx outlet
 interface PortfolioContext {
@@ -42,51 +38,22 @@ const transformAgent = (agent: APIAgent) => ({
   currentSessions: agent.current_sessions,
   minSessionsRequired: agent.min_sessions_required,
   hasCriticalFinding: agent.analysis_summary?.action_required ?? false,
-  // Behavioral metrics (when evaluation complete)
-  stability: agent.analysis_summary?.behavioral?.stability,
-  predictability: agent.analysis_summary?.behavioral?.predictability,
+  // Behavioral metrics (when evaluation complete) - convert 0-1 to 0-100 scale
+  stability: agent.analysis_summary?.behavioral?.stability !== undefined
+    ? Math.round(agent.analysis_summary.behavioral.stability * 100)
+    : undefined,
+  predictability: agent.analysis_summary?.behavioral?.predictability !== undefined
+    ? Math.round(agent.analysis_summary.behavioral.predictability * 100)
+    : undefined,
   confidence: agent.analysis_summary?.behavioral?.confidence as 'high' | 'medium' | 'low' | undefined,
   failedChecks: agent.analysis_summary?.failed_checks ?? 0,
   warnings: agent.analysis_summary?.warnings ?? 0,
 });
 
-// Helper to map API session status to SessionItem status
-const getSessionStatus = (session: SessionListItem): 'ACTIVE' | 'COMPLETE' | 'ERROR' => {
-  if (session.is_active) return 'ACTIVE';
-  if (session.errors > 0) return 'ERROR';
-  return 'COMPLETE';
-};
-
 export const Portfolio: FC = () => {
   const navigate = useNavigate();
   const { agentWorkflowId } = useParams<{ agentWorkflowId?: string }>();
   const { agents, loading } = useOutletContext<PortfolioContext>();
-
-  // Fetch sessions from the new API
-  const [sessions, setSessions] = useState<SessionListItem[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
-
-  const loadSessions = useCallback(async () => {
-    try {
-      const data = await fetchSessions({
-        agent_workflow_id: agentWorkflowId || undefined,
-        limit: 10,
-      });
-      setSessions(data.sessions);
-    } catch (error) {
-      console.error('Failed to fetch sessions:', error);
-    } finally {
-      setSessionsLoading(false);
-    }
-  }, [agentWorkflowId]);
-
-  // Fetch sessions on mount and when agentId changes
-  useEffect(() => {
-    loadSessions();
-    // Refresh sessions periodically
-    const interval = setInterval(loadSessions, 5000);
-    return () => clearInterval(interval);
-  }, [loadSessions]);
 
   usePageMeta({
     breadcrumbs: agentWorkflowId
@@ -153,86 +120,35 @@ export const Portfolio: FC = () => {
           />
         </StatsRow>
 
-        {/* Two Column Layout: Agents Grid + Activity Feed */}
-        <TwoColumn
-          main={
-            <AgentsGrid>
-              {isLoading ? (
-                // Loading skeletons
-                <>
-                  <Skeleton variant="rect" height={200} />
-                  <Skeleton variant="rect" height={200} />
-                  <Skeleton variant="rect" height={200} />
-                  <Skeleton variant="rect" height={200} />
-                </>
-              ) : agents.length === 0 ? (
-                <EmptyState
-                  icon={<Bot size={24} />}
-                  title="No agents yet"
-                  description="Connect your first agent to get started. Go to the Connect page for instructions."
-                />
-              ) : (
-                agents.map((agent) => (
-                  <AgentCard
-                    key={agent.id}
-                    {...transformAgent(agent)}
-                    onClick={() => {
-                      const currentAgentWorkflowId = agentWorkflowId || agent.agent_workflow_id || 'unassigned';
-                      navigate(`/agent-workflow/${currentAgentWorkflowId}/agent/${agent.id}`);
-                    }}
-                  />
-                ))
-              )}
-            </AgentsGrid>
-          }
-          sidebar={
-            <Card>
-              <Card.Header title="Recent Sessions" />
-              <Card.Content>
-                {sessionsLoading ? (
-                  <SessionsList>
-                    <Skeleton variant="rect" height={60} />
-                    <Skeleton variant="rect" height={60} />
-                    <Skeleton variant="rect" height={60} />
-                  </SessionsList>
-                ) : sessions.length === 0 ? (
-                  <div
-                    style={{
-                      padding: '24px',
-                      textAlign: 'center',
-                      color: 'var(--color-white-50)',
-                      fontSize: '13px',
-                    }}
-                  >
-                    No sessions yet
-                  </div>
-                ) : (
-                  <SessionsList>
-                    {sessions.map((session) => {
-                      // Use session's agent_workflow_id if available, or get from URL, or from agent
-                      const agent = agents.find(a => a.id === session.agent_id);
-                      const sessionAgentWorkflowId = session.agent_workflow_id || agentWorkflowId || agent?.agent_workflow_id || 'unassigned';
-                      return (
-                        <SessionItem
-                          key={session.id}
-                          agentId={session.agent_id}
-                          agentName={formatAgentName(session.agent_id)}
-                          sessionId={session.id.slice(0, 8)}
-                          status={getSessionStatus(session)}
-                          isActive={session.is_active}
-                          duration={formatDuration(session.duration_minutes)}
-                          lastActivity={session.last_activity_relative}
-                          hasErrors={session.errors > 0}
-                          onClick={() => navigate(`/agent-workflow/${sessionAgentWorkflowId}/session/${session.id}`)}
-                        />
-                      );
-                    })}
-                  </SessionsList>
-                )}
-              </Card.Content>
-            </Card>
-          }
-        />
+        {/* Agents Grid */}
+        <AgentsGrid>
+          {isLoading ? (
+            // Loading skeletons
+            <>
+              <Skeleton variant="rect" height={200} />
+              <Skeleton variant="rect" height={200} />
+              <Skeleton variant="rect" height={200} />
+              <Skeleton variant="rect" height={200} />
+            </>
+          ) : agents.length === 0 ? (
+            <EmptyState
+              icon={<Bot size={24} />}
+              title="No agents yet"
+              description="Connect your first agent to get started. Go to the Connect page for instructions."
+            />
+          ) : (
+            agents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                {...transformAgent(agent)}
+                onClick={() => {
+                  const currentAgentWorkflowId = agentWorkflowId || agent.agent_workflow_id || 'unassigned';
+                  navigate(`/agent-workflow/${currentAgentWorkflowId}/agent/${agent.id}`);
+                }}
+              />
+            ))
+          )}
+        </AgentsGrid>
       </Stack>
     </Page>
   );

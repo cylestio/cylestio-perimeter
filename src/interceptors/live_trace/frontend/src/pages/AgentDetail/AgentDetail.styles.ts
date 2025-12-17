@@ -129,44 +129,6 @@ export const AlertText = styled.span`
   color: ${({ theme }) => theme.colors.white90};
 `;
 
-// Compact Inline Stats Bar (neutral colors)
-export const StatsBar = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[4]};
-  padding: ${({ theme }) => theme.spacing[4]};
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.md};
-  flex-wrap: wrap;
-`;
-
-export const StatItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[1]};
-  min-width: 60px;
-`;
-
-export const StatValue = styled.span`
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  font-size: ${({ theme }) => theme.typography.textLg};
-  font-weight: ${({ theme }) => theme.typography.weightBold};
-  color: ${({ theme }) => theme.colors.white};
-`;
-
-export const StatLabel = styled.span`
-  font-size: ${({ theme }) => theme.typography.textXs};
-  color: ${({ theme }) => theme.colors.white50};
-  text-transform: lowercase;
-`;
-
-export const StatDivider = styled.div`
-  width: 1px;
-  height: 32px;
-  background: ${({ theme }) => theme.colors.borderMedium};
-`;
 
 // Security Section - Simplified
 export const SecurityStatusRow = styled.div`
@@ -260,7 +222,7 @@ export const CheckValue = styled.span`
   font-family: ${({ theme }) => theme.typography.fontMono};
 `;
 
-// Behavioral Section - Side-by-side layout
+// Behavioral Section - Chart top, scores below
 export const BehavioralMetrics = styled.div`
   display: flex;
   flex-direction: column;
@@ -268,19 +230,28 @@ export const BehavioralMetrics = styled.div`
 `;
 
 export const BehavioralGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const ScoresRow = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: ${({ theme }) => theme.spacing[5]};
+  grid-template-columns: repeat(3, 1fr);
+  gap: ${({ theme }) => theme.spacing[4]};
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
   }
 `;
 
-export const ScoresColumn = styled.div`
+export const ScoreItem = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[4]};
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.md};
 `;
 
 export const ChartColumn = styled.div`
@@ -468,3 +439,142 @@ export const MetricValue = styled.div`
   font-weight: ${({ theme }) => theme.typography.weightBold};
   color: ${({ theme }) => theme.colors.cyan};
 `;
+
+// Tool Utilization Section - Compact horizontal layout
+export const ToolUtilizationContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const ToolUtilizationMetric = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  flex-shrink: 0;
+`;
+
+// Compact circular progress ring
+export const CircularProgress = styled.div`
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+`;
+
+export const CircularProgressSvg = styled.svg`
+  transform: rotate(-90deg);
+  width: 40px;
+  height: 40px;
+`;
+
+export const CircularProgressTrack = styled.circle`
+  fill: none;
+  stroke: ${({ theme }) => theme.colors.borderSubtle};
+  stroke-width: 3;
+`;
+
+export const CircularProgressFill = styled.circle<{ $percent: number; $color: string }>`
+  fill: none;
+  stroke: ${({ $color }) => $color};
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: ${({ $percent }) => `${$percent * 0.94} 94`};
+  transition: stroke-dasharray 0.5s ease;
+`;
+
+export const CircularProgressContent = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+`;
+
+export const CircularProgressValue = styled.div`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  color: ${({ theme }) => theme.colors.white};
+  line-height: 1;
+`;
+
+export const ToolUtilizationLabel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+`;
+
+export const ToolUtilizationPrimary = styled.span`
+  font-size: ${({ theme }) => theme.typography.textSm};
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const ToolUtilizationSecondary = styled.span`
+  font-size: ${({ theme }) => theme.typography.textXs};
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+export const ToolUtilizationDivider = styled.div`
+  width: 1px;
+  height: 32px;
+  background: ${({ theme }) => theme.colors.borderMedium};
+  flex-shrink: 0;
+`;
+
+// Tools list - flows horizontally
+export const ToolsList = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing[2]};
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+`;
+
+export const ToolTag = styled.span<{ $isUsed: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.surface2 : theme.colors.surface)};
+  border: 1px ${({ $isUsed }) => ($isUsed ? 'solid' : 'dashed')}
+    ${({ theme, $isUsed }) => ($isUsed ? theme.colors.borderMedium : theme.colors.borderMedium)};
+  font-size: 12px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surface3};
+  }
+`;
+
+export const ToolName = styled.span<{ $isUsed: boolean }>`
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  color: ${({ theme, $isUsed }) => ($isUsed ? theme.colors.white90 : theme.colors.white70)};
+  font-weight: ${({ $isUsed }) => ($isUsed ? 500 : 400)};
+`;
+
+export const ToolCount = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 18px;
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  background: ${({ theme }) => theme.colors.white08};
+  font-size: 10px;
+  color: ${({ theme }) => theme.colors.white70};
+  font-weight: 600;
+  line-height: 1;
+`;
+
+export const ToolUnused = styled.span`
+  font-size: 9px;
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+`;
+

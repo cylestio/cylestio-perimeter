@@ -1,8 +1,10 @@
 import { useState, useCallback, type FC } from 'react';
-import { useParams, Link } from 'react-router-dom';
+
+import { useParams, Link, useNavigate } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
+import type { ClusterNodeData } from '@domain/visualization';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
@@ -131,12 +133,28 @@ const getCategorySeverity = (
 
 export const AgentReport: FC = () => {
   const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
+  const navigate = useNavigate();
   const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
     return fetchAgent(agentId);
   }, [agentId]);
+
+  // Handle cluster visualization node clicks
+  // - Clusters: Navigate to Sessions page with both agent_id and cluster_id filters
+  // - Outliers: Navigate directly to the session detail page
+  const handleClusterNodeClick = useCallback((node: ClusterNodeData) => {
+    if (!agentWorkflowId || !agentId) return;
+
+    if (node.clusterId) {
+      // Navigate to sessions filtered by both agent and cluster
+      navigate(`/agent-workflow/${agentWorkflowId}/sessions?agent_id=${agentId}&cluster_id=${node.clusterId}`);
+    } else if (node.sessionId) {
+      // Navigate directly to the session
+      navigate(`/agent-workflow/${agentWorkflowId}/session/${node.sessionId}`);
+    }
+  }, [agentWorkflowId, agentId, navigate]);
 
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
@@ -623,6 +641,7 @@ export const AgentReport: FC = () => {
                     )}
                     height={200}
                     showLegend={true}
+                    onNodeClick={handleClusterNodeClick}
                   />
                 </>
               ) : (

@@ -1,14 +1,16 @@
-import { useCallback, type FC } from 'react';
+import { useCallback, useState, useEffect, type FC } from 'react';
 
 import { AlertTriangle } from 'lucide-react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
-import type { AgentResponse, AgentSession } from '@api/types/agent';
+import { fetchSessions } from '@api/endpoints/session';
+import type { AgentResponse } from '@api/types/agent';
+import type { SessionListItem } from '@api/types/session';
+import type { ClusterNodeData } from '@domain/visualization';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 import {
-  formatCompactNumber,
   getAgentStatus,
   BEHAVIORAL_TOOLTIPS,
 } from '../../utils/formatting';
@@ -17,12 +19,18 @@ import { Badge, TimeAgo } from '@ui/core';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
 import { EmptyState } from '@ui/feedback/EmptyState';
-import { Table, type Column as TableColumn } from '@ui/data-display/Table';
 import { Tooltip } from '@ui/overlays/Tooltip';
 import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
+import { Pagination } from '@ui/navigation/Pagination';
 
 import { ClusterVisualization } from '@domain/visualization';
+import { SessionsTable } from '@domain/sessions';
+import {
+  TokenUsageInsights,
+  ModelUsageAnalytics,
+  ToolUsageAnalytics,
+} from '@domain/analytics';
 
 import { GatheringData } from '@features/GatheringData';
 
@@ -39,11 +47,6 @@ import {
   AgentMeta,
   CriticalAlertBanner,
   AlertText,
-  StatsBar,
-  StatItem,
-  StatValue,
-  StatLabel,
-  StatDivider,
   SecurityStatusRow,
   SecurityCounts,
   PIINote,
@@ -54,17 +57,16 @@ import {
   CheckValue,
   BehavioralMetrics,
   BehavioralGrid,
-  ScoresColumn,
+  ScoresRow,
+  ScoreItem,
   ChartColumn,
   ChartLabel,
-  MetricRow,
   MetricRowHeader,
   MetricRowLabel,
   MetricRowValue,
   ConfidenceRow,
   WaitingMessage,
   PlaceholderMessage,
-  EmptySessions,
   ActiveSessionsNote,
 } from './AgentDetail.styles';
 
@@ -75,96 +77,75 @@ interface Check {
   categoryName?: string;
 }
 
-// Table columns for sessions
-const getSessionColumns = (agentWorkflowId: string): TableColumn<AgentSession>[] => [
-  {
-    key: 'id',
-    header: 'Session ID',
-    render: (session) => (
-      <Link
-        to={`/agent-workflow/${agentWorkflowId}/session/${session.id}`}
-        style={{
-          color: 'var(--color-cyan)',
-          textDecoration: 'none',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '12px',
-        }}
-      >
-        {session.id.substring(0, 16)}
-        {session.id.length > 16 ? '...' : ''}
-      </Link>
-    ),
-  },
-  {
-    key: 'is_active',
-    header: 'Status',
-    render: (session) =>
-      session.is_active ? (
-        <Badge variant="success">ACTIVE</Badge>
-      ) : (
-        <Badge variant="info">COMPLETE</Badge>
-      ),
-  },
-  {
-    key: 'duration_minutes',
-    header: 'Duration',
-    render: (session) => `${session.duration_minutes.toFixed(1)}m`,
-  },
-  {
-    key: 'message_count',
-    header: 'Messages',
-  },
-  {
-    key: 'total_tokens',
-    header: 'Tokens',
-    render: (session) => formatCompactNumber(session.total_tokens),
-  },
-  {
-    key: 'tool_uses',
-    header: 'Tools',
-  },
-  {
-    key: 'error_rate',
-    header: 'Error Rate',
-    render: (session) =>
-      session.error_rate > 0 ? (
-        <span
-          style={{
-            color:
-              session.error_rate > 20
-                ? 'var(--color-red)'
-                : session.error_rate > 10
-                  ? 'var(--color-orange)'
-                  : 'var(--color-white-50)',
-          }}
-        >
-          {session.error_rate.toFixed(1)}%
-        </span>
-      ) : (
-        <span style={{ color: 'var(--color-green)' }}>0%</span>
-      ),
-  },
-  {
-    key: 'last_activity',
-    header: 'Last Activity',
-    render: (session) => (
-      <TimeAgo timestamp={session.last_activity} />
-    ),
-  },
-];
+const PAGE_SIZE = 10;
 
 export const AgentDetail: FC = () => {
   const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
+  const navigate = useNavigate();
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
     return fetchAgent(agentId);
   }, [agentId]);
 
+  // Handle cluster visualization node clicks
+  // - Clusters: Navigate to Sessions page with both agent_id and cluster_id filters
+  // - Outliers: Navigate directly to the session detail page
+  const handleClusterNodeClick = useCallback((node: ClusterNodeData) => {
+    if (!agentWorkflowId || !agentId) return;
+
+    if (node.clusterId) {
+      // Navigate to sessions filtered by both agent and cluster
+      navigate(`/agent-workflow/${agentWorkflowId}/sessions?agent_id=${agentId}&cluster_id=${node.clusterId}`);
+    } else if (node.sessionId) {
+      // Navigate directly to the session
+      navigate(`/agent-workflow/${agentWorkflowId}/session/${node.sessionId}`);
+    }
+  }, [agentWorkflowId, agentId, navigate]);
+
   const { data, error, loading } = usePolling<AgentResponse>(fetchFn, {
     interval: 2000,
     enabled: !!agentId,
   });
+
+  // Sessions pagination state
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [sessionsTotal, setSessionsTotal] = useState(0);
+  const [sessionsPage, setSessionsPage] = useState(1);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  // Fetch paginated sessions
+  const loadSessions = useCallback(async () => {
+    if (!agentId) return;
+    setSessionsLoading(true);
+    try {
+      const offset = (sessionsPage - 1) * PAGE_SIZE;
+      const result = await fetchSessions({
+        agent_id: agentId,
+        limit: PAGE_SIZE,
+        offset,
+      });
+      setSessions(result.sessions);
+      setSessionsTotal(result.total_count);
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [agentId, sessionsPage]);
+
+  // Load sessions when component mounts or pagination changes
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // Refresh sessions when main data refreshes
+  useEffect(() => {
+    if (data) {
+      loadSessions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.agent?.total_sessions]);
+
+  const totalPages = Math.ceil(sessionsTotal / PAGE_SIZE);
 
   // Set breadcrumbs with agent workflow context
   usePageMeta({
@@ -210,6 +191,11 @@ export const AgentDetail: FC = () => {
 
   const allIssues = [...failedChecks, ...warningChecks];
 
+  // Check if both sections need gathering data
+  const needsBehavioralGathering = !riskAnalysis?.behavioral_analysis;
+  const needsSecurityGathering = !status.hasRiskData;
+  const showFullWidthGathering = needsBehavioralGathering && needsSecurityGathering;
+
   return (
     <Page>
       {/* Agent Header */}
@@ -240,286 +226,316 @@ export const AgentDetail: FC = () => {
         </CriticalAlertBanner>
       )}
 
-      {/* Stats Bar - full width */}
-      <StatsBar>
-        <StatItem>
-          <StatValue>{agent.total_sessions}</StatValue>
-          <StatLabel>sessions</StatLabel>
-        </StatItem>
-        <StatDivider />
-        <StatItem>
-          <StatValue>{formatCompactNumber(agent.total_messages)}</StatValue>
-          <StatLabel>messages</StatLabel>
-        </StatItem>
-        <StatDivider />
-        <StatItem>
-          <StatValue>{formatCompactNumber(agent.total_tokens)}</StatValue>
-          <StatLabel>tokens</StatLabel>
-        </StatItem>
-        <StatDivider />
-        <StatItem>
-          <StatValue>{agent.total_tools}</StatValue>
-          <StatLabel>tools</StatLabel>
-        </StatItem>
-      </StatsBar>
+      {/* Full-width Gathering Data - shown when both sections need it */}
+      {showFullWidthGathering && (
+        <Section>
+          <Section.Header>
+            <Section.Title>Gathering Session Data</Section.Title>
+          </Section.Header>
+          <Section.Content noPadding>
+            <GatheringData
+              currentSessions={agent.total_sessions}
+              minSessionsRequired={status.minSessionsRequired || 5}
+            />
+          </Section.Content>
+        </Section>
+      )}
 
-      {/* Two-column Layout */}
-      <ContentGrid>
-        {/* Left Column: Operational */}
-        <Column>
-          <ColumnHeader>Operational</ColumnHeader>
+      {/* Two-column Layout - only show when not showing full-width gathering */}
+      {!showFullWidthGathering && (
+        <ContentGrid>
+          {/* Left Column: Operational */}
+          <Column>
+            <ColumnHeader>Operational</ColumnHeader>
 
-          {/* Behavioral Analysis Section */}
-          {riskAnalysis?.behavioral_analysis && (
+            {/* Behavioral Analysis Section - Empty State */}
+            {!riskAnalysis?.behavioral_analysis && (
+              <Section>
+                <Section.Header>
+                  <Section.Title>Behavioral Analysis</Section.Title>
+                </Section.Header>
+                <Section.Content noPadding>
+                  <GatheringData
+                    currentSessions={agent.total_sessions}
+                    minSessionsRequired={status.minSessionsRequired || 5}
+                    title="Building Behavioral Profile"
+                    description="Behavioral analysis requires session data to identify patterns. More sessions lead to more accurate insights about agent behavior, clustering, and anomaly detection."
+                  />
+                </Section.Content>
+              </Section>
+            )}
+
+            {/* Behavioral Analysis Section */}
+            {riskAnalysis?.behavioral_analysis && (
+              <Section>
+                <Section.Header>
+                  <Section.Title>Behavioral Analysis</Section.Title>
+                </Section.Header>
+                <Section.Content>
+                  {status.behavioralStatus === 'WAITING_FOR_COMPLETION' ? (
+                    <WaitingMessage>
+                      <OrbLoader size="sm" />
+                      <span>
+                        Waiting for {status.activeSessions} active session
+                        {status.activeSessions !== 1 ? 's' : ''} to complete ({status.completedSessions}{' '}
+                        of {status.totalSessions} completed)
+                      </span>
+                    </WaitingMessage>
+                  ) : (riskAnalysis.behavioral_analysis.num_clusters ?? 0) >= 1 ? (
+                    <BehavioralMetrics>
+                      {/* Active sessions note */}
+                      {(status.activeSessions || 0) > 0 && (
+                        <ActiveSessionsNote>
+                          <OrbLoader size="sm" />
+                          <span>
+                            Based on <strong>{status.completedSessions} analyzed sessions</strong> —{' '}
+                            <span style={{ color: 'var(--color-purple)' }}>
+                              {status.activeSessions} still running
+                            </span>
+                          </span>
+                        </ActiveSessionsNote>
+                      )}
+
+                      {/* Chart on top, scores below */}
+                      <BehavioralGrid>
+                        {/* Cluster Visualization */}
+                        {(riskAnalysis.behavioral_analysis.clusters?.length ?? 0) > 0 && (
+                          <ChartColumn>
+                            <ChartLabel>Cluster Map</ChartLabel>
+                            <ClusterVisualization
+                              nodes={buildVisualizationNodes(
+                                riskAnalysis.behavioral_analysis.clusters,
+                                riskAnalysis.behavioral_analysis.outliers
+                              )}
+                              height={160}
+                              showLegend={true}
+                              onNodeClick={handleClusterNodeClick}
+                            />
+                          </ChartColumn>
+                        )}
+
+                        {/* Scores row: Stability, Predictability, Confidence */}
+                        <ScoresRow>
+                          {/* Stability */}
+                          <ScoreItem>
+                            <MetricRowHeader>
+                              <Tooltip content={BEHAVIORAL_TOOLTIPS.stability}>
+                                <MetricRowLabel>
+                                  <span>Stability</span>
+                                  <span>i</span>
+                                </MetricRowLabel>
+                              </Tooltip>
+                              <MetricRowValue>
+                                {Math.round((riskAnalysis.behavioral_analysis.stability_score ?? 0) * 100)}%
+                              </MetricRowValue>
+                            </MetricRowHeader>
+                            <ProgressBar
+                              value={(riskAnalysis.behavioral_analysis.stability_score ?? 0) * 100}
+                              variant={
+                                (riskAnalysis.behavioral_analysis.stability_score ?? 0) >= 0.8
+                                  ? 'success'
+                                  : (riskAnalysis.behavioral_analysis.stability_score ?? 0) >= 0.5
+                                    ? 'warning'
+                                    : 'danger'
+                              }
+                              size="sm"
+                            />
+                          </ScoreItem>
+
+                          {/* Predictability */}
+                          <ScoreItem>
+                            <MetricRowHeader>
+                              <Tooltip content={BEHAVIORAL_TOOLTIPS.predictability}>
+                                <MetricRowLabel>
+                                  <span>Predictability</span>
+                                  <span>i</span>
+                                </MetricRowLabel>
+                              </Tooltip>
+                              <MetricRowValue>
+                                {Math.round(
+                                  (riskAnalysis.behavioral_analysis.predictability_score ?? 0) * 100
+                                )}
+                                %
+                              </MetricRowValue>
+                            </MetricRowHeader>
+                            <ProgressBar
+                              value={(riskAnalysis.behavioral_analysis.predictability_score ?? 0) * 100}
+                              variant={
+                                (riskAnalysis.behavioral_analysis.predictability_score ?? 0) >= 0.8
+                                  ? 'success'
+                                  : (riskAnalysis.behavioral_analysis.predictability_score ?? 0) >= 0.5
+                                    ? 'warning'
+                                    : 'danger'
+                              }
+                              size="sm"
+                            />
+                          </ScoreItem>
+
+                          {/* Confidence */}
+                          <ScoreItem>
+                            <ConfidenceRow>
+                              <Tooltip content={BEHAVIORAL_TOOLTIPS.confidence}>
+                                <MetricRowLabel>
+                                  <span>Confidence</span>
+                                  <span>i</span>
+                                </MetricRowLabel>
+                              </Tooltip>
+                              <Badge
+                                variant={
+                                  riskAnalysis.behavioral_analysis.confidence === 'high'
+                                    ? 'success'
+                                    : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                      ? 'info'
+                                      : 'medium'
+                                }
+                              >
+                                {riskAnalysis.behavioral_analysis.confidence === 'high'
+                                  ? 'High'
+                                  : riskAnalysis.behavioral_analysis.confidence === 'medium'
+                                    ? 'Medium'
+                                    : 'Low'}
+                              </Badge>
+                            </ConfidenceRow>
+                          </ScoreItem>
+                        </ScoresRow>
+                      </BehavioralGrid>
+                    </BehavioralMetrics>
+                  ) : (
+                    <PlaceholderMessage>
+                      Behavioral scores require cluster formation. Once the agent has more sessions with
+                      similar patterns, detailed stability metrics will be available.
+                    </PlaceholderMessage>
+                  )}
+                </Section.Content>
+              </Section>
+            )}
+          </Column>
+
+          {/* Right Column: Security */}
+          <Column>
+            <ColumnHeader>Security</ColumnHeader>
+
+            {/* Dynamic Security Assessment Section */}
             <Section>
               <Section.Header>
-                <Section.Title>Behavioral Analysis</Section.Title>
+                <Section.Title>Dynamic Security Assessment</Section.Title>
+                {status.hasRiskData && (
+                  <ButtonLink $variant="ghost" to={reportLink}>
+                    Full Report
+                  </ButtonLink>
+                )}
               </Section.Header>
-              <Section.Content>
-                {status.behavioralStatus === 'WAITING_FOR_COMPLETION' ? (
-                  <WaitingMessage>
-                    <OrbLoader size="sm" />
-                    <span>
-                      Waiting for {status.activeSessions} active session
-                      {status.activeSessions !== 1 ? 's' : ''} to complete ({status.completedSessions}{' '}
-                      of {status.totalSessions} completed)
-                    </span>
-                  </WaitingMessage>
-                ) : (riskAnalysis.behavioral_analysis.num_clusters ?? 0) >= 1 ? (
-                  <BehavioralMetrics>
-                    {/* Active sessions note */}
-                    {(status.activeSessions || 0) > 0 && (
-                      <ActiveSessionsNote>
-                        <OrbLoader size="sm" />
-                        <span>
-                          Based on <strong>{status.completedSessions} analyzed sessions</strong> —{' '}
-                          <span style={{ color: 'var(--color-purple)' }}>
-                            {status.activeSessions} still running
+              <Section.Content noPadding={!status.hasRiskData}>
+                {!status.hasRiskData ? (
+                  <GatheringData
+                    currentSessions={agent.total_sessions}
+                    minSessionsRequired={status.minSessionsRequired || 5}
+                  />
+                ) : (
+                  <>
+                    {/* Status summary row */}
+                    <SecurityStatusRow>
+                      <Badge variant={status.hasCriticalIssues ? 'critical' : 'success'}>
+                        {status.hasCriticalIssues ? 'ATTENTION REQUIRED' : 'ALL SYSTEMS OK'}
+                      </Badge>
+                      <SecurityCounts>
+                        {status.criticalCount > 0 && (
+                          <span style={{ color: 'var(--color-red)' }}>
+                            {status.criticalCount} critical
                           </span>
-                        </span>
-                      </ActiveSessionsNote>
+                        )}
+                        {status.warningCount > 0 && (
+                          <span style={{ color: 'var(--color-orange)' }}>
+                            {status.warningCount} warning{status.warningCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        <span style={{ color: 'var(--color-white-50)' }}>{status.totalChecks} total</span>
+                      </SecurityCounts>
+                    </SecurityStatusRow>
+
+                    {/* Inline PII note */}
+                    {riskAnalysis?.summary?.pii_disabled && (
+                      <PIINote>PII detection unavailable for this agent</PIINote>
                     )}
 
-                    {/* Side-by-side layout: Scores + Chart */}
-                    <BehavioralGrid>
-                      {/* Left column: Scores */}
-                      <ScoresColumn>
-                        {/* Stability */}
-                        <MetricRow>
-                          <MetricRowHeader>
-                            <Tooltip content={BEHAVIORAL_TOOLTIPS.stability}>
-                              <MetricRowLabel>
-                                <span>Stability</span>
-                                <span>i</span>
-                              </MetricRowLabel>
-                            </Tooltip>
-                            <MetricRowValue>
-                              {Math.round((riskAnalysis.behavioral_analysis.stability_score ?? 0) * 100)}%
-                            </MetricRowValue>
-                          </MetricRowHeader>
-                          <ProgressBar
-                            value={(riskAnalysis.behavioral_analysis.stability_score ?? 0) * 100}
-                            variant={
-                              (riskAnalysis.behavioral_analysis.stability_score ?? 0) >= 0.8
-                                ? 'success'
-                                : (riskAnalysis.behavioral_analysis.stability_score ?? 0) >= 0.5
-                                  ? 'warning'
-                                  : 'danger'
-                            }
-                            size="sm"
-                          />
-                        </MetricRow>
-
-                        {/* Predictability */}
-                        <MetricRow>
-                          <MetricRowHeader>
-                            <Tooltip content={BEHAVIORAL_TOOLTIPS.predictability}>
-                              <MetricRowLabel>
-                                <span>Predictability</span>
-                                <span>i</span>
-                              </MetricRowLabel>
-                            </Tooltip>
-                            <MetricRowValue>
-                              {Math.round(
-                                (riskAnalysis.behavioral_analysis.predictability_score ?? 0) * 100
+                    {/* Issues list */}
+                    {allIssues.length > 0 && (
+                      <CheckList>
+                        {allIssues.map((check, idx) => (
+                          <CheckItem key={idx} $isLast={idx === allIssues.length - 1}>
+                            <CheckStatus
+                              $color={
+                                check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)'
+                              }
+                            >
+                              {check.status === 'critical' ? 'FAIL' : 'WARN'}
+                            </CheckStatus>
+                            <CheckName
+                              style={{
+                                color:
+                                  check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)',
+                              }}
+                            >
+                              {check.name}
+                              {check.value !== undefined && (
+                                <CheckValue> ({String(check.value)})</CheckValue>
                               )}
-                              %
-                            </MetricRowValue>
-                          </MetricRowHeader>
-                          <ProgressBar
-                            value={(riskAnalysis.behavioral_analysis.predictability_score ?? 0) * 100}
-                            variant={
-                              (riskAnalysis.behavioral_analysis.predictability_score ?? 0) >= 0.8
-                                ? 'success'
-                                : (riskAnalysis.behavioral_analysis.predictability_score ?? 0) >= 0.5
-                                  ? 'warning'
-                                  : 'danger'
-                            }
-                            size="sm"
-                          />
-                        </MetricRow>
-
-                        {/* Confidence */}
-                        <ConfidenceRow>
-                          <Tooltip content={BEHAVIORAL_TOOLTIPS.confidence}>
-                            <MetricRowLabel>
-                              <span>Confidence</span>
-                              <span>i</span>
-                            </MetricRowLabel>
-                          </Tooltip>
-                          <Badge
-                            variant={
-                              riskAnalysis.behavioral_analysis.confidence === 'high'
-                                ? 'success'
-                                : riskAnalysis.behavioral_analysis.confidence === 'medium'
-                                  ? 'info'
-                                  : 'medium'
-                            }
-                          >
-                            {riskAnalysis.behavioral_analysis.confidence === 'high'
-                              ? 'High'
-                              : riskAnalysis.behavioral_analysis.confidence === 'medium'
-                                ? 'Medium'
-                                : 'Low'}
-                          </Badge>
-                        </ConfidenceRow>
-                      </ScoresColumn>
-
-                      {/* Right column: Cluster Visualization */}
-                      {(riskAnalysis.behavioral_analysis.clusters?.length ?? 0) > 0 && (
-                        <ChartColumn>
-                          <ChartLabel>Cluster Map</ChartLabel>
-                          <ClusterVisualization
-                            nodes={buildVisualizationNodes(
-                              riskAnalysis.behavioral_analysis.clusters,
-                              riskAnalysis.behavioral_analysis.outliers
-                            )}
-                            height={160}
-                            showLegend={true}
-                          />
-                        </ChartColumn>
-                      )}
-                    </BehavioralGrid>
-                  </BehavioralMetrics>
-                ) : (
-                  <PlaceholderMessage>
-                    Behavioral scores require cluster formation. Once the agent has more sessions with
-                    similar patterns, detailed stability metrics will be available.
-                  </PlaceholderMessage>
+                            </CheckName>
+                            <Badge variant={check.status === 'critical' ? 'critical' : 'medium'}>
+                              {check.categoryName}
+                            </Badge>
+                          </CheckItem>
+                        ))}
+                      </CheckList>
+                    )}
+                  </>
                 )}
               </Section.Content>
             </Section>
+
+            {/* Future: Analysis Log Section */}
+          </Column>
+        </ContentGrid>
+      )}
+
+      {/* Analytics Sections */}
+      {data.analytics && (
+        <>
+          <TokenUsageInsights
+            analytics={data.analytics}
+            totalSessions={agent.total_sessions}
+            avgDurationMinutes={agent.avg_duration_minutes}
+          />
+          <ModelUsageAnalytics analytics={data.analytics} />
+          <ToolUsageAnalytics
+            analytics={data.analytics}
+            availableTools={agent.available_tools}
+          />
+        </>
+      )}
+
+      {/* Sessions Table - Full Width */}
+      <Section>
+        <Section.Header>
+          <Section.Title>Sessions ({sessionsTotal})</Section.Title>
+        </Section.Header>
+        <Section.Content noPadding>
+          <SessionsTable
+            sessions={sessions}
+            agentWorkflowId={agentWorkflowId || 'unassigned'}
+            loading={sessionsLoading}
+            showAgentColumn={false}
+            emptyMessage="No sessions found for this agent."
+          />
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={sessionsPage}
+              totalPages={totalPages}
+              onPageChange={setSessionsPage}
+            />
           )}
-
-          {/* Sessions Table */}
-          <Section>
-            <Section.Header>
-              <Section.Title>Sessions ({data.sessions?.length || 0})</Section.Title>
-            </Section.Header>
-            <Section.Content noPadding>
-              {data.sessions && data.sessions.length > 0 ? (
-                <Table<AgentSession>
-                  columns={getSessionColumns(agentWorkflowId || 'unassigned')}
-                  data={data.sessions}
-                  keyExtractor={(session) => session.id}
-                  emptyState={<EmptySessions>No sessions found for this agent.</EmptySessions>}
-                />
-              ) : (
-                <EmptySessions>
-                  <p>No sessions found for this agent.</p>
-                </EmptySessions>
-              )}
-            </Section.Content>
-          </Section>
-        </Column>
-
-        {/* Right Column: Security */}
-        <Column>
-          <ColumnHeader>Security</ColumnHeader>
-
-          {/* Dynamic Security Assessment Section */}
-          <Section>
-            <Section.Header>
-              <Section.Title>Dynamic Security Assessment</Section.Title>
-              {status.hasRiskData && (
-                <ButtonLink $variant="ghost" to={reportLink}>
-                  Full Report
-                </ButtonLink>
-              )}
-            </Section.Header>
-            <Section.Content noPadding={status.evaluationStatus === 'INSUFFICIENT_DATA'}>
-              {status.evaluationStatus === 'INSUFFICIENT_DATA' ? (
-                <GatheringData
-                  currentSessions={status.currentSessions || 0}
-                  minSessionsRequired={status.minSessionsRequired || 5}
-                />
-              ) : status.hasRiskData ? (
-                <>
-                  {/* Status summary row */}
-                  <SecurityStatusRow>
-                    <Badge variant={status.hasCriticalIssues ? 'critical' : 'success'}>
-                      {status.hasCriticalIssues ? 'ATTENTION REQUIRED' : 'ALL SYSTEMS OK'}
-                    </Badge>
-                    <SecurityCounts>
-                      {status.criticalCount > 0 && (
-                        <span style={{ color: 'var(--color-red)' }}>
-                          {status.criticalCount} critical
-                        </span>
-                      )}
-                      {status.warningCount > 0 && (
-                        <span style={{ color: 'var(--color-orange)' }}>
-                          {status.warningCount} warning{status.warningCount !== 1 ? 's' : ''}
-                        </span>
-                      )}
-                      <span style={{ color: 'var(--color-white-50)' }}>{status.totalChecks} total</span>
-                    </SecurityCounts>
-                  </SecurityStatusRow>
-
-                  {/* Inline PII note */}
-                  {riskAnalysis?.summary?.pii_disabled && (
-                    <PIINote>PII detection unavailable for this agent</PIINote>
-                  )}
-
-                  {/* Issues list */}
-                  {allIssues.length > 0 && (
-                    <CheckList>
-                      {allIssues.map((check, idx) => (
-                        <CheckItem key={idx} $isLast={idx === allIssues.length - 1}>
-                          <CheckStatus
-                            $color={
-                              check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)'
-                            }
-                          >
-                            {check.status === 'critical' ? 'FAIL' : 'WARN'}
-                          </CheckStatus>
-                          <CheckName
-                            style={{
-                              color:
-                                check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)',
-                            }}
-                          >
-                            {check.name}
-                            {check.value !== undefined && (
-                              <CheckValue> ({String(check.value)})</CheckValue>
-                            )}
-                          </CheckName>
-                          <Badge variant={check.status === 'critical' ? 'critical' : 'medium'}>
-                            {check.categoryName}
-                          </Badge>
-                        </CheckItem>
-                      ))}
-                    </CheckList>
-                  )}
-                </>
-              ) : (
-                <PlaceholderMessage>No security data available yet.</PlaceholderMessage>
-              )}
-            </Section.Content>
-          </Section>
-
-          {/* Future: Analysis Log Section */}
-        </Column>
-      </ContentGrid>
+        </Section.Content>
+      </Section>
     </Page>
   );
 };

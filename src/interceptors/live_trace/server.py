@@ -147,15 +147,17 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         agent_workflow_id: Optional[str] = None,
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
+        cluster_id: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ):
-        """Get sessions with filtering by agent_workflow_id, agent_id, and/or status.
+        """Get sessions with filtering by agent_workflow_id, agent_id, status, and/or cluster_id.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
+            cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
             limit: Maximum number of sessions to return (default 10).
             offset: Number of sessions to skip for pagination (default 0).
 
@@ -168,11 +170,13 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
+                cluster_id=cluster_id,
             )
             sessions = insights.store.get_sessions_filtered(
                 agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
+                cluster_id=cluster_id,
                 limit=limit,
                 offset=offset,
             )
@@ -183,6 +187,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "agent_workflow_id": agent_workflow_id,
                     "agent_id": agent_id,
                     "status": status,
+                    "cluster_id": cluster_id,
                     "limit": limit,
                     "offset": offset,
                 },

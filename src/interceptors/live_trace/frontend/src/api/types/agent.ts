@@ -102,10 +102,66 @@ export interface ToolUsageItem {
   avg_duration_ms: number;
 }
 
+// Timeline data point for time-series charts
+export interface TimelineDataPoint {
+  date: string;
+  requests: number;
+  tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+// Tool timeline data point
+export interface ToolTimelinePoint {
+  date: string;
+  tools: Record<string, { executions: number; avg_duration_ms: number }>;
+}
+
+// Token summary from backend analytics
+export interface TokenSummary {
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_cost: number;
+  models_used: number;
+  pricing_last_updated: string | null;
+}
+
+// Model analytics data
+export interface ModelAnalytics {
+  model: string;
+  requests: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  avg_response_time_ms: number;
+  p95_response_time_ms: number;
+  errors: number;
+  cost: number;
+}
+
+// Tool analytics data
+export interface ToolAnalytics {
+  tool: string;
+  executions: number;
+  avg_duration_ms: number;
+  max_duration_ms: number;
+  failures: number;
+  successes: number;
+  failure_rate: number;
+}
+
+// Full analytics response from backend
 export interface AgentAnalytics {
-  token_usage: TokenUsage;
-  model_usage: ModelUsage[];
-  tool_usage: ToolUsageItem[];
+  token_summary: TokenSummary;
+  models: ModelAnalytics[];
+  tools: ToolAnalytics[];
+  timeline: TimelineDataPoint[];
+  tool_timeline: ToolTimelinePoint[];
+  // Legacy fields for backward compatibility
+  token_usage?: TokenUsage;
+  model_usage?: ModelUsage[];
+  tool_usage?: ToolUsageItem[];
 }
 
 export interface AgentSession {
@@ -126,9 +182,15 @@ export interface AgentDetail {
   total_messages: number;
   total_tokens: number;
   total_tools: number;
+  total_errors: number;
   unique_tools: number;
   available_tools: string[];
+  used_tools: string[];
   tool_usage_details: Record<string, number>;
+  tools_utilization_percent: number;
+  avg_response_time_ms: number;
+  avg_messages_per_session: number;
+  avg_duration_minutes: number;
   first_seen: string;
   last_seen: string;
   pii_disabled?: boolean;
@@ -138,5 +200,4 @@ export interface AgentResponse {
   agent: AgentDetail;
   risk_analysis: RiskAnalysis;
   analytics: AgentAnalytics;
-  sessions: AgentSession[];
 }

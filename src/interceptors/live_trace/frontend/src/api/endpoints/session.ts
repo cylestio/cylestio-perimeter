@@ -16,6 +16,7 @@ export interface FetchSessionsParams {
   agent_workflow_id?: string;
   agent_id?: string;
   status?: LiveSessionStatus;
+  cluster_id?: string;
   limit?: number;
   offset?: number;
 }
@@ -31,6 +32,9 @@ export const fetchSessions = async (params?: FetchSessionsParams): Promise<Sessi
   }
   if (params?.status) {
     searchParams.set('status', params.status);
+  }
+  if (params?.cluster_id) {
+    searchParams.set('cluster_id', params.cluster_id);
   }
   if (params?.limit) {
     searchParams.set('limit', params.limit.toString());

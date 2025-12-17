@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, type FC } from 'react';
 
-import { useParams } from 'react-router-dom';
+import { Layers } from 'lucide-react';
+import { useParams, useSearchParams } from 'react-router-dom';
 
+import { fetchAgent } from '@api/endpoints/agent';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
+import type { BehavioralCluster } from '@api/types/agent';
 import type { APIAgent } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
@@ -13,17 +16,27 @@ import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
 import { Pagination } from '@ui/navigation/Pagination';
+import { ToggleGroup } from '@ui/navigation/ToggleGroup';
+import type { ToggleOption } from '@ui/navigation/ToggleGroup';
 
 import { SessionsTable, SystemPromptFilter } from '@domain/sessions';
 import type { SystemPromptOption } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
-import { LoadingContainer } from './Sessions.styles';
+import {
+  LoadingContainer,
+  FilterSection,
+  ClusterFilterBar,
+  ClusterFilterLabel,
+  ClusterDivider,
+  ClusterToggleWrapper,
+} from './Sessions.styles';
 
 const PAGE_SIZE = 10;
 
 export const Sessions: FC = () => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Sessions data
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -34,9 +47,30 @@ export const Sessions: FC = () => {
   // Agents for filtering
   const [agents, setAgents] = useState<APIAgent[]>([]);
 
-  // Filter and pagination state
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  // Behavioral clusters for selected agent
+  const [clusters, setClusters] = useState<BehavioralCluster[]>([]);
+  const [clustersLoading, setClustersLoading] = useState(false);
+
+  // Pagination state (filters are in URL)
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Read filters from URL query params
+  const selectedAgent = searchParams.get('agent_id');
+  const clusterId = searchParams.get('cluster_id');
+
+  // Update URL params helper
+  const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    });
+    setSearchParams(newParams);
+  }, [searchParams, setSearchParams]);
+
 
   // Set page metadata
   usePageMeta({
@@ -67,6 +101,7 @@ export const Sessions: FC = () => {
       const data = await fetchSessions({
         agent_workflow_id: agentWorkflowId,
         agent_id: selectedAgent || undefined,
+        cluster_id: clusterId || undefined,
         limit: PAGE_SIZE,
         offset,
       });
@@ -78,7 +113,7 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [agentWorkflowId, selectedAgent, currentPage]);
+  }, [agentWorkflowId, selectedAgent, clusterId, currentPage]);
 
   // Initial load of agents
   useEffect(() => {
@@ -96,9 +131,41 @@ export const Sessions: FC = () => {
     return () => clearInterval(interval);
   }, [loadSessions]);
 
-  // Reset to page 1 when filter changes
+  // Fetch behavioral clusters when agent is selected
+  const loadClusters = useCallback(async () => {
+    if (!selectedAgent) {
+      setClusters([]);
+      return;
+    }
+
+    try {
+      setClustersLoading(true);
+      const data = await fetchAgent(selectedAgent);
+      const behavioralClusters = data.risk_analysis?.behavioral_analysis?.clusters || [];
+      setClusters(behavioralClusters);
+    } catch (err) {
+      console.error('Failed to fetch behavioral clusters:', err);
+      setClusters([]);
+    } finally {
+      setClustersLoading(false);
+    }
+  }, [selectedAgent]);
+
+  // Load clusters when agent changes
+  useEffect(() => {
+    loadClusters();
+  }, [loadClusters]);
+
+  // Handle agent selection - update URL params
   const handleAgentSelect = (id: string | null) => {
-    setSelectedAgent(id);
+    // Clear cluster when changing agent since clusters are agent-specific
+    updateSearchParams({ agent_id: id, cluster_id: null });
+    setCurrentPage(1);
+  };
+
+  // Handle cluster selection - update URL params
+  const handleClusterSelect = (clusterId: string | null) => {
+    updateSearchParams({ cluster_id: clusterId });
     setCurrentPage(1);
   };
 
@@ -111,18 +178,60 @@ export const Sessions: FC = () => {
     }));
   }, [agents]);
 
+  // Build cluster toggle options
+  const clusterOptions: ToggleOption[] = useMemo(() => {
+    if (clusters.length === 0) return [];
+
+    const options: ToggleOption[] = [
+      {
+        id: 'ALL',
+        label: 'All clusters',
+        active: clusterId === null,
+      },
+    ];
+
+    clusters.forEach((cluster) => {
+      options.push({
+        id: cluster.cluster_id,
+        label: `${cluster.cluster_id.replace('_', ' ')} (${cluster.size})`,
+        active: clusterId === cluster.cluster_id,
+      });
+    });
+
+    return options;
+  }, [clusters, clusterId]);
+
+  // Handle cluster toggle change
+  const handleClusterToggle = (optionId: string) => {
+    if (optionId === 'ALL') {
+      handleClusterSelect(null);
+    } else {
+      handleClusterSelect(optionId);
+    }
+  };
+
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // Build description text
   const descriptionText = useMemo(() => {
+    const parts: string[] = [];
+    parts.push(`${totalCount} session${totalCount !== 1 ? 's' : ''}`);
+
+    if (clusterId) {
+      parts.push(`in ${clusterId.replace('_', ' ')}`);
+    }
+
     if (selectedAgent) {
       const selected = agents.find((a) => a.id === selectedAgent);
       const name = selected?.id_short || selectedAgent.substring(0, 12);
-      return `${totalCount} session${totalCount !== 1 ? 's' : ''} from agent ${name}`;
+      parts.push(`from agent ${name}`);
+    } else if (!clusterId) {
+      parts.push('from all agents in this agent workflow');
     }
-    return `${totalCount} session${totalCount !== 1 ? 's' : ''} from all agents in this agent workflow`;
-  }, [totalCount, selectedAgent, agents]);
+
+    return parts.join(' ');
+  }, [totalCount, selectedAgent, agents, clusterId]);
 
   if (loading) {
     return (
@@ -153,11 +262,32 @@ export const Sessions: FC = () => {
         description={descriptionText}
       />
 
-      <SystemPromptFilter
-        systemPrompts={agentOptions}
-        selectedId={selectedAgent}
-        onSelect={handleAgentSelect}
-      />
+      <FilterSection>
+        {/* Agent filter */}
+        <SystemPromptFilter
+          systemPrompts={agentOptions}
+          selectedId={selectedAgent}
+          onSelect={handleAgentSelect}
+        />
+
+        {/* Cluster filter - only show when agent is selected and has clusters */}
+        {selectedAgent && clusterOptions.length > 0 && (
+          <ClusterFilterBar>
+            <ClusterFilterLabel>
+              <Layers />
+              Behavior Cluster
+            </ClusterFilterLabel>
+            <ClusterDivider />
+            <ClusterToggleWrapper>
+              {clustersLoading ? (
+                <OrbLoader size="sm" />
+              ) : (
+                <ToggleGroup options={clusterOptions} onChange={handleClusterToggle} />
+              )}
+            </ClusterToggleWrapper>
+          </ClusterFilterBar>
+        )}
+      </FilterSection>
 
       <Card>
         <Card.Content noPadding>
