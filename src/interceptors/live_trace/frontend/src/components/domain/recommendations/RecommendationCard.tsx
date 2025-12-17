@@ -1,5 +1,5 @@
 import { type FC, useState, useRef, useEffect } from 'react';
-import { ExternalLink, ChevronDown, Copy, Check, Terminal, MoreHorizontal } from 'lucide-react';
+import { ExternalLink, Check, Terminal, MoreHorizontal } from 'lucide-react';
 
 import type { Recommendation } from '@api/types/findings';
 

@@ -121,8 +121,9 @@ const mockFindings = [
 
 // Mock static summary data (7 security check categories)
 const createMockStaticSummary = (sessions: unknown[], findings: unknown[]) => {
-  const openCount = (findings as { status: string }[]).filter(f => f.status === 'OPEN').length;
-  const fixedCount = (findings as { status: string }[]).filter(f => f.status === 'FIXED').length;
+  type FindingWithStatus = { status: string; severity: string };
+  const typedFindings = findings as FindingWithStatus[];
+  const openCount = typedFindings.filter(f => f.status === 'OPEN').length;
   const hasCompletedSession = (sessions as { status: string }[]).some(s => s.status === 'COMPLETED');
   const hasRunningSession = (sessions as { status: string }[]).some(s => s.status === 'IN_PROGRESS');
 
@@ -146,10 +147,10 @@ const createMockStaticSummary = (sessions: unknown[], findings: unknown[]) => {
       gate_status: openCount > 0 ? 'BLOCKED' : 'OPEN',
     },
     severity_counts: {
-      CRITICAL: (findings as { severity: string }[]).filter(f => f.severity === 'CRITICAL' && (f as { status: string }).status === 'OPEN').length,
-      HIGH: (findings as { severity: string }[]).filter(f => f.severity === 'HIGH' && (f as { status: string }).status === 'OPEN').length,
-      MEDIUM: (findings as { severity: string }[]).filter(f => f.severity === 'MEDIUM' && (f as { status: string }).status === 'OPEN').length,
-      LOW: (findings as { severity: string }[]).filter(f => f.severity === 'LOW' && (f as { status: string }).status === 'OPEN').length,
+      CRITICAL: typedFindings.filter(f => f.severity === 'CRITICAL' && f.status === 'OPEN').length,
+      HIGH: typedFindings.filter(f => f.severity === 'HIGH' && f.status === 'OPEN').length,
+      MEDIUM: typedFindings.filter(f => f.severity === 'MEDIUM' && f.status === 'OPEN').length,
+      LOW: typedFindings.filter(f => f.severity === 'LOW' && f.status === 'OPEN').length,
     },
     checks: hasCompletedSession ? [
       { category_id: 'PROMPT', name: 'Prompt Security', status: openCount > 0 ? 'FAIL' : 'PASS', findings_count: openCount, open_count: openCount, description: 'Prompt injection checks', findings: [], owasp_llm: ['LLM01'], max_severity: openCount > 0 ? 'CRITICAL' : null },
@@ -169,7 +170,6 @@ const createMockFetch = (
   findings: unknown[],
 ) => {
   const staticSummary = createMockStaticSummary(sessions, findings);
-  const hasRunningSession = (sessions as { status: string }[]).some(s => s.status === 'IN_PROGRESS');
 
   return (url: string) => {
     // Handle static-summary endpoint

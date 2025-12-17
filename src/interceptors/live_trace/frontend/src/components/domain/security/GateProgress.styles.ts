@@ -1,5 +1,5 @@
 import styled, { css, keyframes } from 'styled-components';
-import type { CheckStatus, GateStatus } from '@api/types/findings';
+import type { CheckStatus } from '@api/types/findings';
 
 export const ProgressContainer = styled.div`
   display: flex;

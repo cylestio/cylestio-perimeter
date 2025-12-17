@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Lightbulb } from 'lucide-react';
 
 import {
   HintCard,
@@ -11,6 +11,7 @@ import {
   CommandCode,
   CopyButton,
   IdeBadge,
+  OrText,
 } from './CorrelateHintCard.styles';
 
 export interface CorrelateHintCardProps {
@@ -52,7 +53,7 @@ export const CorrelateHintCard: FC<CorrelateHintCardProps> = ({
 
   return (
     <HintCard className={className}>
-      <HintIconWrapper>💡</HintIconWrapper>
+      <HintIconWrapper><Lightbulb size={18} /></HintIconWrapper>
       <HintContent>
         <HintTitle>Correlate Your Findings</HintTitle>
         <HintDescription>
@@ -64,8 +65,8 @@ export const CorrelateHintCard: FC<CorrelateHintCardProps> = ({
           <IdeBadge>In {ideName}</IdeBadge>
           <span>Type:</span>
           <CommandCode>{command}</CommandCode>
-          <span style={{ color: 'var(--color-white50)' }}>or</span>
-          <CommandCode style={{ flex: 1 }}>{fullCommand}</CommandCode>
+          <OrText>or</OrText>
+          <CommandCode>{fullCommand}</CommandCode>
         </HintCommand>
       </HintContent>
       <CopyButton onClick={handleCopy} title="Copy command">

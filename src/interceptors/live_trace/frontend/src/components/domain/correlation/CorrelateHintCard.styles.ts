@@ -101,3 +101,7 @@ export const IdeBadge = styled.span`
   color: ${({ theme }) => theme.colors.purple};
   font-weight: 500;
 `;
+
+export const OrText = styled.span`
+  color: ${({ theme }) => theme.colors.white50};
+`;

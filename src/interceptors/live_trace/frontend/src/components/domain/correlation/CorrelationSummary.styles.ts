@@ -115,7 +115,11 @@ export const Hint = styled.div`
 `;
 
 export const HintIcon = styled.span`
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.yellow};
+  flex-shrink: 0;
 `;
 
 export const HintText = styled.span`

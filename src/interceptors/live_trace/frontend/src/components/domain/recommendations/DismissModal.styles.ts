@@ -179,7 +179,7 @@ export const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'dang
         return `
           background: ${theme.colors.cyan};
           border: none;
-          color: ${theme.colors.background};
+          color: ${theme.colors.void};
           
           &:hover:not(:disabled) {
             opacity: 0.9;

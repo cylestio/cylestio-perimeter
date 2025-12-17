@@ -11,7 +11,6 @@ import {
   ActionDescription,
   CopyButton,
   ViewRecommendationLink,
-  IdeIndicator,
 } from './FixActionCard.styles';
 
 export type ConnectedIde = 'cursor' | 'claude-code' | null;
@@ -38,7 +37,6 @@ export interface FixActionCardProps {
  */
 export const FixActionCard: FC<FixActionCardProps> = ({
   recommendationId,
-  findingId,
   connectedIde,
   description,
   recommendationUrl,
@@ -49,7 +47,6 @@ export const FixActionCard: FC<FixActionCardProps> = ({
 
   // Generate the fix command
   const fixCommand = `/fix ${recommendationId}`;
-  const alternativeCommand = `Fix security issue ${recommendationId}`;
 
   const handleCopy = useCallback(async () => {
     try {

@@ -305,6 +305,12 @@ const CodeHeader = styled.div`
   border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
 `;
 
+const CodeHeaderIcon = styled.span`
+  display: flex;
+  align-items: center;
+  color: ${({ theme }) => theme.colors.white30};
+`;
+
 const CodeFile = styled.span`
   font-family: ${({ theme }) => theme.typography.fontMono};
   font-size: ${({ theme }) => theme.typography.textXs};
@@ -556,7 +562,7 @@ export const IssueCard: FC<IssueCardProps> = ({
             {recommendation.code_snippet && (
               <CodeBlock>
                 <CodeHeader>
-                  <Code2 size={12} style={{ color: 'var(--color-white-30)' }} />
+                  <CodeHeaderIcon><Code2 size={12} /></CodeHeaderIcon>
                   <CodeFile>
                     {recommendation.file_path || 'snippet'}
                     {recommendation.line_start && ` (line ${recommendation.line_start})`}

@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fn, userEvent } from 'storybook/test';
+
 import { RecommendationCard } from './RecommendationCard';
 import type { Recommendation } from '@api/types/findings';
 
@@ -52,6 +54,20 @@ export const Critical: Story = {
   args: {
     recommendation: baseRecommendation,
     showFixAction: true,
+    onCopyCommand: fn(),
+    onDismiss: fn(),
+    onViewFinding: fn(),
+  },
+  play: async ({ canvas }) => {
+    // Verify critical severity is displayed
+    await expect(canvas.getByText(/Direct Prompt Injection/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/CVSS 9.1/i)).toBeInTheDocument();
+
+    // Test Fix button is present and clickable
+    const fixButton = canvas.getByRole('button', { name: /\/fix/i });
+    await expect(fixButton).toBeInTheDocument();
+    await userEvent.click(fixButton);
+    // Note: onCopyCommand may not be called if clipboard API is unavailable in test env
   },
 };
 
@@ -71,6 +87,10 @@ export const High: Story = {
     },
     showFixAction: true,
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Dangerous Tool/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/CVSS 7.5/i)).toBeInTheDocument();
+  },
 };
 
 export const Medium: Story = {
@@ -88,6 +108,10 @@ export const Medium: Story = {
       line_start: 78,
     },
     showFixAction: true,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/PII Logged/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/CVSS 5.3/i)).toBeInTheDocument();
   },
 };
 
@@ -107,6 +131,10 @@ export const Low: Story = {
     },
     showFixAction: true,
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Unpinned Model/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/CVSS 2/i)).toBeInTheDocument();
+  },
 };
 
 export const DynamicSource: Story = {
@@ -124,6 +152,10 @@ export const DynamicSource: Story = {
     },
     showFixAction: true,
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByRole('heading', { name: /Token Budget Exceeded/i })).toBeInTheDocument();
+    await expect(canvas.getByText(/Dynamic/i)).toBeInTheDocument();
+  },
 };
 
 export const FixingStatus: Story = {
@@ -134,6 +166,21 @@ export const FixingStatus: Story = {
       fixed_by: 'claude-opus-4.5',
     },
     showFixAction: true,
+    onMarkFixed: fn(),
+    onDismiss: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    await expect(canvas.getByText(/Direct Prompt Injection/i)).toBeInTheDocument();
+
+    // Open dropdown menu
+    const moreButton = canvas.getByRole('button', { name: '' });
+    await userEvent.click(moreButton);
+
+    // Click Mark as Fixed option
+    const markFixedOption = canvas.getByText(/Mark as Fixed/i);
+    await expect(markFixedOption).toBeInTheDocument();
+    await userEvent.click(markFixedOption);
+    await expect(args.onMarkFixed).toHaveBeenCalled();
   },
 };
 
@@ -149,6 +196,10 @@ export const FixedStatus: Story = {
     },
     showFixAction: false,
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Direct Prompt Injection/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/FIXED/i)).toBeInTheDocument();
+  },
 };
 
 export const VerifiedStatus: Story = {
@@ -162,6 +213,10 @@ export const VerifiedStatus: Story = {
     },
     showFixAction: false,
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Direct Prompt Injection/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/VERIFIED/i)).toBeInTheDocument();
+  },
 };
 
 export const DismissedStatus: Story = {
@@ -173,6 +228,10 @@ export const DismissedStatus: Story = {
       severity: 'MEDIUM',
     },
     showFixAction: false,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Direct Prompt Injection/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/DISMISSED/i)).toBeInTheDocument();
   },
 };
 
@@ -186,5 +245,28 @@ export const WithAllFrameworks: Story = {
       cvss_score: 9.1,
     },
     showFixAction: true,
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText(/Direct Prompt Injection/i)).toBeInTheDocument();
+    await expect(canvas.getByText(/LLM01/i)).toBeInTheDocument();
+  },
+};
+
+export const WithDismissInteraction: Story = {
+  args: {
+    recommendation: baseRecommendation,
+    showFixAction: true,
+    onDismiss: fn(),
+  },
+  play: async ({ canvas, args }) => {
+    // Open dropdown menu
+    const moreButton = canvas.getByRole('button', { name: '' });
+    await userEvent.click(moreButton);
+
+    // Click Dismiss - Risk Accepted option
+    const dismissOption = canvas.getByText(/Dismiss - Risk Accepted/i);
+    await expect(dismissOption).toBeInTheDocument();
+    await userEvent.click(dismissOption);
+    await expect(args.onDismiss).toHaveBeenCalledWith('DISMISSED');
   },
 };

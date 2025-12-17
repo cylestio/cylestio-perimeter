@@ -41,7 +41,7 @@ export const FrameworkBadges: FC<FrameworkBadgesProps> = ({
   cwe,
   soc2Controls,
   cvssScore,
-  compact = false,
+  compact: _compact = false,
   className,
 }) => {
   // Normalize arrays

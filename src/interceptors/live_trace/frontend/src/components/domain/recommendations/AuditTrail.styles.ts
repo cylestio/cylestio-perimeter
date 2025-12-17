@@ -40,8 +40,8 @@ export const TimelineIcon = styled.div<{ $action: ActionType }>`
     switch ($action) {
       case 'CREATED':
         return css`
-          background: ${theme.colors.blueSoft};
-          color: ${theme.colors.blue};
+          background: ${theme.colors.cyanSoft};
+          color: ${theme.colors.cyan};
         `;
       case 'STARTED':
         return css`

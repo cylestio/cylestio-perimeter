@@ -84,7 +84,7 @@ export const CvssScore = styled.span`
 
 export const DescriptionText = styled.p`
   font-size: 13px;
-  color: ${({ theme }) => theme.colors.white60};
+  color: ${({ theme }) => theme.colors.white50};
   margin: 0;
   line-height: 1.4;
   display: -webkit-box;
@@ -239,10 +239,10 @@ export const SourceBadge = styled.span<{ $type: 'STATIC' | 'DYNAMIC' }>`
   font-weight: 500;
   padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
   border-radius: ${({ theme }) => theme.radii.sm};
-  background: ${({ $type, theme }) => 
-    $type === 'STATIC' ? theme.colors.purpleSoft : theme.colors.blueSoft};
-  color: ${({ $type, theme }) => 
-    $type === 'STATIC' ? theme.colors.purple : theme.colors.blue};
+  background: ${({ $type, theme }) =>
+    $type === 'STATIC' ? theme.colors.purpleSoft : theme.colors.cyanSoft};
+  color: ${({ $type, theme }) =>
+    $type === 'STATIC' ? theme.colors.purple : theme.colors.cyan};
 `;
 
 export const CardTitle = styled.div`

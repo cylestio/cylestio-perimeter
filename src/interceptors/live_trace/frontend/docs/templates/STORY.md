@@ -141,7 +141,7 @@ export const NoRouter: Story = {
 
 ## Required: play() Function
 
-**Every story MUST have a `play()` function** for testing:
+**Every story MUST have a `play()` function for testing interactions, conditional rendering, states, ...**:
 
 ```typescript
 export const Default: Story = {

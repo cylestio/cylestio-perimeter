@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { Link2 } from 'lucide-react';
+import { Link2, Lightbulb, AlertTriangle } from 'lucide-react';
 
 import {
   SummaryCard,
@@ -77,7 +77,7 @@ export const CorrelationSummary: FC<CorrelationSummaryProps> = ({
 
       {uncorrelated > 0 && (
         <Hint>
-          <HintIcon>💡</HintIcon>
+          <HintIcon><Lightbulb size={16} /></HintIcon>
           <HintText>
             {uncorrelated} finding{uncorrelated !== 1 ? 's' : ''} not yet correlated.{' '}
             <CorrelateCommand>/correlate</CorrelateCommand>
@@ -87,8 +87,9 @@ export const CorrelationSummary: FC<CorrelationSummaryProps> = ({
 
       {validated > 0 && (
         <Insight>
-          ⚠️ {validated} finding{validated !== 1 ? 's are' : ' is'} validated by runtime - 
-          {validated === 1 ? ' this is an' : ' these are'} active risk{validated !== 1 ? 's' : ''}. 
+          <AlertTriangle size={16} />
+          {validated} finding{validated !== 1 ? 's are' : ' is'} validated by runtime -
+          {validated === 1 ? ' this is an' : ' these are'} active risk{validated !== 1 ? 's' : ''}.
           Prioritize fixing {validated === 1 ? 'this' : 'these'} first.
         </Insight>
       )}
