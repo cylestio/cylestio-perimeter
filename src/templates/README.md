@@ -40,13 +40,14 @@ Then restart Cursor and approve the MCP server when prompted.
 
 ### 3. Verify
 
-- **Claude Code:** Run `/mcp` - should show 13 tools
+- **Claude Code:** Run `/mcp` - should show 17+ tools
 - **Cursor:** Ask "What MCP tools are available?"
 
 ---
 
-## Available MCP Tools (13)
+## Available MCP Tools (17+)
 
+### Analysis Tools
 | Tool | Purpose |
 |------|---------|
 | `get_security_patterns` | OWASP LLM Top 10 patterns |
@@ -55,22 +56,81 @@ Then restart Cursor and approve the MCP server when prompted.
 | `complete_analysis_session` | Finalize with risk score |
 | `get_findings` | Retrieve findings |
 | `update_finding_status` | Mark FIXED/IGNORED |
-| `get_owasp_control` | OWASP control details |
+
+### Knowledge Tools
+| Tool | Purpose |
+|------|---------|
+| `get_owasp_control` | OWASP control details (LLM01-LLM10) |
 | `get_fix_template` | Remediation templates |
+
+### Recommendation Tools
+| Tool | Purpose |
+|------|---------|
+| `get_recommendations` | List recommendations for workflow |
+| `get_recommendation_detail` | Get full details for a recommendation |
+| `start_fix` | Mark recommendation as FIXING |
+| `complete_fix` | Mark recommendation as FIXED |
+| `dismiss_recommendation` | Dismiss with documented reason |
+
+### Agent Workflow Lifecycle Tools
+| Tool | Purpose |
+|------|---------|
 | `get_agent_workflow_state` | Check static/dynamic data exists |
 | `get_tool_usage_summary` | Runtime tool usage patterns |
 | `get_agent_workflow_correlation` | Correlate static ↔ dynamic |
+| `get_gate_status` | Check if production is blocked |
+
+### Agent Discovery Tools
+| Tool | Purpose |
+|------|---------|
 | `get_agents` | List agents |
 | `update_agent_info` | Link/name agents |
+
+### IDE Connection Tools
+| Tool | Purpose |
+|------|---------|
+| `register_ide_connection` | Register IDE as connected |
+| `ide_heartbeat` | Keep connection alive |
+| `disconnect_ide` | Disconnect IDE |
+| `get_ide_connection_status` | Check connection status |
 
 ---
 
 ## Usage
 
+### Commands
+
+| Command | What It Does |
+|---------|--------------|
+| `/scan` | Run security scan on current workspace |
+| `/scan path/` | Scan specific folder |
+| `/fix REC-XXX` | Fix a specific recommendation |
+| `/fix` | Fix highest priority blocking issue |
+
 ### Run a Security Scan
 
 Ask your AI assistant:
 > "Run a security scan on this codebase"
+
+The scan evaluates your agent against **7 security categories**:
+1. **PROMPT** - Injection, jailbreak (LLM01)
+2. **OUTPUT** - Insecure output handling (LLM02)
+3. **TOOL** - Dangerous tools (LLM07/08)
+4. **DATA** - Secrets, PII exposure (LLM06)
+5. **MEMORY** - RAG/context security
+6. **SUPPLY** - Dependencies (LLM05)
+7. **BEHAVIOR** - Excessive agency (LLM08/09)
+
+### Fix Security Issues
+
+Each finding gets a recommendation (REC-XXX). Fix them with:
+> "/fix REC-001"
+
+The AI will:
+1. Read and understand the vulnerability
+2. Analyze your codebase patterns
+3. Apply a contextual, intelligent fix
+4. Track the fix in the audit trail
 
 ### Test Your Agent (Dynamic Analysis)
 
@@ -87,7 +147,12 @@ client = Anthropic(base_url="http://localhost:4000/agent-workflow/my-project")
 
 ### View Results
 
-Open the dashboard: `http://localhost:7100/agent-workflow/{agent_workflow_id}`
+| URL | What It Shows |
+|-----|---------------|
+| `http://localhost:7100` | Dashboard home |
+| `http://localhost:7100/agent-workflow/{id}/static-analysis` | Static scan findings |
+| `http://localhost:7100/agent-workflow/{id}/recommendations` | All recommendations |
+| `http://localhost:7100/agent-workflow/{id}/sessions` | Dynamic sessions |
 
 ---
 
@@ -100,8 +165,14 @@ mkdir -p .cursor/rules
 cp templates/cursor-rules/agent-inspector.mdc .cursor/rules/
 ```
 
-### Claude Code Skills
+### Claude Code
 
+**Quick setup (recommended):**
+```bash
+cp templates/claude-code/CLAUDE.md ./CLAUDE.md
+```
+
+**Detailed skills (optional):**
 ```bash
 mkdir -p .claude/skills
 cp templates/skills/static-analysis/SKILL.md .claude/skills/
@@ -117,14 +188,24 @@ cp templates/skills/auto-fix/SKILL.md .claude/skills/
 templates/
 ├── README.md                    # This file (human guide)
 ├── AGENT_INSPECTOR_SETUP.md     # AI agent setup instructions
-├── skills/                      # Claude Code skills
-│   ├── static-analysis/SKILL.md
-│   ├── dynamic-analysis/SKILL.md
-│   └── auto-fix/SKILL.md
-└── cursor-rules/                # Cursor rules
-    ├── .cursorrules
-    └── agent-inspector.mdc
+├── skills/                      # Claude Code skills (detailed)
+│   ├── static-analysis/SKILL.md  # Complete /scan workflow
+│   ├── dynamic-analysis/SKILL.md # Runtime tracing setup
+│   └── auto-fix/SKILL.md         # Complete /fix workflow
+├── cursor-rules/                # Cursor rules
+│   ├── .cursorrules
+│   └── agent-inspector.mdc       # Main Cursor rule file
+└── claude-code/                 # Claude Code templates
+    └── CLAUDE.md                 # Project-level skills file
 ```
+
+### Which File Goes Where?
+
+| IDE | File | Destination |
+|-----|------|-------------|
+| Cursor | `agent-inspector.mdc` | `.cursor/rules/agent-inspector.mdc` |
+| Claude Code | `CLAUDE.md` | `./CLAUDE.md` (project root) |
+| Claude Code | `skills/*.md` | `.claude/skills/` (optional, for detailed guidance) |
 
 ---
 

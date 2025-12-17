@@ -21,6 +21,181 @@ UNIVERSAL_BOUNDS = {
     'max_tool_calls_per_session': 50
 }
 
+# Framework mappings for all 16 security checks
+# Maps check_id → (owasp_llm, owasp_llm_name, soc2_controls, cwe, mitre, cvss_critical, cvss_warning)
+FRAMEWORK_MAPPINGS = {
+    # Resource Management checks
+    "RESOURCE_001_TOKEN_BOUNDS": {
+        "owasp_llm": "LLM08",
+        "owasp_llm_name": "Excessive Agency",
+        "soc2_controls": ["CC6.1", "CC6.8"],
+        "cwe": "CWE-770",
+        "mitre": "T1499",
+        "cvss_critical": 7.5,
+        "cvss_warning": 4.5,
+    },
+    "RESOURCE_002_TOOL_CALL_BOUNDS": {
+        "owasp_llm": "LLM08",
+        "owasp_llm_name": "Excessive Agency",
+        "soc2_controls": ["CC6.1", "CC6.8"],
+        "cwe": "CWE-770",
+        "mitre": "T1499",
+        "cvss_critical": 7.5,
+        "cvss_warning": 4.5,
+    },
+    "RESOURCE_004_TOKEN_VARIANCE": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["A1.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 3.0,
+    },
+    "RESOURCE_005_TOOL_VARIANCE": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["A1.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 3.0,
+    },
+    "RESOURCE_006_DURATION_VARIANCE": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["A1.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 3.0,
+    },
+    # Environment & Supply Chain checks
+    "ENV_001_CONSISTENT_MODEL": {
+        "owasp_llm": "LLM05",
+        "owasp_llm_name": "Supply Chain Vulnerabilities",
+        "soc2_controls": ["CC6.7"],
+        "cwe": "CWE-1104",
+        "mitre": "T1195",
+        "cvss_critical": 6.5,
+        "cvss_warning": 4.0,
+    },
+    "ENV_002_AVG_TOOLS_COVERAGE": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["CC7.1"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 2.5,
+    },
+    "ENV_003_UNUSED_TOOLS": {
+        "owasp_llm": "LLM08",
+        "owasp_llm_name": "Excessive Agency",
+        "soc2_controls": ["CC6.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 3.5,
+    },
+    # Behavioral Stability checks
+    "BEHAV_001_STABILITY_SCORE": {
+        "owasp_llm": "LLM08",
+        "owasp_llm_name": "Excessive Agency",
+        "soc2_controls": ["CC7.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": 6.0,
+        "cvss_warning": 4.0,
+    },
+    "BEHAV_002_OUTLIER_RATE": {
+        "owasp_llm": "LLM08",
+        "owasp_llm_name": "Excessive Agency",
+        "soc2_controls": ["CC7.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": 6.0,
+        "cvss_warning": 4.0,
+    },
+    "BEHAV_003_CLUSTER_FORMATION": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["CC7.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": 5.0,
+        "cvss_warning": 3.0,
+    },
+    "BEHAV_004_PREDICTABILITY": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["CC7.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 3.5,
+    },
+    "BEHAV_005_UNCERTAINTY_THRESHOLD": {
+        "owasp_llm": None,
+        "owasp_llm_name": None,
+        "soc2_controls": ["CC7.2"],
+        "cwe": None,
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 3.5,
+    },
+    # Privacy & PII Compliance checks
+    "PII_001_DETECTION": {
+        "owasp_llm": "LLM06",
+        "owasp_llm_name": "Sensitive Information Disclosure",
+        "soc2_controls": ["PI1.1"],
+        "cwe": "CWE-359",
+        "mitre": "T1530",
+        "cvss_critical": 8.0,
+        "cvss_warning": 5.0,
+    },
+    "PII_002_SYSTEM_PROMPT": {
+        "owasp_llm": "LLM06",
+        "owasp_llm_name": "Sensitive Information Disclosure",
+        "soc2_controls": ["CC6.5"],
+        "cwe": "CWE-359",
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 5.5,
+    },
+    "PII_003_EXPOSURE_RATE": {
+        "owasp_llm": "LLM06",
+        "owasp_llm_name": "Sensitive Information Disclosure",
+        "soc2_controls": ["PI1.1"],
+        "cwe": "CWE-359",
+        "mitre": None,
+        "cvss_critical": None,
+        "cvss_warning": 5.0,
+    },
+}
+
+
+def _apply_framework_mappings(check: AssessmentCheck) -> AssessmentCheck:
+    """Apply framework mappings to a check based on its ID and status."""
+    mapping = FRAMEWORK_MAPPINGS.get(check.check_id)
+    if not mapping:
+        return check
+    
+    # Apply base framework mappings
+    check.owasp_llm = mapping.get("owasp_llm")
+    check.owasp_llm_name = mapping.get("owasp_llm_name")
+    check.soc2_controls = mapping.get("soc2_controls", [])
+    check.cwe = mapping.get("cwe")
+    check.mitre = mapping.get("mitre")
+    
+    # Apply CVSS score based on status (only for failed checks)
+    if check.status == "critical" and mapping.get("cvss_critical"):
+        check.cvss_score = mapping["cvss_critical"]
+    elif check.status == "warning" and mapping.get("cvss_warning"):
+        check.cvss_score = mapping["cvss_warning"]
+    
+    return check
+
 
 # ============================================================================
 # CATEGORY: Resource Management
@@ -39,7 +214,7 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
             })
 
     if violations:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_001_TOKEN_BOUNDS",
             category="Resource Management",
             name="Token Budget Usage",
@@ -51,9 +226,10 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
                 f"Enforce {UNIVERSAL_BOUNDS['max_tokens_per_session']} token limit per session"
             ]
         )
+        return _apply_framework_mappings(check)
 
     max_tokens = max((s.total_tokens for s in sessions), default=0)
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="RESOURCE_001_TOKEN_BOUNDS",
         category="Resource Management",
         name="Token Budget Usage",
@@ -62,6 +238,7 @@ def _check_token_bounds(sessions: List[SessionData]) -> AssessmentCheck:
         value=f"{max_tokens:,} max tokens",
         evidence={'max_tokens': max_tokens}
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
@@ -77,7 +254,7 @@ def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
             })
 
     if violations:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_002_TOOL_CALL_BOUNDS",
             category="Resource Management",
             name="Tool Call Volume",
@@ -89,9 +266,10 @@ def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
                 f"Enforce {UNIVERSAL_BOUNDS['max_tool_calls_per_session']} tool call limit with circuit breakers"
             ]
         )
+        return _apply_framework_mappings(check)
 
     max_calls = max((s.tool_uses for s in sessions), default=0)
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="RESOURCE_002_TOOL_CALL_BOUNDS",
         category="Resource Management",
         name="Tool Call Volume",
@@ -100,6 +278,7 @@ def _check_tool_call_bounds(sessions: List[SessionData]) -> AssessmentCheck:
         value=f"{max_calls} max calls",
         evidence={'max_tool_calls': max_calls}
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
@@ -107,7 +286,7 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
     tokens = [s.total_tokens for s in sessions if s.total_tokens > 0]
 
     if not tokens or len(tokens) < 2:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_004_TOKEN_VARIANCE",
             category="Resource Management",
             name="Token Consistency Across Sessions",
@@ -116,13 +295,14 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
             value="Insufficient data",
             evidence={'reason': 'insufficient_data'}
         )
+        return _apply_framework_mappings(check)
 
     mean_tokens = statistics.mean(tokens)
     std_tokens = statistics.stdev(tokens)
     token_cv = std_tokens / mean_tokens if mean_tokens > 0 else 0
 
     if token_cv > 0.7:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_004_TOKEN_VARIANCE",
             category="Resource Management",
             name="Token Consistency Across Sessions",
@@ -134,8 +314,9 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
                 "Implement internal token quotas to reduce variance"
             ]
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="RESOURCE_004_TOKEN_VARIANCE",
         category="Resource Management",
         name="Token Consistency Across Sessions",
@@ -144,6 +325,7 @@ def _check_token_variance(sessions: List[SessionData]) -> AssessmentCheck:
         value=f"CV: {round(token_cv * 100)}%",
         evidence={'coefficient_of_variation': round(token_cv, 2)}
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
@@ -151,7 +333,7 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
     tools = [s.tool_uses for s in sessions if s.tool_uses > 0]
 
     if not tools or len(tools) < 2:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_005_TOOL_VARIANCE",
             category="Resource Management",
             name="Tool Consistency Across Sessions",
@@ -160,13 +342,14 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
             value="Insufficient data",
             evidence={'reason': 'insufficient_data'}
         )
+        return _apply_framework_mappings(check)
 
     mean_tools = statistics.mean(tools)
     std_tools = statistics.stdev(tools)
     tool_cv = std_tools / mean_tools if mean_tools > 0 else 0
 
     if tool_cv > 0.7:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_005_TOOL_VARIANCE",
             category="Resource Management",
             name="Tool Consistency Across Sessions",
@@ -178,8 +361,9 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
                 "Implement internal tool usage quotas to reduce variance"
             ]
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="RESOURCE_005_TOOL_VARIANCE",
         category="Resource Management",
         name="Tool Consistency Across Sessions",
@@ -188,6 +372,7 @@ def _check_tool_variance(sessions: List[SessionData]) -> AssessmentCheck:
         value=f"CV: {round(tool_cv * 100)}%",
         evidence={'coefficient_of_variation': round(tool_cv, 2)}
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
@@ -195,7 +380,7 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
     durations = [s.duration_minutes for s in sessions if s.duration_minutes > 0]
 
     if not durations or len(durations) < 2:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_006_DURATION_VARIANCE",
             category="Resource Management",
             name="Session Duration Consistency",
@@ -204,13 +389,14 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
             value="Insufficient data",
             evidence={'reason': 'insufficient_data'}
         )
+        return _apply_framework_mappings(check)
 
     mean_duration = statistics.mean(durations)
     std_duration = statistics.stdev(durations)
     duration_cv = std_duration / mean_duration if mean_duration > 0 else 0
 
     if duration_cv > 0.7:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="RESOURCE_006_DURATION_VARIANCE",
             category="Resource Management",
             name="Session Duration Consistency",
@@ -222,8 +408,9 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
                 "Implement session duration limits to improve consistency"
             ]
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="RESOURCE_006_DURATION_VARIANCE",
         category="Resource Management",
         name="Session Duration Consistency",
@@ -232,6 +419,7 @@ def _check_duration_variance(sessions: List[SessionData]) -> AssessmentCheck:
         value=f"CV: {round(duration_cv * 100)}%",
         evidence={'coefficient_of_variation': round(duration_cv, 2)}
     )
+    return _apply_framework_mappings(check)
 
 
 def check_resource_management(sessions: List[SessionData]) -> AssessmentCategory:
@@ -281,7 +469,7 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
                     all_models.append(model)
 
     if not all_models:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_001_CONSISTENT_MODEL",
             category="Environment & Supply Chain",
             name="Pinned Model Usage",
@@ -290,6 +478,7 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
             value="No models detected",
             evidence={'reason': 'no_models_detected'}
         )
+        return _apply_framework_mappings(check)
 
     unpinned_models = []
     for model in set(all_models):
@@ -301,7 +490,7 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
             unpinned_models.append(model)
 
     if unpinned_models:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_001_CONSISTENT_MODEL",
             category="Environment & Supply Chain",
             name="Pinned Model Usage",
@@ -313,9 +502,10 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
                 f"Pin model versions: {', '.join(unpinned_models)}"
             ]
         )
+        return _apply_framework_mappings(check)
 
     unique_models = len(set(all_models))
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="ENV_001_CONSISTENT_MODEL",
         category="Environment & Supply Chain",
         name="Pinned Model Usage",
@@ -327,12 +517,13 @@ def _check_consistent_model_usage(sessions: List[SessionData]) -> AssessmentChec
             'all_pinned': True
         }
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentCheck:
     """Check average per-session tool coverage (should be around 1.0)."""
     if not sessions:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
             name="Session Tool Coverage",
@@ -341,6 +532,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             value="No sessions",
             evidence={'reason': 'no_sessions'}
         )
+        return _apply_framework_mappings(check)
 
     # Calculate per-session coverage rates
     coverage_rates = []
@@ -351,7 +543,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             coverage_rates.append(coverage)
 
     if not coverage_rates:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
             name="Session Tool Coverage",
@@ -360,12 +552,13 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
         )
+        return _apply_framework_mappings(check)
 
     avg_coverage = statistics.mean(coverage_rates)
 
     # Pass if average coverage >= 0.80 (80%)
     if avg_coverage >= 0.80:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_002_AVG_TOOLS_COVERAGE",
             category="Environment & Supply Chain",
             name="Average Tool Coverage",
@@ -378,8 +571,9 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
                 'threshold': 0.80
             }
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="ENV_002_AVG_TOOLS_COVERAGE",
         category="Environment & Supply Chain",
         name="Session Tool Coverage",
@@ -395,6 +589,7 @@ def _check_average_tools_coverage(sessions: List[SessionData]) -> AssessmentChec
             f"Improve tool coverage to reach 100% by adding scenarios that call each tool at least once (current: {round(avg_coverage * 100)}%)"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
@@ -407,7 +602,7 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
         all_used_tools.update(session.tool_usage_details.keys())
 
     if not all_available_tools:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_003_UNUSED_TOOLS",
             category="Environment & Supply Chain",
             name="Unused Tools Inventory",
@@ -416,11 +611,12 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
             value="No tools available",
             evidence={'reason': 'no_tools_available'}
         )
+        return _apply_framework_mappings(check)
 
     unused_tools = sorted(list(all_available_tools - all_used_tools))
 
     if not unused_tools:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="ENV_003_UNUSED_TOOLS",
             category="Environment & Supply Chain",
             name="Globally Unused Tools",
@@ -433,8 +629,9 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
                 'unused_count': 0
             }
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="ENV_003_UNUSED_TOOLS",
         category="Environment & Supply Chain",
         name="Unused Tools Inventory",
@@ -451,6 +648,7 @@ def _check_unused_tools(sessions: List[SessionData]) -> AssessmentCheck:
             (f" and {len(unused_tools) - 5} more" if len(unused_tools) > 5 else "")
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def check_environment(sessions: List[SessionData]) -> AssessmentCategory:
@@ -508,7 +706,7 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
     score = behavioral_result.stability_score
 
     if score >= 0.80:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="BEHAV_001_STABILITY_SCORE",
             category="Behavioral Stability",
             name="Behavioral Stability Score",
@@ -521,8 +719,9 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
                 'num_clusters': behavioral_result.num_clusters
             }
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="BEHAV_001_STABILITY_SCORE",
         category="Behavioral Stability",
         name="Behavioral Stability Score",
@@ -537,6 +736,7 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
             f"Improve system prompt and add guardrails (stability: {round(score * 100)}%)"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> AssessmentCheck:
@@ -544,7 +744,7 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
     outlier_rate = behavioral_result.num_outliers / behavioral_result.total_sessions if behavioral_result.total_sessions > 0 else 0
 
     if outlier_rate < 0.20:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="BEHAV_002_OUTLIER_RATE",
             category="Behavioral Stability",
             name="Behavioral Outlier Rate",
@@ -558,8 +758,9 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
                 'total_sessions': behavioral_result.total_sessions
             }
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="BEHAV_002_OUTLIER_RATE",
         category="Behavioral Stability",
         name="Behavioral Outlier Rate",
@@ -571,6 +772,7 @@ def _check_outlier_rate(behavioral_result: BehavioralAnalysisResult) -> Assessme
             f"Reduce outlier rate by improving behavioral consistency ({outlier_rate:.1%})"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> AssessmentCheck:
@@ -578,7 +780,7 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
     num_clusters = behavioral_result.num_clusters
 
     if num_clusters >= 1:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="BEHAV_003_CLUSTER_FORMATION",
             category="Behavioral Stability",
             name="Behavior Cluster Formation",
@@ -590,8 +792,9 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
                 'cluster_diversity': round(behavioral_result.cluster_diversity, 3)
             }
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="BEHAV_003_CLUSTER_FORMATION",
         category="Behavioral Stability",
         name="Behavior Cluster Formation",
@@ -603,6 +806,7 @@ def _check_cluster_formation(behavioral_result: BehavioralAnalysisResult) -> Ass
             "Refactor agent logic to achieve behavioral clustering"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> AssessmentCheck:
@@ -611,7 +815,7 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
 
     # Predictability threshold is informational (warning at 0.60)
     if score >= 0.60:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="BEHAV_004_PREDICTABILITY",
             category="Behavioral Stability",
             name="Behavioral Predictability",
@@ -620,8 +824,9 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
             value=f"{round(score * 100)}% score",
             evidence={'predictability_score': round(score, 3)}
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="BEHAV_004_PREDICTABILITY",
         category="Behavioral Stability",
         name="Behavioral Predictability",
@@ -633,6 +838,7 @@ def _check_predictability(behavioral_result: BehavioralAnalysisResult) -> Assess
             f"Improve consistency in agent responses (predictability: {round(score * 100)}%)"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def check_behavioral_stability(
@@ -674,7 +880,7 @@ def _check_uncertainty_threshold(
     uncertainty = 1.0 - behavioral_result.stability_score
 
     if uncertainty <= 0.25:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="BEHAV_005_UNCERTAINTY_THRESHOLD",
             category="Behavioral Stability",
             name="Behavioral Uncertainty Level",
@@ -687,8 +893,9 @@ def _check_uncertainty_threshold(
                 'stability_score': behavioral_result.stability_score
             }
         )
+        return _apply_framework_mappings(check)
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="BEHAV_005_UNCERTAINTY_THRESHOLD",
         category="Behavioral Stability",
         name="Behavioral Uncertainty Level",
@@ -700,6 +907,7 @@ def _check_uncertainty_threshold(
             f"Implement stricter guardrails (uncertainty: {round(uncertainty * 100)}%)"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 # ============================================================================
@@ -709,7 +917,7 @@ def _check_uncertainty_threshold(
 def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
     """Check for PII detection across all sessions."""
     if pii_result.total_findings == 0:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_001_DETECTION",
             category="Privacy & PII Compliance",
             name="PII Detection",
@@ -721,6 +929,7 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
                 'sessions_analyzed': pii_result.sessions_with_pii + pii_result.sessions_without_pii
             }
         )
+        return _apply_framework_mappings(check)
 
     # Critical if high-confidence sensitive PII found
     sensitive_types = {"US_SSN", "CREDIT_CARD", "MEDICAL_LICENSE", "US_PASSPORT", "US_BANK_NUMBER"}
@@ -730,7 +939,7 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
     ]
 
     if high_conf_sensitive:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_001_DETECTION",
             category="Privacy & PII Compliance",
             name="PII Detection",
@@ -760,10 +969,11 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
                 f"Found {len(high_conf_sensitive)} high-confidence sensitive PII items"
             ]
         )
+        return _apply_framework_mappings(check)
 
     # Warning if medium-confidence PII or many findings
     if pii_result.high_confidence_count > 0 or pii_result.medium_confidence_count > 10:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_001_DETECTION",
             category="Privacy & PII Compliance",
             name="PII Detection",
@@ -793,9 +1003,10 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
                 "Review which PII types are necessary for agent operation"
             ]
         )
+        return _apply_framework_mappings(check)
 
     # Passed for only low-confidence findings
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="PII_001_DETECTION",
         category="Privacy & PII Compliance",
         name="PII Detection",
@@ -819,6 +1030,7 @@ def _check_pii_detection(pii_result: PIIAnalysisResult) -> AssessmentCheck:
             ]
         }
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentCheck:
@@ -829,7 +1041,7 @@ def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentChe
     ]
 
     if not system_prompt_findings:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_002_SYSTEM_PROMPT",
             category="Privacy & PII Compliance",
             name="PII in System Prompts",
@@ -838,11 +1050,12 @@ def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentChe
             value="No PII in system prompts",
             evidence={'system_prompt_findings': 0}
         )
+        return _apply_framework_mappings(check)
 
     # Any PII in system prompts is a warning (usually shouldn't have user PII there)
     entity_types_in_prompts = list(set(f.entity_type for f in system_prompt_findings))
 
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="PII_002_SYSTEM_PROMPT",
         category="Privacy & PII Compliance",
         name="PII in System Prompts",
@@ -858,13 +1071,14 @@ def _check_pii_in_system_prompts(pii_result: PIIAnalysisResult) -> AssessmentChe
             "System prompts should typically not contain user-specific PII"
         ]
     )
+    return _apply_framework_mappings(check)
 
 
 def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[SessionData]) -> AssessmentCheck:
     """Check what percentage of sessions contain PII."""
     total_sessions = len(sessions)
     if total_sessions == 0:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_003_EXPOSURE_RATE",
             category="Privacy & PII Compliance",
             name="PII Exposure Rate",
@@ -873,11 +1087,12 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
             value="No sessions",
             evidence={'reason': 'no_sessions'}
         )
+        return _apply_framework_mappings(check)
 
     exposure_rate = pii_result.sessions_with_pii / total_sessions if total_sessions > 0 else 0
 
     if exposure_rate == 0:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_003_EXPOSURE_RATE",
             category="Privacy & PII Compliance",
             name="PII Exposure Rate",
@@ -890,10 +1105,11 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
                 'total_sessions': total_sessions
             }
         )
+        return _apply_framework_mappings(check)
 
     # Warning if >50% of sessions contain PII
     if exposure_rate > 0.5:
-        return AssessmentCheck(
+        check = AssessmentCheck(
             check_id="PII_003_EXPOSURE_RATE",
             category="Privacy & PII Compliance",
             name="PII Exposure Rate",
@@ -911,9 +1127,10 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
                 "Review if all PII is necessary for agent operation"
             ]
         )
+        return _apply_framework_mappings(check)
 
     # Passed for low exposure rate
-    return AssessmentCheck(
+    check = AssessmentCheck(
         check_id="PII_003_EXPOSURE_RATE",
         category="Privacy & PII Compliance",
         name="PII Exposure Rate",
@@ -926,6 +1143,7 @@ def _check_pii_exposure_rate(pii_result: PIIAnalysisResult, sessions: List[Sessi
             'total_sessions': total_sessions
         }
     )
+    return _apply_framework_mappings(check)
 
 
 def check_privacy_compliance(

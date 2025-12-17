@@ -19,59 +19,75 @@ const meta: Meta<typeof Recommendations> = {
 export default meta;
 type Story = StoryObj<typeof Recommendations>;
 
-// Mock findings data
-const mockFindings = [
+// Mock recommendations data
+const mockRecommendations = [
   {
-    finding_id: 'find_001',
-    session_id: 'sess_001',
+    recommendation_id: 'rec_001',
+    source_finding_id: 'find_001',
     agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/handlers/auth.py',
     line_start: 42,
-    finding_type: 'LLM01',
+    source_type: 'STATIC',
+    category: 'PROMPT',
     severity: 'CRITICAL',
+    status: 'PENDING',
     title: 'Potential prompt injection vulnerability',
     description: 'User input is directly concatenated into prompt.',
-    status: 'OPEN',
+    owasp_llm: 'LLM01',
+    cvss_score: 9.1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    finding_id: 'find_002',
-    session_id: 'sess_001',
+    recommendation_id: 'rec_002',
+    source_finding_id: 'find_002',
     agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/utils/logging.py',
     line_start: 15,
-    finding_type: 'LLM06',
+    source_type: 'STATIC',
+    category: 'DATA',
     severity: 'HIGH',
+    status: 'PENDING',
     title: 'Sensitive data exposure in logs',
     description: 'API keys are being logged in plaintext.',
-    status: 'OPEN',
+    owasp_llm: 'LLM06',
+    cvss_score: 7.5,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    finding_id: 'find_003',
-    session_id: 'sess_001',
+    recommendation_id: 'rec_003',
+    source_finding_id: 'find_003',
     agent_workflow_id: 'test-agent-workflow',
     file_path: 'src/models/chat.py',
     line_start: 88,
-    finding_type: 'LLM02',
+    source_type: 'DYNAMIC',
+    category: 'OUTPUT',
     severity: 'MEDIUM',
+    status: 'FIXED',
     title: 'Missing output validation',
     description: 'LLM output is not validated before being used.',
-    status: 'FIXED',
+    owasp_llm: 'LLM02',
+    cvss_score: 5.0,
+    fixed_at: new Date().toISOString(),
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
 ];
 
 // Create mock fetch function
-const createMockFetch = (findings: unknown[]) => {
+const createMockFetch = (recommendations: unknown[], gateStatus = 'BLOCKED') => {
   return (url: string) => {
-    if (url.includes('/api/agent-workflow/') && url.includes('/findings')) {
+    if (url.includes('/recommendations')) {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ findings }),
+        json: () => Promise.resolve({ recommendations }),
+      });
+    }
+    if (url.includes('/gate-status')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ gate_status: gateStatus }),
       });
     }
     return Promise.reject(new Error(`Unknown URL: ${url}`));
@@ -88,7 +104,7 @@ const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
 export const Default: Story = {
   decorators: [
     (Story) => {
-      window.fetch = createMockFetch(mockFindings) as typeof fetch;
+      window.fetch = createMockFetch(mockRecommendations) as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -98,16 +114,16 @@ export const Default: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByTestId('recommendations')).toBeInTheDocument();
-    await expect(await canvas.findByText('Security Score')).toBeInTheDocument();
-    await expect(await canvas.findByText(/Actionable Recommendations/)).toBeInTheDocument();
+    await expect(await canvas.findByTestId('security-dashboard')).toBeInTheDocument();
+    await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
+    await expect(await canvas.findByText('Overview')).toBeInTheDocument();
   },
 };
 
-export const WithCriticalFindings: Story = {
+export const WithCriticalRecommendations: Story = {
   decorators: [
     (Story) => {
-      window.fetch = createMockFetch(mockFindings) as typeof fetch;
+      window.fetch = createMockFetch(mockRecommendations) as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -117,16 +133,17 @@ export const WithCriticalFindings: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText('Recommendations')).toBeInTheDocument();
-    // Should show critical findings recommendation
-    await expect(await canvas.findByText(/Address.*critical security finding/)).toBeInTheDocument();
+    await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
+    // Should show the static analysis gate as blocked
+    await expect(await canvas.findByText('Static Analysis Gate')).toBeInTheDocument();
+    await expect(await canvas.findByText('BLOCKED')).toBeInTheDocument();
   },
 };
 
 export const Empty: Story = {
   decorators: [
     (Story) => {
-      window.fetch = createMockFetch([]) as typeof fetch;
+      window.fetch = createMockFetch([], 'OPEN') as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -136,18 +153,22 @@ export const Empty: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText('Recommendations')).toBeInTheDocument();
-    await expect(await canvas.findByText('Security Score')).toBeInTheDocument();
-    // Should show recommendation to run first analysis
-    await expect(await canvas.findByText('Run your first security analysis')).toBeInTheDocument();
+    await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
+    // Should show both gates as passed (2 PASSED texts)
+    const passedElements = await canvas.findAllByText('PASSED');
+    await expect(passedElements.length).toBe(2);
   },
 };
 
 export const AllResolved: Story = {
   decorators: [
     (Story) => {
-      const resolvedFindings = mockFindings.map((f) => ({ ...f, status: 'FIXED' }));
-      window.fetch = createMockFetch(resolvedFindings) as typeof fetch;
+      const resolvedRecommendations = mockRecommendations.map((r) => ({ 
+        ...r, 
+        status: 'FIXED',
+        fixed_at: new Date().toISOString(),
+      }));
+      window.fetch = createMockFetch(resolvedRecommendations, 'OPEN') as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -157,8 +178,12 @@ export const AllResolved: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText('Recommendations')).toBeInTheDocument();
-    // Should show all resolved message
-    await expect(await canvas.findByText('All findings have been addressed')).toBeInTheDocument();
+    await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
+    // Should show both gates as passed when all resolved
+    const passedElements = await canvas.findAllByText('PASSED');
+    await expect(passedElements.length).toBe(2);
+    // Check that the page loaded with tabs
+    await expect(await canvas.findByText('Overview')).toBeInTheDocument();
+    await expect(await canvas.findByText('By Severity')).toBeInTheDocument();
   },
 };

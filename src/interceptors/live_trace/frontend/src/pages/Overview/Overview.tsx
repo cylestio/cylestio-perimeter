@@ -10,14 +10,21 @@ import {
   Wrench,
   MessageSquare,
   TrendingUp,
-  Timer
+  Timer,
+  Code,
+  Search,
+  Play,
+  Rocket,
+  Shield,
 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
+import { fetchGateStatus } from '@api/endpoints/agentWorkflow';
 import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
+import type { GateStatusResponse } from '@api/types/findings';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration } from '@utils/formatting';
 
@@ -29,6 +36,8 @@ import { Section } from '@ui/layout/Section';
 import { StatsRow } from '@ui/layout/Grid';
 
 import { StatCard } from '@domain/metrics/StatCard';
+import { LifecycleProgress, type LifecycleStage } from '@domain/activity/LifecycleProgress';
+import { ProductionGateCard } from '@domain/security/ProductionGateCard';
 
 import { usePageMeta } from '../../context';
 import {
@@ -85,10 +94,12 @@ const aggregateMetrics = (agents: APIAgent[]): AggregatedMetrics => {
 
 export const Overview: FC<OverviewProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
+  const navigate = useNavigate();
 
   // State
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [gateStatus, setGateStatus] = useState<GateStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,12 +108,14 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     if (!agentWorkflowId) return;
 
     try {
-      const [dashData, sessionsData] = await Promise.all([
+      const [dashData, sessionsData, gateData] = await Promise.all([
         fetchDashboard(agentWorkflowId),
         fetchSessions({ agent_workflow_id: agentWorkflowId, limit: 100 }),
+        fetchGateStatus(agentWorkflowId).catch(() => null), // Don't fail if gate status fails
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
+      setGateStatus(gateData);
     } catch (err) {
       console.error('Failed to fetch overview data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load overview');
@@ -114,6 +127,41 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Calculate lifecycle stages based on security analysis data
+  const getLifecycleStages = (): LifecycleStage[] => {
+    const secAnalysis = dashboardData?.security_analysis;
+    
+    // Dev stage - based on IDE connection (we'll show as active if we have any data)
+    const devStatus = dashboardData ? 'completed' : 'pending';
+    
+    // Static stage - based on static analysis
+    const staticStatus = secAnalysis?.static?.status === 'completed' ? 'completed' :
+                         secAnalysis?.static?.status === 'active' ? 'active' : 'pending';
+    const staticFindings = secAnalysis?.static?.findings;
+    const staticStat = staticFindings ? `${staticFindings.total || 0} findings` : undefined;
+    
+    // Dynamic stage - based on dynamic analysis
+    const dynamicStatus = secAnalysis?.dynamic?.status === 'completed' ? 'completed' :
+                          secAnalysis?.dynamic?.status === 'active' ? 'active' : 'pending';
+    const dynamicStat = secAnalysis?.dynamic?.sessions_progress 
+      ? `${secAnalysis.dynamic.sessions_progress.current}/${secAnalysis.dynamic.sessions_progress.required}` 
+      : undefined;
+    
+    // Production stage - based on gate status
+    const productionStatus = gateStatus && !gateStatus.is_blocked ? 'completed' : 
+                             staticStatus === 'completed' && dynamicStatus === 'completed' ? 'active' : 'pending';
+    const productionStat = gateStatus?.is_blocked 
+      ? `${gateStatus.blocking_count} blocking` 
+      : productionStatus === 'completed' ? 'Ready' : undefined;
+
+    return [
+      { id: 'dev', label: 'Dev', icon: <Code size={16} />, status: devStatus, stat: 'Connected' },
+      { id: 'static', label: 'Static', icon: <Search size={16} />, status: staticStatus, stat: staticStat },
+      { id: 'dynamic', label: 'Dynamic', icon: <Play size={16} />, status: dynamicStatus, stat: dynamicStat },
+      { id: 'production', label: 'Production', icon: <Rocket size={16} />, status: productionStatus, stat: productionStat },
+    ];
+  };
 
   // Set breadcrumbs
   usePageMeta({
@@ -152,6 +200,8 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   const sessionsWithErrors = sessions.filter(s => s.errors > 0).length;
   const errorRate = sessions.length > 0 ? (sessionsWithErrors / sessions.length) * 100 : 0;
 
+  const lifecycleStages = getLifecycleStages();
+
   return (
     <Page className={className} data-testid="overview">
       {/* Header */}
@@ -159,6 +209,36 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
         title="Overview"
         description={`Aggregated metrics for agent workflow: ${agentWorkflowId}`}
       />
+
+      {/* Lifecycle Progress */}
+      <Section>
+        <Section.Header>
+          <Section.Title icon={<Shield size={16} />}>Security Lifecycle</Section.Title>
+        </Section.Header>
+        <Section.Content>
+          <Card>
+            <LifecycleProgress stages={lifecycleStages} />
+          </Card>
+        </Section.Content>
+      </Section>
+
+      {/* Production Gate Status */}
+      {gateStatus && (
+        <Section>
+          <Section.Header>
+            <Section.Title icon={<Rocket size={16} />}>Production Gate</Section.Title>
+          </Section.Header>
+          <Section.Content>
+            <ProductionGateCard
+              isBlocked={gateStatus.is_blocked}
+              blockingCount={gateStatus.blocking_count}
+              blockingCritical={gateStatus.blocking_critical}
+              blockingHigh={gateStatus.blocking_high}
+              onViewAll={() => navigate(`/agent-workflow/${agentWorkflowId}/recommendations?blocking_only=true`)}
+            />
+          </Section.Content>
+        </Section>
+      )}
 
       {/* Key Metrics Row */}
       <StatsRow columns={5}>

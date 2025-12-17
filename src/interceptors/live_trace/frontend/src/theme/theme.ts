@@ -61,11 +61,11 @@ export const colors = {
   white04: 'rgba(255, 255, 255, 0.04)',
 
   // Semantic - Severity
-  severityCritical: '#ff4757',
-  severityHigh: '#ff9f43',
-  severityMedium: '#f59e0b',
-  severityLow: '#6b7280',
-  severityPass: '#00ff88',
+  severityCritical: '#dc2626',  // Dark red - most severe
+  severityHigh: '#ef4444',      // Bright red - high severity
+  severityMedium: '#f59e0b',    // Amber/orange - medium severity
+  severityLow: '#6b7280',       // Gray - low severity
+  severityPass: '#00ff88',      // Green - passed
 } as const;
 
 // ===========================================

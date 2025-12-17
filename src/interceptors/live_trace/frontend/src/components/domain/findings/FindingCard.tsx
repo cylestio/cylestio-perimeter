@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import type { FC } from 'react';
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, Wrench, Calendar } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
 
 import type { Finding } from '@api/types/findings';
+import { formatDateTime } from '@utils/formatting';
 
 import { Badge } from '@ui/core/Badge';
 import { Text } from '@ui/core/Text';
+
+import { CorrelationBadge, type CorrelationState } from '@domain/correlation';
 
 import {
   FindingCardWrapper,
@@ -22,12 +26,17 @@ import {
   TagList,
   Tag,
   ExpandButton,
+  RecommendationLink,
+  FixActionBox,
+  TimestampBadge,
 } from './FindingCard.styles';
 
 export interface FindingCardProps {
   finding: Finding;
   defaultExpanded?: boolean;
   className?: string;
+  /** Optional callback when view recommendation is clicked (for custom navigation) */
+  onViewRecommendation?: (recommendationId: string) => void;
 }
 
 const getSeverityVariant = (severity: string): 'critical' | 'high' | 'medium' | 'low' => {
@@ -45,17 +54,28 @@ const getSeverityVariant = (severity: string): 'critical' | 'high' | 'medium' | 
   }
 };
 
-const getStatusColor = (status: string): 'success' | 'critical' | 'low' => {
+const getStatusVariant = (status: string): 'success' | 'info' | 'low' | undefined => {
   switch (status) {
     case 'OPEN':
-      return 'critical';
+      return undefined; // Don't show status badge for OPEN - severity is enough
     case 'FIXED':
+    case 'ADDRESSED': // Normalize legacy status
       return 'success';
+    case 'RESOLVED': // Auto-resolved (issue no longer present in codebase)
+      return 'info'; // Use 'info' instead of 'cyan' which isn't a valid BadgeVariant
+    case 'DISMISSED':
     case 'IGNORED':
       return 'low';
     default:
-      return 'low';
+      return undefined;
   }
+};
+
+// Normalize status for display (ADDRESSED -> FIXED)
+const normalizeStatus = (status: string): string => {
+  if (status === 'ADDRESSED') return 'FIXED';
+  if (status === 'RESOLVED') return 'Resolved';
+  return status;
 };
 
 const formatLineNumbers = (lineStart?: number, lineEnd?: number): string => {
@@ -68,10 +88,13 @@ export const FindingCard: FC<FindingCardProps> = ({
   finding,
   defaultExpanded = false,
   className,
+  onViewRecommendation,
 }) => {
+  const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const lineInfo = formatLineNumbers(finding.line_start, finding.line_end);
+  const hasRecommendation = !!finding.recommendation_id;
 
   return (
     <FindingCardWrapper className={className}>
@@ -95,9 +118,37 @@ export const FindingCard: FC<FindingCardProps> = ({
             <Badge variant={getSeverityVariant(finding.severity)} size="sm">
               {finding.severity}
             </Badge>
-            <Badge variant={getStatusColor(finding.status)} size="sm">
-              {finding.status}
-            </Badge>
+            {/* Phase 5: Show correlation badge if available */}
+            {finding.correlation_state && (
+              <CorrelationBadge
+                state={finding.correlation_state as CorrelationState}
+                evidence={
+                  finding.correlation_evidence
+                    ? typeof finding.correlation_evidence === 'object'
+                      ? finding.correlation_evidence.runtime_observations ||
+                        (finding.correlation_evidence.tool_calls
+                          ? `Tool called ${finding.correlation_evidence.tool_calls} times`
+                          : undefined)
+                      : String(finding.correlation_evidence)
+                    : undefined
+                }
+              />
+            )}
+            {/* Only show status badge for non-OPEN statuses (FIXED, DISMISSED, etc.) */}
+            {finding.status !== 'OPEN' && (
+              <>
+                <Badge variant={getStatusVariant(finding.status)} size="sm">
+                  {normalizeStatus(finding.status)}
+                </Badge>
+                {/* Show resolved timestamp for non-OPEN findings */}
+                {finding.updated_at !== finding.created_at && (
+                  <TimestampBadge>
+                    <Calendar size={10} />
+                    {formatDateTime(finding.updated_at)}
+                  </TimestampBadge>
+                )}
+              </>
+            )}
           </FindingCardBadges>
         </FindingCardHeaderContent>
       </FindingCardHeader>
@@ -129,11 +180,14 @@ export const FindingCard: FC<FindingCardProps> = ({
             </FindingSection>
           )}
 
-          {finding.owasp_mapping && finding.owasp_mapping.length > 0 && (
+          {finding.owasp_mapping && (
             <FindingSection>
               <FindingSectionTitle>OWASP Mapping</FindingSectionTitle>
               <TagList>
-                {finding.owasp_mapping.map((tag) => (
+                {(Array.isArray(finding.owasp_mapping) 
+                  ? finding.owasp_mapping 
+                  : [finding.owasp_mapping]
+                ).map((tag) => (
                   <Tag key={tag}>{tag}</Tag>
                 ))}
               </TagList>
@@ -148,6 +202,32 @@ export const FindingCard: FC<FindingCardProps> = ({
                 ` • Updated: ${new Date(finding.updated_at).toLocaleString()}`}
             </Text>
           </FindingSection>
+
+          {/* Recommendation Link & Fix Action */}
+          {hasRecommendation && finding.status === 'OPEN' && (
+            <FindingSection>
+              <FindingSectionTitle>Take Action</FindingSectionTitle>
+              <FixActionBox>
+                <Wrench size={16} />
+                <span>Fix with: <code>/fix {finding.recommendation_id}</code></span>
+              </FixActionBox>
+              {agentWorkflowId && (
+                <RecommendationLink
+                  as={Link}
+                  to={`/agent-workflow/${agentWorkflowId}/recommendations?finding=${finding.finding_id}`}
+                  onClick={(e: React.MouseEvent) => {
+                    if (onViewRecommendation) {
+                      e.preventDefault();
+                      onViewRecommendation(finding.recommendation_id!);
+                    }
+                  }}
+                >
+                  View Recommendation {finding.recommendation_id}
+                  <ExternalLink size={12} />
+                </RecommendationLink>
+              )}
+            </FindingSection>
+          )}
         </FindingCardDetails>
       )}
     </FindingCardWrapper>

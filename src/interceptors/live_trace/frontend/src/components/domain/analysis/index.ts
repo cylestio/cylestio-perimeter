@@ -8,6 +8,7 @@ export { SecurityCheckItem } from './SecurityCheckItem';
 export type {
   SecurityCheckItemProps,
   SecurityCheckStatus,
+  BadgeColor,
 } from './SecurityCheckItem';
 
 export { AnalysisSessionsTable } from './AnalysisSessionsTable';
