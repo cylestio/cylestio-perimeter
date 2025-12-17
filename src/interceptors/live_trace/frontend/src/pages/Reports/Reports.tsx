@@ -21,7 +21,9 @@ import { useParams } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { ReportsIcon } from '@constants/pageIcons';
+import { STATIC_CHECKS, DYNAMIC_CHECKS } from '@constants/securityChecks';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import { evaluateCheck } from '@utils/securityCheckEvaluator';
 import {
   fetchComplianceReport,
   fetchReportHistory,
@@ -76,95 +78,6 @@ const REPORT_TYPES: { id: ReportType; name: string; description: string; icon: t
   },
 ];
 
-// Predefined Static Analysis Checks (code pattern analysis)
-interface SecurityCheck {
-  id: string;
-  name: string;
-  description: string;
-  categories: string[]; // Maps to finding categories
-  keywords: string[];   // Keywords to match in finding titles
-}
-
-const STATIC_CHECKS: SecurityCheck[] = [
-  { id: 'rate_limiting', name: 'Rate Limiting', description: 'Per-user request throttling', categories: ['RESOURCE_MANAGEMENT', 'TOOL'], keywords: ['rate', 'throttl', 'limit', 'budget'] },
-  { id: 'input_sanitization', name: 'Input Sanitization', description: 'User input filtering before LLM', categories: ['PROMPT'], keywords: ['sanitiz', 'input', 'validation', 'filter', 'injection'] },
-  { id: 'pre_execution', name: 'Pre-Execution Validation', description: 'Tool call validation before execution', categories: ['TOOL'], keywords: ['pre-execution', 'validation', 'before execution', 'tool call'] },
-  { id: 'audit_logging', name: 'Audit Logging', description: 'Action and decision logging', categories: ['BEHAVIOR', 'DATA'], keywords: ['audit', 'logging', 'log', 'trail'] },
-  { id: 'secret_management', name: 'Secret Management', description: 'API key handling', categories: ['DATA', 'SUPPLY'], keywords: ['secret', 'api key', 'credential', 'hardcoded'] },
-  { id: 'dependency_security', name: 'Dependency Security', description: 'Known vulnerabilities in packages', categories: ['SUPPLY'], keywords: ['dependency', 'cve', 'vulnerab', 'package', 'supply chain'] },
-  { id: 'output_validation', name: 'Output Validation', description: 'LLM output safety checks', categories: ['OUTPUT'], keywords: ['output', 'response', 'eval', 'exec', 'code execution'] },
-  { id: 'tool_definitions', name: 'Tool Definitions', description: 'Tool schemas and capabilities', categories: ['TOOL'], keywords: ['tool', 'schema', 'capability', 'permission'] },
-];
-
-// Predefined Dynamic Analysis Checks (runtime behavior observation)
-const DYNAMIC_CHECKS: SecurityCheck[] = [
-  { id: 'tool_monitoring', name: 'Tool Call Monitoring', description: 'All tool invocations captured', categories: ['TOOL', 'BEHAVIOR'], keywords: ['tool call', 'monitor', 'invocation'] },
-  { id: 'throttling', name: 'Throttling Observation', description: 'Rate limiting behavior', categories: ['RESOURCE_MANAGEMENT'], keywords: ['throttl', 'rate', 'limit'] },
-  { id: 'data_leakage', name: 'Data Leakage Detection', description: 'PII/secrets in responses', categories: ['DATA', 'OUTPUT'], keywords: ['leak', 'pii', 'expos', 'sensitive', 'exfil'] },
-  { id: 'pre_execution_runtime', name: 'Pre-Execution Validation', description: 'Tool call validation observed', categories: ['TOOL'], keywords: ['validation', 'pre-execution'] },
-  { id: 'behavioral_patterns', name: 'Behavioral Patterns', description: 'Tool sequence clustering', categories: ['BEHAVIORAL', 'BEHAVIOR'], keywords: ['pattern', 'cluster', 'sequence', 'behavioral', 'stability', 'outlier'] },
-  { id: 'cost_tracking', name: 'Cost Tracking', description: 'Token usage per session', categories: ['RESOURCE_MANAGEMENT'], keywords: ['cost', 'token', 'budget', 'usage'] },
-  { id: 'anomaly_detection', name: 'Anomaly Detection', description: 'Outlier identification', categories: ['BEHAVIORAL', 'BEHAVIOR'], keywords: ['anomal', 'outlier', 'unusual', 'unexpected'] },
-];
-
-// Helper to evaluate a check based on findings
-function evaluateCheck(
-  check: SecurityCheck,
-  findings: any[],
-  sourceType?: 'STATIC' | 'DYNAMIC'
-): { status: 'PASS' | 'FAIL' | 'PARTIAL' | 'NOT OBSERVED' | 'TRACKED'; details: string; evidence?: string; metric?: string; relatedFindings: any[] } {
-  // Filter findings relevant to this check
-  const relevant = findings.filter((f) => {
-    const matchesSource = !sourceType || f.source_type === sourceType || (!f.source_type && sourceType === 'STATIC');
-    const matchesCategory = check.categories.some((cat) => 
-      f.category?.toUpperCase().includes(cat) || cat.includes(f.category?.toUpperCase() || '')
-    );
-    const matchesKeyword = check.keywords.some((kw) => 
-      f.title?.toLowerCase().includes(kw.toLowerCase()) || f.description?.toLowerCase().includes(kw.toLowerCase())
-    );
-    return matchesSource && (matchesCategory || matchesKeyword);
-  });
-
-  const openIssues = relevant.filter((f) => f.status === 'OPEN');
-  const fixedIssues = relevant.filter((f) => f.status === 'FIXED');
-
-  if (relevant.length === 0) {
-    return {
-      status: sourceType === 'DYNAMIC' ? 'TRACKED' : 'PASS',
-      details: sourceType === 'DYNAMIC' 
-        ? 'No issues detected during runtime observation.'
-        : 'No security issues detected in this area.',
-      relatedFindings: [],
-    };
-  }
-
-  if (openIssues.length === 0 && fixedIssues.length > 0) {
-    return {
-      status: 'PASS',
-      details: `All ${fixedIssues.length} issues have been fixed.`,
-      relatedFindings: relevant,
-    };
-  }
-
-  if (openIssues.length > 0 && fixedIssues.length > 0) {
-    return {
-      status: 'PARTIAL',
-      details: `${openIssues.length} open issues, ${fixedIssues.length} fixed. ${openIssues[0]?.title || 'Issue requires attention.'}`,
-      evidence: openIssues[0]?.file_path ? `${openIssues[0].file_path.split('/').pop()}${openIssues[0].line_start ? ':' + openIssues[0].line_start : ''}` : undefined,
-      relatedFindings: relevant,
-    };
-  }
-
-  // All open
-  const topFinding = openIssues[0];
-  return {
-    status: sourceType === 'DYNAMIC' ? 'NOT OBSERVED' : 'FAIL',
-    details: topFinding?.description?.slice(0, 120) || topFinding?.title || 'Security issue detected.',
-    evidence: topFinding?.file_path ? `${topFinding.file_path.split('/').pop()}${topFinding.line_start ? ':' + topFinding.line_start + (topFinding.line_end ? '-' + topFinding.line_end : '') : ''}` : undefined,
-    metric: openIssues.length > 1 ? `${openIssues.length} issues` : undefined,
-    relatedFindings: relevant,
-  };
-}
 
 // Styled components for the enhanced report view
 const TabNav = styled.div`
