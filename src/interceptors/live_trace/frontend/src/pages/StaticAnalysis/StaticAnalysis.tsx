@@ -1,34 +1,48 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Calendar, Clock, FileSearch, Shield } from 'lucide-react';
+import { Shield, FileSearch, AlertTriangle } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
-import { fetchAgentWorkflowFindings, fetchAnalysisSessions, type AnalysisSession } from '@api/endpoints/agentWorkflow';
-import type { Finding, FindingsSummary } from '@api/types/findings';
-
-import { formatDateTime, formatDuration, getDurationMinutes } from '@utils/formatting';
+import { 
+  fetchStaticSummary, 
+  fetchAnalysisSessions, 
+  fetchCorrelationSummary,
+  type AnalysisSession,
+  type CorrelationSummaryResponse,
+} from '@api/endpoints/agentWorkflow';
+import type { 
+  StaticSummaryResponse, 
+  SecurityCheck,
+  CheckStatus,
+} from '@api/types/findings';
 
 import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
+import { EmptyState } from '@ui/feedback/EmptyState';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
-import { FindingsTab } from '@domain/findings';
+import { 
+  ScanStatusCard, 
+  SecurityCheckCard, 
+  GateProgress,
+} from '@domain/security';
+
+import { CorrelationSummary } from '@domain/correlation';
 
 import { usePageMeta } from '../../context';
 import {
   PageStats,
   StatBadge,
   StatValue,
-  SessionList,
-  SessionCard,
-  SessionHeader,
-  SessionInfo,
-  SessionId,
-  SessionMeta,
-  SessionMetaItem,
+  SecurityChecksGrid,
+  ChecksSectionHeader,
+  ChecksSectionTitle,
+  ChecksSectionSubtitle,
   EmptyContent,
+  ErrorContent,
+  RetryButton,
 } from './StaticAnalysis.styles';
 
 export interface StaticAnalysisProps {
@@ -39,57 +53,46 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
 
   // State
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [findingsSummary, setFindingsSummary] = useState<FindingsSummary | null>(null);
+  const [staticSummary, setStaticSummary] = useState<StaticSummaryResponse | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
+  const [correlationData, setCorrelationData] = useState<CorrelationSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [findingsLoading, setFindingsLoading] = useState(false);
-  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch findings for this agent workflow
-  const fetchFindingsData = useCallback(async () => {
+  // Fetch static summary (which includes 7 check categories)
+  const fetchData = useCallback(async () => {
     if (!agentWorkflowId) return;
 
-    setFindingsLoading(true);
-    try {
-      const data = await fetchAgentWorkflowFindings(agentWorkflowId);
-      setFindings(data.findings);
-      setFindingsSummary(data.summary);
-    } catch (err) {
-      console.error('Failed to fetch findings:', err);
-    } finally {
-      setFindingsLoading(false);
-    }
-  }, [agentWorkflowId]);
+    setLoading(true);
+    setError(null);
 
-  // Fetch analysis sessions for this agent workflow (STATIC and AUTOFIX only)
-  const fetchSessionsData = useCallback(async () => {
-    if (!agentWorkflowId) return;
-
-    setSessionsLoading(true);
     try {
-      const data = await fetchAnalysisSessions(agentWorkflowId);
+      const [summaryData, sessionsData, correlationSummary] = await Promise.all([
+        fetchStaticSummary(agentWorkflowId),
+        fetchAnalysisSessions(agentWorkflowId),
+        fetchCorrelationSummary(agentWorkflowId).catch(() => null), // Graceful fallback
+      ]);
+
+      setStaticSummary(summaryData);
+      setCorrelationData(correlationSummary);
+      
       // Filter to only STATIC and AUTOFIX sessions
-      const filteredSessions = (data.sessions || []).filter(
+      const filteredSessions = (sessionsData.sessions || []).filter(
         (session) => session.session_type === 'STATIC' || session.session_type === 'AUTOFIX'
       );
       setAnalysisSessions(filteredSessions);
     } catch (err) {
-      console.error('Failed to fetch analysis sessions:', err);
+      console.error('Failed to fetch static analysis data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
-      setSessionsLoading(false);
+      setLoading(false);
     }
   }, [agentWorkflowId]);
 
   // Fetch data on mount
   useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      await Promise.all([fetchFindingsData(), fetchSessionsData()]);
-      setLoading(false);
-    };
-    fetchAll();
-  }, [fetchFindingsData, fetchSessionsData]);
+    fetchData();
+  }, [fetchData]);
 
   // Set breadcrumbs
   usePageMeta({
@@ -100,16 +103,44 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     ],
   });
 
+  // Loading state
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-        <OrbLoader size="lg" />
-      </div>
+      <Page className={className} data-testid="static-analysis">
+        <PageHeader
+          title="Static Analysis"
+          description={`Agent Workflow: ${agentWorkflowId}`}
+        />
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+          <OrbLoader size="lg" />
+        </div>
+      </Page>
     );
   }
 
-  const openCount = findingsSummary?.open_count || 0;
-  const inProgressCount = analysisSessions.filter(s => s.status === 'IN_PROGRESS').length;
+  // Error state
+  if (error) {
+    return (
+      <Page className={className} data-testid="static-analysis">
+        <PageHeader
+          title="Static Analysis"
+          description={`Agent Workflow: ${agentWorkflowId}`}
+        />
+        <ErrorContent>
+          <AlertTriangle size={48} />
+          <p>Failed to load static analysis data</p>
+          <p style={{ fontSize: '12px', color: 'var(--color-white50)' }}>{error}</p>
+          <RetryButton onClick={fetchData}>Retry</RetryButton>
+        </ErrorContent>
+      </Page>
+    );
+  }
+
+  // Calculate totals
+  const totalFindings = staticSummary?.checks.reduce((acc, c) => acc + c.findings_count, 0) || 0;
+  const totalScans = analysisSessions.length;
+  const checkStatuses = staticSummary?.checks.map(c => ({ status: c.status as CheckStatus })) || [];
+  const failedChecks = staticSummary?.summary.failed || 0;
 
   return (
     <Page className={className} data-testid="static-analysis">
@@ -121,100 +152,98 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
           <PageStats>
             <StatBadge>
               <FileSearch size={14} />
-              <StatValue>{analysisSessions.length}</StatValue> scans
+              <StatValue>{totalScans}</StatValue> scans
             </StatBadge>
-            {findingsSummary && (
-              <StatBadge>
-                <Shield size={14} />
-                <StatValue>{findingsSummary.total_findings}</StatValue> findings
-              </StatBadge>
+            <StatBadge>
+              <Shield size={14} />
+              <StatValue>{totalFindings}</StatValue> findings
+            </StatBadge>
+            {failedChecks > 0 && (
+              <Badge variant="critical">
+                {failedChecks} {failedChecks === 1 ? 'check' : 'checks'} failing
+              </Badge>
             )}
           </PageStats>
         }
       />
 
-      {/* Analysis Sessions */}
+      {/* Scan Status Card */}
+      <Section>
+        <ScanStatusCard
+          lastScan={staticSummary?.last_scan || null}
+          summary={staticSummary?.summary || null}
+          severityCounts={staticSummary?.severity_counts}
+          checkStatuses={checkStatuses}
+          scanHistory={staticSummary?.scan_history}
+          historicalSummary={staticSummary?.historical_summary}
+        />
+      </Section>
+
+      {/* Phase 5: Correlation Summary Card - Show when correlation data exists */}
+      {correlationData && (correlationData.is_correlated || correlationData.uncorrelated > 0) && (
+        <Section>
+          <CorrelationSummary
+            validated={correlationData.validated}
+            unexercised={correlationData.unexercised}
+            theoretical={correlationData.theoretical}
+            uncorrelated={correlationData.uncorrelated}
+            sessionsCount={correlationData.sessions_count}
+          />
+        </Section>
+      )}
+
+      {/* Security Checks - 7 Categories */}
       <Section>
         <Section.Header>
-          <Section.Title>
-            Analysis Sessions ({analysisSessions.length})
-          </Section.Title>
-          {inProgressCount > 0 && (
-            <Badge variant="medium">{inProgressCount} in progress</Badge>
+          <ChecksSectionHeader>
+            <ChecksSectionTitle>
+              <Shield size={18} />
+              Security Checks
+            </ChecksSectionTitle>
+            <ChecksSectionSubtitle>
+              7 categories evaluated for AI agent security
+            </ChecksSectionSubtitle>
+          </ChecksSectionHeader>
+          {staticSummary?.summary && (
+            <GateProgress
+              checks={checkStatuses}
+              gateStatus={staticSummary.summary.gate_status}
+              showStats={false}
+            />
           )}
         </Section.Header>
         <Section.Content>
-          {sessionsLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
-              <OrbLoader size="md" />
-            </div>
-          ) : analysisSessions.length > 0 ? (
-            <SessionList>
-              {analysisSessions.map((session) => (
-                <SessionCard key={session.session_id}>
-                  <SessionHeader>
-                    <SessionInfo>
-                      <Badge variant={
-                        session.session_type === 'STATIC' ? 'info' :
-                        session.session_type === 'AUTOFIX' ? 'success' : 'medium'
-                      }>
-                        {session.session_type}
-                      </Badge>
-                      <SessionId>{session.session_id}</SessionId>
-                    </SessionInfo>
-                    <Badge variant={session.status === 'COMPLETED' ? 'success' : 'medium'}>
-                      {session.status === 'COMPLETED' ? 'Completed' : 'In Progress'}
-                    </Badge>
-                  </SessionHeader>
-                  <SessionMeta>
-                    <SessionMetaItem>
-                      <Calendar size={12} />
-                      Started {formatDateTime(session.created_at)}
-                    </SessionMetaItem>
-                    {session.completed_at && (
-                      <SessionMetaItem>
-                        <Clock size={12} />
-                        Duration: {formatDuration(getDurationMinutes(session.created_at, session.completed_at) || 0)}
-                      </SessionMetaItem>
-                    )}
-                    <SessionMetaItem>
-                      <Shield size={12} />
-                      {session.findings_count} findings
-                    </SessionMetaItem>
-                    {session.risk_score !== undefined && session.risk_score !== null && (
-                      <SessionMetaItem>
-                        Risk: {session.risk_score}/100
-                      </SessionMetaItem>
-                    )}
-                  </SessionMeta>
-                </SessionCard>
+          {staticSummary?.checks && staticSummary.checks.length > 0 ? (
+            <SecurityChecksGrid>
+              {staticSummary.checks.map((check) => (
+                <SecurityCheckCard
+                  key={check.category_id}
+                  check={check as SecurityCheck}
+                  defaultExpanded={check.status === 'FAIL'}
+                />
               ))}
-            </SessionList>
+            </SecurityChecksGrid>
           ) : (
-            <EmptyContent>
-              <p>No static analysis sessions yet.</p>
-              <p style={{ fontSize: '12px' }}>
-                Run a security scan using the MCP tools to create analysis sessions.
-              </p>
-            </EmptyContent>
+            <EmptyState
+              title="No scans yet"
+              description="Run a security scan to see the 7 security check categories evaluated."
+            />
           )}
         </Section.Content>
       </Section>
 
-      {/* Security Findings */}
-      <Section>
-        <Section.Header>
-          <Section.Title icon={<Shield size={16} />}>Security Findings</Section.Title>
-          {openCount > 0 && <Badge variant="critical">{openCount} open</Badge>}
-        </Section.Header>
-        <Section.Content>
-          <FindingsTab
-            findings={findings}
-            summary={findingsSummary || undefined}
-            isLoading={findingsLoading}
-          />
-        </Section.Content>
-      </Section>
+      {/* Empty state when no findings */}
+      {totalFindings === 0 && staticSummary?.last_scan && (
+        <Section>
+          <EmptyContent>
+            <Shield size={48} />
+            <h3>No Security Issues Found</h3>
+            <p>
+              All 7 security checks passed. Your agent is ready for production.
+            </p>
+          </EmptyContent>
+        </Section>
+      )}
     </Page>
   );
 };

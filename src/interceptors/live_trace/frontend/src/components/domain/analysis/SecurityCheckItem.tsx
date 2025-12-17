@@ -19,6 +19,8 @@ import {
 // Types
 export type SecurityCheckStatus = 'ok' | 'warning' | 'critical' | 'inactive' | 'running' | 'locked' | 'premium';
 
+export type BadgeColor = 'red' | 'orange' | 'yellow' | 'green' | 'cyan';
+
 export interface SecurityCheckItemProps {
   /** Display label (e.g., "Static Analysis", "Dynamic Analysis") */
   label: string;
@@ -26,6 +28,8 @@ export interface SecurityCheckItemProps {
   status: SecurityCheckStatus;
   /** Issue count (shown as badge) */
   count?: number;
+  /** Badge color override - use to reflect severity of open findings */
+  badgeColor?: BadgeColor;
   /** Additional stat text (e.g., "3 issues found") */
   stat?: string;
   /** Whether sidebar is collapsed */
@@ -143,6 +147,7 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
   label,
   status,
   count,
+  badgeColor,
   stat,
   collapsed = false,
   active = false,
@@ -198,7 +203,7 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
             </EnterpriseBadge>
           )}
           {count !== undefined && count > 0 && !isLocked && (
-            <ItemBadge $status={status}>
+            <ItemBadge $status={status} $badgeColor={badgeColor}>
               {count}
             </ItemBadge>
           )}

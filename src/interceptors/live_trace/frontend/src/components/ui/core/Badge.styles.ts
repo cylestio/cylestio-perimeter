@@ -9,19 +9,19 @@ import { pulse, glowPulse } from '@theme/animations';
 const badgeVariantStyles: Record<BadgeVariant, ReturnType<typeof css>> = {
   critical: css`
     background: ${({ theme }) => theme.colors.redSoft};
-    color: ${({ theme }) => theme.colors.red};
+    color: ${({ theme }) => theme.colors.severityCritical};
   `,
   high: css`
-    background: ${({ theme }) => theme.colors.orangeSoft};
-    color: ${({ theme }) => theme.colors.orange};
+    background: ${({ theme }) => theme.colors.redSoft};
+    color: ${({ theme }) => theme.colors.severityHigh};
   `,
   medium: css`
     background: ${({ theme }) => theme.colors.yellowSoft};
-    color: ${({ theme }) => theme.colors.yellow};
+    color: ${({ theme }) => theme.colors.severityMedium};
   `,
   low: css`
     background: ${({ theme }) => theme.colors.white08};
-    color: ${({ theme }) => theme.colors.white50};
+    color: ${({ theme }) => theme.colors.severityLow};
   `,
   success: css`
     background: ${({ theme }) => theme.colors.greenSoft};
@@ -72,10 +72,10 @@ export const StyledBadge = styled.span<StyledBadgeProps>`
 // ===========================================
 
 const severityColors: Record<Severity, { bg: string; glow?: string }> = {
-  critical: { bg: 'red', glow: 'glowRed' },
-  high: { bg: 'orange', glow: 'glowOrange' },
-  medium: { bg: 'yellow' },
-  low: { bg: 'white30' },
+  critical: { bg: 'severityCritical', glow: 'glowRed' },
+  high: { bg: 'severityHigh', glow: 'glowRed' },
+  medium: { bg: 'severityMedium' },
+  low: { bg: 'severityLow' },
 };
 
 interface StyledSeverityDotProps {

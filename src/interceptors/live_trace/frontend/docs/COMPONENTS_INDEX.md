@@ -35,6 +35,8 @@
 | `domain/charts/` | LineChart, BarChart, PieChart, DistributionBar |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
 | `domain/findings/` | FindingCard, FindingsTab |
+| `domain/recommendations/` | RecommendationCard, DismissModal, ProgressSummary, AuditTrail |
+| `domain/recommendations/dashboard/` | SummaryStatsBar, SeverityProgressBar, IssueCard, CategoryDonut, SourceDistribution, DetectionTimeline |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
 
 ---
@@ -1763,7 +1765,6 @@ interface UserMenuProps {
 
 # Features Components
 
-Page-specific components that are not reusable across different pages.
 
 ## GatheringData
 
@@ -1801,3 +1802,155 @@ interface GatheringDataProps {
   hint="Analysis improves with more data"
 />
 ```
+
+
+## Recommendations Components
+
+### DismissModal
+
+Modal dialog for dismissing security recommendations with reason tracking.
+
+```typescript
+type DismissType = 'DISMISSED' | 'IGNORED';
+
+interface DismissModalProps {
+  recommendationId: string;
+  defaultType?: DismissType;  // Pre-select dismiss type (default: 'DISMISSED')
+  onConfirm: (type: DismissType, reason: string) => void;
+  onCancel: () => void;
+}
+```
+
+**Dismiss Types:**
+- `DISMISSED` - Risk Accepted: User acknowledges the risk but chooses not to fix
+- `IGNORED` - False Positive: Issue is not actually a security concern in context
+
+**Usage:**
+```tsx
+<DismissModal
+  recommendationId="REC-12345"
+  defaultType="IGNORED"  // Pre-select "False Positive"
+  onConfirm={(type, reason) => dismissRecommendation(id, type, reason)}
+  onCancel={() => setModalOpen(false)}
+/>
+```
+
+---
+
+## Recommendations Dashboard Components
+
+Components for the Security Dashboard that visualizes and manages security recommendations.
+
+### SummaryStatsBar
+
+Displays gate statuses and severity counts in a grid layout.
+
+```typescript
+interface SummaryStatsBarProps {
+  recommendations: Recommendation[];
+  gateStatus: GateStatus;
+  blockingCritical: number;
+  blockingHigh: number;
+}
+```
+
+**Features:**
+- Shows Static Analysis Gate and Dynamic Analysis Gate status separately
+- Displays counts for Critical, High, Medium, Low severities
+- Color-coded severity indicators
+
+### SeverityProgressBar
+
+Multi-segment progress bar showing resolution progress by severity.
+
+```typescript
+interface SeverityProgressBarProps {
+  recommendations: Recommendation[];
+}
+```
+
+**Features:**
+- Single progress track with colored segments for resolved issues
+- Grid showing resolved/total counts per severity
+- Status text showing completion or remaining count
+
+### IssueCard
+
+Expandable card for displaying a security issue with inline details.
+
+```typescript
+interface IssueCardProps {
+  recommendation: Recommendation;
+  onCopyCommand?: () => void;
+  onMarkFixed?: () => void;
+  onDismiss?: (type: 'DISMISSED' | 'IGNORED') => void;
+  defaultExpanded?: boolean;
+}
+```
+
+**Features:**
+- Collapsible with inline details (no navigation away)
+- Shows severity, source type (Static/Dynamic), CVSS score
+- Resolution status badge for resolved issues (Fixed, Risk Accepted, False Positive)
+- Resolution timestamp
+- Code snippet with copy button
+- Fix command copy button
+
+**Usage:**
+```tsx
+<IssueCard
+  recommendation={rec}
+  onMarkFixed={() => markFixed(rec.id)}
+  onDismiss={(type) => openDismissModal(rec.id, type)}
+/>
+```
+
+### CategoryDonut
+
+SVG donut chart showing issue distribution by security category.
+
+```typescript
+interface CategoryDonutProps {
+  recommendations: Recommendation[];
+  selectedCategory?: SecurityCheckCategory | null;
+  onCategoryClick?: (category: SecurityCheckCategory | null) => void;
+}
+```
+
+**Features:**
+- Interactive segments with hover effects
+- Click to filter issues by category
+- Synchronized hover between chart and legend
+- Center displays total issue count
+
+### SourceDistribution
+
+Two-column layout showing issues grouped by Static and Dynamic analysis sources.
+
+```typescript
+interface SourceDistributionProps {
+  recommendations: Recommendation[];
+  selectedSource?: string | null;
+  onSourceClick?: (source: string | null, type: 'STATIC' | 'DYNAMIC') => void;
+}
+```
+
+**Features:**
+- Separates Static Analysis (by file) and Dynamic Analysis (by agent/endpoint)
+- Severity badges per source showing Critical/High/Medium/Low counts
+- Click to filter issues by source
+
+### DetectionTimeline
+
+SVG line chart showing issues detected vs resolved over time.
+
+```typescript
+interface DetectionTimelineProps {
+  recommendations: Recommendation[];
+}
+```
+
+**Features:**
+- Shows last 7 days of activity
+- Two lines: Detected (orange) and Resolved (green)
+- Proper axis labels and legend

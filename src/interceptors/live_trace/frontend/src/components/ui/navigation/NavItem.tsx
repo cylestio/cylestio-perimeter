@@ -26,6 +26,10 @@ export interface NavItemProps {
   active?: boolean;
   badge?: string | number;
   badgeColor?: NavItemBadgeColor;
+  /** When true, the badge pulses to indicate activity */
+  badgePulsing?: boolean;
+  /** When true, the icon spins/pulses to indicate active work */
+  iconPulsing?: boolean;
   onClick?: () => void;
   disabled?: boolean;
   /** When true, only shows the icon with a tooltip */
@@ -48,6 +52,8 @@ export const NavItem: FC<NavItemProps> = ({
   active = false,
   badge,
   badgeColor,
+  badgePulsing = false,
+  iconPulsing = false,
   onClick,
   disabled = false,
   collapsed = false,
@@ -55,9 +61,11 @@ export const NavItem: FC<NavItemProps> = ({
 }) => {
   const content = (
     <>
-      {icon && <NavItemIcon>{icon}</NavItemIcon>}
+      {icon && <NavItemIcon $pulsing={iconPulsing}>{icon}</NavItemIcon>}
       {!collapsed && <NavItemLabel>{label}</NavItemLabel>}
-      {!collapsed && badge !== undefined && <NavItemBadge $color={badgeColor}>{badge}</NavItemBadge>}
+      {!collapsed && badge !== undefined && (
+        <NavItemBadge $color={badgeColor} $pulsing={badgePulsing}>{badge}</NavItemBadge>
+      )}
     </>
   );
 

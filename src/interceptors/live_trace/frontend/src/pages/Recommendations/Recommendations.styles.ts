@@ -1,4 +1,6 @@
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
+
+// ============ Progress/Score Card (legacy - keeping for backwards compat) ============
 
 export const ScoreCard = styled.div`
   display: flex;
@@ -62,11 +64,112 @@ export const ScoreItem = styled.div<ScoreItemProps>`
   }
 `;
 
+// ============ Filters Bar ============
+
+export const FiltersBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  
+  /* RichSelect styling within FiltersBar */
+  > div {
+    min-width: 150px;
+  }
+`;
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+`;
+
+export const RefreshButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 12px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white70};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.surface2};
+    border-color: ${({ theme }) => theme.colors.borderMedium};
+    color: ${({ theme }) => theme.colors.white};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .spinning {
+    animation: ${spin} 1s linear infinite;
+  }
+`;
+
+// ============ Recommendations List ============
+
 export const RecommendationsList = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[3]};
 `;
+
+// Severity-based section headers
+interface SeveritySectionHeaderProps {
+  $severity: 'critical' | 'high' | 'other' | 'resolved';
+}
+
+export const SeveritySectionHeader = styled.div<SeveritySectionHeaderProps>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[3]}`};
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ $severity, theme }) => {
+    switch ($severity) {
+      case 'critical':
+        return `${theme.colors.red}10`;
+      case 'high':
+        return `${theme.colors.orange}10`;
+      case 'resolved':
+        return `${theme.colors.green}10`;
+      default:
+        return theme.colors.surface2;
+    }
+  }};
+`;
+
+export const SeveritySectionTitle = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+// Legacy SectionTitle for backwards compat
+interface SectionTitleProps {
+  $variant: 'pending' | 'resolved';
+}
+
+export const SectionTitle = styled.span<SectionTitleProps>`
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: ${({ $variant, theme }) => 
+    $variant === 'pending' ? theme.colors.orange : theme.colors.green};
+`;
+
+// ============ Legacy Card Styles (keeping for backwards compat) ============
 
 interface RecommendationCardProps {
   $severity: 'high' | 'medium' | 'low';
@@ -183,6 +286,8 @@ export const ActionLink = styled.a`
   }
 `;
 
+// ============ Empty & Error States ============
+
 export const EmptyState = styled.div`
   display: flex;
   flex-direction: column;
@@ -190,18 +295,59 @@ export const EmptyState = styled.div`
   justify-content: center;
   padding: ${({ theme }) => theme.spacing[12]};
   text-align: center;
-  color: ${({ theme }) => theme.colors.green};
 
   h3 {
     font-size: 18px;
     font-weight: 600;
     color: ${({ theme }) => theme.colors.white};
-    margin: ${({ theme }) => theme.spacing[4]} 0 ${({ theme }) => theme.spacing[2]};
+    margin: 0 0 ${({ theme }) => theme.spacing[2]};
   }
 
   p {
     font-size: 13px;
     color: ${({ theme }) => theme.colors.white50};
     margin: 0;
+  }
+
+  code {
+    font-family: ${({ theme }) => theme.typography.fontMono};
+    background: ${({ theme }) => theme.colors.surface2};
+    padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+    border-radius: ${({ theme }) => theme.radii.sm};
+    color: ${({ theme }) => theme.colors.cyan};
+  }
+`;
+
+export const ErrorState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: ${({ theme }) => theme.spacing[12]};
+  text-align: center;
+  color: ${({ theme }) => theme.colors.red};
+
+  p {
+    font-size: 14px;
+    margin: 0 0 ${({ theme }) => theme.spacing[4]};
+  }
+`;
+
+export const RetryButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  background: ${({ theme }) => theme.colors.red};
+  border: none;
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 13px;
+  font-weight: 500;
+  color: ${({ theme }) => theme.colors.white};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    opacity: 0.9;
   }
 `;

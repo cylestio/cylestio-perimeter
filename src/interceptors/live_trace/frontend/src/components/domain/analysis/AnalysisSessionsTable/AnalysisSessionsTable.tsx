@@ -1,6 +1,6 @@
 import type { FC, ReactNode } from 'react';
 
-import { Clock, ExternalLink, Shield } from 'lucide-react';
+import { Clock, ExternalLink, Shield, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import type { AnalysisSession } from '@api/types/findings';
@@ -114,8 +114,25 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       },
     },
     {
+      key: 'sessions_analyzed',
+      header: 'Sessions',
+      width: '90px',
+      align: 'center',
+      sortable: true,
+      render: (session) => {
+        const count = session.sessions_analyzed;
+        if (count === null || count === undefined) return <MetaCell>-</MetaCell>;
+        return (
+          <MetaCell>
+            <Activity size={12} />
+            {count}
+          </MetaCell>
+        );
+      },
+    },
+    {
       key: 'findings_count',
-      header: 'Checks',
+      header: 'Findings',
       width: '80px',
       align: 'center',
       sortable: true,

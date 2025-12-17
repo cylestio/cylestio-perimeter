@@ -23,8 +23,8 @@ interface StyledCardProps {
 }
 
 const statusBorderColors: Record<CardStatus, string> = {
-  critical: 'red',
-  high: 'orange',
+  critical: 'severityCritical',
+  high: 'severityHigh',
   success: 'green',
 };
 

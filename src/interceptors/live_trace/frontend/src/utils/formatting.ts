@@ -187,7 +187,7 @@ export const formatAbsoluteDateTime = (timestamp: string | Date | number | null 
 };
 
 // Constants
-export const MIN_SESSIONS_FOR_RISK_ANALYSIS = 5;
+export const MIN_SESSIONS_FOR_RISK_ANALYSIS = 1;
 
 export const BEHAVIORAL_TOOLTIPS = {
   stability:

@@ -139,8 +139,13 @@ class SessionMonitor:
             logger.error(f"Failed to start startup analysis check: {e}")
 
     def _run_checker(self) -> None:
-        """Main loop: check for completed sessions, trigger analysis."""
-        logger.info("Session monitor thread started")
+        """Main loop: check for completed sessions (NO auto-trigger).
+        
+        Note: Per Phase 4 spec, analysis is ON-DEMAND only.
+        This monitor ONLY marks sessions as completed - it does NOT trigger analysis.
+        Users must explicitly trigger analysis via UI button or MCP tool.
+        """
+        logger.info("Session monitor thread started (on-demand analysis mode - no auto-trigger)")
 
         while not self._stop_event.is_set():
             try:
@@ -148,12 +153,13 @@ class SessionMonitor:
                 # Returns list of agent IDs that had sessions completed
                 completed_agent_ids = self._store.check_and_complete_sessions(self._timeout)
 
-                # Trigger analysis for each agent that had sessions complete
-                for agent_id in completed_agent_ids:
-                    try:
-                        self._analysis_runner.trigger(agent_id)
-                    except Exception as e:
-                        logger.error(f"Error triggering analysis for agent {agent_id}: {e}")
+                # Log for visibility but DO NOT auto-trigger analysis
+                # Analysis must be triggered manually by user via UI or MCP
+                if completed_agent_ids:
+                    logger.debug(
+                        f"Sessions completed for {len(completed_agent_ids)} agent(s). "
+                        f"Analysis available on-demand via UI or MCP trigger_dynamic_analysis."
+                    )
             except Exception as e:
                 logger.error(f"Error in session monitor: {e}")
 

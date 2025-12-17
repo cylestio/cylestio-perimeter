@@ -1,5 +1,10 @@
-import styled, { css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import type { NavItemBadgeColor } from './NavItem';
+
+const pulseAnimation = keyframes`
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+`;
 
 interface StyledNavItemProps {
   $active?: boolean;
@@ -59,7 +64,16 @@ export const NavItemLabel = styled.span`
   text-overflow: ellipsis;
 `;
 
-export const NavItemIcon = styled.span`
+interface NavItemIconProps {
+  $pulsing?: boolean;
+}
+
+const spinAnimation = keyframes`
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+`;
+
+export const NavItemIcon = styled.span<NavItemIconProps>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -69,10 +83,20 @@ export const NavItemIcon = styled.span`
     width: 18px;
     height: 18px;
   }
+
+  ${({ $pulsing }) =>
+    $pulsing &&
+    css`
+      color: ${({ theme }) => theme.colors.cyan};
+      svg {
+        animation: ${spinAnimation} 2s linear infinite;
+      }
+    `}
 `;
 
 interface NavItemBadgeProps {
   $color?: NavItemBadgeColor;
+  $pulsing?: boolean;
 }
 
 const badgeColors: Record<NavItemBadgeColor, { bg: string; fg: string }> = {
@@ -95,6 +119,12 @@ export const NavItemBadge = styled.span<NavItemBadgeProps>`
       color: ${theme.colors[colors.fg as keyof typeof theme.colors]};
     `;
   }}
+
+  ${({ $pulsing }) =>
+    $pulsing &&
+    css`
+      animation: ${pulseAnimation} 1.5s ease-in-out infinite;
+    `}
 `;
 
 // NavGroup

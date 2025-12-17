@@ -18,7 +18,8 @@ from .models import RiskAnalysisResult
 logger = logging.getLogger(__name__)
 
 # Minimum sessions required for risk analysis
-MIN_SESSIONS_FOR_RISK_ANALYSIS = 5
+# Minimum sessions - per Phase 4 spec, users can trigger analysis with 1+ sessions
+MIN_SESSIONS_FOR_RISK_ANALYSIS = 1
 
 
 class AnalysisStore(Protocol):
@@ -159,11 +160,10 @@ class AnalysisRunner:
             current_count = self._store.get_completed_session_count(agent_id)
             last_count = self._store.get_agent_last_analyzed_count(agent_id)
 
-            # Must have minimum sessions
-            if current_count < MIN_SESSIONS_FOR_RISK_ANALYSIS:
+            # Must have at least 1 session (no minimum - per Phase 4 spec)
+            if current_count < 1:
                 logger.debug(
-                    f"[ANALYSIS] Insufficient sessions for {agent_id}: "
-                    f"{current_count} < {MIN_SESSIONS_FOR_RISK_ANALYSIS}"
+                    f"[ANALYSIS] No sessions for {agent_id}: {current_count}"
                 )
                 return False
 
@@ -312,20 +312,18 @@ class AnalysisRunner:
     async def check_pending_on_startup(self) -> list:
         """Check for agents needing analysis on startup.
 
-        Finds agents where:
-        - Completed session count >= MIN_SESSIONS_FOR_RISK_ANALYSIS
-        - Completed session count > last_analyzed_session_count
+        NOTE: Per Phase 4 spec, analysis is ON-DEMAND only.
+        This method logs agents with pending sessions but does NOT auto-trigger.
+        Users must trigger analysis via UI button or MCP tool.
 
         Returns:
-            List of agent IDs that were queued for analysis.
+            List of agent IDs with pending sessions (for info only).
         """
         agent_ids = self._store.get_agents_needing_analysis(MIN_SESSIONS_FOR_RISK_ANALYSIS)
 
         if agent_ids:
-            logger.info(f"[STARTUP] Found {len(agent_ids)} agents needing analysis: {agent_ids}")
-            for agent_id in agent_ids:
-                logger.info(f"[STARTUP] Triggering analysis for {agent_id}")
-                self.trigger(agent_id)
+            logger.info(f"[STARTUP] Found {len(agent_ids)} agents with pending sessions: {agent_ids}")
+            logger.info("[STARTUP] Analysis is ON-DEMAND - use UI or MCP to trigger when ready")
         else:
             logger.info("[STARTUP] No agents need analysis at startup")
 

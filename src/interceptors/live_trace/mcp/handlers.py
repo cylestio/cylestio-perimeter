@@ -132,7 +132,7 @@ def handle_complete_analysis_session(args: Dict[str, Any], store: Any) -> Dict[s
 
 @register_handler("store_finding")
 def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
-    """Store a security finding."""
+    """Store a security finding and auto-create a linked recommendation."""
     session_id = args.get("session_id")
 
     session = store.get_analysis_session(session_id)
@@ -147,6 +147,8 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     evidence = {}
     if args.get("code_snippet"):
         evidence["code_snippet"] = args["code_snippet"]
+    if args.get("context"):
+        evidence["context"] = args["context"]
 
     finding_id = generate_finding_id()
     finding = store.store_finding(
@@ -162,8 +164,25 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         line_end=args.get("line_end"),
         evidence=evidence if evidence else None,
         owasp_mapping=args.get("owasp_mapping"),
+        # New Phase 1 parameters
+        source_type=args.get("source_type", "STATIC"),
+        category=args.get("category"),
+        check_id=args.get("check_id"),
+        cvss_score=args.get("cvss_score"),
+        cwe=args.get("cwe"),
+        soc2_controls=args.get("soc2_controls"),
+        auto_create_recommendation=args.get("auto_create_recommendation", True),
+        fix_hints=args.get("fix_hints"),
+        impact=args.get("impact"),
+        fix_complexity=args.get("fix_complexity"),
     )
-    return {"finding": finding}
+
+    result = {"finding": finding}
+    if finding.get("recommendation_id"):
+        result["recommendation_id"] = finding["recommendation_id"]
+        result["message"] = f"Finding stored with auto-created recommendation {finding['recommendation_id']}"
+
+    return result
 
 
 @register_handler("get_findings")
@@ -190,6 +209,70 @@ def handle_update_finding_status(args: Dict[str, Any], store: Any) -> Dict[str, 
     if not finding:
         return {"error": f"Finding '{finding_id}' not found"}
     return {"finding": finding}
+
+
+@register_handler("update_finding_correlation")
+def handle_update_finding_correlation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Update a finding's correlation state.
+    
+    Correlation states:
+    - VALIDATED: Static finding confirmed by runtime evidence
+    - UNEXERCISED: Static finding, code path never executed at runtime
+    - RUNTIME_ONLY: Issue found at runtime, no static counterpart
+    - THEORETICAL: Static finding, but safe at runtime
+    """
+    finding_id = args.get("finding_id")
+    if not finding_id:
+        return {"error": "finding_id is required"}
+    
+    correlation_state = args.get("correlation_state", "").upper()
+    valid_states = {'VALIDATED', 'UNEXERCISED', 'RUNTIME_ONLY', 'THEORETICAL'}
+    if correlation_state not in valid_states:
+        return {"error": f"Invalid correlation_state: {correlation_state}. Must be one of {list(valid_states)}"}
+    
+    correlation_evidence = args.get("correlation_evidence")
+    
+    finding = store.update_finding_correlation(
+        finding_id=finding_id,
+        correlation_state=correlation_state,
+        correlation_evidence=correlation_evidence,
+    )
+    
+    if not finding:
+        return {"error": f"Finding '{finding_id}' not found"}
+    
+    return {
+        "finding": finding,
+        "message": f"Finding {finding_id} marked as {correlation_state}",
+    }
+
+
+@register_handler("get_correlation_summary")
+def handle_get_correlation_summary(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get correlation summary for an agent workflow.
+    
+    Returns counts of findings by correlation state.
+    """
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+    
+    summary = store.get_correlation_summary(workflow_id)
+    
+    # Add helpful message
+    if summary['uncorrelated'] > 0:
+        message = f"💡 {summary['uncorrelated']} findings not yet correlated. Use /correlate to correlate them with runtime data."
+    elif summary['validated'] > 0:
+        message = f"⚠️ {summary['validated']} findings are VALIDATED - active risks confirmed at runtime. Prioritize fixing these!"
+    elif summary['is_correlated']:
+        message = "✅ All findings correlated. No validated active risks."
+    else:
+        message = "No findings to correlate yet."
+    
+    return {
+        **summary,
+        "message": message,
+    }
 
 
 # ==================== Agent Workflow Lifecycle Tools ====================
@@ -541,6 +624,346 @@ def handle_get_ide_connection_status(args: Dict[str, Any], store: Any) -> Dict[s
     return {
         **status,
         "message": message,
+    }
+
+
+# ==================== Recommendation Tools ====================
+
+@register_handler("get_recommendations")
+def handle_get_recommendations(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get recommendations for a workflow with optional filtering."""
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    recommendations = store.get_recommendations(
+        workflow_id=workflow_id,
+        status=args.get("status", "").upper() if args.get("status") else None,
+        severity=args.get("severity", "").upper() if args.get("severity") else None,
+        category=args.get("category", "").upper() if args.get("category") else None,
+        blocking_only=args.get("blocking_only", False),
+        limit=args.get("limit", 100),
+    )
+
+    return {
+        "recommendations": recommendations,
+        "total_count": len(recommendations),
+        "workflow_id": workflow_id,
+    }
+
+
+@register_handler("get_recommendation_detail")
+def handle_get_recommendation_detail(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get detailed information about a specific recommendation."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    recommendation = store.get_recommendation(recommendation_id)
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    # Get the linked finding
+    finding = store.get_finding(recommendation['source_finding_id'])
+
+    # Get audit history
+    audit_log = store.get_audit_log(
+        entity_type='recommendation',
+        entity_id=recommendation_id,
+        limit=20,
+    )
+
+    return {
+        "recommendation": recommendation,
+        "finding": finding,
+        "audit_log": audit_log,
+    }
+
+
+@register_handler("start_fix")
+def handle_start_fix(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Mark a recommendation as being worked on (FIXING status)."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    fixed_by = args.get("fixed_by")
+
+    recommendation = store.start_fix(
+        recommendation_id=recommendation_id,
+        fixed_by=fixed_by,
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    return {
+        "recommendation": recommendation,
+        "message": f"Started fix for {recommendation_id}. Status is now FIXING.",
+        "next_step": f"After applying your fix, call complete_fix(recommendation_id='{recommendation_id}', fix_notes='...') to mark it as done.",
+    }
+
+
+@register_handler("complete_fix")
+def handle_complete_fix(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Mark a recommendation as fixed."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    recommendation = store.complete_fix(
+        recommendation_id=recommendation_id,
+        fix_notes=args.get("fix_notes"),
+        files_modified=args.get("files_modified"),
+        fix_commit=args.get("fix_commit"),
+        fix_method=args.get("fix_method"),
+        fixed_by=args.get("fixed_by"),
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    return {
+        "recommendation": recommendation,
+        "message": f"Fix completed for {recommendation_id}. Status is now FIXED.",
+        "next_step": "The fix can be verified with verify_fix() or the recommendation can be dismissed if needed.",
+    }
+
+
+@register_handler("verify_fix")
+def handle_verify_fix(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Verify a fix and update status to VERIFIED or reopen if failed."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    verification_result = args.get("verification_result")
+    if not verification_result:
+        return {"error": "verification_result is required"}
+
+    success = args.get("success", True)
+
+    recommendation = store.verify_fix(
+        recommendation_id=recommendation_id,
+        verification_result=verification_result,
+        success=success,
+        verified_by=args.get("verified_by"),
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    if success:
+        message = f"Fix verified for {recommendation_id}. Status is now VERIFIED. ✅"
+    else:
+        message = f"Verification failed for {recommendation_id}. Status reverted to PENDING. ❌"
+
+    return {
+        "recommendation": recommendation,
+        "message": message,
+        "success": success,
+    }
+
+
+@register_handler("dismiss_recommendation")
+def handle_dismiss_recommendation(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Dismiss or ignore a recommendation (accept the risk)."""
+    recommendation_id = args.get("recommendation_id")
+    if not recommendation_id:
+        return {"error": "recommendation_id is required"}
+
+    reason = args.get("reason")
+    if not reason:
+        return {"error": "reason is required - explain why this is being dismissed"}
+
+    dismiss_type = args.get("dismiss_type", "DISMISSED")
+
+    recommendation = store.dismiss_recommendation(
+        recommendation_id=recommendation_id,
+        reason=reason,
+        dismiss_type=dismiss_type,
+        dismissed_by=args.get("dismissed_by"),
+    )
+
+    if not recommendation:
+        return {"error": f"Recommendation '{recommendation_id}' not found"}
+
+    return {
+        "recommendation": recommendation,
+        "message": f"Recommendation {recommendation_id} has been {dismiss_type.lower()}.",
+        "note": "This will be logged in the audit trail for compliance purposes.",
+    }
+
+
+@register_handler("get_gate_status")
+def handle_get_gate_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get the production gate status for a workflow."""
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    gate_status = store.get_gate_status(workflow_id)
+
+    if gate_status['is_blocked']:
+        message = f"🚫 Production BLOCKED: {gate_status['blocking_critical']} critical and {gate_status['blocking_high']} high severity issues must be addressed."
+    else:
+        message = "✅ Production READY: No blocking security issues."
+
+    return {
+        **gate_status,
+        "message": message,
+    }
+
+
+@register_handler("get_audit_log")
+def handle_get_audit_log(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get audit log entries for compliance reporting."""
+    entries = store.get_audit_log(
+        entity_type=args.get("entity_type"),
+        entity_id=args.get("entity_id"),
+        action=args.get("action"),
+        limit=args.get("limit", 100),
+    )
+
+    return {
+        "entries": entries,
+        "total_count": len(entries),
+    }
+
+
+# ==================== Dynamic Analysis On-Demand Tools ====================
+
+@register_handler("trigger_dynamic_analysis")
+def handle_trigger_dynamic_analysis(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Trigger on-demand dynamic analysis for a workflow.
+    
+    Analysis processes only new sessions since last analysis.
+    Creates findings and recommendations for failed checks.
+    Auto-resolves issues not detected in new scans.
+    """
+    import requests
+    
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    # Get current status first
+    status = store.get_dynamic_analysis_status(workflow_id)
+    
+    if status['is_running']:
+        return {
+            "status": "already_running",
+            "message": "Analysis is already in progress. Wait for it to complete.",
+            "last_analysis": status.get('last_analysis'),
+        }
+    
+    if status['total_unanalyzed_sessions'] == 0:
+        return {
+            "status": "no_new_sessions",
+            "message": "All sessions have already been analyzed. Run more test sessions first.",
+            "last_analysis": status.get('last_analysis'),
+            "hint": f"Run your agent through the proxy at http://localhost:4000/agent-workflow/{workflow_id} to capture new sessions.",
+        }
+    
+    # Call the API endpoint to trigger the full analysis
+    # This runs security checks, creates findings/recommendations, and auto-resolves old issues
+    try:
+        response = requests.post(
+            f"http://localhost:7100/api/workflow/{workflow_id}/trigger-dynamic-analysis",
+            timeout=120  # Analysis can take time
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            result["view_results"] = f"http://localhost:7100/agent-workflow/{workflow_id}/dynamic-analysis"
+            return result
+        else:
+            return {
+                "status": "error",
+                "message": f"Failed to trigger analysis: {response.text}",
+            }
+    except requests.exceptions.ConnectionError:
+        return {
+            "status": "error", 
+            "message": "Could not connect to Agent Inspector API. Make sure the server is running on port 7100.",
+            "hint": "Start the server with: python -m src.main run --config examples/configs/live-trace.yaml",
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error triggering analysis: {str(e)}",
+        }
+
+
+@register_handler("get_dynamic_analysis_status")
+def handle_get_dynamic_analysis_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get comprehensive dynamic analysis status for a workflow.
+    
+    Shows:
+    - Whether analysis can be triggered
+    - Number of unanalyzed sessions
+    - Per-agent status
+    - Last analysis info
+    """
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    status = store.get_dynamic_analysis_status(workflow_id)
+    
+    # Add helpful message based on status
+    if status['is_running']:
+        message = "🔵 Analysis in progress..."
+    elif status['total_unanalyzed_sessions'] > 0:
+        message = f"🟡 {status['total_unanalyzed_sessions']} new sessions ready to analyze. Use trigger_dynamic_analysis to run."
+    elif status.get('last_analysis'):
+        message = "✅ All sessions analyzed. Dynamic analysis is up to date."
+    else:
+        message = f"⚪ No sessions yet. Run your agent through http://localhost:4000/agent-workflow/{workflow_id} to capture sessions."
+    
+    return {
+        **status,
+        "message": message,
+    }
+
+
+@register_handler("get_analysis_history")
+def handle_get_analysis_history(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get analysis history for a workflow.
+    
+    Shows past analysis runs. Latest analysis impacts gate status,
+    historical analyses are view-only records.
+    """
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id or agent_workflow_id is required"}
+
+    session_type = args.get("session_type", "DYNAMIC")
+    limit = args.get("limit", 20)
+    
+    sessions = store.get_analysis_sessions(
+        agent_workflow_id=workflow_id,
+        limit=limit,
+    )
+    
+    # Filter by session_type
+    filtered = [s for s in sessions if s.get('session_type') == session_type.upper()]
+    
+    # Determine latest
+    latest_id = None
+    if filtered:
+        completed = [s for s in filtered if s.get('status') == 'COMPLETED']
+        if completed:
+            latest_id = completed[0]['session_id']
+    
+    return {
+        "workflow_id": workflow_id,
+        "session_type": session_type,
+        "analyses": filtered,
+        "latest_id": latest_id,
+        "total_count": len(filtered),
+        "message": f"Found {len(filtered)} {session_type.lower()} analysis sessions." + 
+                   (f" Latest: {latest_id}" if latest_id else ""),
     }
 
 

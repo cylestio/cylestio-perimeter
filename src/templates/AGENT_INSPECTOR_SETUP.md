@@ -150,9 +150,9 @@ Same logic as above, but:
 
 ---
 
-## STEP 5: CREATE RULES FILE
+## STEP 5: CREATE RULES/SKILLS FILE
 
-**Only for Cursor** (skip if you're Claude Code):
+### 5.1 For Cursor: `.cursor/rules/agent-inspector.mdc`
 
 ```bash
 mkdir -p {AGENT_PROJECT_FOLDER}/.cursor/rules
@@ -162,7 +162,92 @@ mkdir -p {AGENT_PROJECT_FOLDER}/.cursor/rules
 - Look for: `src/templates/cursor-rules/agent-inspector.mdc` in the installed package or repo
 - Copy to: `{AGENT_PROJECT_FOLDER}/.cursor/rules/agent-inspector.mdc`
 
-If template not found, create minimal rules file that references MCP tools discovery.
+If template not found, create the rules file with this minimal content:
+
+```markdown
+---
+description: Agent Inspector - AI Agent Security Analysis (scan, analyze, fix, correlate)
+globs: ["**/*.py", "**/*.ts", "**/*.js"]
+---
+
+# Agent Inspector Integration
+
+**MCP Server:** `http://localhost:7100/mcp`
+**Dashboard:** `http://localhost:7100`
+
+## Commands
+
+- `/scan` - Run static security scan on current workspace
+- `/scan path/` - Scan specific folder
+- `/analyze` - Run dynamic runtime analysis
+- `/correlate` - Correlate static findings with runtime data
+- `/fix REC-XXX` - Fix a specific recommendation
+- `/fix` - Fix highest priority blocking issue
+- `/status` - Get dynamic analysis status
+- `/gate` - Check production gate status
+- `/report` - Generate security assessment report (returns markdown)
+
+## Static Analysis - 7 Security Categories
+
+1. PROMPT - Injection, jailbreak (LLM01)
+2. OUTPUT - Insecure output handling (LLM02)
+3. TOOL - Dangerous tools without constraints (LLM07/08)
+4. DATA - Secrets, PII exposure (LLM06)
+5. MEMORY - RAG/context security
+6. SUPPLY - Unpinned dependencies (LLM05)
+7. BEHAVIOR - Excessive agency (LLM08/09)
+
+## Dynamic Analysis - 4 Check Categories
+
+1. Resource Management - Token/tool bounds, variance
+2. Environment - Model pinning, tool coverage
+3. Behavioral - Stability, predictability, outliers
+4. Data - PII detection at runtime
+
+## Correlation States (Phase 5)
+
+- VALIDATED - Static issue confirmed at runtime (FIX FIRST!)
+- UNEXERCISED - Code path never executed
+- THEORETICAL - Static issue, but safe at runtime
+- RUNTIME_ONLY - Found only during runtime
+
+## Fix Workflow
+
+Recommendations follow: PENDING → FIXING → FIXED → VERIFIED
+
+Use MCP tools: `start_fix()`, `complete_fix()`, `dismiss_recommendation()`
+```
+
+### 5.2 For Claude Code: `CLAUDE.md` (Skills File)
+
+Claude Code uses a `CLAUDE.md` file at the project root for skills/context.
+
+```bash
+# Check if CLAUDE.md exists
+ls {AGENT_PROJECT_FOLDER}/CLAUDE.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+```
+
+**Copy from package template** if available:
+- Look for: `src/templates/claude-code/CLAUDE.md` in the installed package or repo
+- Copy to: `{AGENT_PROJECT_FOLDER}/CLAUDE.md`
+
+**If NOT_FOUND and no template**, create `{AGENT_PROJECT_FOLDER}/CLAUDE.md` with:
+- MCP connection details (http://localhost:7100/mcp)
+- Commands: `/scan`, `/fix REC-XXX`, `/fix`
+- 7 security categories
+- Recommendation lifecycle
+- MCP tools reference
+
+**If EXISTS**, append the Agent Inspector section if not already present.
+
+### 5.3 Detailed Skills (Both IDEs)
+
+For more comprehensive skill files, check `src/templates/skills/`:
+- `static-analysis/SKILL.md` - Complete `/scan` workflow
+- `auto-fix/SKILL.md` - Complete `/fix` workflow with prioritization
+- `dynamic-analysis/SKILL.md` - Runtime tracing setup
+
+These can be included in your project's rules/skills for more detailed guidance.
 
 ---
 
@@ -356,17 +441,35 @@ ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER
 
 ### 10.2 If Code Exists, Run Static Scan
 
-If MCP is connected, use the Agent Inspector tools to:
-1. Get security patterns: `get_security_patterns()`
-2. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")`
-3. Analyze the code files for each pattern
-4. Store any findings: `store_finding(...)`
-5. Complete the session: `complete_analysis_session(session_id)`
+If MCP is connected, use the `/scan` command workflow:
 
-**Derive agent_workflow_id from folder name** (e.g., `next-rooms`).
+1. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")`
+2. Get security patterns: `get_security_patterns()`
+3. **Analyze code for ALL 7 security categories:**
+   - PROMPT (LLM01): Injection, jailbreak
+   - OUTPUT (LLM02): Insecure output handling
+   - TOOL (LLM07/08): Dangerous tools
+   - DATA (LLM06): Hardcoded secrets
+   - MEMORY: RAG/context security
+   - SUPPLY (LLM05): Dependencies
+   - BEHAVIOR (LLM08/09): Excessive agency
+4. Store findings with category: `store_finding(..., category="PROMPT")`
+5. Complete session: `complete_analysis_session(session_id)`
+
+**Report using the 7-category format:**
+```
+🔍 AI Security Scan Complete!
+
+Security Checks (7):
+✗ PROMPT Security: X Critical issues
+✓ DATA Security: Passed
+...
+
+Gate Status: 🔒 BLOCKED / ✅ OPEN
+```
 
 If MCP not connected yet, tell user:
-> "Reload Cursor, then ask me to 'run a security scan' and I'll analyze your agent code."
+> "Reload Cursor, then type `/scan` and I'll analyze your agent code."
 
 ---
 
@@ -398,15 +501,181 @@ Query the `agent-inspector` MCP server for available tools.
 
 A security analysis platform for AI agents - find vulnerabilities, understand behavior, meet compliance.
 
-#### What Can You Do?
+#### Quick Commands
 
-**List ONLY capabilities you verified from the actual MCP tools.** Don't assume features exist.
+| Command | Description |
+|---------|-------------|
+| `/scan` | Run static security scan on current workspace |
+| `/scan path/to/folder` | Run static scan on specific folder |
+| `/analyze` | Run dynamic analysis on runtime sessions |
+| `/correlate` | Correlate static findings with runtime data |
+| `/fix REC-001` | Fix a specific recommendation (AI-powered, contextual) |
+| `/fix` | Fix the next highest-priority blocking recommendation |
+| `/status` | Get dynamic analysis status (sessions available, etc.) |
+| `/gate` | Check production gate status and blocking issues |
+| `/report` | Generate security assessment report (as markdown) |
 
-Show the user the tools you found and explain what they enable.
+#### The `/fix` Command - AI-Powered Security Fixes
+
+When you say `/fix REC-XXX`, I will:
+
+1. **Get the recommendation details** - what's the vulnerability and where
+2. **Start fix tracking** - marks status as FIXING in the audit trail
+3. **Read and analyze your code** - understand context, patterns, style
+4. **Apply an intelligent fix** - not a template, but adapted to your codebase
+5. **Complete the fix** - marks status as FIXED with notes on what changed
+
+**I'm smarter than template-based tools.** I understand your code semantically and apply fixes that match your patterns.
+
+#### Recommendation Lifecycle
+
+Every security finding has a recommendation: "what to do about it"
+
+```
+PENDING → FIXING → FIXED → VERIFIED
+              ↓
+         DISMISSED / IGNORED
+```
+
+- **PENDING**: Issue found, waiting for action
+- **FIXING**: Someone (AI or human) is working on it
+- **FIXED**: Fix applied, awaiting verification
+- **VERIFIED**: Re-scan confirmed the issue is gone
+- **DISMISSED**: Risk accepted (documented reason required)
+- **IGNORED**: False positive (documented reason required)
+
+#### Gate Status
+
+Your agent has a **Production Gate**:
+- 🔒 **BLOCKED**: CRITICAL or HIGH issues remain open → can't ship
+- ✅ **OPEN**: All blocking issues resolved → ready to ship
+
+#### The `/gate` Command - Production Gate Check
+
+When you say `/gate`, I will:
+
+1. **Check gate status** via `get_gate_status(workflow_id)`
+2. **Report blocking items** if BLOCKED (what needs fixing)
+3. **Show progress** towards production readiness
+4. **Suggest generating a report** when OPEN
+
+#### The `/report` Command - Security Assessment Report
+
+When you say `/report`, I will generate a comprehensive security report in markdown format.
+
+**Report Types:**
+- **security_assessment** (default) - Full CISO report with all details
+- **executive_summary** - High-level GO/NO-GO for leadership
+- **customer_dd** - Due diligence report for customers/partners
+
+**What I'll do:**
+
+1. **Generate the report** by calling the compliance report API
+2. **Format as markdown** with all key sections:
+   - Executive Summary (GO/NO-GO decision, risk score)
+   - Key Metrics (findings, fixed, blocking)
+   - Blocking Issues (if any)
+   - OWASP LLM Top 10 Coverage
+   - SOC2 Compliance Status
+   - Remediation Summary
+3. **Return the markdown directly** in the chat
+
+**Example output:**
+
+```markdown
+# Security Assessment: my-agent
+
+**Generated:** December 15, 2024
+**Risk Score:** 45/100
+
+---
+
+## ✅ Decision: GO
+
+Cleared for production deployment. All critical and high security issues have been addressed.
+
+## Key Metrics
+
+| Metric | Value |
+|--------|-------|
+| Risk Score | 45/100 |
+| Total Findings | 12 |
+| Open Issues | 3 |
+| Fixed | 8 |
+| Blocking Issues | 0 |
+
+## OWASP LLM Top 10 Coverage
+
+| Control | Status | Details |
+|---------|--------|---------|
+| LLM01: Prompt Injection | ✅ PASS | No issues found |
+| LLM06: Sensitive Info | ⚠️ WARNING | 2 open, 1 fixed |
+...
+
+*Generated by Cylestio Agent Inspector*
+```
+
+**Variations:**
+- `/report` - Generate full security assessment (default)
+- `/report executive` - Generate executive summary for leadership
+- `/report customer` - Generate customer due diligence report
+
+Use this before deployment to ensure all critical issues are addressed.
+
+#### The `/analyze` Command - Dynamic Runtime Analysis
+
+When you say `/analyze`, I will:
+
+1. **Check for available sessions** - runtime sessions from agent traffic through proxy
+2. **Trigger on-demand analysis** - only analyzes NEW sessions since last run
+3. **Run 16 security checks** across 4 categories:
+   - **Resource Management**: Token/tool call bounds, variance analysis
+   - **Environment**: Model pinning, tool coverage, unused tools
+   - **Behavioral**: Stability, outliers, predictability, clustering
+   - **Data**: PII detection in prompts and responses
+4. **Create findings & recommendations** - just like static analysis
+5. **Auto-resolve old issues** - issues not found in new sessions are marked resolved
+
+**Key points:**
+- Analysis is **ON-DEMAND** - only runs when you ask
+- Each run analyzes only **NEW sessions** (incremental)
+- Results reflect the **current state** of your agent
+
+#### The `/correlate` Command - Cross-Analysis Correlation
+
+When you say `/correlate`, I will:
+
+1. **Get static findings** - issues found in code analysis
+2. **Get runtime data** - tool usage patterns from dynamic sessions
+3. **Correlate findings** with one of these states:
+   - **VALIDATED**: Static issue confirmed at runtime (highest priority!)
+   - **UNEXERCISED**: Code path never executed at runtime
+   - **THEORETICAL**: Static issue, but safe at runtime (other safeguards)
+   - **RUNTIME_ONLY**: Issue found only at runtime
+4. **Update finding correlation** - stores evidence and state
+
+**Why correlate?**
+- Prioritize **VALIDATED** issues - they're real and active
+- Deprioritize **UNEXERCISED** code - may be dead code
+- Understand your agent's actual risk surface
+
+#### The 7 Security Checks
+
+Your agent is evaluated against 7 security categories:
+1. **PROMPT** - Prompt injection (LLM01)
+2. **OUTPUT** - Insecure output handling (LLM02)
+3. **TOOL** - Dangerous tools (LLM07/08)
+4. **DATA** - Secrets exposure (LLM06)
+5. **MEMORY** - RAG/context security
+6. **SUPPLY** - Dependencies (LLM05)
+7. **BEHAVIOR** - Excessive agency (LLM08/09)
+
+**Gate is BLOCKED** if any HIGH or CRITICAL issues exist.
 
 #### Quick Links
 
 - **Dashboard:** http://localhost:7100  
+- **Static Analysis:** http://localhost:7100/agent-workflow/{id}/static-analysis
 - **Proxy:** http://localhost:4000
 
 #### I'll Remember Agent Inspector
@@ -421,7 +690,9 @@ The rules file ensures I'll use these tools when you ask about security - even i
 - [ ] Checked/created virtual environment
 - [ ] Ran `pip install` (saw success message)
 - [ ] Created/updated MCP config file (`.cursor/mcp.json` or `.mcp.json`)
-- [ ] Created rules file (Cursor only)
+- [ ] Created rules/skills file:
+  - [ ] Cursor: `.cursor/rules/agent-inspector.mdc`
+  - [ ] Claude Code: `CLAUDE.md` with Agent Inspector section
 - [ ] Updated agent code with `base_url`
 - [ ] Started server OR told user how to start it
 - [ ] Told user to reload IDE
@@ -432,6 +703,163 @@ The rules file ensures I'll use these tools when you ask about security - even i
 **ALL BOXES MUST BE CHECKED.**
 
 **REMEMBER:** If IDE connection registration failed, you MUST retry on every subsequent MCP call!
+
+---
+
+## POST-INSTALLATION: Using Agent Inspector
+
+### Static Scan Workflow (`/scan`)
+
+```
+/scan → Analyzes code → Creates findings → Generates recommendations → Shows gate status
+```
+
+Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
+
+### Dynamic Analysis Workflow (`/analyze`)
+
+```
+/analyze → Analyzes runtime sessions → Creates security checks → Updates gate status
+```
+
+**Prerequisites:**
+1. Agent must send traffic through the proxy (`base_url="http://localhost:4000"`)
+2. At least 1 completed session available
+
+**Key behaviors:**
+- **On-demand only** - never auto-triggers
+- **Incremental** - only analyzes NEW sessions since last run
+- **Auto-resolves** - old issues not in new sessions are marked resolved
+
+### Correlation Workflow (`/correlate`)
+
+```
+/correlate → Gets static findings + runtime data → Updates correlation states
+```
+
+**When to use:**
+- After running BOTH static scan AND dynamic analysis
+- To prioritize which issues are real risks vs theoretical
+
+**Correlation states:**
+- **VALIDATED**: Issue exists in code AND was triggered at runtime → **FIX FIRST!**
+- **UNEXERCISED**: Issue in code, but code path never executed → lower priority
+- **THEORETICAL**: Issue in code, but runtime shows it's safe → may be OK
+- **RUNTIME_ONLY**: Issue found only at runtime → add static check
+
+### Fix Workflow (`/fix`)
+
+```
+/fix REC-001 → Reads code → Applies contextual fix → Updates status
+```
+
+The fix is tracked in an audit trail for compliance (who fixed what, when, how).
+
+### Gate Check Workflow (`/gate`)
+
+```
+/gate → Checks production gate → Reports blocking issues → Shows progress
+```
+
+**Gate states:**
+- 🔒 **BLOCKED**: CRITICAL or HIGH severity issues remain open
+- ✅ **OPEN**: All blocking issues resolved, ready for production
+
+### Report Generation Workflow (`/report`)
+
+```
+/report → Generates compliance report → Returns markdown directly in chat
+```
+
+**Report types:**
+- `security_assessment` (default): Full CISO report with OWASP, SOC2, evidences
+- `executive_summary`: High-level GO/NO-GO for leadership
+- `customer_dd`: Due diligence for customers/partners
+
+**The markdown report includes:**
+- Executive Summary with GO/NO-GO decision
+- Risk Score and key metrics
+- Blocking Issues (if any)
+- OWASP LLM Top 10 coverage table
+- SOC2 compliance status table
+- Remediation summary
+
+**Example:**
+```
+User: /report
+AI: Here's your security assessment report:
+
+# Security Assessment: my-agent
+**Risk Score:** 45/100
+## ✅ Decision: GO
+...
+```
+
+### Viewing Results
+
+| URL | What it shows |
+|-----|---------------|
+| http://localhost:7100 | Dashboard home |
+| http://localhost:7100/agent-workflow/{id}/static-analysis | Static scan findings with correlation |
+| http://localhost:7100/agent-workflow/{id}/dynamic-analysis | Dynamic runtime analysis |
+| http://localhost:7100/agent-workflow/{id}/recommendations | All recommendations & fix status |
+| http://localhost:7100/agent-workflow/{id}/reports | Compliance reports & gate status |
+| http://localhost:7100/agent-workflow/{id}/sessions | Runtime session history |
+
+### MCP Tools Reference
+
+#### Static Analysis Tools
+| Tool | Purpose |
+|------|---------|
+| `get_security_patterns` | Get OWASP LLM patterns for scanning |
+| `create_analysis_session` | Start a scan session (type: STATIC or DYNAMIC) |
+| `store_finding` | Record a security finding |
+| `complete_analysis_session` | Finalize scan, calculate risk |
+
+#### Dynamic Analysis Tools
+| Tool | Purpose |
+|------|---------|
+| `trigger_dynamic_analysis` | Trigger on-demand runtime analysis |
+| `get_dynamic_analysis_status` | Check if analysis can be triggered, session counts |
+| `get_tool_usage_patterns` | Get tool usage metrics from runtime |
+| `get_agents` | List agents discovered during runtime |
+
+#### Correlation Tools (Phase 5)
+| Tool | Purpose |
+|------|---------|
+| `update_finding_correlation` | Set finding correlation state (VALIDATED/UNEXERCISED/etc.) |
+| `get_correlation_summary` | Get counts by correlation state for workflow |
+| `get_agent_workflow_correlation` | Full correlation data: static + dynamic findings |
+
+#### Recommendation & Fix Tools
+| Tool | Purpose |
+|------|---------|
+| `get_recommendations` | List recommendations for workflow |
+| `start_fix` | Mark recommendation as FIXING |
+| `complete_fix` | Mark recommendation as FIXED |
+| `dismiss_recommendation` | Dismiss with documented reason |
+| `verify_fix` | Verify a fix was successful |
+| `get_gate_status` | Check if production is blocked |
+
+#### Reports & Compliance (Phase 6)
+| Tool | Purpose |
+|------|---------|
+| `get_gate_status` | Check production gate (BLOCKED/OPEN) and blocking items |
+| API: `/api/workflow/{id}/compliance-report` | Generate CISO-ready compliance report |
+
+**Compliance Report includes:**
+- Executive summary with GO/NO-GO decision
+- OWASP LLM Top 10 coverage status
+- SOC2 compliance mapping
+- All 7 security check statuses
+- Remediation summary with counts
+- Audit trail for compliance
+
+#### Lifecycle Tools
+| Tool | Purpose |
+|------|---------|
+| `get_agent_workflow_state` | Get overall workflow state (static/dynamic/both) |
+| `get_analysis_history` | View past analysis runs |
 
 ---
 

@@ -52,8 +52,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
-            "http://localhost:5173",    # Vite dev server
+            "http://localhost:5173",    # Vite dev server (legacy)
             "http://127.0.0.1:5173",
+            "http://localhost:7500",    # Vite dev server (current)
+            "http://127.0.0.1:7500",
             "http://localhost:7100",    # Dashboard itself
             "http://127.0.0.1:7100",
         ],
@@ -876,30 +878,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting analysis session: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/session/{session_id}/findings")
-    async def api_get_session_findings(
-        session_id: str,
-        severity: Optional[str] = None,
-        status: Optional[str] = None,
-        limit: int = 100,
-    ):
-        """Get findings for a specific analysis session."""
-        try:
-            findings = insights.store.get_findings(
-                session_id=session_id,
-                severity=severity.upper() if severity else None,
-                status=status.upper() if status else None,
-                limit=limit,
-            )
-            session = insights.store.get_analysis_session(session_id)
-            return JSONResponse({
-                "session": session,
-                "findings": findings,
-                "total_count": len(findings),
-            })
-        except Exception as e:
-            logger.error(f"Error getting session findings: {e}")
-            return JSONResponse({"error": str(e)}, status_code=500)
+    # Note: api_get_session_findings is defined later in the file with additional
+    # severity_breakdown field. That definition handles all use cases.
 
     @app.patch("/api/finding/{finding_id}")
     async def api_update_finding(finding_id: str, request: Request):
@@ -924,6 +904,912 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             return JSONResponse(finding)
         except Exception as e:
             logger.error(f"Error updating finding: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # ==================== Recommendations API Endpoints ====================
+
+    @app.get("/api/workflow/{workflow_id}/recommendations")
+    async def api_get_workflow_recommendations(
+        workflow_id: str,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        category: Optional[str] = None,
+        blocking_only: bool = False,
+        limit: int = 100,
+    ):
+        """Get recommendations for a workflow."""
+        try:
+            recommendations = insights.store.get_recommendations(
+                workflow_id=workflow_id,
+                status=status.upper() if status else None,
+                severity=severity.upper() if severity else None,
+                category=category.upper() if category else None,
+                blocking_only=blocking_only,
+                limit=limit,
+            )
+            return JSONResponse({
+                "recommendations": recommendations,
+                "total_count": len(recommendations),
+                "workflow_id": workflow_id,
+            })
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/recommendations/{recommendation_id}")
+    async def api_get_recommendation(recommendation_id: str):
+        """Get a specific recommendation by ID."""
+        try:
+            recommendation = insights.store.get_recommendation(recommendation_id)
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            # Also get the linked finding details
+            finding = insights.store.get_finding(recommendation['source_finding_id'])
+
+            # Get audit history for this recommendation
+            audit_log = insights.store.get_audit_log(
+                entity_type='recommendation',
+                entity_id=recommendation_id,
+                limit=20,
+            )
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "finding": finding,
+                "audit_log": audit_log,
+            })
+        except Exception as e:
+            logger.error(f"Error getting recommendation: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/start-fix")
+    async def api_start_fix(recommendation_id: str, request: Request):
+        """Start working on a fix for a recommendation."""
+        try:
+            body = await request.json() if await request.body() else {}
+            fixed_by = body.get("fixed_by")
+
+            recommendation = insights.store.start_fix(
+                recommendation_id=recommendation_id,
+                fixed_by=fixed_by,
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Fix started for {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error starting fix: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/complete-fix")
+    async def api_complete_fix(recommendation_id: str, request: Request):
+        """Mark a recommendation as fixed."""
+        try:
+            body = await request.json() if await request.body() else {}
+
+            recommendation = insights.store.complete_fix(
+                recommendation_id=recommendation_id,
+                fix_notes=body.get("fix_notes"),
+                files_modified=body.get("files_modified"),
+                fix_commit=body.get("fix_commit"),
+                fix_method=body.get("fix_method"),
+                fixed_by=body.get("fixed_by"),
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Fix completed for {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error completing fix: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/verify")
+    async def api_verify_fix(recommendation_id: str, request: Request):
+        """Verify a fix for a recommendation."""
+        try:
+            body = await request.json()
+            verification_result = body.get("verification_result")
+            success = body.get("success", True)
+            verified_by = body.get("verified_by")
+
+            if not verification_result:
+                return JSONResponse({"error": "verification_result is required"}, status_code=400)
+
+            recommendation = insights.store.verify_fix(
+                recommendation_id=recommendation_id,
+                verification_result=verification_result,
+                success=success,
+                verified_by=verified_by,
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Verification {'passed' if success else 'failed'} for {recommendation_id}",
+            })
+        except Exception as e:
+            logger.error(f"Error verifying fix: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/recommendations/{recommendation_id}/dismiss")
+    async def api_dismiss_recommendation(recommendation_id: str, request: Request):
+        """Dismiss or ignore a recommendation."""
+        try:
+            body = await request.json()
+            reason = body.get("reason")
+            dismiss_type = body.get("dismiss_type", "DISMISSED")
+            dismissed_by = body.get("dismissed_by")
+
+            if not reason:
+                return JSONResponse({"error": "reason is required"}, status_code=400)
+
+            recommendation = insights.store.dismiss_recommendation(
+                recommendation_id=recommendation_id,
+                reason=reason,
+                dismiss_type=dismiss_type,
+                dismissed_by=dismissed_by,
+            )
+
+            if not recommendation:
+                return JSONResponse({"error": "Recommendation not found"}, status_code=404)
+
+            return JSONResponse({
+                "recommendation": recommendation,
+                "message": f"Recommendation {recommendation_id} dismissed",
+            })
+        except Exception as e:
+            logger.error(f"Error dismissing recommendation: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/gate-status")
+    async def api_get_gate_status(workflow_id: str):
+        """Get the gate status for a workflow (blocked/open)."""
+        try:
+            gate_status = insights.store.get_gate_status(workflow_id)
+            return JSONResponse(gate_status)
+        except Exception as e:
+            logger.error(f"Error getting gate status: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/compliance-report")
+    async def api_get_compliance_report(workflow_id: str, report_type: str = "security_assessment", save: bool = False):
+        """Generate a compliance report for the workflow.
+
+        Query params:
+        - report_type: security_assessment, executive_summary, or customer_dd
+        - save: if true, saves the report to history
+
+        Returns a comprehensive report including:
+        - Executive summary with gate status and decision
+        - OWASP LLM Top 10 coverage
+        - SOC2 compliance status
+        - Security checks by category
+        - Remediation summary
+        - Audit trail
+        - Blocking items detail
+        """
+        try:
+            report = insights.store.generate_compliance_report(workflow_id)
+            report["report_type"] = report_type
+
+            # Save to history if requested
+            if save:
+                report_id = insights.store.save_report(
+                    workflow_id=workflow_id,
+                    report_type=report_type,
+                    report_data=report,
+                )
+                report["report_id"] = report_id
+
+            return JSONResponse(report)
+        except Exception as e:
+            logger.error(f"Error generating compliance report: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/reports")
+    async def api_get_reports(workflow_id: str, report_type: str = None, limit: int = 50):
+        """Get list of generated reports for a workflow.
+
+        Query params:
+        - report_type: Optional filter by report type
+        - limit: Maximum number of reports to return (default 50)
+
+        Returns list of report metadata (not including full report data).
+        """
+        try:
+            reports = insights.store.get_reports(
+                workflow_id=workflow_id,
+                report_type=report_type,
+                limit=limit,
+            )
+            return JSONResponse({"reports": reports})
+        except Exception as e:
+            logger.error(f"Error getting reports: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/reports/{report_id}")
+    async def api_get_report(report_id: str):
+        """Get a specific report by ID including full report data."""
+        try:
+            report = insights.store.get_report(report_id)
+            if not report:
+                return JSONResponse({"error": "Report not found"}, status_code=404)
+            return JSONResponse(report)
+        except Exception as e:
+            logger.error(f"Error getting report: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.delete("/api/reports/{report_id}")
+    async def api_delete_report(report_id: str):
+        """Delete a report by ID."""
+        try:
+            deleted = insights.store.delete_report(report_id)
+            if not deleted:
+                return JSONResponse({"error": "Report not found"}, status_code=404)
+            return JSONResponse({"success": True, "report_id": report_id})
+        except Exception as e:
+            logger.error(f"Error deleting report: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/static-summary")
+    async def api_get_static_summary(workflow_id: str):
+        """Get static analysis summary for a workflow with 7 security check categories.
+        
+        Returns findings grouped by the 7 security check categories:
+        PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, BEHAVIOR
+        """
+        try:
+            # The 7 security check categories configuration
+            SECURITY_CATEGORIES = [
+                {"category_id": "PROMPT", "name": "Prompt Security", "owasp_llm": ["LLM01"]},
+                {"category_id": "OUTPUT", "name": "Output Security", "owasp_llm": ["LLM02"]},
+                {"category_id": "TOOL", "name": "Tool Security", "owasp_llm": ["LLM07", "LLM08"]},
+                {"category_id": "DATA", "name": "Data & Secrets", "owasp_llm": ["LLM06"]},
+                {"category_id": "MEMORY", "name": "Memory & Context", "owasp_llm": []},
+                {"category_id": "SUPPLY", "name": "Supply Chain", "owasp_llm": ["LLM05"]},
+                {"category_id": "BEHAVIOR", "name": "Behavioral Boundaries", "owasp_llm": ["LLM08", "LLM09"]},
+            ]
+            
+            # Severity order for determining max severity
+            severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
+            # Get analysis sessions
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                limit=100,
+            )
+            static_sessions = [s for s in sessions if s.get('session_type') == 'STATIC']
+            
+            # Find the latest COMPLETED static session
+            latest_session = None
+            for s in static_sessions:
+                if s.get('status') == 'COMPLETED':
+                    latest_session = s
+                    break
+            
+            # Get findings from the LATEST scan only (current state of the codebase)
+            # Historical findings are accessible via their respective sessions
+            if latest_session:
+                current_findings = insights.store.get_findings(
+                    session_id=latest_session.get('session_id'),
+                    limit=1000,
+                )
+            else:
+                # Fallback: no completed sessions, show all findings
+                current_findings = insights.store.get_findings(
+                    agent_workflow_id=workflow_id,
+                    limit=1000,
+                )
+            
+            # Also get ALL findings for this workflow (for historical context)
+            all_findings = insights.store.get_findings(
+                agent_workflow_id=workflow_id,
+                limit=1000,
+            )
+
+            # Group CURRENT findings by category (for security checks display)
+            findings_by_category = {}
+            for f in current_findings:
+                cat = f.get('category', 'PROMPT')  # Default to PROMPT if not specified
+                if cat not in findings_by_category:
+                    findings_by_category[cat] = []
+                findings_by_category[cat].append(f)
+            
+            # Build the 7 security check cards
+            checks = []
+            # Only count OPEN findings for severity summary
+            severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+            
+            for cat_config in SECURITY_CATEGORIES:
+                cat_id = cat_config["category_id"]
+                cat_findings = findings_by_category.get(cat_id, [])
+                
+                # Separate OPEN vs resolved findings
+                open_findings = [f for f in cat_findings if f.get('status') == 'OPEN']
+                
+                # Get max severity from OPEN findings only
+                max_severity = None
+                if open_findings:
+                    for f in open_findings:
+                        sev = f.get('severity', 'LOW')
+                        if max_severity is None or severity_order.get(sev, 4) < severity_order.get(max_severity, 4):
+                            max_severity = sev
+                        # Count severities only for OPEN findings
+                        sev_key = sev.lower()
+                        if sev_key in severity_counts:
+                            severity_counts[sev_key] += 1
+                
+                # Determine check status based on OPEN findings only
+                # PASS: No OPEN findings
+                # INFO: Only MEDIUM OPEN findings
+                # FAIL: Any HIGH or CRITICAL OPEN findings
+                status = "PASS"
+                if open_findings:
+                    has_critical_or_high = any(f.get('severity') in ['CRITICAL', 'HIGH'] for f in open_findings)
+                    has_medium = any(f.get('severity') == 'MEDIUM' for f in open_findings)
+                    if has_critical_or_high:
+                        status = "FAIL"
+                    elif has_medium:
+                        status = "INFO"
+                
+                checks.append({
+                    "category_id": cat_id,
+                    "name": cat_config["name"],
+                    "status": status,
+                    "owasp_llm": cat_config["owasp_llm"],
+                    "findings_count": len(cat_findings),  # Total findings (all statuses)
+                    "open_count": len(open_findings),  # Only open findings
+                    "max_severity": max_severity,  # Max severity of OPEN findings only
+                    "findings": cat_findings[:10],  # All findings for display
+                })
+            
+            # Calculate summary based on check statuses (which are based on OPEN findings)
+            passed_count = sum(1 for c in checks if c["status"] == "PASS")
+            failed_count = sum(1 for c in checks if c["status"] == "FAIL")
+            info_count = sum(1 for c in checks if c["status"] == "INFO")
+            # Gate is blocked only if there are OPEN HIGH/CRITICAL findings
+            has_open_blocking = severity_counts["critical"] > 0 or severity_counts["high"] > 0
+            gate_status = "BLOCKED" if has_open_blocking else "UNBLOCKED"
+            
+            # Get last scan info
+            last_scan = None
+            if static_sessions:
+                latest = static_sessions[0]
+                last_scan = {
+                    "timestamp": latest.get("created_at"),
+                    "scanned_by": latest.get("scanned_by", "AI Assistant"),
+                    "files_analyzed": latest.get("files_analyzed"),
+                    "duration_ms": latest.get("duration_ms"),
+                    "session_id": latest.get("session_id"),
+                }
+            
+            # Build scan history with findings per session
+            scan_history = []
+            for session in static_sessions:
+                session_id = session.get('session_id')
+                # Get findings for this specific session
+                session_findings = insights.store.get_findings(session_id=session_id, limit=1000)
+                
+                scan_history.append({
+                    "session_id": session_id,
+                    "created_at": session.get("created_at"),
+                    "status": session.get("status"),
+                    "session_type": session.get("session_type"),
+                    "findings_count": len(session_findings),
+                    "severity_breakdown": {
+                        "critical": sum(1 for f in session_findings if f.get('severity') == 'CRITICAL'),
+                        "high": sum(1 for f in session_findings if f.get('severity') == 'HIGH'),
+                        "medium": sum(1 for f in session_findings if f.get('severity') == 'MEDIUM'),
+                        "low": sum(1 for f in session_findings if f.get('severity') == 'LOW'),
+                    }
+                })
+            
+            # Calculate historical findings summary (resolved findings from previous scans)
+            resolved_findings = [f for f in all_findings if f.get('status') in ['FIXED', 'RESOLVED', 'DISMISSED', 'IGNORED']]
+            historical_summary = {
+                "total_resolved": len(resolved_findings),
+                "fixed": sum(1 for f in resolved_findings if f.get('status') == 'FIXED'),
+                "resolved": sum(1 for f in resolved_findings if f.get('status') == 'RESOLVED'),
+                "dismissed": sum(1 for f in resolved_findings if f.get('status') in ['DISMISSED', 'IGNORED']),
+            }
+            
+            # Get recommendations count
+            all_recs = insights.store.get_recommendations(workflow_id=workflow_id, limit=1000)
+            
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "last_scan": last_scan,
+                "checks": checks,
+                "summary": {
+                    "total_checks": len(checks),
+                    "passed": passed_count,
+                    "failed": failed_count,
+                    "info": info_count,
+                    "gate_status": gate_status,
+                },
+                "recommendations_count": len(all_recs),
+                "severity_counts": severity_counts,
+                "scan_history": scan_history,
+                "historical_summary": historical_summary,
+            })
+        except Exception as e:
+            logger.error(f"Error getting static summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/session/{session_id}/findings")
+    async def api_get_session_findings(
+        session_id: str,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 1000,
+    ):
+        """Get findings for a specific analysis session (for viewing historical scans).
+        
+        Supports optional filtering by severity and status.
+        Returns findings with severity breakdown.
+        """
+        try:
+            # Get the session info
+            session = insights.store.get_analysis_session(session_id)
+            if not session:
+                return JSONResponse({"error": "Session not found"}, status_code=404)
+            
+            # Get findings for this session with optional filters
+            findings = insights.store.get_findings(
+                session_id=session_id,
+                severity=severity.upper() if severity else None,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
+            
+            # Calculate severity breakdown
+            severity_breakdown = {
+                "critical": sum(1 for f in findings if f.get('severity') == 'CRITICAL'),
+                "high": sum(1 for f in findings if f.get('severity') == 'HIGH'),
+                "medium": sum(1 for f in findings if f.get('severity') == 'MEDIUM'),
+                "low": sum(1 for f in findings if f.get('severity') == 'LOW'),
+            }
+            
+            return JSONResponse({
+                "session_id": session_id,
+                "session": session,
+                "findings": findings,
+                "findings_count": len(findings),
+                "total_count": len(findings),  # Alias for backwards compatibility
+                "severity_breakdown": severity_breakdown,
+            })
+        except Exception as e:
+            logger.error(f"Error getting session findings: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/dynamic-summary")
+    async def api_get_dynamic_summary(workflow_id: str):
+        """Get dynamic analysis summary for a workflow."""
+        try:
+            # Get agents in this workflow
+            agents = insights.store.get_all_agents(agent_workflow_id=workflow_id)
+
+            # Get analysis sessions
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                limit=10,
+            )
+            dynamic_sessions = [s for s in sessions if s.get('session_type') == 'DYNAMIC']
+
+            # Aggregate agent metrics
+            total_sessions = 0
+            total_messages = 0
+            total_tokens = 0
+            total_tools = 0
+            total_errors = 0
+            all_tools_used = set()
+            all_tools_available = set()
+
+            for agent in agents:
+                total_sessions += agent.total_sessions
+                total_messages += agent.total_messages
+                total_tokens += agent.total_tokens
+                total_tools += agent.total_tools
+                total_errors += agent.total_errors
+                all_tools_used.update(agent.used_tools)
+                all_tools_available.update(agent.available_tools)
+
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "agents_count": len(agents),
+                "total_sessions": total_sessions,
+                "total_messages": total_messages,
+                "total_tokens": total_tokens,
+                "total_tool_calls": total_tools,
+                "total_errors": total_errors,
+                "tools_used": list(all_tools_used),
+                "tools_available": list(all_tools_available),
+                "tool_coverage": round(len(all_tools_used) / len(all_tools_available) * 100, 1) if all_tools_available else 0,
+                "dynamic_sessions": dynamic_sessions,
+                "latest_session": dynamic_sessions[0] if dynamic_sessions else None,
+            })
+        except Exception as e:
+            logger.error(f"Error getting dynamic summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/correlation-summary")
+    async def api_get_correlation_summary(workflow_id: str):
+        """Get correlation summary for a workflow.
+        
+        Phase 5: Shows counts of findings by correlation state
+        (VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL).
+        """
+        try:
+            summary = insights.store.get_correlation_summary(workflow_id)
+            return JSONResponse(summary)
+        except Exception as e:
+            logger.error(f"Error getting correlation summary: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/workflow/{workflow_id}/analysis-sessions")
+    async def api_get_workflow_analysis_sessions(
+        workflow_id: str,
+        status: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get analysis sessions for a workflow."""
+        try:
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                status=status.upper() if status else None,
+                limit=limit,
+            )
+            return JSONResponse({
+                "sessions": sessions,
+                "total_count": len(sessions),
+                "workflow_id": workflow_id,
+            })
+        except Exception as e:
+            logger.error(f"Error getting analysis sessions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    # ==================== Dynamic Analysis On-Demand Trigger Endpoints ====================
+
+    @app.get("/api/workflow/{workflow_id}/dynamic-analysis-status")
+    async def api_get_dynamic_analysis_status(workflow_id: str):
+        """Get comprehensive dynamic analysis status for a workflow.
+        
+        Returns:
+        - can_trigger: Whether analysis can be triggered
+        - is_running: Whether analysis is currently running
+        - total_unanalyzed_sessions: Sessions not yet analyzed
+        - agents_with_new_sessions: Number of agents with new data
+        - agents_status: Per-agent breakdown
+        - last_analysis: Info about the last analysis run
+        """
+        try:
+            status = insights.store.get_dynamic_analysis_status(workflow_id)
+            return JSONResponse(status)
+        except Exception as e:
+            logger.error(f"Error getting dynamic analysis status: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.post("/api/workflow/{workflow_id}/trigger-dynamic-analysis")
+    async def api_trigger_dynamic_analysis(workflow_id: str, force: bool = False):
+        """Trigger on-demand dynamic analysis for a workflow.
+        
+        Analysis:
+        - Only processes sessions not yet analyzed (incremental)
+        - Runs per-agent security checks and behavioral analysis
+        - Creates findings and recommendations for failed checks
+        - Auto-resolves issues not seen in new scans
+        
+        Query params:
+        - force: If true, re-run on all completed sessions even if already analyzed
+        
+        Returns:
+        - status: "triggered", "already_running", or "no_new_sessions"
+        - sessions_analyzed: Number of sessions analyzed
+        - agents_analyzed: Number of agents analyzed
+        - findings_created: Number of findings created
+        """
+        try:
+            from datetime import datetime, timezone
+            import uuid
+            
+            # Get current status
+            status = insights.store.get_dynamic_analysis_status(workflow_id)
+            
+            if status['is_running']:
+                return JSONResponse({
+                    "status": "already_running",
+                    "message": "Analysis is already in progress",
+                    "last_analysis": status.get('last_analysis'),
+                })
+            
+            # If force=true, reset sessions to unanalyzed state first
+            if force:
+                insights.store.reset_sessions_to_unanalyzed(workflow_id)
+                # Re-fetch status after reset
+                status = insights.store.get_dynamic_analysis_status(workflow_id)
+            
+            if status['total_unanalyzed_sessions'] == 0:
+                return JSONResponse({
+                    "status": "no_new_sessions",
+                    "message": "All sessions have already been analyzed. Run more test sessions first.",
+                    "last_analysis": status.get('last_analysis'),
+                })
+            
+            # Create analysis session (IN_PROGRESS)
+            analysis_session_id = f"dynamic_{workflow_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            
+            insights.store.create_analysis_session(
+                session_id=analysis_session_id,
+                agent_workflow_id=workflow_id,
+                session_type="DYNAMIC",
+                agent_workflow_name=workflow_id,
+            )
+            
+            # IMPORTANT: Resolve ALL existing dynamic findings before creating new ones
+            # This ensures only the current scan's findings are active (like static analysis)
+            insights.store.resolve_all_dynamic_findings(workflow_id, analysis_session_id)
+            
+            # Get unanalyzed sessions by agent
+            unanalyzed_by_agent = insights.store.get_unanalyzed_sessions_by_agent(workflow_id)
+            
+            # Track results
+            total_sessions_analyzed = 0
+            agents_analyzed = 0
+            total_findings_created = 0
+            all_check_ids_found = []  # For auto-resolve
+            
+            for agent_id, session_ids in unanalyzed_by_agent.items():
+                if not session_ids:
+                    continue
+                
+                # Get the actual SessionData objects for these sessions
+                sessions = []
+                for sid in session_ids:
+                    session = insights.store.get_session(sid)
+                    if session:
+                        sessions.append(session)
+                
+                if not sessions:
+                    continue
+                
+                # Run the full analysis for this agent using ONLY the new sessions
+                # This ensures analysis reflects the current state, not historical issues
+                try:
+                    result = await insights.compute_risk_analysis(agent_id, sessions=sessions)
+                    
+                    if result and result.security_report:
+                        # Persist security checks
+                        agent = insights.store.get_agent(agent_id)
+                        agent_workflow_id = agent.agent_workflow_id if agent else workflow_id
+                        
+                        checks_persisted = insights.store.persist_security_checks(
+                            agent_id=agent_id,
+                            security_report=result.security_report,
+                            analysis_session_id=analysis_session_id,
+                            agent_workflow_id=agent_workflow_id,
+                        )
+                        
+                        # Create findings and recommendations for failed checks
+                        findings_created = await _create_dynamic_findings_and_recommendations(
+                            insights.store,
+                            workflow_id,
+                            agent_id,
+                            analysis_session_id,
+                            result.security_report,
+                        )
+                        
+                        total_findings_created += findings_created
+                        
+                        # Collect check IDs for auto-resolve
+                        for category in result.security_report.categories.values():
+                            for check in category.checks:
+                                if check.status in ('critical', 'warning'):
+                                    all_check_ids_found.append(check.check_id)
+                        
+                        # Persist behavioral analysis if available
+                        if result.behavioral_analysis:
+                            insights.store.store_behavioral_analysis(
+                                agent_id=agent_id,
+                                analysis_session_id=analysis_session_id,
+                                behavioral_result=result.behavioral_analysis,
+                            )
+                        
+                        logger.info(f"[DYNAMIC] Persisted {checks_persisted} checks, {findings_created} findings for agent {agent_id}")
+                    
+                except Exception as e:
+                    logger.error(f"[DYNAMIC] Error analyzing agent {agent_id}: {e}", exc_info=True)
+                    continue
+                
+                # Mark sessions as analyzed
+                insights.store.mark_sessions_analyzed(session_ids, analysis_session_id)
+                total_sessions_analyzed += len(session_ids)
+                agents_analyzed += 1
+            
+            # Auto-resolve old findings not seen in this scan
+            resolved = insights.store.auto_resolve_stale_findings(
+                workflow_id=workflow_id,
+                analysis_session_id=analysis_session_id,
+                current_check_ids=all_check_ids_found,
+            )
+            
+            # Complete the analysis session (with sessions_analyzed count)
+            insights.store.complete_analysis_session(
+                session_id=analysis_session_id,
+                findings_count=total_findings_created,
+                sessions_analyzed=total_sessions_analyzed,
+            )
+            
+            return JSONResponse({
+                "status": "completed",
+                "message": f"Analysis completed for {agents_analyzed} agent(s)",
+                "analysis_session_id": analysis_session_id,
+                "sessions_analyzed": total_sessions_analyzed,
+                "agents_analyzed": agents_analyzed,
+                "findings_created": total_findings_created,
+                "issues_auto_resolved": resolved.get('resolved_count', 0),
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in dynamic analysis: {e}", exc_info=True)
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    async def _create_dynamic_findings_and_recommendations(
+        store,
+        workflow_id: str,
+        agent_id: str,
+        analysis_session_id: str,
+        security_report,
+    ) -> int:
+        """Create findings and recommendations for failed security checks.
+        
+        Similar pattern to static analysis - each failed check creates:
+        - A finding (what was detected)
+        - A recommendation (what to do about it)
+        """
+        import uuid
+        from datetime import datetime, timezone
+        
+        findings_created = 0
+        
+        for category_id, category in security_report.categories.items():
+            for check in category.checks:
+                # Only create findings for failed checks (critical or warning)
+                if check.status not in ('critical', 'warning'):
+                    continue
+                
+                # Map check status to severity
+                severity = 'CRITICAL' if check.status == 'critical' else 'HIGH'
+                
+                # Generate IDs
+                finding_id = f"FND-DYN-{uuid.uuid4().hex[:8].upper()}"
+                rec_id = f"REC-DYN-{uuid.uuid4().hex[:8].upper()}"
+                
+                # Create the finding (code_snippet goes in evidence)
+                store.store_finding(
+                    finding_id=finding_id,
+                    session_id=analysis_session_id,
+                    agent_workflow_id=workflow_id,
+                    file_path=f"runtime:{agent_id}",  # Use agent as "location"
+                    finding_type=check.check_id,
+                    severity=severity,
+                    title=check.name,
+                    description=check.description,
+                    owasp_mapping=[check.owasp_llm] if check.owasp_llm else [],
+                    source_type='DYNAMIC',
+                    category=category_id,
+                    check_id=check.check_id,
+                    cvss_score=check.cvss_score,
+                    cwe=check.cwe,
+                    soc2_controls=check.soc2_controls,
+                    line_start=None,
+                    line_end=None,
+                    evidence={
+                        'check_id': check.check_id,
+                        'value': check.value,
+                        'evidence': check.evidence,
+                        'recommendations': check.recommendations,
+                    },
+                    auto_create_recommendation=False,  # We create it manually
+                )
+                
+                # Create the recommendation
+                store.create_recommendation(
+                    recommendation_id=rec_id,
+                    workflow_id=workflow_id,
+                    source_type='DYNAMIC',
+                    source_finding_id=finding_id,
+                    category=category_id,
+                    severity=severity,
+                    title=f"Fix: {check.name}",
+                    description=check.description,
+                    fix_hints='\n'.join(check.recommendations) if check.recommendations else None,
+                    owasp_llm=check.owasp_llm,
+                    cwe=check.cwe,
+                    soc2_controls=check.soc2_controls,
+                    cvss_score=check.cvss_score,
+                    file_path=f"runtime:{agent_id}",
+                    code_snippet=check.value,
+                    impact=f"Detected in runtime analysis: {check.value}",
+                    fix_complexity='MEDIUM',
+                )
+                
+                findings_created += 1
+                logger.debug(f"[DYNAMIC] Created finding {finding_id} and recommendation {rec_id} for check {check.check_id}")
+        
+        return findings_created
+
+    @app.get("/api/workflow/{workflow_id}/analysis-history")
+    async def api_get_analysis_history(
+        workflow_id: str,
+        session_type: str = "DYNAMIC",
+        limit: int = 20,
+    ):
+        """Get analysis history for a workflow.
+        
+        Shows past analysis runs with their results.
+        Latest analysis is marked and impacts gate status.
+        Historical analyses are view-only.
+        """
+        try:
+            sessions = insights.store.get_analysis_sessions(
+                agent_workflow_id=workflow_id,
+                limit=limit,
+            )
+            
+            # Filter by session_type
+            filtered = [s for s in sessions if s.get('session_type') == session_type.upper()]
+            
+            # Determine latest
+            latest_id = None
+            if filtered:
+                # Latest is the most recent completed one
+                completed = [s for s in filtered if s.get('status') == 'COMPLETED']
+                if completed:
+                    latest_id = completed[0]['session_id']
+            
+            return JSONResponse({
+                "workflow_id": workflow_id,
+                "session_type": session_type,
+                "analyses": filtered,
+                "latest_id": latest_id,
+                "total_count": len(filtered),
+            })
+        except Exception as e:
+            logger.error(f"Error getting analysis history: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/audit-log")
+    async def api_get_audit_log(
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        action: Optional[str] = None,
+        limit: int = 100,
+    ):
+        """Get audit log entries."""
+        try:
+            entries = insights.store.get_audit_log(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                action=action,
+                limit=limit,
+            )
+            return JSONResponse({
+                "entries": entries,
+                "total_count": len(entries),
+            })
+        except Exception as e:
+            logger.error(f"Error getting audit log: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     # ==================== IDE Connection Status Endpoints ====================
