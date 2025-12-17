@@ -5,6 +5,7 @@ including JWT token generation using Descope.
 """
 
 import logging
+import os
 import time
 from typing import Optional
 
@@ -13,8 +14,9 @@ from descope import AuthException, DescopeClient
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Descope configuration
-DESCOPE_PROJECT_ID = 'P2zF0Fh3eZsfOBM2cqh03EPfa6G4'
+# Descope configuration - SECURITY: Load from environment variable
+# Never hardcode credentials or project IDs in source code
+DESCOPE_PROJECT_ID = os.environ.get('DESCOPE_PROJECT_ID', '')
 
 
 class DescopeAuthenticator:
@@ -34,7 +36,19 @@ class DescopeAuthenticator:
             access_key: The access key to use for authentication
             project_id: The Descope project ID to use for authentication
             refresh_buffer_seconds: Seconds before expiration to refresh token (default: 30)
+
+        Raises:
+            ValueError: If project_id is not configured
         """
+        # SECURITY: Validate required configuration
+        if not project_id:
+            raise ValueError(
+                "DESCOPE_PROJECT_ID environment variable is required. "
+                "Set it before using Cylestio authentication."
+            )
+        if not access_key:
+            raise ValueError("Access key is required for authentication")
+
         self.project_id = project_id
         self._client: Optional[DescopeClient] = None
         self._access_key = access_key
@@ -44,7 +58,8 @@ class DescopeAuthenticator:
         self._cached_jwt_token: Optional[str] = None
         self._token_expires_at: Optional[float] = None
 
-        logger.debug(f"Initialized DescopeAuthenticator with project_id: {project_id} and access_key: {access_key}")
+        # SECURITY: Never log credentials, even at debug level
+        logger.debug(f"Initialized DescopeAuthenticator with project_id: {project_id[:8]}...")
 
     @classmethod
     def get_instance(cls, access_key: str, project_id: str = DESCOPE_PROJECT_ID, refresh_buffer_seconds: int = 30) -> 'DescopeAuthenticator':

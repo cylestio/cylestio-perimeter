@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import os
+import stat
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +13,21 @@ from src.proxy.interceptor_base import BaseInterceptor, LLMRequestData, LLMRespo
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+# SECURITY: Headers that may contain sensitive credentials - these are redacted by default
+SENSITIVE_HEADERS = frozenset([
+    'authorization',
+    'x-api-key',
+    'api-key',
+    'x-auth-token',
+    'x-access-token',
+    'cookie',
+    'set-cookie',
+    'proxy-authorization',
+    'www-authenticate',
+    'x-amz-security-token',
+    'x-csrf-token',
+])
 
 
 class HttpRecorderInterceptor(BaseInterceptor):
@@ -28,9 +45,11 @@ class HttpRecorderInterceptor(BaseInterceptor):
         self.include_headers = config.get("include_headers", True)
         self.include_timing = config.get("include_timing", True)
         self.max_body_size_mb = config.get("max_body_size_mb", 100)
+        # SECURITY: Redact sensitive headers by default to prevent credential leakage
+        self.redact_sensitive_headers = config.get("redact_sensitive_headers", True)
 
-        # Create output directory if it doesn't exist
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # Create output directory with restricted permissions (owner only)
+        self.output_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
 
         # File management
         self._current_file_number = self._get_next_file_number()
@@ -43,6 +62,27 @@ class HttpRecorderInterceptor(BaseInterceptor):
     def name(self) -> str:
         """Return the name of this interceptor."""
         return "http_recorder"
+
+    def _filter_headers(self, headers: dict) -> dict:
+        """Filter headers to redact sensitive values.
+
+        Args:
+            headers: Original headers dictionary
+
+        Returns:
+            Filtered headers with sensitive values redacted
+        """
+        if not self.redact_sensitive_headers:
+            return dict(headers)
+
+        filtered = {}
+        for key, value in headers.items():
+            if key.lower() in SENSITIVE_HEADERS:
+                # Redact but preserve header presence for debugging
+                filtered[key] = "[REDACTED]"
+            else:
+                filtered[key] = value
+        return filtered
 
     async def before_request(
         self, request_data: LLMRequestData
@@ -68,6 +108,11 @@ class HttpRecorderInterceptor(BaseInterceptor):
                 request_body = f"[TRUNCATED - size exceeds {self.max_body_size_mb}MB]".encode()
 
             # Create request record
+            # SECURITY: Filter sensitive headers before recording
+            headers = {}
+            if self.include_headers:
+                headers = self._filter_headers(dict(request_data.request.headers))
+
             request_record = {
                 "type": "request",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -75,7 +120,7 @@ class HttpRecorderInterceptor(BaseInterceptor):
                 "url": str(request_data.request.url),
                 "path": request_data.request.url.path,
                 "query": str(request_data.request.url.query) if request_data.request.url.query else None,
-                "headers": dict(request_data.request.headers) if self.include_headers else {},
+                "headers": headers,
                 "body": self._encode_body(request_body),
                 "session_id": request_data.session_id,
                 "provider": request_data.provider,
@@ -118,11 +163,16 @@ class HttpRecorderInterceptor(BaseInterceptor):
                 response_body = f"[TRUNCATED - size exceeds {self.max_body_size_mb}MB]".encode()
 
             # Create response record
+            # SECURITY: Filter sensitive headers before recording
+            headers = {}
+            if self.include_headers:
+                headers = self._filter_headers(dict(response_data.response.headers))
+
             response_record = {
                 "type": "response",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "status_code": response_data.status_code,
-                "headers": dict(response_data.response.headers) if self.include_headers else {},
+                "headers": headers,
                 "body": self._encode_body(response_body),
                 "duration_ms": response_data.duration_ms
             }
@@ -179,9 +229,16 @@ class HttpRecorderInterceptor(BaseInterceptor):
                 # Get current file path
                 file_path = self.output_dir / f"recording_{self._current_file_number:03d}.jsonl"
 
-                # Append event to file (one JSON object per line)
-                with open(file_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(event, ensure_ascii=False) + '\n')
+                # SECURITY: Create file with restricted permissions (owner read/write only)
+                # Use os.open with explicit mode to ensure secure permissions
+                is_new_file = not file_path.exists()
+                fd = os.open(str(file_path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+                try:
+                    with os.fdopen(fd, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(event, ensure_ascii=False) + '\n')
+                except Exception:
+                    os.close(fd)
+                    raise
 
                 self._current_event_count += 1
                 logger.debug(f"Wrote event to {file_path} (count: {self._current_event_count})")
