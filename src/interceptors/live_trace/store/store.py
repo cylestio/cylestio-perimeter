@@ -1998,7 +1998,7 @@ class TraceStore:
                 FROM findings
                 {base_where} AND status = 'OPEN'
                 GROUP BY severity
-            """, params)
+            """, params)  # nosec B608 - safe: base_where contains only SQL syntax with ? placeholders
 
             severity_counts = {row['severity']: row['count'] for row in cursor.fetchall()}
 
@@ -2008,7 +2008,7 @@ class TraceStore:
                 FROM findings
                 {base_where}
                 GROUP BY status
-            """, params)
+            """, params)  # nosec B608 - safe: base_where contains only SQL syntax with ? placeholders
 
             status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
 
@@ -2017,7 +2017,7 @@ class TraceStore:
                 SELECT COUNT(*) as total
                 FROM findings
                 {base_where}
-            """, params)
+            """, params)  # nosec B608 - safe: base_where contains only SQL syntax with ? placeholders
 
             total = cursor.fetchone()['total']
 
@@ -2208,10 +2208,10 @@ class TraceStore:
         with self._lock:
             placeholders = ','.join(['?' for _ in session_ids])
             self.db.execute(f"""
-                UPDATE sessions 
+                UPDATE sessions
                 SET last_analysis_session_id = ?
                 WHERE session_id IN ({placeholders})
-            """, [analysis_session_id] + session_ids)
+            """, [analysis_session_id] + session_ids)  # nosec B608 - safe: placeholders is only ?,?,? pattern
             self.db.commit()
             logger.info(f"Marked {len(session_ids)} sessions as analyzed (analysis: {analysis_session_id})")
             return len(session_ids)
@@ -3468,7 +3468,7 @@ class TraceStore:
                       AND r.source_type = 'DYNAMIC'
                       AND r.status IN ('PENDING', 'FIXING')
                       AND (f.check_id IS NULL OR f.check_id NOT IN ({placeholders}))
-                """, [workflow_id] + current_check_ids)
+                """, [workflow_id] + current_check_ids)  # nosec B608 - safe: placeholders is only ?,?,? pattern
             else:
                 # No current checks means all dynamic findings are resolved
                 cursor = self.db.execute("""
