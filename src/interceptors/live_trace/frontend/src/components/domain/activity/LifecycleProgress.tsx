@@ -8,8 +8,8 @@ import {
   Connector,
 } from './LifecycleProgress.styles';
 
-// Types
-export type StageStatus = 'pending' | 'active' | 'completed';
+// Types - matches SecurityCheckStatus from sidebar for consistency
+export type StageStatus = 'inactive' | 'running' | 'ok' | 'warning' | 'critical';
 
 export interface LifecycleStage {
   id: string;
@@ -35,7 +35,7 @@ export const LifecycleProgress: FC<LifecycleProgressProps> = ({ stages }) => {
             {stage.stat && <StageStat $status={stage.status}>{stage.stat}</StageStat>}
           </StageContainer>
           {index < stages.length - 1 && (
-            <Connector $completed={stage.status === 'completed'} />
+            <Connector $status={stage.status} />
           )}
         </div>
       ))}

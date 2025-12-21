@@ -33,19 +33,35 @@ export const StageIcon = styled.div<StageIconProps>`
   transition: all ${({ theme }) => theme.transitions.base};
 
   ${({ $status, theme }) =>
-    $status === 'active' &&
+    $status === 'running' &&
     css`
-      border-color: ${theme.colors.cyan};
-      background: ${theme.colors.cyanSoft};
-      color: ${theme.colors.cyan};
+      border-color: ${theme.colors.white50};
+      background: ${theme.colors.white08};
+      color: ${theme.colors.white50};
     `}
 
   ${({ $status, theme }) =>
-    $status === 'completed' &&
+    $status === 'ok' &&
     css`
       border-color: ${theme.colors.green};
       background: ${theme.colors.greenSoft};
       color: ${theme.colors.green};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'warning' &&
+    css`
+      border-color: ${theme.colors.orange};
+      background: ${theme.colors.orangeSoft};
+      color: ${theme.colors.orange};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'critical' &&
+    css`
+      border-color: ${theme.colors.red};
+      background: ${theme.colors.redSoft};
+      color: ${theme.colors.red};
     `}
 `;
 
@@ -62,15 +78,27 @@ export const StageLabel = styled.div<StageLabelProps>`
   text-align: center;
 
   ${({ $status, theme }) =>
-    $status === 'active' &&
+    $status === 'running' &&
     css`
-      color: ${theme.colors.cyan};
+      color: ${theme.colors.white50};
     `}
 
   ${({ $status, theme }) =>
-    $status === 'completed' &&
+    $status === 'ok' &&
     css`
       color: ${theme.colors.green};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'warning' &&
+    css`
+      color: ${theme.colors.orange};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'critical' &&
+    css`
+      color: ${theme.colors.red};
     `}
 `;
 
@@ -84,20 +112,32 @@ export const StageStat = styled.div<StageStatProps>`
   color: ${({ theme }) => theme.colors.white50};
 
   ${({ $status, theme }) =>
-    $status === 'completed' &&
+    $status === 'ok' &&
     css`
       color: ${theme.colors.green};
     `}
 
   ${({ $status, theme }) =>
-    $status === 'active' &&
+    $status === 'running' &&
     css`
-      color: ${theme.colors.cyan};
+      color: ${theme.colors.white50};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'warning' &&
+    css`
+      color: ${theme.colors.orange};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'critical' &&
+    css`
+      color: ${theme.colors.red};
     `}
 `;
 
 interface ConnectorProps {
-  $completed?: boolean;
+  $status: StageStatus;
 }
 
 export const Connector = styled.div<ConnectorProps>`
@@ -107,9 +147,21 @@ export const Connector = styled.div<ConnectorProps>`
   align-self: center;
   margin-top: -24px;
 
-  ${({ $completed, theme }) =>
-    $completed &&
+  ${({ $status, theme }) =>
+    $status === 'ok' &&
     css`
       background: ${theme.colors.green};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'warning' &&
+    css`
+      background: ${theme.colors.orange};
+    `}
+
+  ${({ $status, theme }) =>
+    $status === 'critical' &&
+    css`
+      background: ${theme.colors.red};
     `}
 `;
