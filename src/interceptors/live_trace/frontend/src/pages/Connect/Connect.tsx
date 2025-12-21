@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Copy, Check, ExternalLink, Info } from 'lucide-react';
 
 import { fetchConfig } from '@api/endpoints/config';
-import { fetchDashboard } from '@api/endpoints/dashboard';
+import { fetchAgentWorkflows } from '@api/endpoints/dashboard';
 import type { ConfigResponse } from '@api/types/config';
 
 import { Card } from '@ui/core/Card';
@@ -54,6 +54,7 @@ export const Connect: FC = () => {
 
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('loading');
+  const [workflowCount, setWorkflowCount] = useState(0);
   const [agentCount, setAgentCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [urlMode, setUrlMode] = useState<UrlMode>('standard');
@@ -61,10 +62,12 @@ export const Connect: FC = () => {
 
   const checkAgentStatus = useCallback(async () => {
     try {
-      const dashboard = await fetchDashboard();
-      const hasAgents = dashboard.agents.length > 0;
-      setAgentCount(dashboard.agents.length);
-      setStatus(hasAgents ? 'connected' : 'waiting');
+      const data = await fetchAgentWorkflows();
+      const workflows = data.agent_workflows;
+      const totalAgents = workflows.reduce((sum, w) => sum + w.agent_count, 0);
+      setWorkflowCount(workflows.length);
+      setAgentCount(totalAgents);
+      setStatus(workflows.length > 0 ? 'connected' : 'waiting');
     } catch {
       setStatus('waiting');
     }
@@ -230,6 +233,7 @@ export const Connect: FC = () => {
       {/* Success Section - connected state */}
       {isConnected && (
         <ConnectionSuccess
+          workflowCount={workflowCount}
           agentCount={agentCount}
           onViewAgentWorkflows={() => navigate('/')}
         />
