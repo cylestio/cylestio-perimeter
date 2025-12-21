@@ -281,6 +281,7 @@ export const ClickOpensDrawer: Story = {
     // Verify drawer content in document body (portal)
     const body = document.body;
     const drawer = within(body);
-    await expect(drawer.getByText('Critical')).toBeInTheDocument();
+    const statusBadge = drawer.getByTestId('drawer-status-badge');
+    await expect(statusBadge).toHaveTextContent(/critical/i);
   },
 };

@@ -196,7 +196,7 @@ export const DynamicCheckDrawer: FC<DynamicCheckDrawerProps> = ({
                 {categoryDefinition?.name || check.category_id.replace(/_/g, ' ')}
               </CategoryName>
             </HeaderInfo>
-            <StatusBadgeLarge $status={check.status}>
+            <StatusBadgeLarge $status={check.status} data-testid="drawer-status-badge">
               {getStatusIcon(check.status)}
               {getStatusLabel(check.status)}
             </StatusBadgeLarge>

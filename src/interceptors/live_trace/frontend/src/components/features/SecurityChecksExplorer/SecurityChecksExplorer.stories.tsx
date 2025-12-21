@@ -166,9 +166,10 @@ export const WithCategories: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    // Category names from CATEGORY_DEFINITIONS
     await expect(canvas.getByText('Resource Management')).toBeInTheDocument();
-    await expect(canvas.getByText('Environment')).toBeInTheDocument();
-    await expect(canvas.getByText('Behavioral')).toBeInTheDocument();
+    await expect(canvas.getByText('Environment & Supply Chain')).toBeInTheDocument();
+    await expect(canvas.getByText('Behavioral Stability')).toBeInTheDocument();
   },
 };
 
@@ -207,8 +208,9 @@ export const AgentWithNoChecks: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component says "agent" instead of "system prompt"
-    await expect(canvas.getByText('No checks for this agent yet.')).toBeInTheDocument();
+    // Empty state from DynamicChecksGrid when agent has no checks
+    await expect(canvas.getByText('No Security Checks')).toBeInTheDocument();
+    await expect(canvas.getByText('No security checks have been run yet.')).toBeInTheDocument();
   },
 };
 

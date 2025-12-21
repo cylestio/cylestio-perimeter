@@ -145,12 +145,14 @@ const DrawerWrapper = ({
 export const Critical: Story = {
   render: () => <DrawerWrapper check={criticalCheck} categoryDefinition={categoryDefinition} />,
   play: async () => {
-    // Wait for drawer to be visible
+    // Wait for drawer animation to complete
     await new Promise((resolve) => setTimeout(resolve, 300));
     // Check that the drawer content is visible (uses portal)
     const drawer = within(document.body);
-    await expect(drawer.getByText('PII Detection')).toBeInTheDocument();
-    await expect(drawer.getByText('Critical')).toBeInTheDocument();
+    const drawerTitle = await drawer.findByTestId('drawer-title');
+    await expect(drawerTitle).toHaveTextContent('PII Detection');
+    const statusBadge = await drawer.findByTestId('drawer-status-badge');
+    await expect(statusBadge).toHaveTextContent(/critical/i);
   },
 };
 
@@ -159,8 +161,10 @@ export const Warning: Story = {
   play: async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const drawer = within(document.body);
-    await expect(drawer.getByText('Behavioral Outlier Rate')).toBeInTheDocument();
-    await expect(drawer.getByText('Warning')).toBeInTheDocument();
+    const drawerTitle = await drawer.findByTestId('drawer-title');
+    await expect(drawerTitle).toHaveTextContent('Behavioral Outlier Rate');
+    const statusBadge = await drawer.findByTestId('drawer-status-badge');
+    await expect(statusBadge).toHaveTextContent(/warning/i);
   },
 };
 
@@ -169,8 +173,10 @@ export const Passed: Story = {
   play: async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     const drawer = within(document.body);
-    await expect(drawer.getByText('Token Budget Usage')).toBeInTheDocument();
-    await expect(drawer.getByText('Passed')).toBeInTheDocument();
+    const drawerTitle = await drawer.findByTestId('drawer-title');
+    await expect(drawerTitle).toHaveTextContent('Token Budget Usage');
+    const statusBadge = await drawer.findByTestId('drawer-status-badge');
+    await expect(statusBadge).toHaveTextContent(/passed/i);
   },
 };
 
