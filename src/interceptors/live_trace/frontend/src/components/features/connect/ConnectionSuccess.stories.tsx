@@ -22,36 +22,41 @@ const meta: Meta<typeof ConnectionSuccess> = {
 export default meta;
 type Story = StoryObj<typeof ConnectionSuccess>;
 
-export const SingleAgent: Story = {
+export const SingleWorkflow: Story = {
   args: {
+    workflowCount: 1,
     agentCount: 1,
     onViewAgentWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Connection Successful')).toBeInTheDocument();
-    await expect(canvas.getByText('Your agent is now being monitored')).toBeInTheDocument();
-    await expect(canvas.getByText('1')).toBeInTheDocument();
+    await expect(canvas.getByText('Your workflow is now being monitored')).toBeInTheDocument();
+    await expect(canvas.getByText('Workflow')).toBeInTheDocument();
     await expect(canvas.getByText('Agent')).toBeInTheDocument();
   },
 };
 
-export const MultipleAgents: Story = {
+export const MultipleWorkflows: Story = {
   args: {
+    workflowCount: 3,
     agentCount: 5,
     onViewAgentWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Connection Successful')).toBeInTheDocument();
-    await expect(canvas.getByText('Your agents are now being monitored')).toBeInTheDocument();
+    await expect(canvas.getByText('Your workflows are now being monitored')).toBeInTheDocument();
+    await expect(canvas.getByText('3')).toBeInTheDocument();
     await expect(canvas.getByText('5')).toBeInTheDocument();
+    await expect(canvas.getByText('Workflows')).toBeInTheDocument();
     await expect(canvas.getByText('Agents')).toBeInTheDocument();
   },
 };
 
 export const ClickViewAgentWorkflows: Story = {
   args: {
+    workflowCount: 2,
     agentCount: 3,
     onViewAgentWorkflows: fn(),
   },
@@ -63,13 +68,15 @@ export const ClickViewAgentWorkflows: Story = {
   },
 };
 
-export const HighAgentCount: Story = {
+export const HighCounts: Story = {
   args: {
+    workflowCount: 12,
     agentCount: 42,
     onViewAgentWorkflows: fn(),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.getByText('12')).toBeInTheDocument();
     await expect(canvas.getByText('42')).toBeInTheDocument();
   },
 };

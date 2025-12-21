@@ -6,6 +6,8 @@ import { Button } from '@ui/core/Button';
 
 import {
   SuccessContainer,
+  TopRow,
+  BottomRow,
   IconContainer,
   ContentSection,
   Title,
@@ -18,42 +20,51 @@ import {
 } from './ConnectionSuccess.styles';
 
 export interface ConnectionSuccessProps {
+  workflowCount: number;
   agentCount: number;
   onViewAgentWorkflows: () => void;
 }
 
 export const ConnectionSuccess: FC<ConnectionSuccessProps> = ({
+  workflowCount,
   agentCount,
   onViewAgentWorkflows,
 }) => (
   <SuccessContainer>
-    <IconContainer>
-      <Check size={24} strokeWidth={2.5} />
-    </IconContainer>
+    <TopRow>
+      <IconContainer>
+        <Check size={24} strokeWidth={2.5} />
+      </IconContainer>
+      <ContentSection>
+        <Title>Connection Successful</Title>
+        <Subtitle>
+          Your workflow{workflowCount !== 1 ? 's are' : ' is'} now being monitored
+        </Subtitle>
+      </ContentSection>
+    </TopRow>
 
-    <ContentSection>
-      <Title>Connection Successful</Title>
-      <Subtitle>
-        Your agent{agentCount !== 1 ? 's are' : ' is'} now being monitored
-      </Subtitle>
-    </ContentSection>
+    <BottomRow>
+      <StatsSection>
+        <Stat>
+          <StatValue>{workflowCount}</StatValue>
+          <StatLabel>Workflow{workflowCount !== 1 ? 's' : ''}</StatLabel>
+        </Stat>
+        <Stat>
+          <StatValue>{agentCount}</StatValue>
+          <StatLabel>Agent{agentCount !== 1 ? 's' : ''}</StatLabel>
+        </Stat>
+      </StatsSection>
 
-    <StatsSection>
-      <Stat>
-        <StatValue>{agentCount}</StatValue>
-        <StatLabel>Agent{agentCount !== 1 ? 's' : ''}</StatLabel>
-      </Stat>
-    </StatsSection>
-
-    <ActionSection>
-      <Button
-        variant="primary"
-        size="md"
-        icon={<ArrowRight size={16} />}
-        onClick={onViewAgentWorkflows}
-      >
-        View Agent Workflows
-      </Button>
-    </ActionSection>
+      <ActionSection>
+        <Button
+          variant="primary"
+          size="md"
+          icon={<ArrowRight size={16} />}
+          onClick={onViewAgentWorkflows}
+        >
+          View Agent Workflows
+        </Button>
+      </ActionSection>
+    </BottomRow>
   </SuccessContainer>
 );
