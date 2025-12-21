@@ -25,11 +25,17 @@ python -i ...
 
 Ask yourself: Where is the agent code the user wants to analyze?
 
-- If user specified a path → use that
-- If user said "this project" → use current workspace root
+**Typical scenario:** Agent Inspector is installed directly in the customer's agent repository. The agent being secured is the one where you're installing Agent Inspector.
+
+- If user said "this project" or "this agent" → use current workspace root
+- If user specified a path → use that path
 - If unclear → ask: "Which folder contains your agent code?"
 
 Store this as `{AGENT_PROJECT_FOLDER}`.
+
+**Examples:**
+- Standalone agent: `/home/user/my-sales-bot/` → Agent Inspector analyzes "my-sales-bot"
+- Monorepo: `/home/user/company-ai/agents/support-bot/` → Agent Inspector analyzes "support-bot"
 
 ### 1.2 Check if Inside cylestio-perimeter Repo (Local Dev Mode)
 
@@ -335,6 +341,15 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 ⚠️ **CRITICAL: This step MUST succeed. If it fails, retry on EVERY subsequent MCP tool call.**
 
+**When to register:**
+- ✅ Immediately after installation (during first scan - see STEP 10)
+- ✅ Before every security analysis request (scan, analyze, fix, etc.) - auto-switches workflow
+- ✅ Registration is idempotent - safe to call every time
+
+**Key principle:** Always register IDE for the agent workflow being analyzed, not the parent repo!
+
+**Typical setup:** Most customers install Agent Inspector directly in their agent's repo, so the workflow ID matches the agent's folder name.
+
 ### 9.1 Determine Your Model Name
 
 **You MUST know what AI model you are.** Check your system prompt or self-identify:
@@ -350,16 +365,16 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 **If unsure, check:** Your system prompt often says "powered by X" or "You are X".
 
-### 9.2 Immediately Register After MCP Connect
+### 9.2 How to Register IDE Connection
 
-As soon as MCP tools are available, call `register_ide_connection` with ALL parameters:
+Registration happens automatically as part of every scan/analysis command (see STEP 10). Here's the pattern:
 
 ```
 register_ide_connection(
   ide_type="cursor",              // REQUIRED: "cursor" or "claude-code"
-  agent_workflow_id="my-agent",   // REQUIRED: from folder name
+  agent_workflow_id="my-agent",   // REQUIRED: from scan target folder name
   workspace_path="/path/to/project",  // REQUIRED: full workspace path
-  model="claude-opus-4.5"         // REQUIRED: your AI model name
+  model="claude-sonnet-4"         // REQUIRED: your AI model name
 )
 ```
 
@@ -367,9 +382,22 @@ register_ide_connection(
 | Parameter | How to determine |
 |-----------|------------------|
 | `ide_type` | `"cursor"` if in Cursor IDE, `"claude-code"` if Claude Code CLI |
-| `agent_workflow_id` | Agent project folder name (e.g., `"next-rooms"`, `"my-agent"`) |
+| `agent_workflow_id` | **Scan target folder name**, NOT parent repo! (e.g., scanning `customer-support-agent/` → use `"customer-support-agent"`) |
 | `workspace_path` | Full path to the workspace you're editing |
 | `model` | Your AI model name (see table above) |
+
+**Critical for workflow matching:**
+```
+✅ CORRECT: Scanning "my-booking-agent/" → register with agent_workflow_id="my-booking-agent"
+❌ WRONG:   Scanning "my-booking-agent/" → register with agent_workflow_id="parent-repo-name"
+
+The workflow ID must match what you're scanning, not where you're scanning FROM!
+
+Common scenarios:
+- Standalone agent repo: Use the repo folder name (e.g., "sales-assistant")
+- Agent in subfolder: Use the agent folder name (e.g., "agents/chatbot" → "chatbot")
+- Monorepo with multiple agents: Use each agent's folder name individually
+```
 
 ### 9.3 Store the Connection ID
 
@@ -418,11 +446,54 @@ ide_heartbeat(connection_id, is_developing=true)  // ONE heartbeat at start
 
 **Only register when user asks for Agent Inspector features.** Don't register proactively.
 
-### When user asks for security analysis:
-1. Call `register_ide_connection()` (idempotent - safe to call again)
-2. Send ONE `ide_heartbeat(is_developing=true)`
-3. Do the work
-4. Done - no more calls needed
+### When user asks for security analysis (/scan, /analyze, /fix, etc.):
+
+**ALWAYS register IDE for the workflow being worked on:**
+
+```
+1. Determine agent_workflow_id from scan target or current workspace
+2. Call register_ide_connection(agent_workflow_id=<derived_id>)  // Idempotent!
+3. Send ONE ide_heartbeat(is_developing=true)
+4. Create analysis session with SAME agent_workflow_id
+5. Do the work
+6. Done - no more calls needed
+```
+
+**Example - User requests security analysis:**
+```
+User: "Run a security scan on this agent" (or "scan for vulnerabilities", etc.)
+
+Your logic:
+1. Determine scan target (current workspace or specified path)
+2. Extract workflow ID from folder name
+   → If scanning "customer-support-bot/" folder
+   → agent_workflow_id = "customer-support-bot"
+   
+3. Register IDE for this workflow:
+   → register_ide_connection(agent_workflow_id="customer-support-bot", ...)
+   → ide_heartbeat(connection_id, is_developing=true)
+   
+4. Create analysis session with SAME workflow ID:
+   → create_analysis_session(agent_workflow_id="customer-support-bot", ...)
+   
+5. Perform scan...
+```
+
+**For monorepos with multiple agents:**
+```
+User: "Scan the booking agent in the agents folder"
+
+Your logic:
+→ Scan target: agents/booking-agent/
+→ agent_workflow_id = "booking-agent" (use leaf folder name, not "agents")
+→ register_ide_connection(agent_workflow_id="booking-agent", ...)
+→ create_analysis_session(agent_workflow_id="booking-agent", ...)
+```
+
+**This ensures:**
+- Dashboard always shows correct workflow being analyzed
+- IDE appears as "Connected" for active workflow
+- No workflow ID mismatches
 
 **Skip `get_ide_connection_status`** - just register directly. It's simpler and uses same tokens.
 
@@ -443,7 +514,32 @@ ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER
 
 If MCP is connected, use the `/scan` command workflow:
 
-1. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")`
+**CRITICAL - Workflow Matching:** Before scanning, ensure IDE is registered for the correct workflow:
+
+```python
+# Step 0: Determine workflow ID from scan target
+if scanning_subfolder:
+    # Example: agents/customer-support/ → "customer-support"
+    # Example: my-agents/booking-bot/ → "booking-bot"
+    agent_workflow_id = get_folder_name(scan_target_path)
+else:
+    # Scanning current workspace → use workspace folder name
+    # Example: /path/to/sales-assistant/ → "sales-assistant"
+    agent_workflow_id = get_folder_name(workspace_path)
+
+# Step 1: Register IDE for THIS specific workflow (idempotent - safe to call every time)
+register_ide_connection(
+    ide_type="cursor",
+    agent_workflow_id=agent_workflow_id,  # ← MUST match scan target!
+    workspace_path=workspace_path,
+    model=model
+)
+ide_heartbeat(connection_id, is_developing=true)
+```
+
+**Then proceed with scan:**
+
+1. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")` ← **Use SAME workflow ID!**
 2. Get security patterns: `get_security_patterns()`
 3. **Analyze code for ALL 7 security categories:**
    - PROMPT (LLM01): Injection, jailbreak
@@ -455,6 +551,12 @@ If MCP is connected, use the `/scan` command workflow:
    - BEHAVIOR (LLM08/09): Excessive agency
 4. Store findings with category: `store_finding(..., category="PROMPT")`
 5. Complete session: `complete_analysis_session(session_id)`
+
+**Why register before every scan?**
+- IDE connection is per-workflow (tracks which agent you're analyzing)
+- When scanning different folders, this auto-switches the dashboard view
+- Registration is idempotent - calling it again just updates the connection
+- **This prevents "Not Connected" errors in the dashboard**
 
 **Report using the 7-category format:**
 ```
@@ -580,7 +682,7 @@ When you say `/report`, I will generate a comprehensive security report in markd
    - Remediation Summary
 3. **Return the markdown directly** in the chat
 
-**Example output:**
+**Example output** (for an agent named "my-agent" - yours will show your agent's name):
 
 ```markdown
 # Security Assessment: my-agent
@@ -698,11 +800,16 @@ The rules file ensures I'll use these tools when you ask about security - even i
 - [ ] Told user to reload IDE
 - [ ] **Registered IDE connection** (or set PENDING_IDE_REGISTRATION reminder)
 - [ ] Ran first static scan (if code exists and MCP connected) OR told user to ask for scan after reload
+  - [ ] **IDE registered for scan target workflow** (before create_analysis_session)
+  - [ ] Workflow ID matched between IDE registration and analysis session
 - [ ] Displayed welcome message with ONLY verified capabilities
 
 **ALL BOXES MUST BE CHECKED.**
 
-**REMEMBER:** If IDE connection registration failed, you MUST retry on every subsequent MCP call!
+**REMEMBER:** 
+- Always register IDE for the workflow being scanned (Step 0 of every scan)
+- Workflow ID must match between `register_ide_connection` and `create_analysis_session`
+- If IDE connection registration failed, retry on every subsequent MCP call!
 
 ---
 
