@@ -1,11 +1,14 @@
-import { useState, useMemo, type FC } from 'react';
+import { useState, type FC } from 'react';
 
-import { AlertTriangle, Check, ChevronLeft, ChevronRight, Clock, ExternalLink, Shield, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, ExternalLink, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import type { AgentSecurityData, AgentWorkflowSecurityCheck } from '@api/endpoints/agentWorkflow';
+import type { AgentSecurityData } from '@api/endpoints/agentWorkflow';
+import type { DynamicSecurityCheck, DynamicCategoryId, DynamicCategoryDefinition } from '@api/types/security';
 
 import { TimeAgo } from '@ui/core';
+
+import { DynamicChecksGrid } from '@domain/security';
 
 import {
   ExplorerContainer,
@@ -18,18 +21,6 @@ import {
   NavButton,
   SummaryBadges,
   SummaryBadge,
-  ChecksGrid,
-  CategoryCard,
-  CategoryHeader,
-  CategoryTitle,
-  CategoryCount,
-  CheckList,
-  CheckItem,
-  CheckInfo,
-  CheckIcon,
-  CheckTitle,
-  CheckValue,
-  CheckStatusBadge,
   EmptyState,
 } from './SecurityChecksExplorer.styles';
 
@@ -39,42 +30,32 @@ export interface SecurityChecksExplorerProps {
   className?: string;
 }
 
-// Category display names
-const CATEGORY_LABELS: Record<string, string> = {
-  RESOURCE_MANAGEMENT: 'Resource Management',
-  ENVIRONMENT: 'Environment',
-  BEHAVIORAL: 'Behavioral',
-};
-
-// Category order
-const CATEGORY_ORDER = ['RESOURCE_MANAGEMENT', 'ENVIRONMENT', 'BEHAVIORAL'];
-
-// Get icon for a category
-const getCategoryIcon = (categoryId: string) => {
-  switch (categoryId) {
-    case 'RESOURCE_MANAGEMENT':
-      return <Clock size={14} />;
-    case 'ENVIRONMENT':
-      return <Shield size={14} />;
-    case 'BEHAVIORAL':
-      return <AlertTriangle size={14} />;
-    default:
-      return <Shield size={14} />;
-  }
-};
-
-// Get status icon
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'passed':
-      return <Check size={12} />;
-    case 'warning':
-      return <AlertTriangle size={12} />;
-    case 'critical':
-      return <X size={12} />;
-    default:
-      return <Check size={12} />;
-  }
+// Category definitions for display
+const CATEGORY_DEFINITIONS: Record<DynamicCategoryId, DynamicCategoryDefinition> = {
+  RESOURCE_MANAGEMENT: {
+    name: 'Resource Management',
+    description: 'Token and tool usage boundaries',
+    icon: 'bar-chart',
+    order: 1,
+  },
+  ENVIRONMENT: {
+    name: 'Environment & Supply Chain',
+    description: 'Model version pinning and tool adoption',
+    icon: 'settings',
+    order: 2,
+  },
+  BEHAVIORAL: {
+    name: 'Behavioral Stability',
+    description: 'Behavioral consistency and predictability',
+    icon: 'brain',
+    order: 3,
+  },
+  PRIVACY_COMPLIANCE: {
+    name: 'Privacy & PII Compliance',
+    description: 'PII exposure detection and reporting',
+    icon: 'lock',
+    order: 4,
+  },
 };
 
 export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
@@ -87,18 +68,14 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
   const currentAgent = agents[currentIndex];
   const hasMultipleAgents = agents.length > 1;
 
-  // Group checks by category for current agent
-  const checksByCategory = useMemo(() => {
-    if (!currentAgent) return {};
-    const grouped: Record<string, AgentWorkflowSecurityCheck[]> = {};
-    currentAgent.checks.forEach((check) => {
-      if (!grouped[check.category_id]) {
-        grouped[check.category_id] = [];
-      }
-      grouped[check.category_id].push(check);
-    });
-    return grouped;
-  }, [currentAgent]);
+  // Convert checks to DynamicSecurityCheck format
+  const dynamicChecks: DynamicSecurityCheck[] = currentAgent?.checks.map((check) => ({
+    ...check,
+    category_id: check.category_id as DynamicCategoryId,
+    status: check.status === 'passed' || check.status === 'warning' || check.status === 'critical'
+      ? check.status
+      : 'passed',
+  })) || [];
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
@@ -190,46 +167,15 @@ export const SecurityChecksExplorer: FC<SecurityChecksExplorerProps> = ({
         )}
       </ExplorerHeader>
 
-      {currentAgent.checks.length === 0 ? (
-        <EmptyState>
-          <p>No checks for this agent yet.</p>
-        </EmptyState>
-      ) : (
-        <ChecksGrid>
-          {CATEGORY_ORDER.map((categoryId) => {
-            const checks = checksByCategory[categoryId];
-            if (!checks || checks.length === 0) return null;
-
-            return (
-              <CategoryCard key={categoryId}>
-                <CategoryHeader>
-                  <CategoryTitle>
-                    {getCategoryIcon(categoryId)}
-                    {CATEGORY_LABELS[categoryId] || categoryId}
-                  </CategoryTitle>
-                  <CategoryCount>{checks.length} checks</CategoryCount>
-                </CategoryHeader>
-                <CheckList>
-                  {checks.map((check) => (
-                    <CheckItem key={check.check_id}>
-                      <CheckInfo>
-                        <CheckIcon $status={check.status}>
-                          {getStatusIcon(check.status)}
-                        </CheckIcon>
-                        <CheckTitle>{check.title}</CheckTitle>
-                        {check.value && <CheckValue>({check.value})</CheckValue>}
-                      </CheckInfo>
-                      <CheckStatusBadge $status={check.status}>
-                        {check.status}
-                      </CheckStatusBadge>
-                    </CheckItem>
-                  ))}
-                </CheckList>
-              </CategoryCard>
-            );
-          })}
-        </ChecksGrid>
-      )}
+      <DynamicChecksGrid
+        checks={dynamicChecks}
+        categoryDefinitions={CATEGORY_DEFINITIONS}
+        groupBy="category"
+        variant="list"
+        clickable={true}
+        showSummary={false}
+        agentWorkflowId={agentWorkflowId}
+      />
     </ExplorerContainer>
   );
 };

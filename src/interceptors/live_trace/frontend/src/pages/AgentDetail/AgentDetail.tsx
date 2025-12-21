@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, type FC } from 'react';
+import { useCallback, useState, useEffect, useMemo, type FC } from 'react';
 
 import { AlertTriangle } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { fetchAgent } from '@api/endpoints/agent';
 import { fetchSessions } from '@api/endpoints/session';
 import type { AgentResponse } from '@api/types/agent';
 import type { SessionListItem } from '@api/types/session';
+import type { DynamicSecurityCheck, DynamicCategoryId, DynamicCategoryDefinition } from '@api/types/security';
 import type { ClusterNodeData } from '@domain/visualization';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
@@ -26,6 +27,7 @@ import { Pagination } from '@ui/navigation/Pagination';
 
 import { ClusterVisualization } from '@domain/visualization';
 import { SessionsTable } from '@domain/sessions';
+import { DynamicChecksGrid } from '@domain/security';
 import {
   TokenUsageInsights,
   ModelUsageAnalytics,
@@ -50,11 +52,6 @@ import {
   SecurityStatusRow,
   SecurityCounts,
   PIINote,
-  CheckList,
-  CheckItem,
-  CheckStatus,
-  CheckName,
-  CheckValue,
   BehavioralMetrics,
   BehavioralGrid,
   ScoresRow,
@@ -70,12 +67,33 @@ import {
   ActiveSessionsNote,
 } from './AgentDetail.styles';
 
-interface Check {
-  name: string;
-  status: string;
-  value?: string | number;
-  categoryName?: string;
-}
+// Category definitions for DynamicChecksGrid
+const CATEGORY_DEFINITIONS: Record<DynamicCategoryId, DynamicCategoryDefinition> = {
+  RESOURCE_MANAGEMENT: {
+    name: 'Resource Management',
+    description: 'Token and tool usage boundaries',
+    icon: 'bar-chart',
+    order: 1,
+  },
+  ENVIRONMENT: {
+    name: 'Environment & Supply Chain',
+    description: 'Model version pinning and tool adoption',
+    icon: 'settings',
+    order: 2,
+  },
+  BEHAVIORAL: {
+    name: 'Behavioral Stability',
+    description: 'Behavioral consistency and predictability',
+    icon: 'brain',
+    order: 3,
+  },
+  PRIVACY_COMPLIANCE: {
+    name: 'Privacy & PII Compliance',
+    description: 'PII exposure detection and reporting',
+    icon: 'lock',
+    order: 4,
+  },
+};
 
 const PAGE_SIZE = 10;
 
@@ -147,6 +165,37 @@ export const AgentDetail: FC = () => {
 
   const totalPages = Math.ceil(sessionsTotal / PAGE_SIZE);
 
+  // Derive status and links from data (safe to call before early returns)
+  const agent = data?.agent;
+  const riskAnalysis = data?.risk_analysis;
+  const status = getAgentStatus(riskAnalysis ?? {});
+  const reportLink = agentWorkflowLink(agentWorkflowId, `/agent/${agent?.id}/report`);
+
+  // Convert security checks to DynamicSecurityCheck format for the grid
+  // NOTE: This useMemo MUST be called before any early returns to maintain hook order
+  const securityChecks: DynamicSecurityCheck[] = useMemo(() => {
+    if (!status.hasRiskData || !riskAnalysis?.security_report?.categories || !agent) {
+      return [];
+    }
+
+    const checks: DynamicSecurityCheck[] = [];
+    Object.entries(riskAnalysis.security_report.categories).forEach(([categoryId, category]) => {
+      category.checks?.forEach((check) => {
+        checks.push({
+          check_id: `${categoryId}_${check.name}`,
+          agent_id: agent.id,
+          category_id: categoryId as DynamicCategoryId,
+          check_type: check.name.toLowerCase().replace(/\s+/g, '_'),
+          status: check.status as DynamicSecurityCheck['status'],
+          title: check.name,
+          value: check.value !== undefined ? String(check.value) : undefined,
+          description: check.description,
+        });
+      });
+    });
+    return checks;
+  }, [status.hasRiskData, riskAnalysis?.security_report?.categories, agent]);
+
   // Set breadcrumbs with agent workflow context
   usePageMeta({
     breadcrumbs: buildAgentWorkflowBreadcrumbs(
@@ -164,32 +213,14 @@ export const AgentDetail: FC = () => {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !agent) {
     return <EmptyState title="Failed to load agent" description={error || 'Agent not found'} />;
   }
 
-  const agent = data.agent;
-  const riskAnalysis = data.risk_analysis;
-  const status = getAgentStatus(riskAnalysis);
-  const reportLink = agentWorkflowLink(agentWorkflowId, `/agent/${agent.id}/report`);
-
-  // Build failed and warning check lists
-  const failedChecks: Check[] = [];
-  const warningChecks: Check[] = [];
-
-  if (status.hasRiskData && riskAnalysis?.security_report?.categories) {
-    Object.values(riskAnalysis.security_report.categories).forEach((category) => {
-      category.checks?.forEach((check) => {
-        if (check.status === 'critical') {
-          failedChecks.push({ ...check, categoryName: category.category_name });
-        } else if (check.status === 'warning') {
-          warningChecks.push({ ...check, categoryName: category.category_name });
-        }
-      });
-    });
-  }
-
-  const allIssues = [...failedChecks, ...warningChecks];
+  // Count issues
+  const issueCount = securityChecks.filter(
+    (c) => c.status === 'critical' || c.status === 'warning'
+  ).length;
 
   // Check if both sections need gathering data
   const needsBehavioralGathering = !riskAnalysis?.behavioral_analysis;
@@ -458,35 +489,18 @@ export const AgentDetail: FC = () => {
                       <PIINote>PII detection unavailable for this agent</PIINote>
                     )}
 
-                    {/* Issues list */}
-                    {allIssues.length > 0 && (
-                      <CheckList>
-                        {allIssues.map((check, idx) => (
-                          <CheckItem key={idx} $isLast={idx === allIssues.length - 1}>
-                            <CheckStatus
-                              $color={
-                                check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)'
-                              }
-                            >
-                              {check.status === 'critical' ? 'FAIL' : 'WARN'}
-                            </CheckStatus>
-                            <CheckName
-                              style={{
-                                color:
-                                  check.status === 'critical' ? 'var(--color-red)' : 'var(--color-orange)',
-                              }}
-                            >
-                              {check.name}
-                              {check.value !== undefined && (
-                                <CheckValue> ({String(check.value)})</CheckValue>
-                              )}
-                            </CheckName>
-                            <Badge variant={check.status === 'critical' ? 'critical' : 'medium'}>
-                              {check.categoryName}
-                            </Badge>
-                          </CheckItem>
-                        ))}
-                      </CheckList>
+                    {/* Security checks list - showing only issues */}
+                    {issueCount > 0 && (
+                      <DynamicChecksGrid
+                        checks={securityChecks}
+                        categoryDefinitions={CATEGORY_DEFINITIONS}
+                        groupBy="none"
+                        variant="list"
+                        clickable={true}
+                        showSummary={false}
+                        statusFilter={['critical', 'warning']}
+                        agentWorkflowId={agentWorkflowId}
+                      />
                     )}
                   </>
                 )}

@@ -59,7 +59,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch static summary (which includes 7 check categories)
+  // Fetch static summary (which includes security check categories)
   const fetchData = useCallback(async () => {
     if (!agentWorkflowId) return;
 
@@ -141,6 +141,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const totalScans = analysisSessions.length;
   const checkStatuses = staticSummary?.checks.map(c => ({ status: c.status as CheckStatus })) || [];
   const failedChecks = staticSummary?.summary.failed || 0;
+  const categoriesCount = staticSummary?.checks.length || 0;
 
   return (
     <Page className={className} data-testid="static-analysis">
@@ -192,7 +193,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
         </Section>
       )}
 
-      {/* Security Checks - 7 Categories */}
+      {/* Security Checks - Security check categories */}
       <Section>
         <Section.Header>
           <ChecksSectionHeader>
@@ -201,7 +202,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
               Security Checks
             </ChecksSectionTitle>
             <ChecksSectionSubtitle>
-              7 categories evaluated for AI agent security
+              {categoriesCount} {categoriesCount === 1 ? 'category' : 'categories'} evaluated for AI agent security
             </ChecksSectionSubtitle>
           </ChecksSectionHeader>
           {staticSummary?.summary && (
@@ -226,7 +227,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
           ) : (
             <EmptyState
               title="No scans yet"
-              description="Run a security scan to see the 7 security check categories evaluated."
+              description="Run a security scan to see security check categories evaluated."
             />
           )}
         </Section.Content>
@@ -239,7 +240,7 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
             <Shield size={48} />
             <h3>No Security Issues Found</h3>
             <p>
-              All 7 security checks passed. Your agent is ready for production.
+              All {categoriesCount} security checks passed. Your agent is ready for production.
             </p>
           </EmptyContent>
         </Section>
