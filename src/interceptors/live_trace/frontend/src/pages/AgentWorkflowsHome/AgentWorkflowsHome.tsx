@@ -122,7 +122,6 @@ export const AgentWorkflowsHome: FC = () => {
         fetchAgentWorkflows(),
         fetchDashboard('unassigned'),
       ]);
-      console.log('agentWorkflowsRes', agentWorkflowsRes);
       setAgentWorkflows(agentWorkflowsRes.agent_workflows.filter(w => w.id !== null));
       setUnassignedAgents(unassignedRes.agents);
     } catch (error) {
