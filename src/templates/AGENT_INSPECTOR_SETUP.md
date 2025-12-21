@@ -25,11 +25,17 @@ python -i ...
 
 Ask yourself: Where is the agent code the user wants to analyze?
 
-- If user specified a path → use that
-- If user said "this project" → use current workspace root
+**Typical scenario:** Agent Inspector is installed directly in the customer's agent repository. The agent being secured is the one where you're installing Agent Inspector.
+
+- If user said "this project" or "this agent" → use current workspace root
+- If user specified a path → use that path
 - If unclear → ask: "Which folder contains your agent code?"
 
 Store this as `{AGENT_PROJECT_FOLDER}`.
+
+**Examples:**
+- Standalone agent: `/home/user/my-sales-bot/` → Agent Inspector analyzes "my-sales-bot"
+- Monorepo: `/home/user/company-ai/agents/support-bot/` → Agent Inspector analyzes "support-bot"
 
 ### 1.2 Check if Inside cylestio-perimeter Repo (Local Dev Mode)
 
@@ -177,15 +183,15 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 
 ## Commands
 
-- `/scan` - Run static security scan on current workspace
-- `/scan path/` - Scan specific folder
-- `/analyze` - Run dynamic runtime analysis
-- `/correlate` - Correlate static findings with runtime data
-- `/fix REC-XXX` - Fix a specific recommendation
-- `/fix` - Fix highest priority blocking issue
-- `/status` - Get dynamic analysis status
-- `/gate` - Check production gate status
-- `/report` - Generate security assessment report (returns markdown)
+- `/agent-scan` - Run static security scan on current workspace
+- `/agent-scan path/` - Scan specific folder
+- `/agent-analyze` - Run dynamic runtime analysis
+- `/agent-correlate` - Correlate static findings with runtime data
+- `/agent-fix REC-XXX` - Fix a specific recommendation
+- `/agent-fix` - Fix highest priority blocking issue
+- `/agent-status` - Get dynamic analysis status
+- `/agent-gate` - Check production gate status
+- `/agent-report` - Generate security assessment report (returns markdown)
 
 ## Static Analysis - 7 Security Categories
 
@@ -233,18 +239,62 @@ ls {AGENT_PROJECT_FOLDER}/CLAUDE.md 2>/dev/null && echo "EXISTS" || echo "NOT_FO
 
 **If NOT_FOUND and no template**, create `{AGENT_PROJECT_FOLDER}/CLAUDE.md` with:
 - MCP connection details (http://localhost:7100/mcp)
-- Commands: `/scan`, `/fix REC-XXX`, `/fix`
+- Commands: `/agent-scan`, `/agent-fix REC-XXX`, `/agent-fix`
 - 7 security categories
 - Recommendation lifecycle
 - MCP tools reference
 
 **If EXISTS**, append the Agent Inspector section if not already present.
 
-### 5.3 Detailed Skills (Both IDEs)
+### 5.3 For Cursor ONLY: Install Slash Commands
+
+⚠️ **This step is for Cursor IDE only.** Claude Code does not support slash commands in the same way.
+
+Cursor supports custom slash commands via `.cursor/commands/` directory. These enable native `/agent-scan`, `/agent-fix`, `/agent-gate` etc. commands in the chat.
+
+**Create the commands directory:**
+```bash
+mkdir -p {AGENT_PROJECT_FOLDER}/.cursor/commands
+```
+
+**Copy slash command files from package template:**
+
+Look for: `src/templates/cursor-commands/` in the installed package or repo
+
+Copy ALL `.md` files to: `{AGENT_PROJECT_FOLDER}/.cursor/commands/`
+
+```bash
+# If in local dev mode (inside cylestio-perimeter repo):
+cp {REPO_ROOT}/src/templates/cursor-commands/*.md {AGENT_PROJECT_FOLDER}/.cursor/commands/
+
+# Commands to copy:
+# - agent-scan.md       → /agent-scan
+# - agent-fix.md        → /agent-fix
+# - agent-analyze.md    → /agent-analyze  
+# - agent-correlate.md  → /agent-correlate
+# - agent-gate.md       → /agent-gate
+# - agent-report.md     → /agent-report
+# - agent-status.md     → /agent-status
+```
+
+**Verify commands are installed:**
+```bash
+ls {AGENT_PROJECT_FOLDER}/.cursor/commands/
+# Should show: agent-analyze.md  agent-correlate.md  agent-fix.md  agent-gate.md  agent-report.md  agent-scan.md  agent-status.md
+```
+
+**How it works:**
+- When user types `/` in Cursor chat, these commands appear in the dropdown
+- Selecting a command loads the markdown content as instructions for the AI
+- Commands reference Agent Inspector MCP tools automatically
+
+**For Claude Code:** Slash commands are NOT supported the same way. Claude Code users should use natural language like "run a security scan" or reference the rules in `CLAUDE.md`.
+
+### 5.4 Detailed Skills (Both IDEs)
 
 For more comprehensive skill files, check `src/templates/skills/`:
-- `static-analysis/SKILL.md` - Complete `/scan` workflow
-- `auto-fix/SKILL.md` - Complete `/fix` workflow with prioritization
+- `static-analysis/SKILL.md` - Complete `/agent-scan` workflow
+- `auto-fix/SKILL.md` - Complete `/agent-fix` workflow with prioritization
 - `dynamic-analysis/SKILL.md` - Runtime tracing setup
 
 These can be included in your project's rules/skills for more detailed guidance.
@@ -335,6 +385,15 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 ⚠️ **CRITICAL: This step MUST succeed. If it fails, retry on EVERY subsequent MCP tool call.**
 
+**When to register:**
+- ✅ Immediately after installation (during first scan - see STEP 10)
+- ✅ Before every security analysis request (scan, analyze, fix, etc.) - auto-switches workflow
+- ✅ Registration is idempotent - safe to call every time
+
+**Key principle:** Always register IDE for the agent workflow being analyzed, not the parent repo!
+
+**Typical setup:** Most customers install Agent Inspector directly in their agent's repo, so the workflow ID matches the agent's folder name.
+
 ### 9.1 Determine Your Model Name
 
 **You MUST know what AI model you are.** Check your system prompt or self-identify:
@@ -350,16 +409,16 @@ cylestio-perimeter run --config {PATH_TO_CONFIG} &
 
 **If unsure, check:** Your system prompt often says "powered by X" or "You are X".
 
-### 9.2 Immediately Register After MCP Connect
+### 9.2 How to Register IDE Connection
 
-As soon as MCP tools are available, call `register_ide_connection` with ALL parameters:
+Registration happens automatically as part of every scan/analysis command (see STEP 10). Here's the pattern:
 
 ```
 register_ide_connection(
   ide_type="cursor",              // REQUIRED: "cursor" or "claude-code"
-  agent_workflow_id="my-agent",   // REQUIRED: from folder name
+  agent_workflow_id="my-agent",   // REQUIRED: from scan target folder name
   workspace_path="/path/to/project",  // REQUIRED: full workspace path
-  model="claude-opus-4.5"         // REQUIRED: your AI model name
+  model="claude-sonnet-4"         // REQUIRED: your AI model name
 )
 ```
 
@@ -367,9 +426,22 @@ register_ide_connection(
 | Parameter | How to determine |
 |-----------|------------------|
 | `ide_type` | `"cursor"` if in Cursor IDE, `"claude-code"` if Claude Code CLI |
-| `agent_workflow_id` | Agent project folder name (e.g., `"next-rooms"`, `"my-agent"`) |
+| `agent_workflow_id` | **Scan target folder name**, NOT parent repo! (e.g., scanning `customer-support-agent/` → use `"customer-support-agent"`) |
 | `workspace_path` | Full path to the workspace you're editing |
 | `model` | Your AI model name (see table above) |
+
+**Critical for workflow matching:**
+```
+✅ CORRECT: Scanning "my-booking-agent/" → register with agent_workflow_id="my-booking-agent"
+❌ WRONG:   Scanning "my-booking-agent/" → register with agent_workflow_id="parent-repo-name"
+
+The workflow ID must match what you're scanning, not where you're scanning FROM!
+
+Common scenarios:
+- Standalone agent repo: Use the repo folder name (e.g., "sales-assistant")
+- Agent in subfolder: Use the agent folder name (e.g., "agents/chatbot" → "chatbot")
+- Monorepo with multiple agents: Use each agent's folder name individually
+```
 
 ### 9.3 Store the Connection ID
 
@@ -418,11 +490,54 @@ ide_heartbeat(connection_id, is_developing=true)  // ONE heartbeat at start
 
 **Only register when user asks for Agent Inspector features.** Don't register proactively.
 
-### When user asks for security analysis:
-1. Call `register_ide_connection()` (idempotent - safe to call again)
-2. Send ONE `ide_heartbeat(is_developing=true)`
-3. Do the work
-4. Done - no more calls needed
+### When user asks for security analysis (/scan, /analyze, /fix, etc.):
+
+**ALWAYS register IDE for the workflow being worked on:**
+
+```
+1. Determine agent_workflow_id from scan target or current workspace
+2. Call register_ide_connection(agent_workflow_id=<derived_id>)  // Idempotent!
+3. Send ONE ide_heartbeat(is_developing=true)
+4. Create analysis session with SAME agent_workflow_id
+5. Do the work
+6. Done - no more calls needed
+```
+
+**Example - User requests security analysis:**
+```
+User: "Run a security scan on this agent" (or "scan for vulnerabilities", etc.)
+
+Your logic:
+1. Determine scan target (current workspace or specified path)
+2. Extract workflow ID from folder name
+   → If scanning "customer-support-bot/" folder
+   → agent_workflow_id = "customer-support-bot"
+   
+3. Register IDE for this workflow:
+   → register_ide_connection(agent_workflow_id="customer-support-bot", ...)
+   → ide_heartbeat(connection_id, is_developing=true)
+   
+4. Create analysis session with SAME workflow ID:
+   → create_analysis_session(agent_workflow_id="customer-support-bot", ...)
+   
+5. Perform scan...
+```
+
+**For monorepos with multiple agents:**
+```
+User: "Scan the booking agent in the agents folder"
+
+Your logic:
+→ Scan target: agents/booking-agent/
+→ agent_workflow_id = "booking-agent" (use leaf folder name, not "agents")
+→ register_ide_connection(agent_workflow_id="booking-agent", ...)
+→ create_analysis_session(agent_workflow_id="booking-agent", ...)
+```
+
+**This ensures:**
+- Dashboard always shows correct workflow being analyzed
+- IDE appears as "Connected" for active workflow
+- No workflow ID mismatches
 
 **Skip `get_ide_connection_status`** - just register directly. It's simpler and uses same tokens.
 
@@ -441,9 +556,34 @@ ls {AGENT_PROJECT_FOLDER}/*.py {AGENT_PROJECT_FOLDER}/*.js {AGENT_PROJECT_FOLDER
 
 ### 10.2 If Code Exists, Run Static Scan
 
-If MCP is connected, use the `/scan` command workflow:
+If MCP is connected, use the `/agent-scan` command workflow:
 
-1. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")`
+**CRITICAL - Workflow Matching:** Before scanning, ensure IDE is registered for the correct workflow:
+
+```python
+# Step 0: Determine workflow ID from scan target
+if scanning_subfolder:
+    # Example: agents/customer-support/ → "customer-support"
+    # Example: my-agents/booking-bot/ → "booking-bot"
+    agent_workflow_id = get_folder_name(scan_target_path)
+else:
+    # Scanning current workspace → use workspace folder name
+    # Example: /path/to/sales-assistant/ → "sales-assistant"
+    agent_workflow_id = get_folder_name(workspace_path)
+
+# Step 1: Register IDE for THIS specific workflow (idempotent - safe to call every time)
+register_ide_connection(
+    ide_type="cursor",
+    agent_workflow_id=agent_workflow_id,  # ← MUST match scan target!
+    workspace_path=workspace_path,
+    model=model
+)
+ide_heartbeat(connection_id, is_developing=true)
+```
+
+**Then proceed with scan:**
+
+1. Create analysis session: `create_analysis_session(agent_workflow_id, "STATIC")` ← **Use SAME workflow ID!**
 2. Get security patterns: `get_security_patterns()`
 3. **Analyze code for ALL 7 security categories:**
    - PROMPT (LLM01): Injection, jailbreak
@@ -455,6 +595,12 @@ If MCP is connected, use the `/scan` command workflow:
    - BEHAVIOR (LLM08/09): Excessive agency
 4. Store findings with category: `store_finding(..., category="PROMPT")`
 5. Complete session: `complete_analysis_session(session_id)`
+
+**Why register before every scan?**
+- IDE connection is per-workflow (tracks which agent you're analyzing)
+- When scanning different folders, this auto-switches the dashboard view
+- Registration is idempotent - calling it again just updates the connection
+- **This prevents "Not Connected" errors in the dashboard**
 
 **Report using the 7-category format:**
 ```
@@ -469,7 +615,7 @@ Gate Status: 🔒 BLOCKED / ✅ OPEN
 ```
 
 If MCP not connected yet, tell user:
-> "Reload Cursor, then type `/scan` and I'll analyze your agent code."
+> "Reload Cursor, then type `/agent-scan` and I'll analyze your agent code."
 
 ---
 
@@ -501,23 +647,27 @@ Query the `agent-inspector` MCP server for available tools.
 
 A security analysis platform for AI agents - find vulnerabilities, understand behavior, meet compliance.
 
-#### Quick Commands
+#### Slash Commands (Cursor IDE)
+
+Type `/agent-` in the chat to see all Agent Inspector commands. These are powered by custom slash commands installed in `.cursor/commands/`.
 
 | Command | Description |
 |---------|-------------|
-| `/scan` | Run static security scan on current workspace |
-| `/scan path/to/folder` | Run static scan on specific folder |
-| `/analyze` | Run dynamic analysis on runtime sessions |
-| `/correlate` | Correlate static findings with runtime data |
-| `/fix REC-001` | Fix a specific recommendation (AI-powered, contextual) |
-| `/fix` | Fix the next highest-priority blocking recommendation |
-| `/status` | Get dynamic analysis status (sessions available, etc.) |
-| `/gate` | Check production gate status and blocking issues |
-| `/report` | Generate security assessment report (as markdown) |
+| `/agent-scan` | Run static security scan on current workspace |
+| `/agent-scan path/to/folder` | Run static scan on specific folder |
+| `/agent-analyze` | Run dynamic analysis on runtime sessions |
+| `/agent-correlate` | Correlate static findings with runtime data |
+| `/agent-fix REC-001` | Fix a specific recommendation (AI-powered, contextual) |
+| `/agent-fix` | Fix the next highest-priority blocking recommendation |
+| `/agent-status` | Get dynamic analysis status (sessions available, etc.) |
+| `/agent-gate` | Check production gate status and blocking issues |
+| `/agent-report` | Generate security assessment report (as markdown) |
 
-#### The `/fix` Command - AI-Powered Security Fixes
+> **Claude Code users:** These slash commands are Cursor-specific. Use natural language instead: "run a security scan", "fix recommendation REC-001", etc.
 
-When you say `/fix REC-XXX`, I will:
+#### The `/agent-fix` Command - AI-Powered Security Fixes
+
+When you say `/agent-fix REC-XXX`, I will:
 
 1. **Get the recommendation details** - what's the vulnerability and where
 2. **Start fix tracking** - marks status as FIXING in the audit trail
@@ -550,18 +700,18 @@ Your agent has a **Production Gate**:
 - 🔒 **BLOCKED**: CRITICAL or HIGH issues remain open → can't ship
 - ✅ **OPEN**: All blocking issues resolved → ready to ship
 
-#### The `/gate` Command - Production Gate Check
+#### The `/agent-gate` Command - Production Gate Check
 
-When you say `/gate`, I will:
+When you say `/agent-gate`, I will:
 
 1. **Check gate status** via `get_gate_status(workflow_id)`
 2. **Report blocking items** if BLOCKED (what needs fixing)
 3. **Show progress** towards production readiness
 4. **Suggest generating a report** when OPEN
 
-#### The `/report` Command - Security Assessment Report
+#### The `/agent-report` Command - Security Assessment Report
 
-When you say `/report`, I will generate a comprehensive security report in markdown format.
+When you say `/agent-report`, I will generate a comprehensive security report in markdown format.
 
 **Report Types:**
 - **security_assessment** (default) - Full CISO report with all details
@@ -580,7 +730,7 @@ When you say `/report`, I will generate a comprehensive security report in markd
    - Remediation Summary
 3. **Return the markdown directly** in the chat
 
-**Example output:**
+**Example output** (for an agent named "my-agent" - yours will show your agent's name):
 
 ```markdown
 # Security Assessment: my-agent
@@ -616,15 +766,15 @@ Cleared for production deployment. All critical and high security issues have be
 ```
 
 **Variations:**
-- `/report` - Generate full security assessment (default)
-- `/report executive` - Generate executive summary for leadership
-- `/report customer` - Generate customer due diligence report
+- `/agent-report` - Generate full security assessment (default)
+- `/agent-report executive` - Generate executive summary for leadership
+- `/agent-report customer` - Generate customer due diligence report
 
 Use this before deployment to ensure all critical issues are addressed.
 
-#### The `/analyze` Command - Dynamic Runtime Analysis
+#### The `/agent-analyze` Command - Dynamic Runtime Analysis
 
-When you say `/analyze`, I will:
+When you say `/agent-analyze`, I will:
 
 1. **Check for available sessions** - runtime sessions from agent traffic through proxy
 2. **Trigger on-demand analysis** - only analyzes NEW sessions since last run
@@ -641,9 +791,9 @@ When you say `/analyze`, I will:
 - Each run analyzes only **NEW sessions** (incremental)
 - Results reflect the **current state** of your agent
 
-#### The `/correlate` Command - Cross-Analysis Correlation
+#### The `/agent-correlate` Command - Cross-Analysis Correlation
 
-When you say `/correlate`, I will:
+When you say `/agent-correlate`, I will:
 
 1. **Get static findings** - issues found in code analysis
 2. **Get runtime data** - tool usage patterns from dynamic sessions
@@ -693,22 +843,30 @@ The rules file ensures I'll use these tools when you ask about security - even i
 - [ ] Created rules/skills file:
   - [ ] Cursor: `.cursor/rules/agent-inspector.mdc`
   - [ ] Claude Code: `CLAUDE.md` with Agent Inspector section
+- [ ] **Cursor ONLY:** Installed slash commands in `.cursor/commands/`
+  - [ ] Copied all `.md` files from `src/templates/cursor-commands/`
+  - [ ] Verified: agent-scan.md, agent-fix.md, agent-analyze.md, agent-correlate.md, agent-gate.md, agent-report.md, agent-status.md
 - [ ] Updated agent code with `base_url`
 - [ ] Started server OR told user how to start it
 - [ ] Told user to reload IDE
 - [ ] **Registered IDE connection** (or set PENDING_IDE_REGISTRATION reminder)
 - [ ] Ran first static scan (if code exists and MCP connected) OR told user to ask for scan after reload
+  - [ ] **IDE registered for scan target workflow** (before create_analysis_session)
+  - [ ] Workflow ID matched between IDE registration and analysis session
 - [ ] Displayed welcome message with ONLY verified capabilities
 
 **ALL BOXES MUST BE CHECKED.**
 
-**REMEMBER:** If IDE connection registration failed, you MUST retry on every subsequent MCP call!
+**REMEMBER:** 
+- Always register IDE for the workflow being scanned (Step 0 of every scan)
+- Workflow ID must match between `register_ide_connection` and `create_analysis_session`
+- If IDE connection registration failed, retry on every subsequent MCP call!
 
 ---
 
 ## POST-INSTALLATION: Using Agent Inspector
 
-### Static Scan Workflow (`/scan`)
+### Static Scan Workflow (`/agent-scan`)
 
 ```
 /scan → Analyzes code → Creates findings → Generates recommendations → Shows gate status
@@ -716,7 +874,7 @@ The rules file ensures I'll use these tools when you ask about security - even i
 
 Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
 
-### Dynamic Analysis Workflow (`/analyze`)
+### Dynamic Analysis Workflow (`/agent-analyze`)
 
 ```
 /analyze → Analyzes runtime sessions → Creates security checks → Updates gate status
@@ -731,7 +889,7 @@ Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
 - **Incremental** - only analyzes NEW sessions since last run
 - **Auto-resolves** - old issues not in new sessions are marked resolved
 
-### Correlation Workflow (`/correlate`)
+### Correlation Workflow (`/agent-correlate`)
 
 ```
 /correlate → Gets static findings + runtime data → Updates correlation states
@@ -747,7 +905,7 @@ Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
 - **THEORETICAL**: Issue in code, but runtime shows it's safe → may be OK
 - **RUNTIME_ONLY**: Issue found only at runtime → add static check
 
-### Fix Workflow (`/fix`)
+### Fix Workflow (`/agent-fix`)
 
 ```
 /fix REC-001 → Reads code → Applies contextual fix → Updates status
@@ -755,7 +913,7 @@ Each finding gets a `REC-XXX` recommendation ID. Fix them with `/fix REC-XXX`.
 
 The fix is tracked in an audit trail for compliance (who fixed what, when, how).
 
-### Gate Check Workflow (`/gate`)
+### Gate Check Workflow (`/agent-gate`)
 
 ```
 /gate → Checks production gate → Reports blocking issues → Shows progress
@@ -765,7 +923,7 @@ The fix is tracked in an audit trail for compliance (who fixed what, when, how).
 - 🔒 **BLOCKED**: CRITICAL or HIGH severity issues remain open
 - ✅ **OPEN**: All blocking issues resolved, ready for production
 
-### Report Generation Workflow (`/report`)
+### Report Generation Workflow (`/agent-report`)
 
 ```
 /report → Generates compliance report → Returns markdown directly in chat
