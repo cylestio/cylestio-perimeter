@@ -24,7 +24,7 @@ import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import { fetchGateStatus } from '@api/endpoints/agentWorkflow';
 import type { AgentResponse, ToolAnalytics } from '@api/types/agent';
-import type { APIAgent, DashboardResponse } from '@api/types/dashboard';
+import type { APIAgent, DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import type { GateStatusResponse } from '@api/types/findings';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
@@ -172,32 +172,62 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     fetchData();
   }, [fetchData]);
 
+  // Helper to convert stage to status - matches sidebar logic exactly
+  const stageToStatus = (stage: AnalysisStage | undefined): LifecycleStage['status'] => {
+    if (!stage) return 'inactive';
+    
+    switch (stage.status) {
+      case 'active':
+        return 'running';
+      case 'completed':
+        // For completed analysis, derive severity from embedded findings
+        if (stage.findings) {
+          const openCritical = stage.findings.by_severity?.CRITICAL ?? 0;
+          const openHigh = stage.findings.by_severity?.HIGH ?? 0;
+          const openMedium = stage.findings.by_severity?.MEDIUM ?? 0;
+          if (openCritical > 0 || openHigh > 0) return 'critical';
+          if (openMedium > 0) return 'warning';
+          return 'ok';
+        }
+        return 'ok';
+      case 'pending':
+      default:
+        return 'inactive';
+    }
+  };
+
   // Calculate lifecycle stages based on security analysis data
   const getLifecycleStages = (): LifecycleStage[] => {
     const secAnalysis = dashboardData?.security_analysis;
     
-    // Dev stage - based on IDE connection (we'll show as active if we have any data)
-    const devStatus = dashboardData ? 'completed' : 'pending';
+    // Dev stage - based on dashboard data presence (simplified - matches sidebar showing green when connected)
+    const devStatus: LifecycleStage['status'] = dashboardData ? 'ok' : 'inactive';
     
-    // Static stage - based on static analysis
-    const staticStatus = secAnalysis?.static?.status === 'completed' ? 'completed' :
-                         secAnalysis?.static?.status === 'active' ? 'active' : 'pending';
+    // Static stage - use exact same logic as sidebar
+    const staticStatus = stageToStatus(secAnalysis?.static);
     const staticFindings = secAnalysis?.static?.findings;
-    const staticStat = staticFindings ? `${staticFindings.total || 0} findings` : undefined;
+    const staticOpenCount = staticFindings?.by_status?.OPEN ?? staticFindings?.total ?? 0;
+    const staticStat = staticOpenCount > 0 ? `${staticOpenCount} findings` : 
+                       staticStatus === 'ok' ? 'Passed' : undefined;
     
-    // Dynamic stage - based on dynamic analysis
-    const dynamicStatus = secAnalysis?.dynamic?.status === 'completed' ? 'completed' :
-                          secAnalysis?.dynamic?.status === 'active' ? 'active' : 'pending';
+    // Dynamic stage - use exact same logic as sidebar
+    const dynamicStatus = stageToStatus(secAnalysis?.dynamic);
     const dynamicStat = secAnalysis?.dynamic?.sessions_progress 
       ? `${secAnalysis.dynamic.sessions_progress.current}/${secAnalysis.dynamic.sessions_progress.required}` 
       : undefined;
     
     // Production stage - based on gate status
-    const productionStatus = gateStatus && !gateStatus.is_blocked ? 'completed' : 
-                             staticStatus === 'completed' && dynamicStatus === 'completed' ? 'active' : 'pending';
+    const productionStatus: LifecycleStage['status'] = 
+      gateStatus?.is_blocked 
+        ? 'critical'
+        : gateStatus && !gateStatus.is_blocked 
+          ? 'ok' 
+          : (staticStatus !== 'inactive' && dynamicStatus !== 'inactive')
+            ? 'running' 
+            : 'inactive';
     const productionStat = gateStatus?.is_blocked 
       ? `${gateStatus.blocking_count} blocking` 
-      : productionStatus === 'completed' ? 'Ready' : undefined;
+      : productionStatus === 'ok' ? 'Ready' : undefined;
 
     return [
       { id: 'dev', label: 'Dev', icon: <Code size={16} />, status: devStatus, stat: 'Connected' },
