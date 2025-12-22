@@ -5,6 +5,7 @@ import { ThemeProvider } from 'styled-components';
 
 import {
   AttackSurfaceIcon,
+  CodeIcon,
   ConnectIcon,
   DevConnectionIcon,
   HomeIcon,
@@ -44,6 +45,7 @@ import {
   AgentDetail,
   AgentReport,
   AttackSurface,
+  Code,
   Connect,
   DevConnection,
   DynamicAnalysis,
@@ -367,6 +369,13 @@ function AppLayout() {
                 collapsed={sidebarCollapsed}
               />
               <NavItem
+                icon={<CodeIcon size={18} />}
+                label="Code"
+                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/code`}
+                to={`/agent-workflow/${urlAgentWorkflowId}/code`}
+                collapsed={sidebarCollapsed}
+              />
+              <NavItem
                 label="Agents"
                 icon={<SystemPromptsIcon size={18} />}
                 badge={agents.length > 0 ? agents.length : undefined}
@@ -526,6 +535,7 @@ function App() {
 
               {/* Developer section */}
               <Route path="/agent-workflow/:agentWorkflowId/overview" element={<Overview />} />
+              <Route path="/agent-workflow/:agentWorkflowId/code" element={<Code />} />
               <Route path="/agent-workflow/:agentWorkflowId/agents" element={<Portfolio />} />
               <Route path="/agent-workflow/:agentWorkflowId/sessions" element={<Sessions />} />
               <Route path="/agent-workflow/:agentWorkflowId/recommendations" element={<Recommendations />} />

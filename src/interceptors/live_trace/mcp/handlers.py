@@ -175,6 +175,10 @@ def handle_store_finding(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         fix_hints=args.get("fix_hints"),
         impact=args.get("impact"),
         fix_complexity=args.get("fix_complexity"),
+        # Developer insights parameters
+        dev_category=args.get("dev_category"),
+        health_impact=args.get("health_impact"),
+        code_fingerprint=args.get("code_fingerprint"),
     )
 
     result = {"finding": finding}
@@ -193,6 +197,11 @@ def handle_get_findings(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
         session_id=args.get("session_id"),
         severity=args.get("severity", "").upper() if args.get("severity") else None,
         status=args.get("status", "").upper() if args.get("status") else None,
+        # New developer insights filters
+        source=args.get("source"),
+        dev_category=args.get("dev_category"),
+        correlation_state=args.get("correlation_state"),
+        include_resolved=args.get("include_resolved", False),
         limit=args.get("limit", 100),
     )
     return {"findings": findings, "total_count": len(findings)}
@@ -962,9 +971,596 @@ def handle_get_analysis_history(args: Dict[str, Any], store: Any) -> Dict[str, A
         "analyses": filtered,
         "latest_id": latest_id,
         "total_count": len(filtered),
-        "message": f"Found {len(filtered)} {session_type.lower()} analysis sessions." + 
+        "message": f"Found {len(filtered)} {session_type.lower()} analysis sessions." +
                    (f" Latest: {latest_id}" if latest_id else ""),
     }
+
+
+# ==================== Developer Insights Tools ====================
+
+@register_handler("get_health_score")
+def handle_get_health_score(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get comprehensive health score with dimension breakdown."""
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    health = store.get_health_score(workflow_id)
+    return {
+        "health_score": health,
+        "message": f"Overall health: {health['overall_health']}% ({health['total_issues']} issues)",
+    }
+
+
+@register_handler("get_code_analysis")
+def handle_get_code_analysis(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get developer findings grouped by category for the Code page."""
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    analysis = store.get_code_analysis(workflow_id)
+    return {
+        "code_analysis": analysis,
+        "message": f"Code health: {analysis['code_health']}% ({analysis['total_issues']} issues)",
+    }
+
+
+@register_handler("get_health_trend")
+def handle_get_health_trend(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get health score history for trend visualization."""
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    days = args.get("days", 30)
+    source = args.get("source")
+
+    trend = store.get_health_trend(workflow_id, days=days, source=source)
+    return {
+        "trend": trend,
+        "message": f"Health trend ({trend['data_points']} data points): {trend['trend']}",
+    }
+
+
+@register_handler("get_scan_comparison")
+def handle_get_scan_comparison(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Compare findings between two scans."""
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    comparison = store.get_scan_comparison(
+        workflow_id=workflow_id,
+        current_session_id=args.get("current_session_id"),
+        previous_session_id=args.get("previous_session_id"),
+    )
+
+    if not comparison.get("has_comparison"):
+        return {"comparison": comparison, "message": comparison.get("message", "No comparison available")}
+
+    return {
+        "comparison": comparison,
+        "message": f"Comparison: {comparison['new_count']} new, {comparison['resolved_count']} resolved, "
+                   f"{comparison['unchanged_count']} unchanged",
+    }
+
+
+@register_handler("record_health_snapshot")
+def handle_record_health_snapshot(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Record a health score snapshot for trend tracking."""
+    workflow_id = args.get("workflow_id")
+    source = args.get("source")
+    overall_health = args.get("overall_health")
+
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+    if not source:
+        return {"error": "source is required"}
+    if overall_health is None:
+        return {"error": "overall_health is required"}
+
+    snapshot = store.record_health_snapshot(
+        workflow_id=workflow_id,
+        source=source,
+        overall_health=overall_health,
+        security_score=args.get("security_score"),
+        availability_score=args.get("availability_score"),
+        reliability_score=args.get("reliability_score"),
+        efficiency_score=args.get("efficiency_score"),
+        security_issues=args.get("security_issues", 0),
+        availability_issues=args.get("availability_issues", 0),
+        reliability_issues=args.get("reliability_issues", 0),
+        efficiency_issues=args.get("efficiency_issues", 0),
+        total_findings=args.get("total_findings", 0),
+        new_findings=args.get("new_findings", 0),
+        resolved_findings=args.get("resolved_findings", 0),
+        analysis_session_id=args.get("analysis_session_id"),
+    )
+
+    return {
+        "snapshot": snapshot,
+        "message": f"Health snapshot recorded: {overall_health}%",
+    }
+
+
+# ==================== Reporting Tools ====================
+
+@register_handler("generate_report")
+def handle_generate_report(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Generate a comprehensive health report."""
+    from datetime import datetime
+
+    workflow_id = args.get("workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    report_format = args.get("format", "markdown")
+    include = args.get("include", {})
+    severity_threshold = args.get("severity_threshold", "LOW")
+    max_findings = args.get("max_findings_per_section", 10)
+
+    # Default include options
+    include_sections = {
+        "executive_summary": include.get("executive_summary", True),
+        "security_findings": include.get("security_findings", True),
+        "developer_findings": include.get("developer_findings", True),
+        "correlation_summary": include.get("correlation_summary", True),
+        "gate_status": include.get("gate_status", True),
+        "recommendations": include.get("recommendations", True),
+        "trend_analysis": include.get("trend_analysis", True),
+    }
+
+    # Gather data
+    health_score = store.get_health_score(workflow_id)
+    gate_status = store.get_gate_status(workflow_id)
+    findings = store.get_findings(agent_workflow_id=workflow_id, status="OPEN", limit=100)
+    recommendations = store.get_recommendations(workflow_id=workflow_id, status="PENDING", limit=100)
+
+    # Get correlation summary if available
+    correlation = store.get_correlation_summary(workflow_id)
+
+    # Get trend data
+    trend = store.get_health_trend(workflow_id, days=30)
+
+    # Separate security and developer findings
+    severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    threshold_level = severity_order.get(severity_threshold, 3)
+
+    security_findings = [f for f in findings
+                        if not f.get("dev_category")
+                        and severity_order.get(f.get("severity"), 3) <= threshold_level]
+    developer_findings = [f for f in findings
+                         if f.get("dev_category")
+                         and severity_order.get(f.get("severity"), 3) <= threshold_level]
+
+    # Apply max findings limit
+    if max_findings > 0:
+        security_findings = security_findings[:max_findings]
+        developer_findings = developer_findings[:max_findings]
+
+    generated_at = datetime.utcnow().isoformat()
+
+    if report_format == "json":
+        report = _generate_json_report(
+            workflow_id=workflow_id,
+            health_score=health_score,
+            gate_status=gate_status,
+            security_findings=security_findings,
+            developer_findings=developer_findings,
+            recommendations=recommendations,
+            correlation=correlation,
+            trend=trend,
+            include_sections=include_sections,
+            generated_at=generated_at,
+        )
+    elif report_format == "html":
+        report = _generate_html_report(
+            workflow_id=workflow_id,
+            health_score=health_score,
+            gate_status=gate_status,
+            security_findings=security_findings,
+            developer_findings=developer_findings,
+            recommendations=recommendations,
+            correlation=correlation,
+            trend=trend,
+            include_sections=include_sections,
+            generated_at=generated_at,
+        )
+    else:  # markdown
+        report = _generate_markdown_report(
+            workflow_id=workflow_id,
+            health_score=health_score,
+            gate_status=gate_status,
+            security_findings=security_findings,
+            developer_findings=developer_findings,
+            recommendations=recommendations,
+            correlation=correlation,
+            trend=trend,
+            include_sections=include_sections,
+            generated_at=generated_at,
+        )
+
+    return {
+        "report": report,
+        "format": report_format,
+        "workflow_id": workflow_id,
+        "generated_at": generated_at,
+        "sections_included": [k for k, v in include_sections.items() if v],
+        "message": f"Report generated for {workflow_id} in {report_format} format",
+    }
+
+
+def _generate_markdown_report(
+    workflow_id: str,
+    health_score: Dict[str, Any],
+    gate_status: Dict[str, Any],
+    security_findings: list,
+    developer_findings: list,
+    recommendations: list,
+    correlation: Dict[str, Any],
+    trend: Dict[str, Any],
+    include_sections: Dict[str, bool],
+    generated_at: str,
+) -> str:
+    """Generate a markdown report."""
+    lines = []
+
+    lines.append(f"# Agent Health Report: {workflow_id}")
+    lines.append(f"\n*Generated: {generated_at}*\n")
+
+    # Executive Summary
+    if include_sections["executive_summary"]:
+        lines.append("## Executive Summary\n")
+        overall = health_score.get("overall_health", 0)
+        total_issues = health_score.get("total_issues", 0)
+
+        if overall >= 80:
+            status_emoji = "🟢"
+            status_text = "Healthy"
+        elif overall >= 50:
+            status_emoji = "🟡"
+            status_text = "Needs Attention"
+        else:
+            status_emoji = "🔴"
+            status_text = "Critical"
+
+        lines.append(f"**Overall Health Score:** {status_emoji} **{overall}%** ({status_text})")
+        lines.append(f"**Total Open Issues:** {total_issues}\n")
+
+        # Dimension breakdown
+        lines.append("### Dimension Scores\n")
+        lines.append("| Dimension | Score | Issues |")
+        lines.append("|-----------|-------|--------|")
+
+        dimensions = health_score.get("dimensions", {})
+        issue_counts = health_score.get("issue_counts", {})
+        lines.append(f"| Security | {dimensions.get('security', 100)}% | {issue_counts.get('security', 0)} |")
+        lines.append(f"| Availability | {dimensions.get('availability', 100)}% | {issue_counts.get('availability', 0)} |")
+        lines.append(f"| Reliability | {dimensions.get('reliability', 100)}% | {issue_counts.get('reliability', 0)} |")
+        lines.append(f"| Efficiency | {dimensions.get('efficiency', 100)}% | {issue_counts.get('efficiency', 0)} |")
+        lines.append("")
+
+    # Gate Status
+    if include_sections["gate_status"]:
+        lines.append("## Production Gate Status\n")
+        if gate_status.get("is_blocked"):
+            lines.append(f"🚫 **BLOCKED**: {gate_status.get('blocking_critical', 0)} critical and {gate_status.get('blocking_high', 0)} high severity issues")
+        else:
+            lines.append("✅ **READY**: No blocking issues")
+        lines.append("")
+
+    # Trend Analysis
+    if include_sections["trend_analysis"] and trend.get("data_points", 0) > 1:
+        lines.append("## Health Trend\n")
+        trend_direction = trend.get("trend", "stable")
+        if trend_direction == "improving":
+            lines.append(f"📈 **Improving**: Health score has increased by {trend.get('delta', 0):.1f}% over the last {trend.get('period_days', 30)} days")
+        elif trend_direction == "declining":
+            lines.append(f"📉 **Declining**: Health score has decreased by {abs(trend.get('delta', 0)):.1f}% over the last {trend.get('period_days', 30)} days")
+        else:
+            lines.append(f"➡️ **Stable**: Health score is stable over the last {trend.get('period_days', 30)} days")
+        lines.append("")
+
+    # Correlation Summary
+    if include_sections["correlation_summary"] and correlation.get("has_correlation"):
+        lines.append("## Correlation Analysis\n")
+        lines.append(f"*Based on {correlation.get('sessions_analyzed', 0)} runtime sessions*\n")
+        lines.append(f"- **Validated (confirmed at runtime):** {correlation.get('validated', 0)}")
+        lines.append(f"- **Unexercised (never triggered):** {correlation.get('unexercised', 0)}")
+        lines.append(f"- **Theoretical (blocked at runtime):** {correlation.get('theoretical', 0)}")
+        lines.append("")
+
+    # Security Findings
+    if include_sections["security_findings"] and security_findings:
+        lines.append("## Security Findings\n")
+        lines.append(f"*Showing {len(security_findings)} open security issues*\n")
+
+        for f in security_findings:
+            severity = f.get("severity", "MEDIUM")
+            severity_emoji = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}.get(severity, "⚪")
+            lines.append(f"### {severity_emoji} {f.get('title', 'Untitled')}\n")
+            lines.append(f"**Severity:** {severity} | **Type:** {f.get('finding_type', 'Unknown')}")
+            if f.get("file_path"):
+                lines.append(f"**Location:** `{f['file_path']}`" + (f":{f.get('line_start', '')}" if f.get("line_start") else ""))
+            if f.get("description"):
+                lines.append(f"\n{f['description']}")
+            lines.append("")
+
+    # Developer Findings
+    if include_sections["developer_findings"] and developer_findings:
+        lines.append("## Developer Findings (Code Quality)\n")
+        lines.append(f"*Showing {len(developer_findings)} code quality issues*\n")
+
+        for f in developer_findings:
+            severity = f.get("severity", "MEDIUM")
+            category = f.get("dev_category", "RELIABILITY")
+            category_emoji = {"AVAILABILITY": "🔄", "RELIABILITY": "✓", "INEFFICIENCY": "⚡"}.get(category, "📝")
+            lines.append(f"### {category_emoji} {f.get('title', 'Untitled')}\n")
+            lines.append(f"**Category:** {category} | **Severity:** {severity}")
+            if f.get("health_impact"):
+                lines.append(f"**Health Impact:** -{f['health_impact']}%")
+            if f.get("file_path"):
+                lines.append(f"**Location:** `{f['file_path']}`" + (f":{f.get('line_start', '')}" if f.get("line_start") else ""))
+            if f.get("description"):
+                lines.append(f"\n{f['description']}")
+            lines.append("")
+
+    # Recommendations
+    if include_sections["recommendations"] and recommendations:
+        lines.append("## Recommendations\n")
+        lines.append(f"*Top {len(recommendations)} pending recommendations*\n")
+
+        for i, r in enumerate(recommendations[:5], 1):  # Top 5
+            lines.append(f"### {i}. {r.get('title', 'Untitled')}")
+            lines.append(f"**Priority:** {r.get('severity', 'MEDIUM')} | **Status:** {r.get('status', 'PENDING')}")
+            if r.get("fix_guidance"):
+                lines.append(f"\n*Guidance:* {r['fix_guidance'][:200]}...")
+            lines.append("")
+
+    lines.append("---")
+    lines.append(f"*Report generated by Agent Inspector*")
+
+    return "\n".join(lines)
+
+
+def _generate_json_report(
+    workflow_id: str,
+    health_score: Dict[str, Any],
+    gate_status: Dict[str, Any],
+    security_findings: list,
+    developer_findings: list,
+    recommendations: list,
+    correlation: Dict[str, Any],
+    trend: Dict[str, Any],
+    include_sections: Dict[str, bool],
+    generated_at: str,
+) -> Dict[str, Any]:
+    """Generate a JSON report."""
+    report = {
+        "workflow_id": workflow_id,
+        "generated_at": generated_at,
+        "format": "json",
+    }
+
+    if include_sections["executive_summary"]:
+        report["executive_summary"] = {
+            "overall_health": health_score.get("overall_health", 0),
+            "total_issues": health_score.get("total_issues", 0),
+            "dimensions": health_score.get("dimensions", {}),
+            "issue_counts": health_score.get("issue_counts", {}),
+        }
+
+    if include_sections["gate_status"]:
+        report["gate_status"] = gate_status
+
+    if include_sections["trend_analysis"]:
+        report["trend_analysis"] = trend
+
+    if include_sections["correlation_summary"]:
+        report["correlation_summary"] = correlation
+
+    if include_sections["security_findings"]:
+        report["security_findings"] = security_findings
+
+    if include_sections["developer_findings"]:
+        report["developer_findings"] = developer_findings
+
+    if include_sections["recommendations"]:
+        report["recommendations"] = recommendations
+
+    return report
+
+
+def _generate_html_report(
+    workflow_id: str,
+    health_score: Dict[str, Any],
+    gate_status: Dict[str, Any],
+    security_findings: list,
+    developer_findings: list,
+    recommendations: list,
+    correlation: Dict[str, Any],
+    trend: Dict[str, Any],
+    include_sections: Dict[str, bool],
+    generated_at: str,
+) -> str:
+    """Generate an HTML report."""
+    overall = health_score.get("overall_health", 0)
+
+    # Determine color based on health score
+    if overall >= 80:
+        health_color = "#22c55e"  # green
+        status_text = "Healthy"
+    elif overall >= 50:
+        health_color = "#f97316"  # orange
+        status_text = "Needs Attention"
+    else:
+        health_color = "#ef4444"  # red
+        status_text = "Critical"
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Health Report - {workflow_id}</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f; color: #e0e0e0; line-height: 1.6; padding: 2rem;
+        }}
+        .container {{ max-width: 900px; margin: 0 auto; }}
+        h1 {{ color: #00f0ff; margin-bottom: 0.5rem; }}
+        h2 {{ color: #00d4aa; margin: 2rem 0 1rem; border-bottom: 1px solid #333; padding-bottom: 0.5rem; }}
+        h3 {{ color: #e0e0e0; margin: 1rem 0 0.5rem; }}
+        .meta {{ color: #888; font-size: 0.9rem; margin-bottom: 2rem; }}
+        .score-ring {{
+            width: 120px; height: 120px; border-radius: 50%;
+            border: 6px solid {health_color}; display: flex;
+            align-items: center; justify-content: center; margin: 1rem 0;
+        }}
+        .score-value {{ font-size: 2rem; font-weight: bold; color: {health_color}; }}
+        .status {{ color: {health_color}; font-weight: 600; }}
+        .card {{ background: #1a1a2e; border: 1px solid #333; border-radius: 8px; padding: 1rem; margin: 1rem 0; }}
+        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }}
+        .finding {{ border-left: 3px solid; padding-left: 1rem; margin: 1rem 0; }}
+        .critical {{ border-color: #ef4444; }}
+        .high {{ border-color: #f97316; }}
+        .medium {{ border-color: #eab308; }}
+        .low {{ border-color: #22c55e; }}
+        .badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }}
+        .badge-critical {{ background: rgba(239,68,68,0.2); color: #ef4444; }}
+        .badge-high {{ background: rgba(249,115,22,0.2); color: #f97316; }}
+        .badge-medium {{ background: rgba(234,179,8,0.2); color: #eab308; }}
+        .badge-low {{ background: rgba(34,197,94,0.2); color: #22c55e; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
+        th, td {{ padding: 0.75rem; text-align: left; border-bottom: 1px solid #333; }}
+        th {{ color: #888; font-weight: 500; }}
+        .blocked {{ color: #ef4444; }}
+        .ready {{ color: #22c55e; }}
+        @media print {{
+            body {{ background: white; color: black; }}
+            .card {{ border: 1px solid #ccc; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Agent Health Report</h1>
+        <p class="meta">Workflow: {workflow_id} | Generated: {generated_at}</p>
+"""
+
+    # Executive Summary
+    if include_sections["executive_summary"]:
+        dimensions = health_score.get("dimensions", {})
+        issue_counts = health_score.get("issue_counts", {})
+        html += f"""
+        <section>
+            <h2>Executive Summary</h2>
+            <div class="card">
+                <div style="display: flex; align-items: center; gap: 2rem;">
+                    <div class="score-ring">
+                        <span class="score-value">{overall}%</span>
+                    </div>
+                    <div>
+                        <p style="font-size: 1.25rem;">Overall Health: <span class="status">{status_text}</span></p>
+                        <p>Total Open Issues: {health_score.get("total_issues", 0)}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="grid">
+                <div class="card"><strong>Security</strong><br>{dimensions.get('security', 100)}% ({issue_counts.get('security', 0)} issues)</div>
+                <div class="card"><strong>Availability</strong><br>{dimensions.get('availability', 100)}% ({issue_counts.get('availability', 0)} issues)</div>
+                <div class="card"><strong>Reliability</strong><br>{dimensions.get('reliability', 100)}% ({issue_counts.get('reliability', 0)} issues)</div>
+                <div class="card"><strong>Efficiency</strong><br>{dimensions.get('efficiency', 100)}% ({issue_counts.get('efficiency', 0)} issues)</div>
+            </div>
+        </section>
+"""
+
+    # Gate Status
+    if include_sections["gate_status"]:
+        is_blocked = gate_status.get("is_blocked", False)
+        html += f"""
+        <section>
+            <h2>Production Gate Status</h2>
+            <div class="card">
+                <p class="{'blocked' if is_blocked else 'ready'}" style="font-size: 1.25rem;">
+                    {'🚫 BLOCKED' if is_blocked else '✅ READY'}
+                </p>
+                {'<p>' + str(gate_status.get("blocking_critical", 0)) + ' critical, ' + str(gate_status.get("blocking_high", 0)) + ' high severity issues</p>' if is_blocked else '<p>No blocking issues</p>'}
+            </div>
+        </section>
+"""
+
+    # Security Findings
+    if include_sections["security_findings"] and security_findings:
+        html += """
+        <section>
+            <h2>Security Findings</h2>
+"""
+        for f in security_findings:
+            severity = f.get("severity", "MEDIUM").lower()
+            html += f"""
+            <div class="finding {severity}">
+                <h3>{f.get("title", "Untitled")} <span class="badge badge-{severity}">{f.get("severity", "MEDIUM")}</span></h3>
+                <p><strong>Type:</strong> {f.get("finding_type", "Unknown")}</p>
+                {'<p><strong>Location:</strong> <code>' + f.get("file_path", "") + '</code></p>' if f.get("file_path") else ''}
+                {'<p>' + f.get("description", "")[:300] + '...</p>' if f.get("description") else ''}
+            </div>
+"""
+        html += "</section>"
+
+    # Developer Findings
+    if include_sections["developer_findings"] and developer_findings:
+        html += """
+        <section>
+            <h2>Developer Findings (Code Quality)</h2>
+"""
+        for f in developer_findings:
+            severity = f.get("severity", "MEDIUM").lower()
+            html += f"""
+            <div class="finding {severity}">
+                <h3>{f.get("title", "Untitled")} <span class="badge badge-{severity}">{f.get("severity", "MEDIUM")}</span></h3>
+                <p><strong>Category:</strong> {f.get("dev_category", "RELIABILITY")}</p>
+                {'<p><strong>Health Impact:</strong> -' + str(f.get("health_impact", 0)) + '%</p>' if f.get("health_impact") else ''}
+                {'<p><strong>Location:</strong> <code>' + f.get("file_path", "") + '</code></p>' if f.get("file_path") else ''}
+            </div>
+"""
+        html += "</section>"
+
+    # Recommendations
+    if include_sections["recommendations"] and recommendations:
+        html += """
+        <section>
+            <h2>Recommendations</h2>
+            <table>
+                <thead><tr><th>Priority</th><th>Title</th><th>Status</th></tr></thead>
+                <tbody>
+"""
+        for r in recommendations[:10]:
+            html += f"""
+                <tr>
+                    <td><span class="badge badge-{r.get('severity', 'medium').lower()}">{r.get('severity', 'MEDIUM')}</span></td>
+                    <td>{r.get('title', 'Untitled')}</td>
+                    <td>{r.get('status', 'PENDING')}</td>
+                </tr>
+"""
+        html += """
+                </tbody>
+            </table>
+        </section>
+"""
+
+    html += """
+        <footer style="margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #333; color: #666; font-size: 0.85rem;">
+            Report generated by Agent Inspector
+        </footer>
+    </div>
+</body>
+</html>
+"""
+    return html
 
 
 # ==================== Helpers ====================

@@ -28,10 +28,10 @@ type Story = StoryObj<typeof LifecycleProgress>;
 export const Default: Story = {
   args: {
     stages: [
-      { id: 'autofix', label: 'Auto-Fix', icon: <Wrench size={16} />, status: 'completed', stat: '15 fixed' },
-      { id: 'static', label: 'Static', icon: <Code size={16} />, status: 'completed', stat: '5 issues' },
-      { id: 'dynamic', label: 'Dynamic', icon: <Activity size={16} />, status: 'active', stat: '2 confirmed' },
-      { id: 'report', label: 'Report', icon: <FileText size={16} />, status: 'pending', stat: 'Ready' },
+      { id: 'autofix', label: 'Auto-Fix', icon: <Wrench size={16} />, status: 'ok', stat: '15 fixed' },
+      { id: 'static', label: 'Static', icon: <Code size={16} />, status: 'ok', stat: '5 issues' },
+      { id: 'dynamic', label: 'Dynamic', icon: <Activity size={16} />, status: 'running', stat: '2 confirmed' },
+      { id: 'report', label: 'Report', icon: <FileText size={16} />, status: 'inactive', stat: 'Ready' },
     ],
   },
   play: async ({ canvas }) => {
@@ -44,10 +44,10 @@ export const Default: Story = {
 export const AllCompleted: Story = {
   args: {
     stages: [
-      { id: 'autofix', label: 'Auto-Fix', icon: <Wrench size={16} />, status: 'completed', stat: '15 fixed' },
-      { id: 'static', label: 'Static', icon: <Code size={16} />, status: 'completed', stat: '5 issues' },
-      { id: 'dynamic', label: 'Dynamic', icon: <Activity size={16} />, status: 'completed', stat: '2 confirmed' },
-      { id: 'report', label: 'Report', icon: <FileText size={16} />, status: 'completed', stat: 'Generated' },
+      { id: 'autofix', label: 'Auto-Fix', icon: <Wrench size={16} />, status: 'ok', stat: '15 fixed' },
+      { id: 'static', label: 'Static', icon: <Code size={16} />, status: 'ok', stat: '5 issues' },
+      { id: 'dynamic', label: 'Dynamic', icon: <Activity size={16} />, status: 'ok', stat: '2 confirmed' },
+      { id: 'report', label: 'Report', icon: <FileText size={16} />, status: 'ok', stat: 'Generated' },
     ],
   },
   play: async ({ canvas }) => {
@@ -58,10 +58,10 @@ export const AllCompleted: Story = {
 export const JustStarted: Story = {
   args: {
     stages: [
-      { id: 'autofix', label: 'Auto-Fix', icon: <Wrench size={16} />, status: 'active', stat: 'Running...' },
-      { id: 'static', label: 'Static', icon: <Code size={16} />, status: 'pending' },
-      { id: 'dynamic', label: 'Dynamic', icon: <Activity size={16} />, status: 'pending' },
-      { id: 'report', label: 'Report', icon: <FileText size={16} />, status: 'pending' },
+      { id: 'autofix', label: 'Auto-Fix', icon: <Wrench size={16} />, status: 'running', stat: 'Running...' },
+      { id: 'static', label: 'Static', icon: <Code size={16} />, status: 'inactive' },
+      { id: 'dynamic', label: 'Dynamic', icon: <Activity size={16} />, status: 'inactive' },
+      { id: 'report', label: 'Report', icon: <FileText size={16} />, status: 'inactive' },
     ],
   },
   play: async ({ canvas }) => {

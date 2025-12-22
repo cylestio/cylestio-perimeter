@@ -12,6 +12,7 @@
  */
 import {
   BarChart3,
+  Code2,
   FileText,
   History,
   Home,
@@ -42,6 +43,9 @@ export const SessionsIcon = History;
 
 /** Recommendations page */
 export const RecommendationsIcon = Lightbulb;
+
+/** Code Analysis page */
+export const CodeIcon = Code2;
 
 // ============================================================================
 // Security Checks Icons (Sidebar Timeline)
