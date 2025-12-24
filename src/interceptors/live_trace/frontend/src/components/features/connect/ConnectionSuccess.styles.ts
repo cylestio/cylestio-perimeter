@@ -2,8 +2,8 @@ import styled from 'styled-components';
 
 export const SuccessContainer = styled.div`
   display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[6]};
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[5]};
   padding: ${({ theme }) => theme.spacing[6]};
   background: linear-gradient(
     135deg,
@@ -26,6 +26,19 @@ export const SuccessContainer = styled.div`
     width: 3px;
     background: ${({ theme }) => theme.colors.green};
   }
+`;
+
+export const TopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const BottomRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 64px; /* Align with content after icon */
 `;
 
 export const IconContainer = styled.div`
@@ -66,17 +79,13 @@ export const Subtitle = styled.p`
 export const StatsSection = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing[4]};
-  padding-left: ${({ theme }) => theme.spacing[4]};
-  border-left: 1px solid ${({ theme }) => theme.colors.green}30;
+  gap: ${({ theme }) => theme.spacing[6]};
 `;
 
 export const Stat = styled.div`
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 60px;
+  align-items: baseline;
+  gap: ${({ theme }) => theme.spacing[2]};
 `;
 
 export const StatValue = styled.span`
@@ -88,10 +97,8 @@ export const StatValue = styled.span`
 `;
 
 export const StatLabel = styled.span`
-  font-size: 10px;
-  color: ${({ theme }) => theme.colors.white30};
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.white50};
 `;
 
 export const ActionSection = styled.div`

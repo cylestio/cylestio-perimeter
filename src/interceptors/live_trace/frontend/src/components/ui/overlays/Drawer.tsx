@@ -142,7 +142,7 @@ export const Drawer: FC<DrawerProps> = ({
       >
         {title && (
           <DrawerHeader>
-            <DrawerTitle id="drawer-title">{title}</DrawerTitle>
+            <DrawerTitle id="drawer-title" data-testid="drawer-title">{title}</DrawerTitle>
             <CloseButton
               onClick={onClose}
               aria-label="Close drawer"

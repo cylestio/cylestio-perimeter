@@ -175,6 +175,239 @@ FRAMEWORK_MAPPINGS = {
 }
 
 
+# ============================================================================
+# DYNAMIC CHECK DEFINITIONS - Single Source of Truth
+# These definitions contain all metadata for dynamic security checks.
+# Frontend should fetch these from /api/security-check-definitions endpoint.
+# ============================================================================
+
+DYNAMIC_CATEGORY_DEFINITIONS = {
+    "RESOURCE_MANAGEMENT": {
+        "name": "Resource Management",
+        "description": "Summarizes how the agent uses tokens, time, and tools against policy.",
+        "icon": "📊",
+        "order": 1,
+    },
+    "ENVIRONMENT": {
+        "name": "Environment & Supply Chain",
+        "description": "Examines model version pinning and tool adoption health.",
+        "icon": "⚙️",
+        "order": 2,
+    },
+    "BEHAVIORAL": {
+        "name": "Behavioral Stability",
+        "description": "Summarizes behavioral consistency, predictability, and remaining variance.",
+        "icon": "🔧",
+        "order": 3,
+    },
+    "PRIVACY_COMPLIANCE": {
+        "name": "Privacy & PII Compliance",
+        "description": "Detects and reports PII exposure in messages and prompts.",
+        "icon": "🔒",
+        "order": 4,
+    },
+}
+
+DYNAMIC_CHECK_DEFINITIONS = {
+    # ---- RESOURCE_MANAGEMENT ----
+    "RESOURCE_001_TOKEN_BOUNDS": {
+        "category_id": "RESOURCE_MANAGEMENT",
+        "name": "Token Budget Usage",
+        "description": "Validates that per-session token usage stays within the allowed range.",
+        "recommendations": [
+            f"Enforce {UNIVERSAL_BOUNDS['max_tokens_per_session']} token limit per session",
+            "Monitor token consumption patterns across sessions",
+            "Implement circuit breakers for runaway token usage",
+        ],
+    },
+    "RESOURCE_002_TOOL_CALL_BOUNDS": {
+        "category_id": "RESOURCE_MANAGEMENT",
+        "name": "Tool Call Volume",
+        "description": "Validates that tool invocations remain within expected limits per session.",
+        "recommendations": [
+            f"Enforce {UNIVERSAL_BOUNDS['max_tool_calls_per_session']} tool call limit with circuit breakers",
+            "Add rate limiting for tool invocations",
+            "Monitor for tool call loops",
+        ],
+    },
+    "RESOURCE_004_TOKEN_VARIANCE": {
+        "category_id": "RESOURCE_MANAGEMENT",
+        "name": "Token Consistency Across Sessions",
+        "description": "Assesses how consistently the agent consumes its token quota across sessions.",
+        "recommendations": [
+            "Implement internal token quotas to reduce variance",
+            "Review prompt engineering for consistency",
+            "Consider adding max token limits to API calls",
+        ],
+    },
+    "RESOURCE_005_TOOL_VARIANCE": {
+        "category_id": "RESOURCE_MANAGEMENT",
+        "name": "Tool Consistency Across Sessions",
+        "description": "Tests whether tool usage stays balanced from session to session.",
+        "recommendations": [
+            "Implement internal tool usage quotas to reduce variance",
+            "Review agent logic for tool selection consistency",
+            "Consider caching or batching tool calls",
+        ],
+    },
+    "RESOURCE_006_DURATION_VARIANCE": {
+        "category_id": "RESOURCE_MANAGEMENT",
+        "name": "Session Duration Consistency",
+        "description": "Session duration consistency across runs shows how stable and focused the agent remains.",
+        "recommendations": [
+            "Implement session duration limits to improve consistency",
+            "Review for timeout configurations",
+            "Monitor for hanging sessions",
+        ],
+    },
+    # ---- ENVIRONMENT ----
+    "ENV_001_CONSISTENT_MODEL": {
+        "category_id": "ENVIRONMENT",
+        "name": "Pinned Model Usage",
+        "description": "Ensures every LLM call pins a specific, versioned model for reproducibility.",
+        "recommendations": [
+            "Pin model versions with date or semantic version suffixes",
+            "Use model aliases that resolve to specific versions",
+            "Document model version requirements in configuration",
+        ],
+    },
+    "ENV_002_AVG_TOOLS_COVERAGE": {
+        "category_id": "ENVIRONMENT",
+        "name": "Session Tool Coverage",
+        "description": "Measures how completely each session exercises its available tools to ensure bugs and gaps are not missed.",
+        "recommendations": [
+            "Add test scenarios that exercise each tool at least once",
+            "Review tool definitions for unused capabilities",
+            "Consider removing tools that are never used",
+        ],
+    },
+    "ENV_003_UNUSED_TOOLS": {
+        "category_id": "ENVIRONMENT",
+        "name": "Unused Tools Inventory",
+        "description": "Flags provisioned tools that are never exercised across sessions (increases attack surface and maintenance burden if not removed).",
+        "recommendations": [
+            "Remove unused tools to reduce attack surface",
+            "Review tool necessity with agent developers",
+            "Document why certain tools are provisioned but not used",
+        ],
+    },
+    # ---- BEHAVIORAL ----
+    "BEHAV_001_STABILITY_SCORE": {
+        "category_id": "BEHAVIORAL",
+        "name": "Behavioral Stability Score",
+        "description": "Largest-cluster share × purity; higher means sessions follow a consistent pattern.",
+        "recommendations": [
+            "Improve system prompt clarity and guardrails",
+            "Add behavioral constraints to agent logic",
+            "Review and standardize common workflows",
+        ],
+    },
+    "BEHAV_002_OUTLIER_RATE": {
+        "category_id": "BEHAVIORAL",
+        "name": "Behavioral Outlier Rate",
+        "description": "Tracks the share of sessions that diverge from established behavioral patterns.",
+        "recommendations": [
+            "Investigate outlier sessions for root causes",
+            "Add validation checks for unusual input patterns",
+            "Implement fallback behaviors for edge cases",
+        ],
+    },
+    "BEHAV_003_CLUSTER_FORMATION": {
+        "category_id": "BEHAVIORAL",
+        "name": "Behavior Cluster Formation",
+        "description": "Verifies that session behaviors group into at least one coherent cluster.",
+        "recommendations": [
+            "Refactor agent logic to achieve behavioral clustering",
+            "Add more sessions to improve statistical significance",
+            "Review agent prompts for consistency",
+        ],
+    },
+    "BEHAV_004_PREDICTABILITY": {
+        "category_id": "BEHAVIORAL",
+        "name": "Behavioral Predictability",
+        "description": "Scores how predictable the agent's behavior remains across comparable sessions.",
+        "recommendations": [
+            "Improve consistency in agent responses",
+            "Reduce randomness in decision-making logic",
+            "Standardize common interaction patterns",
+        ],
+    },
+    "BEHAV_005_UNCERTAINTY_THRESHOLD": {
+        "category_id": "BEHAVIORAL",
+        "name": "Behavioral Uncertainty Level",
+        "description": "Quantifies the residual uncertainty that remains after assessing behavioral stability.",
+        "recommendations": [
+            "Implement stricter guardrails for uncertain situations",
+            "Add confirmation steps for high-impact actions",
+            "Review error handling for edge cases",
+        ],
+    },
+    # ---- PRIVACY_COMPLIANCE ----
+    "PII_001_DETECTION": {
+        "category_id": "PRIVACY_COMPLIANCE",
+        "name": "PII Detection",
+        "description": "Scans message content for personally identifiable information across entity types.",
+        "recommendations": [
+            "Implement PII redaction before sending to LLM",
+            "Review data handling policies for sensitive PII",
+            "Consider using synthetic data for testing",
+        ],
+    },
+    "PII_002_SYSTEM_PROMPT": {
+        "category_id": "PRIVACY_COMPLIANCE",
+        "name": "PII in System Prompts",
+        "description": "Checks whether system prompts contain PII that may be inadvertently shared.",
+        "recommendations": [
+            "Review system prompts for inadvertent PII inclusion",
+            "System prompts should typically not contain user-specific PII",
+            "Use placeholders instead of real data in prompts",
+        ],
+    },
+    "PII_003_EXPOSURE_RATE": {
+        "category_id": "PRIVACY_COMPLIANCE",
+        "name": "PII Exposure Rate",
+        "description": "Measures the proportion of sessions that contain any PII.",
+        "recommendations": [
+            "Review if all PII is necessary for agent operation",
+            "Implement PII minimization strategies",
+            "Consider anonymization for non-essential data",
+        ],
+    },
+}
+
+
+def get_check_definition(check_id: str) -> dict:
+    """Get the full definition for a check, including framework mappings.
+
+    Returns combined data from DYNAMIC_CHECK_DEFINITIONS and FRAMEWORK_MAPPINGS.
+    """
+    base_def = DYNAMIC_CHECK_DEFINITIONS.get(check_id, {}).copy()
+    framework = FRAMEWORK_MAPPINGS.get(check_id, {})
+
+    # Merge framework mappings into definition
+    base_def.update({
+        "owasp_llm": framework.get("owasp_llm"),
+        "owasp_llm_name": framework.get("owasp_llm_name"),
+        "soc2_controls": framework.get("soc2_controls", []),
+        "cwe": framework.get("cwe"),
+        "mitre": framework.get("mitre"),
+    })
+
+    return base_def
+
+
+def get_all_check_definitions() -> dict:
+    """Get all check definitions with framework mappings merged.
+
+    Returns dict of check_id -> full definition.
+    Used by /api/security-check-definitions endpoint.
+    """
+    result = {}
+    for check_id in DYNAMIC_CHECK_DEFINITIONS:
+        result[check_id] = get_check_definition(check_id)
+    return result
+
+
 def _apply_framework_mappings(check: AssessmentCheck) -> AssessmentCheck:
     """Apply framework mappings to a check based on its ID and status."""
     mapping = FRAMEWORK_MAPPINGS.get(check.check_id)

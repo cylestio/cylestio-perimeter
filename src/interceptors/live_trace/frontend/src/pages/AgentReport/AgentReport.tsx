@@ -1,9 +1,10 @@
-import { useState, useCallback, type FC } from 'react';
+import { useCallback, type FC } from 'react';
 
 import { useParams, Link, useNavigate } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
-import type { AgentResponse, SecurityCheck, SecurityCategory } from '@api/types/agent';
+import type { AgentResponse, SecurityCategory } from '@api/types/agent';
+import type { DynamicSecurityCheck, DynamicCategoryId, DynamicCategoryDefinition } from '@api/types/security';
 import type { ClusterNodeData } from '@domain/visualization';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
@@ -23,6 +24,7 @@ import { Section } from '@ui/layout/Section';
 
 import { InfoCard } from '@domain/metrics/InfoCard';
 import { ClusterVisualization } from '@domain/visualization';
+import { DynamicChecksGrid } from '@domain/security';
 
 import { buildVisualizationNodes } from '../utils/behavioral';
 
@@ -50,18 +52,6 @@ import {
   ToolCount,
   ToolUnused,
   ChecksSection,
-  CheckItem,
-  CheckHeader,
-  CheckStatusIcon,
-  CheckName,
-  CheckNameText,
-  CheckValue,
-  CheckExpandIcon,
-  CheckDetails,
-  CheckDescription,
-  RecommendationsTitle,
-  RecommendationsList,
-  RecommendationItem,
   BehavioralCard,
   BehavioralHeader,
   BehavioralContent,
@@ -106,6 +96,34 @@ import {
   ActiveSessionsNote,
 } from '../AgentDetail/AgentDetail.styles';
 
+// Category definitions for DynamicChecksGrid
+const CATEGORY_DEFINITIONS: Record<DynamicCategoryId, DynamicCategoryDefinition> = {
+  RESOURCE_MANAGEMENT: {
+    name: 'Resource Management',
+    description: 'Token and tool usage boundaries',
+    icon: 'bar-chart',
+    order: 1,
+  },
+  ENVIRONMENT: {
+    name: 'Environment & Supply Chain',
+    description: 'Model version pinning and tool adoption',
+    icon: 'settings',
+    order: 2,
+  },
+  BEHAVIORAL: {
+    name: 'Behavioral Stability',
+    description: 'Behavioral consistency and predictability',
+    icon: 'brain',
+    order: 3,
+  },
+  PRIVACY_COMPLIANCE: {
+    name: 'Privacy & PII Compliance',
+    description: 'PII exposure detection and reporting',
+    icon: 'lock',
+    order: 4,
+  },
+};
+
 // Helper to get category icon
 const getCategoryIcon = (categoryId: string): string => {
   switch (categoryId) {
@@ -134,7 +152,6 @@ const getCategorySeverity = (
 export const AgentReport: FC = () => {
   const { agentWorkflowId, agentId } = useParams<{ agentWorkflowId: string; agentId: string }>();
   const navigate = useNavigate();
-  const [expandedChecks, setExpandedChecks] = useState<Record<string, boolean>>({});
 
   const fetchFn = useCallback(() => {
     if (!agentId) return Promise.reject(new Error('No agent ID'));
@@ -171,13 +188,6 @@ export const AgentReport: FC = () => {
     ),
   });
 
-  const toggleCheck = (checkId: string) => {
-    setExpandedChecks((prev) => ({
-      ...prev,
-      [checkId]: !prev[checkId],
-    }));
-  };
-
   if (loading && !data) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
@@ -194,11 +204,22 @@ export const AgentReport: FC = () => {
   const riskAnalysis = data.risk_analysis;
   const status = getAgentStatus(riskAnalysis);
 
-  const hasCheckDetails = (check: SecurityCheck): boolean => {
-    return (
-      check.status !== 'passed' &&
-      ((check.recommendations && check.recommendations.length > 0) || !!check.description)
-    );
+  // Helper to convert category checks to DynamicSecurityCheck format
+  const convertChecks = (
+    categoryId: string,
+    category: SecurityCategory
+  ): DynamicSecurityCheck[] => {
+    return (category.checks || []).map((check) => ({
+      check_id: check.check_id,
+      agent_id: agent.id,
+      category_id: categoryId as DynamicCategoryId,
+      check_type: check.name.toLowerCase().replace(/\s+/g, '_'),
+      status: check.status as DynamicSecurityCheck['status'],
+      title: check.name,
+      value: check.value !== undefined ? String(check.value) : undefined,
+      description: check.description,
+      recommendations: check.recommendations,
+    }));
   };
 
   return (
@@ -448,61 +469,15 @@ export const AgentReport: FC = () => {
                   {category.checks && category.checks.length > 0 && (
                     <ChecksSection>
                       <SectionLabel>REPORT CHECKS</SectionLabel>
-                      {category.checks.map((check, idx) => {
-                        const hasDetails = hasCheckDetails(check);
-                        const isExpanded = expandedChecks[check.check_id];
-
-                        return (
-                          <CheckItem key={check.check_id} $isLast={idx === category.checks!.length - 1}>
-                            <CheckHeader
-                              $hasDetails={hasDetails}
-                              onClick={() => hasDetails && toggleCheck(check.check_id)}
-                            >
-                              <CheckStatusIcon $status={check.status}>
-                                {check.status === 'passed'
-                                  ? 'OK'
-                                  : check.status === 'warning'
-                                    ? 'WARN'
-                                    : 'FAIL'}
-                              </CheckStatusIcon>
-                              <CheckName>
-                                <CheckNameText $status={check.status}>{check.name}</CheckNameText>
-                                {check.value !== undefined && (
-                                  <CheckValue>({String(check.value)})</CheckValue>
-                                )}
-                              </CheckName>
-                              {check.status !== 'passed' && (
-                                <Badge
-                                  variant={check.status === 'critical' ? 'critical' : 'medium'}
-                                >
-                                  {check.status}
-                                </Badge>
-                              )}
-                              {hasDetails && (
-                                <CheckExpandIcon>{isExpanded ? '▼' : '▶'}</CheckExpandIcon>
-                              )}
-                            </CheckHeader>
-
-                            {hasDetails && isExpanded && (
-                              <CheckDetails>
-                                {check.description && (
-                                  <CheckDescription>{check.description}</CheckDescription>
-                                )}
-                                {check.recommendations && check.recommendations.length > 0 && (
-                                  <>
-                                    <RecommendationsTitle>Recommendations:</RecommendationsTitle>
-                                    <RecommendationsList>
-                                      {check.recommendations.map((rec, i) => (
-                                        <RecommendationItem key={i}>{rec}</RecommendationItem>
-                                      ))}
-                                    </RecommendationsList>
-                                  </>
-                                )}
-                              </CheckDetails>
-                            )}
-                          </CheckItem>
-                        );
-                      })}
+                      <DynamicChecksGrid
+                        checks={convertChecks(categoryId, category)}
+                        categoryDefinitions={CATEGORY_DEFINITIONS}
+                        groupBy="none"
+                        variant="list"
+                        clickable={true}
+                        showSummary={false}
+                        agentWorkflowId={agentWorkflowId}
+                      />
                     </ChecksSection>
                   )}
                 </CategoryContent>

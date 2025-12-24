@@ -1,7 +1,29 @@
 /**
- * Security check definitions for static and dynamic analysis.
- * Used by Reports page to evaluate findings against predefined security controls.
+ * Security check constants for the frontend.
+ *
+ * This file contains:
+ * 1. Finding evaluation checks (for Reports page static/dynamic findings matching)
+ * 2. Dynamic category display mappings (frontend-only icons and colors)
+ *
+ * NOTE: Runtime dynamic security check definitions (like RESOURCE_001_TOKEN_BOUNDS)
+ * are fetched from the backend via /api/security-check-definitions.
+ * See @api/types/security.ts for those types.
  */
+
+import {
+  BarChart3,
+  Settings,
+  Brain,
+  Lock,
+  type LucideIcon,
+} from 'lucide-react';
+
+import type { DynamicCategoryId, DynamicCheckStatus } from '@api/types/security';
+
+// ============================================================================
+// Finding Evaluation Checks (used by Reports page)
+// These match static analysis findings to predefined security controls.
+// ============================================================================
 
 export interface SecurityCheckDefinition {
   id: string;
@@ -12,7 +34,7 @@ export interface SecurityCheckDefinition {
 }
 
 /**
- * Predefined Static Analysis Checks (code pattern analysis)
+ * Static Analysis Checks - for evaluating code pattern findings.
  */
 export const STATIC_CHECKS: SecurityCheckDefinition[] = [
   { id: 'rate_limiting', name: 'Rate Limiting', description: 'Per-user request throttling', categories: ['RESOURCE_MANAGEMENT', 'TOOL'], keywords: ['rate', 'throttl', 'limit', 'budget'] },
@@ -26,7 +48,7 @@ export const STATIC_CHECKS: SecurityCheckDefinition[] = [
 ];
 
 /**
- * Predefined Dynamic Analysis Checks (runtime behavior observation)
+ * Dynamic Finding Checks - for evaluating runtime observation findings.
  */
 export const DYNAMIC_CHECKS: SecurityCheckDefinition[] = [
   { id: 'tool_monitoring', name: 'Tool Call Monitoring', description: 'All tool invocations captured', categories: ['TOOL', 'BEHAVIOR'], keywords: ['tool call', 'monitor', 'invocation'] },
@@ -37,3 +59,54 @@ export const DYNAMIC_CHECKS: SecurityCheckDefinition[] = [
   { id: 'cost_tracking', name: 'Cost Tracking', description: 'Token usage per session', categories: ['RESOURCE_MANAGEMENT'], keywords: ['cost', 'token', 'budget', 'usage'] },
   { id: 'anomaly_detection', name: 'Anomaly Detection', description: 'Outlier identification', categories: ['BEHAVIORAL', 'BEHAVIOR'], keywords: ['anomal', 'outlier', 'unusual', 'unexpected'] },
 ];
+
+// ============================================================================
+// Dynamic Analysis Category Display (frontend-only)
+// These are display-only mappings for the DynamicChecksGrid component.
+// Category definitions (name, description) come from the backend.
+// ============================================================================
+
+/**
+ * Category display order for dynamic security checks.
+ */
+export const DYNAMIC_CATEGORY_ORDER: DynamicCategoryId[] = [
+  'RESOURCE_MANAGEMENT',
+  'ENVIRONMENT',
+  'BEHAVIORAL',
+  'PRIVACY_COMPLIANCE',
+];
+
+/**
+ * Icon component for each dynamic category.
+ */
+export const DYNAMIC_CATEGORY_ICONS: Record<DynamicCategoryId, LucideIcon> = {
+  RESOURCE_MANAGEMENT: BarChart3,
+  ENVIRONMENT: Settings,
+  BEHAVIORAL: Brain,
+  PRIVACY_COMPLIANCE: Lock,
+};
+
+// ============================================================================
+// Status Colors (frontend-only)
+// ============================================================================
+
+/**
+ * Color tokens for check status display.
+ * Uses theme token names (not actual colors).
+ */
+export const DYNAMIC_STATUS_COLORS: Record<DynamicCheckStatus, string> = {
+  passed: 'success',
+  warning: 'warning',
+  critical: 'error',
+  analyzing: 'info',
+};
+
+/**
+ * Status display labels.
+ */
+export const DYNAMIC_STATUS_LABELS: Record<DynamicCheckStatus, string> = {
+  passed: 'Passed',
+  warning: 'Warning',
+  critical: 'Critical',
+  analyzing: 'Analyzing',
+};

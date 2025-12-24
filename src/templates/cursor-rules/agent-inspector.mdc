@@ -9,6 +9,20 @@ globs: ["**/*.py", "**/*.ts", "**/*.js"]
 **Dashboard:** `http://localhost:7100`
 **Proxy:** `http://localhost:4000`
 
+## Slash Commands (Type `/agent-` in chat)
+
+Slash commands are installed in `.cursor/commands/`. They invoke Agent Inspector MCP tools:
+
+| Command | Description |
+|---------|-------------|
+| `/agent-scan` | Run static security scan |
+| `/agent-fix` | Fix highest priority issue (or `/agent-fix REC-XXX` for specific) |
+| `/agent-analyze` | Run dynamic runtime analysis |
+| `/agent-correlate` | Cross-reference static + dynamic findings |
+| `/agent-gate` | Check production gate status |
+| `/agent-report` | Generate compliance report |
+| `/agent-status` | Check dynamic analysis status |
+
 ## Available MCP Tools (17 total)
 
 ### Analysis Tools
@@ -192,9 +206,9 @@ get_fix_template(finding_type)
 update_finding_status(finding_id, "FIXED", notes="Applied input validation")
 ```
 
-## /scan Command
+## /agent-scan Command
 
-When user types "/scan [path]" or "/scan" (defaults to current workspace):
+When user types "/agent-scan [path]" or "/agent-scan" (defaults to current workspace):
 
 ### Your Advantage Over Traditional SAST
 
@@ -308,7 +322,7 @@ You are smarter than any static analysis tool. You can:
    
    View details: http://localhost:7100/agent-workflow/{id}/static-analysis
    
-   Fix most critical: /fix REC-001
+   Fix most critical: /agent-fix REC-001
    ```
 
 ### Quality Over Quantity
@@ -319,9 +333,9 @@ You are smarter than any static analysis tool. You can:
 - **DON'T** generate noise like traditional SAST
 - **ALWAYS** categorize into one of the 7 security checks
 
-## /fix Command
+## /agent-fix Command
 
-When user types "/fix REC-XXX":
+When user types "/agent-fix REC-XXX":
 
 ### Your Advantage Over Traditional Tools
 
@@ -428,7 +442,7 @@ You're not a template-based fixer. You can:
    
    **Files modified:** agent.py
    
-   **Next step:** Run /scan to verify the fix resolved the issue.
+   **Next step:** Run /agent-scan to verify the fix resolved the issue.
    ```
 
 ### Fix Quality Checklist
@@ -440,7 +454,7 @@ Before completing a fix, verify:
 - [ ] Fix handles edge cases (null, empty, unicode, etc.)
 - [ ] Explanation is clear to the user
 
-### Without ID: `/fix`
+### Without ID: `/agent-fix`
 1. Get open recommendations:
    ```
    get_recommendations(workflow_id, status="PENDING", blocking_only=true)
@@ -467,9 +481,9 @@ dismiss_recommendation("REC-XXX",
 - **DISMISSED**: Risk accepted - understood but won't fix
 - **IGNORED**: False positive - not actually a security issue
 
-## /correlate Command
+## /agent-correlate Command
 
-When user types "/correlate" or asks to correlate findings with runtime data:
+When user types "/agent-correlate" or asks to correlate findings with runtime data:
 
 ### Purpose
 Connect static code findings with dynamic runtime observations to prioritize which issues are real vs theoretical.
@@ -540,7 +554,7 @@ Connect static code findings with dynamic runtime observations to prioritize whi
    
    💡 Prioritize fixing VALIDATED issues first - they're actively exploitable.
    
-   To fix the most critical: /fix REC-001
+   To fix the most critical: /agent-fix REC-001
    
    View correlation in UI: http://localhost:7100/agent-workflow/{id}/static-analysis
    ```
@@ -581,9 +595,9 @@ Result: THEORETICAL
 Evidence: "File loaded but value safely overridden by env var"
 ```
 
-## /gate Command
+## /agent-gate Command
 
-When user types "/gate" or asks about production gate status:
+When user types "/agent-gate" or asks about production gate status:
 
 ### Purpose
 Check if the workflow is ready for production deployment. The gate is BLOCKED when there are unresolved CRITICAL or HIGH severity issues.
@@ -604,10 +618,10 @@ Check if the workflow is ready for production deployment. The gate is BLOCKED wh
    Fix these issues to unlock production:
    
    1. REC-001 (Critical): [Title]
-      → /fix REC-001
+      → /agent-fix REC-001
    
    2. REC-003 (High): [Title]
-      → /fix REC-003
+      → /agent-fix REC-003
    
    Progress: 0/2 blocking issues resolved
    
@@ -648,7 +662,7 @@ Check if the workflow is ready for production deployment. The gate is BLOCKED wh
 
 **Scenario: Gate Blocked**
 ```
-User: /gate
+User: /agent-gate
 
 AI: 
 🔒 Production Gate: BLOCKED
@@ -657,20 +671,20 @@ Fix these 2 issues to unlock production:
 
 1. REC-001 (CRITICAL): Prompt Injection in agent.py:42
    User input concatenated into system prompt
-   → /fix REC-001
+   → /agent-fix REC-001
 
 2. REC-003 (HIGH): Hardcoded API Key in config.py:15
    Secret exposed in source code
-   → /fix REC-003
+   → /agent-fix REC-003
 
 Progress: ●○○ 0 of 2 fixed
 
-To fix the most critical: /fix REC-001
+To fix the most critical: /agent-fix REC-001
 ```
 
 **Scenario: Gate Open**
 ```
-User: /gate
+User: /agent-gate
 
 AI:
 ✅ Production Gate: OPEN
@@ -685,12 +699,12 @@ Security Summary:
 
 All critical and high severity issues have been addressed.
 
-To generate a report directly, type /report
+To generate a report directly, type /agent-report
 ```
 
-## /report Command
+## /agent-report Command
 
-When user types "/report" or asks to generate a security report:
+When user types "/agent-report" or asks to generate a security report:
 
 ### Purpose
 Generate a comprehensive security assessment report in markdown format, delivered directly in the chat.
@@ -773,7 +787,7 @@ Generate a comprehensive security assessment report in markdown format, delivere
 
 **User asks for a report:**
 ```
-User: /report
+User: /agent-report
 
 AI: Here's your security assessment report:
 
@@ -824,7 +838,7 @@ To view this in the dashboard: http://localhost:7100/agent-workflow/next-rooms/r
 
 **User asks for executive summary:**
 ```
-User: /report executive
+User: /agent-report executive
 
 AI: Here's your executive summary:
 

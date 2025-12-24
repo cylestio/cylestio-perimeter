@@ -16,3 +16,13 @@ export type { FixActionCardProps, FixActionInlineProps, ConnectedIde } from './F
 
 export { ProductionGateCard } from './ProductionGateCard';
 export type { ProductionGateCardProps, BlockingItem } from './ProductionGateCard';
+
+// Security components for Dynamic Analysis
+export { DynamicCheckItem } from './DynamicCheckItem/DynamicCheckItem';
+export type { DynamicCheckItemProps } from './DynamicCheckItem/DynamicCheckItem';
+
+export { DynamicCheckDrawer } from './DynamicCheckDrawer/DynamicCheckDrawer';
+export type { DynamicCheckDrawerProps } from './DynamicCheckDrawer/DynamicCheckDrawer';
+
+export { DynamicChecksGrid } from './DynamicChecksGrid/DynamicChecksGrid';
+export type { DynamicChecksGridProps, GroupBy, LayoutVariant } from './DynamicChecksGrid/DynamicChecksGrid';

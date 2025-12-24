@@ -533,6 +533,29 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting fix template: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    # ==================== Security Check Definitions Endpoint ====================
+
+    @app.get("/api/security-check-definitions")
+    async def api_get_security_check_definitions():
+        """Get all dynamic security check definitions (single source of truth).
+
+        Returns check definitions with framework mappings and category metadata.
+        Frontend should fetch this once on app load and cache.
+        """
+        try:
+            from .runtime.security import (
+                get_all_check_definitions,
+                DYNAMIC_CATEGORY_DEFINITIONS,
+            )
+
+            return JSONResponse({
+                "dynamic_checks": get_all_check_definitions(),
+                "dynamic_categories": DYNAMIC_CATEGORY_DEFINITIONS,
+            })
+        except Exception as e:
+            logger.error(f"Error getting security check definitions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     # ==================== Findings API Endpoints ====================
 
     @app.get("/api/agent-workflow/{agent_workflow_id}/findings")
@@ -619,6 +642,13 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 total_warnings += warnings
                 total_critical += critical
 
+            # Check if PII analysis is available (look for PRIVACY_COMPLIANCE category)
+            has_pii_checks = any(
+                any(c.get('category_id') == 'PRIVACY_COMPLIANCE' for c in agent_data['checks'])
+                for agent_data in agents_data
+            )
+            pii_status = "complete" if has_pii_checks else "not_available"
+
             # Total summary across all agents
             total_summary = {
                 "total_checks": total_checks,
@@ -626,6 +656,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "warnings": total_warnings,
                 "critical": total_critical,
                 "agents_analyzed": len(agents),
+                "pii_status": pii_status,
             }
 
             return JSONResponse({
@@ -734,10 +765,16 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             # Get summary
             summary = insights.store.get_agent_security_summary(agent_id)
 
+            # Check if PII analysis is available (look for PRIVACY_COMPLIANCE category)
+            has_pii_checks = any(
+                c.get('category_id') == 'PRIVACY_COMPLIANCE' for c in checks
+            )
+            pii_status = "complete" if has_pii_checks else "not_available"
+
             return JSONResponse({
                 "agent_id": agent_id,
                 "checks": checks,
-                "summary": summary,
+                "summary": {**summary, "pii_status": pii_status},
             })
         except Exception as e:
             logger.error(f"Error getting security checks: {e}")
@@ -1226,53 +1263,55 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     findings_by_category[cat] = []
                 findings_by_category[cat].append(f)
             
-            # Build the 7 security check cards
+            # Build the 7 security check cards only if a completed static analysis exists
             checks = []
             # Only count OPEN findings for severity summary
             severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-            
-            for cat_config in SECURITY_CATEGORIES:
-                cat_id = cat_config["category_id"]
-                cat_findings = findings_by_category.get(cat_id, [])
-                
-                # Separate OPEN vs resolved findings
-                open_findings = [f for f in cat_findings if f.get('status') == 'OPEN']
-                
-                # Get max severity from OPEN findings only
-                max_severity = None
-                if open_findings:
-                    for f in open_findings:
-                        sev = f.get('severity', 'LOW')
-                        if max_severity is None or severity_order.get(sev, 4) < severity_order.get(max_severity, 4):
-                            max_severity = sev
-                        # Count severities only for OPEN findings
-                        sev_key = sev.lower()
-                        if sev_key in severity_counts:
-                            severity_counts[sev_key] += 1
-                
-                # Determine check status based on OPEN findings only
-                # PASS: No OPEN findings
-                # INFO: Only MEDIUM OPEN findings
-                # FAIL: Any HIGH or CRITICAL OPEN findings
-                status = "PASS"
-                if open_findings:
-                    has_critical_or_high = any(f.get('severity') in ['CRITICAL', 'HIGH'] for f in open_findings)
-                    has_medium = any(f.get('severity') == 'MEDIUM' for f in open_findings)
-                    if has_critical_or_high:
-                        status = "FAIL"
-                    elif has_medium:
-                        status = "INFO"
-                
-                checks.append({
-                    "category_id": cat_id,
-                    "name": cat_config["name"],
-                    "status": status,
-                    "owasp_llm": cat_config["owasp_llm"],
-                    "findings_count": len(cat_findings),  # Total findings (all statuses)
-                    "open_count": len(open_findings),  # Only open findings
-                    "max_severity": max_severity,  # Max severity of OPEN findings only
-                    "findings": cat_findings[:10],  # All findings for display
-                })
+
+            # Only build checks if there's a completed static analysis session
+            if latest_session:
+                for cat_config in SECURITY_CATEGORIES:
+                    cat_id = cat_config["category_id"]
+                    cat_findings = findings_by_category.get(cat_id, [])
+
+                    # Separate OPEN vs resolved findings
+                    open_findings = [f for f in cat_findings if f.get('status') == 'OPEN']
+
+                    # Get max severity from OPEN findings only
+                    max_severity = None
+                    if open_findings:
+                        for f in open_findings:
+                            sev = f.get('severity', 'LOW')
+                            if max_severity is None or severity_order.get(sev, 4) < severity_order.get(max_severity, 4):
+                                max_severity = sev
+                            # Count severities only for OPEN findings
+                            sev_key = sev.lower()
+                            if sev_key in severity_counts:
+                                severity_counts[sev_key] += 1
+
+                    # Determine check status based on OPEN findings only
+                    # PASS: No OPEN findings
+                    # INFO: Only MEDIUM OPEN findings
+                    # FAIL: Any HIGH or CRITICAL OPEN findings
+                    status = "PASS"
+                    if open_findings:
+                        has_critical_or_high = any(f.get('severity') in ['CRITICAL', 'HIGH'] for f in open_findings)
+                        has_medium = any(f.get('severity') == 'MEDIUM' for f in open_findings)
+                        if has_critical_or_high:
+                            status = "FAIL"
+                        elif has_medium:
+                            status = "INFO"
+
+                    checks.append({
+                        "category_id": cat_id,
+                        "name": cat_config["name"],
+                        "status": status,
+                        "owasp_llm": cat_config["owasp_llm"],
+                        "findings_count": len(cat_findings),  # Total findings (all statuses)
+                        "open_count": len(open_findings),  # Only open findings
+                        "max_severity": max_severity,  # Max severity of OPEN findings only
+                        "findings": cat_findings[:10],  # All findings for display
+                    })
             
             # Calculate summary based on check statuses (which are based on OPEN findings)
             passed_count = sum(1 for c in checks if c["status"] == "PASS")
@@ -1282,16 +1321,15 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             has_open_blocking = severity_counts["critical"] > 0 or severity_counts["high"] > 0
             gate_status = "BLOCKED" if has_open_blocking else "UNBLOCKED"
             
-            # Get last scan info
+            # Get last scan info (only from completed sessions)
             last_scan = None
-            if static_sessions:
-                latest = static_sessions[0]
+            if latest_session:
                 last_scan = {
-                    "timestamp": latest.get("created_at"),
-                    "scanned_by": latest.get("scanned_by", "AI Assistant"),
-                    "files_analyzed": latest.get("files_analyzed"),
-                    "duration_ms": latest.get("duration_ms"),
-                    "session_id": latest.get("session_id"),
+                    "timestamp": latest_session.get("created_at"),
+                    "scanned_by": latest_session.get("scanned_by", "AI Assistant"),
+                    "files_analyzed": latest_session.get("files_analyzed"),
+                    "duration_ms": latest_session.get("duration_ms"),
+                    "session_id": latest_session.get("session_id"),
                 }
             
             # Build scan history with findings per session
