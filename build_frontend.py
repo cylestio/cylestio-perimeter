@@ -57,8 +57,12 @@ def build_frontend() -> None:
             print("⚠️  Build output not found at expected location")
 
     except subprocess.CalledProcessError as e:
-        print(f"⚠️  Frontend build failed: {e}")
-        print("   The package will be built without the frontend UI")
+        # Print the actual error output for debugging
+        if e.stdout:
+            print(f"   stdout: {e.stdout.decode()}")
+        if e.stderr:
+            print(f"   stderr: {e.stderr.decode()}")
+        raise RuntimeError(f"Frontend build failed: {e}") from e
 
 
 def build_sdist(sdist_directory: str, config_settings: dict = None) -> str:
