@@ -1197,6 +1197,50 @@ class TraceStore:
                 )
             return [self._deserialize_agent(row) for row in cursor.fetchall()]
 
+    def get_agent_system_prompt(self, agent_id: str) -> Optional[str]:
+        """Extract system prompt from the first llm.call.start event in agent's sessions.
+
+        Supports:
+        - Anthropic: llm.request.data.system
+        - OpenAI: llm.request.data.messages with role="system"
+        - OpenAI Responses API: llm.request.data.instructions
+        """
+        with self._lock:
+            cursor = self.db.execute(
+                "SELECT events_json FROM sessions WHERE agent_id = ? ORDER BY created_at ASC LIMIT 10",
+                (agent_id,)
+            )
+
+            for row in cursor.fetchall():
+                if not row["events_json"]:
+                    continue
+                events_list = json.loads(row["events_json"])
+
+                for event_data in events_list:
+                    if event_data.get("name") == "llm.call.start":
+                        request_data = event_data.get("attributes", {}).get("llm.request.data", {})
+                        if not isinstance(request_data, dict):
+                            continue
+
+                        # Anthropic: system is top-level field
+                        if request_data.get("system"):
+                            system = request_data["system"]
+                            return system if isinstance(system, str) else str(system)
+
+                        # OpenAI: system message in messages array
+                        messages = request_data.get("messages") or request_data.get("input") or []
+                        if isinstance(messages, list):
+                            for msg in messages:
+                                if isinstance(msg, dict) and msg.get("role") == "system":
+                                    content = msg.get("content")
+                                    return content if isinstance(content, str) else str(content)
+
+                        # OpenAI Responses API: instructions field
+                        if request_data.get("instructions"):
+                            return str(request_data["instructions"])
+
+            return None
+
     def update_agent_info(
         self,
         agent_id: str,

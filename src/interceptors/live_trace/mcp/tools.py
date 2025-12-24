@@ -328,6 +328,88 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["agent_id"]
         }
     },
+    # ==================== Workflow Query Tools ====================
+    {
+        "name": "get_workflow_agents",
+        "description": "List all agents in a workflow with their system prompts, session counts, and last seen time. Returns the last 10 sessions across all agents in the workflow.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow identifier (agent_workflow_id)"
+                },
+                "include_system_prompts": {
+                    "type": "boolean",
+                    "description": "Include system prompts extracted from session events (default: true)",
+                    "default": True
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_workflow_sessions",
+        "description": "Query sessions for a workflow with pagination. Returns session metadata including agent, status, message count, and timestamps.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow identifier (agent_workflow_id)"
+                },
+                "agent_id": {
+                    "type": "string",
+                    "description": "Filter by specific agent ID"
+                },
+                "status": {
+                    "type": "string",
+                    "description": "Filter by status",
+                    "enum": ["ACTIVE", "INACTIVE", "COMPLETED"]
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max sessions to return (default: 20, max: 100)",
+                    "default": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of sessions to skip for pagination",
+                    "default": 0
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_session_events",
+        "description": "Get events for a session with pagination. Events include LLM calls, tool executions, and errors with full attributes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID to get events for"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max events to return (default: 50, max: 200)",
+                    "default": 50
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of events to skip for pagination",
+                    "default": 0
+                },
+                "event_types": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Filter by event types (e.g., ['llm.call.start', 'tool.execution'])"
+                }
+            },
+            "required": ["session_id"]
+        }
+    },
     # ==================== IDE Connection Tools ====================
     {
         "name": "register_ide_connection",

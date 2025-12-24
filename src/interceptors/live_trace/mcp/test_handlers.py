@@ -126,3 +126,53 @@ class TestMCPAgentWorkflowHandlers:
         assert "findings" in result
         assert result["total_count"] == 1
         assert result["findings"][0]["agent_workflow_id"] == "agent-workflow-a"
+
+
+class TestWorkflowQueryHandlers:
+    """Tests for workflow query MCP handlers."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store for testing."""
+        return TraceStore(storage_mode="memory")
+
+    def test_get_workflow_agents_requires_workflow_id(self, store):
+        """Test get_workflow_agents requires workflow_id."""
+        result = call_tool("get_workflow_agents", {}, store)
+        assert "error" in result
+        assert "workflow_id" in result["error"]
+
+    def test_get_workflow_agents_empty_workflow(self, store):
+        """Test get_workflow_agents with no agents."""
+        result = call_tool("get_workflow_agents", {"workflow_id": "nonexistent"}, store)
+        assert result["agents"] == []
+        assert result["total_count"] == 0
+        assert "message" in result
+
+    def test_get_workflow_sessions_requires_workflow_id(self, store):
+        """Test get_workflow_sessions requires workflow_id."""
+        result = call_tool("get_workflow_sessions", {"limit": 10}, store)
+        assert "error" in result
+
+    def test_get_workflow_sessions_pagination(self, store):
+        """Test get_workflow_sessions returns pagination info."""
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "test",
+            "limit": 10,
+            "offset": 0
+        }, store)
+        assert "sessions" in result
+        assert "total_count" in result
+        assert "has_more" in result
+        assert result["limit"] == 10
+
+    def test_get_session_events_requires_session_id(self, store):
+        """Test get_session_events requires session_id."""
+        result = call_tool("get_session_events", {}, store)
+        assert "error" in result
+
+    def test_get_session_events_not_found(self, store):
+        """Test get_session_events with nonexistent session."""
+        result = call_tool("get_session_events", {"session_id": "nonexistent"}, store)
+        assert "error" in result
+        assert "not found" in result["error"]
