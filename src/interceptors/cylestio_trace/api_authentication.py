@@ -14,9 +14,8 @@ from descope import AuthException, DescopeClient
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Descope configuration - SECURITY: Load from environment variable
-# Never hardcode credentials or project IDs in source code
-DESCOPE_PROJECT_ID = os.environ.get('DESCOPE_PROJECT_ID', '')
+# Descope configuration (public project ID)
+DESCOPE_PROJECT_ID = 'P2zF0Fh3eZsfOBM2cqh03EPfa6G4'
 
 
 class DescopeAuthenticator:
@@ -36,16 +35,7 @@ class DescopeAuthenticator:
             access_key: The access key to use for authentication
             project_id: The Descope project ID to use for authentication
             refresh_buffer_seconds: Seconds before expiration to refresh token (default: 30)
-
-        Raises:
-            ValueError: If project_id is not configured
         """
-        # SECURITY: Validate required configuration
-        if not project_id:
-            raise ValueError(
-                "DESCOPE_PROJECT_ID environment variable is required. "
-                "Set it before using Cylestio authentication."
-            )
         if not access_key:
             raise ValueError("Access key is required for authentication")
 
