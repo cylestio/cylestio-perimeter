@@ -158,23 +158,81 @@ function mapCodeAnalysisResponse(
   data: Record<string, unknown>,
   workflowId: string
 ): CodeAnalysisResponse {
-  const categories = (data.categories as Record<string, unknown>[]) ?? [];
+  // Backend returns availability/reliability/efficiency directly, not as categories array
+  const availability = data.availability as Record<string, unknown> | undefined;
+  const reliability = data.reliability as Record<string, unknown> | undefined;
+  const efficiency = data.efficiency as Record<string, unknown> | undefined;
+
+  // Build categories array from the direct category objects
+  const categories: CodeAnalysisResponse['categories'] = [];
+  
+  if (availability) {
+    const findings = (availability.findings as Record<string, unknown>[]) ?? [];
+    categories.push({
+      category: 'AVAILABILITY',
+      total_findings: findings.length,
+      by_severity: {},
+      by_status: {},
+      health_penalty: 100 - ((availability.score as number) ?? 100),
+      findings: findings.map(mapDeveloperFinding),
+    });
+  }
+  
+  if (reliability) {
+    const findings = (reliability.findings as Record<string, unknown>[]) ?? [];
+    categories.push({
+      category: 'RELIABILITY',
+      total_findings: findings.length,
+      by_severity: {},
+      by_status: {},
+      health_penalty: 100 - ((reliability.score as number) ?? 100),
+      findings: findings.map(mapDeveloperFinding),
+    });
+  }
+  
+  if (efficiency) {
+    const findings = (efficiency.findings as Record<string, unknown>[]) ?? [];
+    categories.push({
+      category: 'INEFFICIENCY',
+      total_findings: findings.length,
+      by_severity: {},
+      by_status: {},
+      health_penalty: 100 - ((efficiency.score as number) ?? 100),
+      findings: findings.map(mapDeveloperFinding),
+    });
+  }
+
+  // Map health score from the backend format
+  const codeHealth = (data.code_health as number) ?? 100;
+  const healthScore: HealthScore = {
+    overall: codeHealth,
+    dimensions: {
+      security: 100, // Security is handled separately
+      availability: (availability?.score as number) ?? 100,
+      reliability: (reliability?.score as number) ?? 100,
+      efficiency: (efficiency?.score as number) ?? 100,
+    },
+    issue_counts: {
+      security: 0,
+      availability: (availability?.issues as number) ?? 0,
+      reliability: (reliability?.issues as number) ?? 0,
+      efficiency: (efficiency?.issues as number) ?? 0,
+    },
+    trend: 'stable',
+    trend_delta: 0,
+    calculated_at: new Date().toISOString(),
+  };
+
+  const totalFindings = (data.total_issues as number) ?? 0;
 
   return {
     workflow_id: workflowId,
-    health_score: mapHealthScoreResponse(data.health_score as Record<string, unknown> ?? {}),
-    categories: categories.map((cat) => ({
-      category: cat.category as DevCategory,
-      total_findings: (cat.total_findings as number) ?? 0,
-      by_severity: (cat.by_severity as Record<string, number>) ?? {},
-      by_status: (cat.by_status as Record<string, number>) ?? {},
-      health_penalty: (cat.health_penalty as number) ?? 0,
-      findings: (cat.findings as Record<string, unknown>[])?.map(mapDeveloperFinding) ?? [],
-    })),
-    total_findings: (data.total_findings as number) ?? 0,
-    open_findings: (data.open_findings as number) ?? 0,
+    health_score: healthScore,
+    categories,
+    total_findings: totalFindings,
+    open_findings: totalFindings, // Assume all are open for now
     correlation_summary: data.correlation_summary as CodeAnalysisResponse['correlation_summary'],
-    last_analyzed: data.last_analyzed as string | undefined,
+    last_analyzed: (data.last_scan as Record<string, unknown>)?.timestamp as string | undefined,
   };
 }
 

@@ -739,6 +739,86 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error storing finding: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    # ==================== Code Analysis API Endpoints (Developer Insights) ====================
+
+    @app.get("/api/agent-workflow/{agent_workflow_id}/health-score")
+    async def api_get_health_score(agent_workflow_id: str):
+        """Get comprehensive health score for a workflow with dimension breakdown."""
+        try:
+            health = insights.store.get_health_score(agent_workflow_id)
+            return JSONResponse(health)
+        except Exception as e:
+            logger.error(f"Error getting health score: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/agent-workflow/{agent_workflow_id}/code-analysis")
+    async def api_get_code_analysis(
+        agent_workflow_id: str,
+        category: Optional[str] = None,
+        include_correlation: bool = False,
+        status: Optional[str] = None,
+    ):
+        """Get developer findings grouped by category for the Code page."""
+        try:
+            analysis = insights.store.get_code_analysis(agent_workflow_id)
+            
+            # Apply category filter if provided
+            if category and analysis.get("categories"):
+                analysis["categories"] = [
+                    c for c in analysis["categories"] 
+                    if c.get("category") == category.upper()
+                ]
+            
+            # Apply status filter if provided
+            if status and analysis.get("categories"):
+                for cat in analysis["categories"]:
+                    if cat.get("findings"):
+                        cat["findings"] = [
+                            f for f in cat["findings"]
+                            if f.get("status") == status.upper()
+                        ]
+            
+            return JSONResponse(analysis)
+        except Exception as e:
+            logger.error(f"Error getting code analysis: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/agent-workflow/{agent_workflow_id}/health-trend")
+    async def api_get_health_trend(
+        agent_workflow_id: str,
+        days: int = 30,
+        source: Optional[str] = None,
+    ):
+        """Get health score history for trend visualization."""
+        try:
+            trend = insights.store.get_health_trend(
+                workflow_id=agent_workflow_id,
+                days=days,
+                source=source,
+            )
+            return JSONResponse(trend)
+        except Exception as e:
+            logger.error(f"Error getting health trend: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/agent-workflow/{agent_workflow_id}/scan-comparison")
+    async def api_get_scan_comparison(
+        agent_workflow_id: str,
+        current_scan: Optional[str] = None,
+        previous_scan: Optional[str] = None,
+    ):
+        """Compare findings between two scans."""
+        try:
+            comparison = insights.store.get_scan_comparison(
+                workflow_id=agent_workflow_id,
+                current_session_id=current_scan,
+                previous_session_id=previous_scan,
+            )
+            return JSONResponse(comparison)
+        except Exception as e:
+            logger.error(f"Error getting scan comparison: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     # ==================== Security Checks API Endpoints ====================
 
     @app.get("/api/agent/{agent_id}/security-checks")
