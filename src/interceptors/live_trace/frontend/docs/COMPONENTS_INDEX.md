@@ -30,7 +30,8 @@
 | `domain/workflows/` | WorkflowSelector |
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
 | `domain/sessions/` | SessionsTable, SystemPromptFilter |
-| `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
+| `domain/metrics/` | StatCard, RiskScore, ComplianceGauge, AgentHealthRing, HealthTrendChart |
+| `domain/code/` | CodeCheckCard |
 | `domain/analytics/` | TokenUsageInsights, ModelUsageAnalytics, ToolUsageAnalytics |
 | `domain/charts/` | LineChart, BarChart, PieChart, DistributionBar |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
@@ -1954,3 +1955,101 @@ interface DetectionTimelineProps {
 - Shows last 7 days of activity
 - Two lines: Detected (orange) and Resolved (green)
 - Proper axis labels and legend
+
+---
+
+## Code Quality Components
+
+### CodeCheckCard
+
+Expandable card displaying a developer check category with findings.
+
+```typescript
+interface CodeCheckCardProps {
+  category: DevCategory;           // 'AVAILABILITY' | 'RELIABILITY' | 'INEFFICIENCY'
+  name: string;                    // Display name
+  description: string;             // Category description
+  icon: ReactNode;                 // Category icon
+  findingsCount: number;           // Total findings
+  openCount: number;               // Open findings count
+  findings: DeveloperFinding[];    // Array of findings
+  healthPenalty?: number;          // Health impact percentage
+  defaultExpanded?: boolean;       // Start expanded
+}
+```
+
+**Usage:**
+```tsx
+<CodeCheckCard
+  category="AVAILABILITY"
+  name="Availability"
+  description="Network resilience, retry logic, timeout handling"
+  icon={<RefreshCcw size={18} />}
+  findingsCount={3}
+  openCount={2}
+  findings={findings}
+  healthPenalty={15}
+/>
+```
+
+---
+
+## Health Visualization Components
+
+### AgentHealthRing
+
+Animated donut chart displaying overall health score with dimension breakdown.
+
+```typescript
+interface AgentHealthRingProps {
+  health: number;                   // Overall score (0-100)
+  dimensions: HealthDimensions;     // Score per dimension
+  issueCounts: IssueCounts;         // Issues per dimension
+  trend?: 'improving' | 'declining' | 'stable';
+  trendDelta?: number;              // Percentage change
+  suggestion?: {                    // Improvement suggestion
+    dimension: keyof HealthDimensions;
+    potentialGain: number;
+    action: string;
+  };
+  onViewCodeIssues?: () => void;
+  onViewSecurityIssues?: () => void;
+}
+```
+
+**Usage:**
+```tsx
+<AgentHealthRing
+  health={72}
+  dimensions={{ security: 92, availability: 50, reliability: 75, efficiency: 85 }}
+  issueCounts={{ security: 1, availability: 3, reliability: 2, efficiency: 1 }}
+  trend="improving"
+  trendDelta={5}
+  onViewCodeIssues={() => navigate('code')}
+/>
+```
+
+### HealthTrendChart
+
+Line chart displaying health score history over time.
+
+```typescript
+interface HealthTrendChartProps {
+  snapshots: HealthSnapshot[];      // Health data points
+  periodDays?: number;              // Period in days (default: 30)
+  trend?: 'improving' | 'declining' | 'stable';
+  delta?: number;                   // Overall change
+  showDimensions?: boolean;         // Show dimension lines
+}
+```
+
+**Usage:**
+```tsx
+<HealthTrendChart
+  snapshots={healthSnapshots}
+  periodDays={30}
+  trend="improving"
+  delta={10}
+  showDimensions={true}
+/>
+```

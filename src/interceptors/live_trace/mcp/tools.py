@@ -158,6 +158,18 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "fix_complexity": {
                     "type": "string",
                     "description": "LOW, MEDIUM, or HIGH (for recommendation)"
+                },
+                "dev_category": {
+                    "type": "string",
+                    "description": "Developer finding category: AVAILABILITY, RELIABILITY, or INEFFICIENCY. Set this for developer-focused findings."
+                },
+                "health_impact": {
+                    "type": "number",
+                    "description": "Health score penalty (0-100). Higher values indicate more severe impact on health score."
+                },
+                "code_fingerprint": {
+                    "type": "string",
+                    "description": "Stable identifier for tracking this finding across scans. Used for scan comparison."
                 }
             },
             "required": ["session_id", "file_path", "finding_type", "severity", "title"]
@@ -165,7 +177,7 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_findings",
-        "description": "Get stored security findings with optional filtering.",
+        "description": "Get stored security or developer findings with optional filtering.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -178,6 +190,23 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                 "status": {
                     "type": "string",
                     "description": "OPEN, FIXED, or IGNORED"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Filter by finding source: 'security' or 'developer'"
+                },
+                "dev_category": {
+                    "type": "string",
+                    "description": "Filter by developer category: AVAILABILITY, RELIABILITY, or INEFFICIENCY"
+                },
+                "correlation_state": {
+                    "type": "string",
+                    "description": "Filter by correlation state: VALIDATED, UNEXERCISED, RUNTIME_ONLY, or THEORETICAL"
+                },
+                "include_resolved": {
+                    "type": "boolean",
+                    "description": "Whether to include resolved/fixed findings",
+                    "default": False
                 },
                 "limit": {
                     "type": "integer",
@@ -658,6 +687,206 @@ MCP_TOOLS: List[Dict[str, Any]] = [
                     "type": "integer",
                     "description": "Maximum number of analyses to return",
                     "default": 20
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    # ==================== Developer Insights Tools ====================
+    {
+        "name": "get_health_score",
+        "description": "Get the comprehensive health score for a workflow with dimension breakdown. Health combines security (40%), availability (25%), reliability (20%), and efficiency (15%).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_code_analysis",
+        "description": "Get developer findings grouped by category (Availability, Reliability, Efficiency) for the Code page. Returns code health score and findings organized by dev_category.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_health_trend",
+        "description": "Get health score history for trend visualization. Returns data points over time with trend analysis (improving/declining/stable).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                },
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days to look back",
+                    "default": 30
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Filter by source: STATIC, DYNAMIC, or CORRELATION"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "get_scan_comparison",
+        "description": "Compare findings between two scans to identify new and resolved issues. Useful for tracking progress and identifying regressions.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                },
+                "current_session_id": {
+                    "type": "string",
+                    "description": "Current scan session ID (default: latest scan)"
+                },
+                "previous_session_id": {
+                    "type": "string",
+                    "description": "Previous scan session ID to compare against (default: second latest scan)"
+                }
+            },
+            "required": ["workflow_id"]
+        }
+    },
+    {
+        "name": "record_health_snapshot",
+        "description": "Record a health score snapshot for trend tracking. Called after scans or correlation updates.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of snapshot: STATIC, DYNAMIC, or CORRELATION"
+                },
+                "overall_health": {
+                    "type": "number",
+                    "description": "Overall health percentage (0-100)"
+                },
+                "security_score": {
+                    "type": "number",
+                    "description": "Security dimension score"
+                },
+                "availability_score": {
+                    "type": "number",
+                    "description": "Availability dimension score"
+                },
+                "reliability_score": {
+                    "type": "number",
+                    "description": "Reliability dimension score"
+                },
+                "efficiency_score": {
+                    "type": "number",
+                    "description": "Efficiency dimension score"
+                },
+                "analysis_session_id": {
+                    "type": "string",
+                    "description": "Associated analysis session ID"
+                },
+                "total_findings": {
+                    "type": "integer",
+                    "description": "Total number of open findings"
+                },
+                "new_findings": {
+                    "type": "integer",
+                    "description": "Number of new findings since last scan"
+                },
+                "resolved_findings": {
+                    "type": "integer",
+                    "description": "Number of resolved findings since last scan"
+                }
+            },
+            "required": ["workflow_id", "source", "overall_health"]
+        }
+    },
+    # ==================== Reporting Tools ====================
+    {
+        "name": "generate_report",
+        "description": "Generate a comprehensive health report combining security and developer findings. Reports include executive summary, key findings, health scores, and recommendations.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workflow_id": {
+                    "type": "string",
+                    "description": "Workflow/project identifier (same as agent_workflow_id)"
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Output format: 'markdown', 'json', or 'html'",
+                    "enum": ["markdown", "json", "html"],
+                    "default": "markdown"
+                },
+                "include": {
+                    "type": "object",
+                    "description": "Sections to include in the report",
+                    "properties": {
+                        "executive_summary": {
+                            "type": "boolean",
+                            "description": "Include executive summary with health score overview",
+                            "default": True
+                        },
+                        "security_findings": {
+                            "type": "boolean",
+                            "description": "Include security findings section",
+                            "default": True
+                        },
+                        "developer_findings": {
+                            "type": "boolean",
+                            "description": "Include developer/code quality findings",
+                            "default": True
+                        },
+                        "correlation_summary": {
+                            "type": "boolean",
+                            "description": "Include correlation analysis (if dynamic data exists)",
+                            "default": True
+                        },
+                        "gate_status": {
+                            "type": "boolean",
+                            "description": "Include production gate status",
+                            "default": True
+                        },
+                        "recommendations": {
+                            "type": "boolean",
+                            "description": "Include prioritized recommendations",
+                            "default": True
+                        },
+                        "trend_analysis": {
+                            "type": "boolean",
+                            "description": "Include health trend analysis",
+                            "default": True
+                        }
+                    }
+                },
+                "severity_threshold": {
+                    "type": "string",
+                    "description": "Minimum severity to include: CRITICAL, HIGH, MEDIUM, or LOW",
+                    "default": "LOW"
+                },
+                "max_findings_per_section": {
+                    "type": "integer",
+                    "description": "Maximum findings to show per section (0 for unlimited)",
+                    "default": 10
                 }
             },
             "required": ["workflow_id"]

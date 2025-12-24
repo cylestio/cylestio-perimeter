@@ -8,6 +8,7 @@ export * from './charts';
 export * from './metrics';
 export * from './activity';
 export * from './analysis';
+export * from './code';
 export * from './findings';
 export * from './sessions';
 export * from './visualization';

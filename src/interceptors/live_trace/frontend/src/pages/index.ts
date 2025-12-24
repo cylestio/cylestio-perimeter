@@ -2,6 +2,7 @@ export { AgentDetail } from './AgentDetail';
 export { AgentReport } from './AgentReport';
 export { AgentWorkflowsHome } from './AgentWorkflowsHome';
 export { AttackSurface } from './AttackSurface';
+export { Code } from './Code';
 export { Connect } from './Connect';
 export { DevConnection } from './DevConnection';
 export { DynamicAnalysis } from './DynamicAnalysis';

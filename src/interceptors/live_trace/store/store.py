@@ -572,6 +572,10 @@ class TraceStore:
             # Phase 5: Correlation columns
             ("correlation_state", "TEXT"),  # VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL
             ("correlation_evidence", "TEXT"),  # JSON string with correlation details
+            # Developer insights columns
+            ("dev_category", "TEXT"),  # AVAILABILITY, RELIABILITY, INEFFICIENCY
+            ("health_impact", "REAL"),  # Health score penalty (0-100)
+            ("code_fingerprint", "TEXT"),  # Stable identifier for tracking across scans
         ]
         for col_name, col_def in new_finding_columns:
             if col_name not in columns:
@@ -660,6 +664,39 @@ class TraceStore:
             """)
             self.db.commit()
             logger.info("Migration: Created audit_log table")
+
+        # Migration: create health_history table for tracking health scores over time
+        cursor = self.db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='health_history'"
+        )
+        if not cursor.fetchone():
+            self.db.executescript("""
+                CREATE TABLE IF NOT EXISTS health_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workflow_id TEXT NOT NULL,
+                    analysis_session_id TEXT,
+                    timestamp REAL NOT NULL,
+                    source TEXT NOT NULL,
+                    overall_health REAL NOT NULL,
+                    security_score REAL,
+                    availability_score REAL,
+                    reliability_score REAL,
+                    efficiency_score REAL,
+                    security_issues INTEGER DEFAULT 0,
+                    availability_issues INTEGER DEFAULT 0,
+                    reliability_issues INTEGER DEFAULT 0,
+                    efficiency_issues INTEGER DEFAULT 0,
+                    total_findings INTEGER DEFAULT 0,
+                    new_findings INTEGER DEFAULT 0,
+                    resolved_findings INTEGER DEFAULT 0,
+                    metadata TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_health_history_workflow_id ON health_history(workflow_id);
+                CREATE INDEX IF NOT EXISTS idx_health_history_timestamp ON health_history(timestamp);
+                CREATE INDEX IF NOT EXISTS idx_health_history_source ON health_history(source);
+            """)
+            self.db.commit()
+            logger.info("Migration: Created health_history table")
 
         # Migration: add last_analysis_session_id column to sessions for incremental analysis tracking
         cursor = self.db.execute("PRAGMA table_info(sessions)")
@@ -1453,6 +1490,10 @@ class TraceStore:
             # Phase 5: Correlation fields
             'correlation_state': row['correlation_state'] if 'correlation_state' in row_keys else None,
             'correlation_evidence': json.loads(row['correlation_evidence']) if 'correlation_evidence' in row_keys and row['correlation_evidence'] else None,
+            # Developer insights fields
+            'dev_category': row['dev_category'] if 'dev_category' in row_keys else None,
+            'health_impact': row['health_impact'] if 'health_impact' in row_keys else None,
+            'code_fingerprint': row['code_fingerprint'] if 'code_fingerprint' in row_keys else None,
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
             'updated_at': datetime.fromtimestamp(row['updated_at'], tz=timezone.utc).isoformat(),
         }
@@ -1678,15 +1719,19 @@ class TraceStore:
         fix_hints: Optional[str] = None,
         impact: Optional[str] = None,
         fix_complexity: Optional[str] = None,
+        # Developer insights fields
+        dev_category: Optional[str] = None,
+        health_impact: Optional[float] = None,
+        code_fingerprint: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Store a security finding for an agent workflow.
+        """Store a security or developer finding for an agent workflow.
 
         Args:
             finding_id: Unique finding ID
             session_id: Analysis session ID
             agent_workflow_id: Agent workflow ID
             file_path: Path to affected file
-            finding_type: Type of finding (e.g., PROMPT_INJECTION)
+            finding_type: Type of finding (e.g., PROMPT_INJECTION, DEV_NO_RETRY)
             severity: CRITICAL, HIGH, MEDIUM, LOW
             title: Finding title
             description: Detailed description
@@ -1704,6 +1749,9 @@ class TraceStore:
             fix_hints: Hints on how to fix (for recommendation)
             impact: Business impact (for recommendation)
             fix_complexity: LOW, MEDIUM, HIGH (for recommendation)
+            dev_category: Developer category (AVAILABILITY, RELIABILITY, INEFFICIENCY)
+            health_impact: Health score penalty (0-100)
+            code_fingerprint: Stable identifier for tracking across scans
 
         Returns:
             Dict with finding data (including recommendation_id if created)
@@ -1727,13 +1775,13 @@ class TraceStore:
                     finding_id, session_id, agent_workflow_id, source_type, category, check_id,
                     file_path, line_start, line_end, finding_type, severity, cvss_score,
                     title, description, evidence, owasp_mapping, cwe, soc2_controls,
-                    status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, created_at, updated_at, dev_category, health_impact, code_fingerprint
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 finding_id, session_id, agent_workflow_id, source_type, category, check_id,
                 file_path, line_start, line_end, finding_type, severity, cvss_score,
                 title, description, evidence_json, owasp_mapping_json, cwe, soc2_controls_json,
-                'OPEN', created_at, updated_at
+                'OPEN', created_at, updated_at, dev_category, health_impact, code_fingerprint
             ))
 
             # Increment session's findings_count
@@ -1768,6 +1816,10 @@ class TraceStore:
                 'created_at': now.isoformat(),
                 'updated_at': now.isoformat(),
                 'recommendation_id': None,
+                # Developer insights fields
+                'dev_category': dev_category,
+                'health_impact': health_impact,
+                'code_fingerprint': code_fingerprint,
             }
 
             # Auto-create recommendation if enabled
@@ -1856,9 +1908,28 @@ class TraceStore:
         session_id: Optional[str] = None,
         severity: Optional[str] = None,
         status: Optional[str] = None,
+        source: Optional[str] = None,
+        dev_category: Optional[str] = None,
+        correlation_state: Optional[str] = None,
+        include_resolved: bool = False,
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
-        """Get findings with optional filtering."""
+        """Get findings with optional filtering.
+
+        Args:
+            agent_workflow_id: Filter by workflow ID
+            session_id: Filter by analysis session ID
+            severity: Filter by severity (CRITICAL, HIGH, MEDIUM, LOW)
+            status: Filter by status (OPEN, FIXED, IGNORED)
+            source: Filter by source ('security' or 'developer')
+            dev_category: Filter by developer category (AVAILABILITY, RELIABILITY, INEFFICIENCY)
+            correlation_state: Filter by correlation state (VALIDATED, UNEXERCISED, etc.)
+            include_resolved: Whether to include resolved/fixed findings
+            limit: Maximum number of findings to return
+
+        Returns:
+            List of finding dicts
+        """
         with self._lock:
             query = "SELECT * FROM findings WHERE 1=1"
             params = []
@@ -1878,6 +1949,26 @@ class TraceStore:
             if status:
                 query += " AND status = ?"
                 params.append(status)
+            elif not include_resolved:
+                # By default exclude resolved findings unless explicitly requested
+                query += " AND status = 'OPEN'"
+
+            # Filter by source (security vs developer)
+            if source:
+                if source.lower() == 'developer':
+                    # Developer findings have dev_category set
+                    query += " AND dev_category IS NOT NULL"
+                elif source.lower() == 'security':
+                    # Security findings don't have dev_category set
+                    query += " AND dev_category IS NULL"
+
+            if dev_category:
+                query += " AND dev_category = ?"
+                params.append(dev_category.upper())
+
+            if correlation_state:
+                query += " AND correlation_state = ?"
+                params.append(correlation_state.upper())
 
             query += " ORDER BY created_at DESC LIMIT ?"
             params.append(limit)
@@ -4550,3 +4641,479 @@ class TraceStore:
             )
             self.db.commit()
             return cursor.rowcount > 0
+
+    # ========== Developer Insights Methods ==========
+
+    def get_health_score(self, workflow_id: str) -> Dict[str, Any]:
+        """Calculate comprehensive health score with dimension breakdown.
+
+        Health score combines security and developer insights:
+        - Security (40%): Based on security findings
+        - Availability (25%): DEV_NO_RETRY, DEV_NO_TIMEOUT, DEV_NO_FALLBACK, DEV_TOOL_NO_ERROR_HANDLING
+        - Reliability (20%): DEV_SILENT_ERROR, DEV_NO_OUTPUT_VALIDATION, DEV_TOOL_NO_DESCRIPTION, etc.
+        - Efficiency (15%): DEV_UNBOUNDED_LOOP, DEV_UNBOUNDED_HISTORY, DEV_NO_TOKEN_TRACKING
+
+        Severity weights:
+        - CRITICAL: 25%
+        - HIGH: 15%
+        - MEDIUM: 5%
+        - LOW: 1%
+
+        Args:
+            workflow_id: The workflow ID
+
+        Returns:
+            Dict with overall health and dimension breakdowns
+        """
+        severity_weights = {
+            'CRITICAL': 25,
+            'HIGH': 15,
+            'MEDIUM': 5,
+            'LOW': 1
+        }
+
+        with self._lock:
+            # Get all open findings for this workflow
+            cursor = self.db.execute("""
+                SELECT severity, dev_category, category, finding_type, correlation_state
+                FROM findings
+                WHERE agent_workflow_id = ? AND status = 'OPEN'
+            """, (workflow_id,))
+
+            findings = cursor.fetchall()
+
+            # Initialize dimension scores
+            security_penalty = 0
+            availability_penalty = 0
+            reliability_penalty = 0
+            efficiency_penalty = 0
+
+            # Issue counts
+            security_issues = 0
+            availability_issues = 0
+            reliability_issues = 0
+            efficiency_issues = 0
+
+            for f in findings:
+                severity = f['severity'] or 'LOW'
+                dev_category = f['dev_category']
+                penalty = severity_weights.get(severity, 1)
+
+                if dev_category:
+                    # Developer finding
+                    if dev_category == 'AVAILABILITY':
+                        availability_penalty += penalty
+                        availability_issues += 1
+                    elif dev_category == 'RELIABILITY':
+                        reliability_penalty += penalty
+                        reliability_issues += 1
+                    elif dev_category == 'INEFFICIENCY':
+                        efficiency_penalty += penalty
+                        efficiency_issues += 1
+                else:
+                    # Security finding
+                    security_penalty += penalty
+                    security_issues += 1
+
+            # Calculate dimension scores (100 - penalty, min 0)
+            security_score = max(0, 100 - security_penalty)
+            availability_score = max(0, 100 - availability_penalty)
+            reliability_score = max(0, 100 - reliability_penalty)
+            efficiency_score = max(0, 100 - efficiency_penalty)
+
+            # Calculate overall health (weighted average)
+            overall_health = (
+                security_score * 0.40 +
+                availability_score * 0.25 +
+                reliability_score * 0.20 +
+                efficiency_score * 0.15
+            )
+
+            # Calculate top fix impact (fixing the highest severity issue)
+            top_fix_impact = 0
+            top_fix_finding = None
+            for f in findings:
+                severity = f['severity'] or 'LOW'
+                penalty = severity_weights.get(severity, 1)
+                dev_category = f['dev_category']
+
+                # Calculate potential impact
+                if dev_category == 'AVAILABILITY':
+                    impact = penalty * 0.25
+                elif dev_category == 'RELIABILITY':
+                    impact = penalty * 0.20
+                elif dev_category == 'INEFFICIENCY':
+                    impact = penalty * 0.15
+                else:
+                    impact = penalty * 0.40
+
+                if impact > top_fix_impact:
+                    top_fix_impact = impact
+                    top_fix_finding = f
+
+            return {
+                'workflow_id': workflow_id,
+                'overall_health': round(overall_health, 1),
+                'dimensions': {
+                    'security': {
+                        'score': round(security_score, 1),
+                        'weight': 40,
+                        'issues': security_issues,
+                    },
+                    'availability': {
+                        'score': round(availability_score, 1),
+                        'weight': 25,
+                        'issues': availability_issues,
+                    },
+                    'reliability': {
+                        'score': round(reliability_score, 1),
+                        'weight': 20,
+                        'issues': reliability_issues,
+                    },
+                    'efficiency': {
+                        'score': round(efficiency_score, 1),
+                        'weight': 15,
+                        'issues': efficiency_issues,
+                    },
+                },
+                'total_issues': security_issues + availability_issues + reliability_issues + efficiency_issues,
+                'top_fix_impact': round(top_fix_impact, 1),
+            }
+
+    def get_code_analysis(self, workflow_id: str) -> Dict[str, Any]:
+        """Get developer findings grouped by category for the Code page.
+
+        Args:
+            workflow_id: The workflow ID
+
+        Returns:
+            Dict with findings grouped by dev_category
+        """
+        with self._lock:
+            # Get health score first
+            health = self.get_health_score(workflow_id)
+
+            # Get all developer findings (those with dev_category set)
+            cursor = self.db.execute("""
+                SELECT *
+                FROM findings
+                WHERE agent_workflow_id = ? AND dev_category IS NOT NULL
+                ORDER BY
+                    CASE severity
+                        WHEN 'CRITICAL' THEN 1
+                        WHEN 'HIGH' THEN 2
+                        WHEN 'MEDIUM' THEN 3
+                        WHEN 'LOW' THEN 4
+                        ELSE 5
+                    END,
+                    created_at DESC
+            """, (workflow_id,))
+
+            findings = [self._deserialize_finding(row) for row in cursor.fetchall()]
+
+            # Group by category
+            availability_findings = [f for f in findings if f.get('dev_category') == 'AVAILABILITY']
+            reliability_findings = [f for f in findings if f.get('dev_category') == 'RELIABILITY']
+            efficiency_findings = [f for f in findings if f.get('dev_category') == 'INEFFICIENCY']
+
+            # Get last scan info
+            cursor = self.db.execute("""
+                SELECT session_id, created_at, completed_at, findings_count
+                FROM analysis_sessions
+                WHERE agent_workflow_id = ? AND session_type = 'STATIC'
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (workflow_id,))
+            last_scan = cursor.fetchone()
+
+            return {
+                'workflow_id': workflow_id,
+                'code_health': round(
+                    (health['dimensions']['availability']['score'] * 0.40 +
+                     health['dimensions']['reliability']['score'] * 0.35 +
+                     health['dimensions']['efficiency']['score'] * 0.25),
+                    1
+                ),
+                'availability': {
+                    'score': health['dimensions']['availability']['score'],
+                    'issues': len(availability_findings),
+                    'findings': availability_findings,
+                },
+                'reliability': {
+                    'score': health['dimensions']['reliability']['score'],
+                    'issues': len(reliability_findings),
+                    'findings': reliability_findings,
+                },
+                'efficiency': {
+                    'score': health['dimensions']['efficiency']['score'],
+                    'issues': len(efficiency_findings),
+                    'findings': efficiency_findings,
+                },
+                'total_issues': len(findings),
+                'last_scan': {
+                    'session_id': last_scan['session_id'] if last_scan else None,
+                    'timestamp': datetime.fromtimestamp(last_scan['created_at'], tz=timezone.utc).isoformat() if last_scan else None,
+                } if last_scan else None,
+            }
+
+    def record_health_snapshot(
+        self,
+        workflow_id: str,
+        source: str,
+        overall_health: float,
+        security_score: Optional[float] = None,
+        availability_score: Optional[float] = None,
+        reliability_score: Optional[float] = None,
+        efficiency_score: Optional[float] = None,
+        security_issues: int = 0,
+        availability_issues: int = 0,
+        reliability_issues: int = 0,
+        efficiency_issues: int = 0,
+        total_findings: int = 0,
+        new_findings: int = 0,
+        resolved_findings: int = 0,
+        analysis_session_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Record a health score snapshot for trend tracking.
+
+        Args:
+            workflow_id: The workflow ID
+            source: Source of the snapshot (STATIC, DYNAMIC, CORRELATION)
+            overall_health: Overall health percentage
+            security_score: Security dimension score
+            availability_score: Availability dimension score
+            reliability_score: Reliability dimension score
+            efficiency_score: Efficiency dimension score
+            security_issues: Number of security issues
+            availability_issues: Number of availability issues
+            reliability_issues: Number of reliability issues
+            efficiency_issues: Number of efficiency issues
+            total_findings: Total number of findings
+            new_findings: Number of new findings since last scan
+            resolved_findings: Number of resolved findings since last scan
+            analysis_session_id: Associated analysis session ID
+            metadata: Additional metadata
+
+        Returns:
+            The created health history record
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc)
+            timestamp = now.timestamp()
+
+            metadata_json = json.dumps(metadata) if metadata else None
+
+            cursor = self.db.execute("""
+                INSERT INTO health_history (
+                    workflow_id, analysis_session_id, timestamp, source,
+                    overall_health, security_score, availability_score, reliability_score, efficiency_score,
+                    security_issues, availability_issues, reliability_issues, efficiency_issues,
+                    total_findings, new_findings, resolved_findings, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                workflow_id, analysis_session_id, timestamp, source,
+                overall_health, security_score, availability_score, reliability_score, efficiency_score,
+                security_issues, availability_issues, reliability_issues, efficiency_issues,
+                total_findings, new_findings, resolved_findings, metadata_json
+            ))
+            self.db.commit()
+
+            record_id = cursor.lastrowid
+
+            return {
+                'id': record_id,
+                'workflow_id': workflow_id,
+                'analysis_session_id': analysis_session_id,
+                'timestamp': now.isoformat(),
+                'source': source,
+                'overall_health': overall_health,
+                'security_score': security_score,
+                'availability_score': availability_score,
+                'reliability_score': reliability_score,
+                'efficiency_score': efficiency_score,
+                'security_issues': security_issues,
+                'availability_issues': availability_issues,
+                'reliability_issues': reliability_issues,
+                'efficiency_issues': efficiency_issues,
+                'total_findings': total_findings,
+                'new_findings': new_findings,
+                'resolved_findings': resolved_findings,
+            }
+
+    def get_health_trend(
+        self,
+        workflow_id: str,
+        days: int = 30,
+        source: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get health score history for trend visualization.
+
+        Args:
+            workflow_id: The workflow ID
+            days: Number of days to look back (default 30)
+            source: Optional filter by source (STATIC, DYNAMIC, CORRELATION)
+
+        Returns:
+            Dict with trend data and analysis
+        """
+        with self._lock:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).timestamp()
+
+            query = """
+                SELECT *
+                FROM health_history
+                WHERE workflow_id = ? AND timestamp >= ?
+            """
+            params = [workflow_id, cutoff]
+
+            if source:
+                query += " AND source = ?"
+                params.append(source.upper())
+
+            query += " ORDER BY timestamp ASC"
+
+            cursor = self.db.execute(query, params)
+            rows = cursor.fetchall()
+
+            history = []
+            for row in rows:
+                history.append({
+                    'id': row['id'],
+                    'timestamp': datetime.fromtimestamp(row['timestamp'], tz=timezone.utc).isoformat(),
+                    'source': row['source'],
+                    'overall_health': row['overall_health'],
+                    'security_score': row['security_score'],
+                    'availability_score': row['availability_score'],
+                    'reliability_score': row['reliability_score'],
+                    'efficiency_score': row['efficiency_score'],
+                    'total_findings': row['total_findings'],
+                    'new_findings': row['new_findings'],
+                    'resolved_findings': row['resolved_findings'],
+                })
+
+            # Calculate trend direction
+            trend = 'stable'
+            if len(history) >= 2:
+                first_health = history[0]['overall_health']
+                last_health = history[-1]['overall_health']
+                if last_health > first_health + 5:
+                    trend = 'improving'
+                elif last_health < first_health - 5:
+                    trend = 'declining'
+
+            return {
+                'workflow_id': workflow_id,
+                'days': days,
+                'data_points': len(history),
+                'trend': trend,
+                'history': history,
+                'current_health': history[-1]['overall_health'] if history else None,
+                'starting_health': history[0]['overall_health'] if history else None,
+            }
+
+    def get_scan_comparison(
+        self,
+        workflow_id: str,
+        current_session_id: Optional[str] = None,
+        previous_session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Compare findings between two scans to identify new/resolved issues.
+
+        Args:
+            workflow_id: The workflow ID
+            current_session_id: Current scan session ID (default: latest)
+            previous_session_id: Previous scan session ID (default: second latest)
+
+        Returns:
+            Dict with comparison results
+        """
+        with self._lock:
+            # Get the two sessions to compare
+            if not current_session_id or not previous_session_id:
+                cursor = self.db.execute("""
+                    SELECT session_id, created_at, findings_count
+                    FROM analysis_sessions
+                    WHERE agent_workflow_id = ? AND session_type = 'STATIC'
+                    ORDER BY created_at DESC
+                    LIMIT 2
+                """, (workflow_id,))
+                sessions = cursor.fetchall()
+
+                if len(sessions) < 2:
+                    return {
+                        'workflow_id': workflow_id,
+                        'has_comparison': False,
+                        'message': 'Need at least 2 scans to compare',
+                    }
+
+                current_session_id = sessions[0]['session_id']
+                previous_session_id = sessions[1]['session_id']
+
+            # Get findings from both sessions
+            cursor = self.db.execute("""
+                SELECT finding_id, finding_type, code_fingerprint, severity, title, file_path, line_start
+                FROM findings
+                WHERE session_id = ?
+            """, (current_session_id,))
+            current_findings = {row['code_fingerprint'] or f"{row['file_path']}:{row['line_start']}:{row['finding_type']}": self._row_to_dict(row) for row in cursor.fetchall()}
+
+            cursor = self.db.execute("""
+                SELECT finding_id, finding_type, code_fingerprint, severity, title, file_path, line_start
+                FROM findings
+                WHERE session_id = ?
+            """, (previous_session_id,))
+            previous_findings = {row['code_fingerprint'] or f"{row['file_path']}:{row['line_start']}:{row['finding_type']}": self._row_to_dict(row) for row in cursor.fetchall()}
+
+            # Calculate differences
+            current_keys = set(current_findings.keys())
+            previous_keys = set(previous_findings.keys())
+
+            new_keys = current_keys - previous_keys
+            resolved_keys = previous_keys - current_keys
+            unchanged_keys = current_keys & previous_keys
+
+            new_findings = [current_findings[k] for k in new_keys]
+            resolved_findings = [previous_findings[k] for k in resolved_keys]
+
+            # Get health scores for both sessions if available
+            cursor = self.db.execute("""
+                SELECT overall_health
+                FROM health_history
+                WHERE workflow_id = ? AND analysis_session_id = ?
+                ORDER BY timestamp DESC LIMIT 1
+            """, (workflow_id, current_session_id))
+            current_health_row = cursor.fetchone()
+            current_health = current_health_row['overall_health'] if current_health_row else None
+
+            cursor = self.db.execute("""
+                SELECT overall_health
+                FROM health_history
+                WHERE workflow_id = ? AND analysis_session_id = ?
+                ORDER BY timestamp DESC LIMIT 1
+            """, (workflow_id, previous_session_id))
+            previous_health_row = cursor.fetchone()
+            previous_health = previous_health_row['overall_health'] if previous_health_row else None
+
+            health_delta = None
+            if current_health is not None and previous_health is not None:
+                health_delta = round(current_health - previous_health, 1)
+
+            return {
+                'workflow_id': workflow_id,
+                'has_comparison': True,
+                'current_session_id': current_session_id,
+                'previous_session_id': previous_session_id,
+                'new_findings': new_findings,
+                'resolved_findings': resolved_findings,
+                'new_count': len(new_findings),
+                'resolved_count': len(resolved_findings),
+                'unchanged_count': len(unchanged_keys),
+                'current_health': current_health,
+                'previous_health': previous_health,
+                'health_delta': health_delta,
+            }
+
+    def _row_to_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert a SQLite row to a simple dict."""
+        return {key: row[key] for key in row.keys()}

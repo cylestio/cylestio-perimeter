@@ -25,4 +25,5 @@ export * from './ide';
 export * from './replay';
 export * from './session';
 export * from './agentWorkflows';
+export * from './code';
 export * from './security';

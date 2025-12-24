@@ -20,10 +20,12 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
+import { fetchHealthScore } from '@api/endpoints/code';
 import { fetchDashboard } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
 import { fetchGateStatus } from '@api/endpoints/agentWorkflow';
 import type { AgentResponse, ToolAnalytics } from '@api/types/agent';
+import type { HealthScore } from '@api/types/code';
 import type { APIAgent, DashboardResponse, AnalysisStage } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
 import type { GateStatusResponse } from '@api/types/findings';
@@ -42,6 +44,7 @@ import { StatsRow } from '@ui/layout/Grid';
 
 import { LineChart, BarChart } from '@domain/charts';
 import { StatCard } from '@domain/metrics/StatCard';
+import { AgentHealthRing } from '@domain/metrics/AgentHealthRing';
 import { LifecycleProgress, type LifecycleStage } from '@domain/activity/LifecycleProgress';
 import { ProductionGateCard } from '@domain/security/ProductionGateCard';
 
@@ -131,6 +134,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [agentData, setAgentData] = useState<AgentResponse | null>(null);
   const [gateStatus, setGateStatus] = useState<GateStatusResponse | null>(null);
+  const [healthScore, setHealthScore] = useState<HealthScore | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,14 +143,16 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     if (!agentWorkflowId) return;
 
     try {
-      const [dashData, sessionsData, gateData] = await Promise.all([
+      const [dashData, sessionsData, gateData, healthData] = await Promise.all([
         fetchDashboard(agentWorkflowId),
         fetchSessions({ agent_workflow_id: agentWorkflowId, limit: 100 }),
         fetchGateStatus(agentWorkflowId).catch(() => null), // Don't fail if gate status fails
+        fetchHealthScore(agentWorkflowId).catch(() => null), // Don't fail if health score fails
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
       setGateStatus(gateData);
+      setHealthScore(healthData);
 
       // Fetch agent analytics if we have an agent
       if (dashData?.agents?.length > 0) {
@@ -323,6 +329,31 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
           </Card>
         </Section.Content>
       </Section>
+
+      {/* Agent Health Score */}
+      {healthScore && (
+        <Section>
+          <Section.Header>
+            <Section.Title icon={<Activity size={16} />}>Agent Health</Section.Title>
+          </Section.Header>
+          <Section.Content>
+            <AgentHealthRing
+              health={healthScore.overall}
+              dimensions={healthScore.dimensions}
+              issueCounts={healthScore.issue_counts}
+              trend={healthScore.trend}
+              trendDelta={healthScore.trend_delta}
+              suggestion={healthScore.suggested_improvement ? {
+                dimension: healthScore.suggested_improvement.dimension,
+                potentialGain: healthScore.suggested_improvement.potential_gain,
+                action: healthScore.suggested_improvement.action,
+              } : undefined}
+              onViewCodeIssues={() => navigate(`/agent-workflow/${agentWorkflowId}/code`)}
+              onViewSecurityIssues={() => navigate(`/agent-workflow/${agentWorkflowId}/static-analysis`)}
+            />
+          </Section.Content>
+        </Section>
+      )}
 
       {/* Production Gate Status */}
       {gateStatus && (

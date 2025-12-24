@@ -772,7 +772,8 @@ class TestRecommendationLifecycle:
         
         # 4. Verify finding is also resolved
         updated_finding = store.get_findings(
-            agent_workflow_id="test-agent"
+            agent_workflow_id="test-agent",
+            include_resolved=True,
         )[0]
         assert updated_finding["status"] == "FIXED"
 
@@ -811,6 +812,7 @@ class TestRecommendationLifecycle:
         
         # Verify finding status is updated (may be DISMISSED or RESOLVED depending on implementation)
         updated_finding = store.get_findings(
-            agent_workflow_id="test-agent"
+            agent_workflow_id="test-agent",
+            include_resolved=True,
         )[0]
         assert updated_finding["status"] in ["DISMISSED", "RESOLVED"]
