@@ -5,6 +5,7 @@ including JWT token generation using Descope.
 """
 
 import logging
+import os
 import time
 from typing import Optional
 
@@ -13,7 +14,7 @@ from descope import AuthException, DescopeClient
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Descope configuration
+# Descope configuration (public project ID)
 DESCOPE_PROJECT_ID = 'P2zF0Fh3eZsfOBM2cqh03EPfa6G4'
 
 
@@ -35,6 +36,9 @@ class DescopeAuthenticator:
             project_id: The Descope project ID to use for authentication
             refresh_buffer_seconds: Seconds before expiration to refresh token (default: 30)
         """
+        if not access_key:
+            raise ValueError("Access key is required for authentication")
+
         self.project_id = project_id
         self._client: Optional[DescopeClient] = None
         self._access_key = access_key
@@ -44,7 +48,8 @@ class DescopeAuthenticator:
         self._cached_jwt_token: Optional[str] = None
         self._token_expires_at: Optional[float] = None
 
-        logger.debug(f"Initialized DescopeAuthenticator with project_id: {project_id} and access_key: {access_key}")
+        # SECURITY: Never log credentials, even at debug level
+        logger.debug(f"Initialized DescopeAuthenticator with project_id: {project_id[:8]}...")
 
     @classmethod
     def get_instance(cls, access_key: str, project_id: str = DESCOPE_PROJECT_ID, refresh_buffer_seconds: int = 30) -> 'DescopeAuthenticator':

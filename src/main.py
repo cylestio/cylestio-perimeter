@@ -221,7 +221,7 @@ def create_app(config: Settings) -> FastAPI:
 def run(
     base_url: str = typer.Option(None, "--base-url", help="Base URL of target LLM API"),
     llm_type: str = typer.Option(None, "--type", help="LLM provider type (openai, anthropic, etc.)"),
-    api_key: str = typer.Option(None, "--api-key", help="API key to inject into requests"),
+    api_key: str = typer.Option(None, "--api-key", help="[DEPRECATED] API key - use environment variables instead"),
     port: int = typer.Option(None, "--port", help="Proxy server port"),
     host: str = typer.Option(None, "--host", help="Server host"),
     log_level: str = typer.Option(None, "--log-level", help="Logging level"),
@@ -229,7 +229,16 @@ def run(
 ):
     """Run the LLM Proxy Server."""
     global settings, app
-    
+
+    # SECURITY: Warn about API key exposure via CLI
+    if api_key:
+        typer.echo(
+            "⚠️  SECURITY WARNING: Passing API keys via --api-key is insecure.\n"
+            "   API keys are visible in process lists (ps aux) and shell history.\n"
+            "   Use environment variables instead: OPENAI_API_KEY, ANTHROPIC_API_KEY\n",
+            err=True
+        )
+
     # Load settings
     try:
         cli_args = {}
