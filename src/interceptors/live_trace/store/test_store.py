@@ -3,6 +3,7 @@ import json
 import pytest
 from datetime import datetime, timezone
 
+from src.events import BaseEvent, EventName
 from .store import TraceStore, SessionData
 
 
@@ -1462,3 +1463,88 @@ class TestComplianceReportMethods:
         # Should have NONE overall risk
         assert report['business_impact']['overall_risk'] == 'NONE'
         assert 'No critical security risks' in report['business_impact']['executive_bullets'][0]
+
+
+class TestGetAgentSystemPrompt:
+    """Tests for get_agent_system_prompt store method."""
+
+    @pytest.fixture
+    def store(self):
+        return TraceStore(storage_mode="memory")
+
+    def test_get_agent_system_prompt_anthropic(self, store):
+        """Test extracting system prompt from Anthropic format."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={"llm.request.data": {"system": "You are a helpful assistant"}}
+        )
+        session = SessionData("sess1", "agent1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = store.get_agent_system_prompt("agent1")
+        assert result == "You are a helpful assistant"
+
+    def test_get_agent_system_prompt_openai(self, store):
+        """Test extracting system prompt from OpenAI format."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "llm.request.data": {
+                    "messages": [{"role": "system", "content": "Be helpful"}]
+                }
+            }
+        )
+        session = SessionData("sess1", "agent1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = store.get_agent_system_prompt("agent1")
+        assert result == "Be helpful"
+
+    def test_get_agent_system_prompt_openai_responses(self, store):
+        """Test extracting from OpenAI Responses API format."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={"llm.request.data": {"instructions": "Follow these instructions"}}
+        )
+        session = SessionData("sess1", "agent1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = store.get_agent_system_prompt("agent1")
+        assert result == "Follow these instructions"
+
+    def test_get_agent_system_prompt_none(self, store):
+        """Test returns None when no system prompt in events."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={"llm.request.data": {"messages": [{"role": "user", "content": "Hi"}]}}
+        )
+        session = SessionData("sess1", "agent1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = store.get_agent_system_prompt("agent1")
+        assert result is None
+
+    def test_get_agent_system_prompt_no_sessions(self, store):
+        """Test returns None when agent has no sessions."""
+        result = store.get_agent_system_prompt("nonexistent-agent")
+        assert result is None

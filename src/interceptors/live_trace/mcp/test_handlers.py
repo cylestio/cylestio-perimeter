@@ -1,7 +1,9 @@
 """Tests for MCP handlers with agent_workflow_id support."""
 import pytest
 
+from src.events import BaseEvent, EventName, EventLevel
 from ..store import TraceStore
+from ..store.store import SessionData, AgentData
 from .handlers import call_tool
 
 
@@ -176,3 +178,262 @@ class TestWorkflowQueryHandlers:
         result = call_tool("get_session_events", {"session_id": "nonexistent"}, store)
         assert "error" in result
         assert "not found" in result["error"]
+
+    # ==================== get_workflow_agents comprehensive tests ====================
+
+    def test_get_workflow_agents_returns_agent_fields(self, store):
+        """Test get_workflow_agents returns all expected agent fields."""
+        session = SessionData("sess1", "agent-test-123456789", "test-workflow")
+        agent = AgentData("agent-test-123456789", "test-workflow")
+        agent.add_session("sess1")
+        store._save_session(session)
+        store._save_agent(agent)
+
+        result = call_tool("get_workflow_agents", {"workflow_id": "test-workflow"}, store)
+
+        assert result["total_count"] == 1
+        agent = result["agents"][0]
+        assert "agent_id" in agent
+        assert "agent_id_short" in agent
+        assert "display_name" in agent
+        assert "description" in agent
+        assert "last_seen" in agent
+        assert "session_count" in agent
+
+    def test_get_workflow_agents_includes_system_prompts(self, store):
+        """Test system prompts are included by default."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={"llm.request.data": {"system": "You are a helpful assistant"}}
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        agent = AgentData("agent1", "wf1")
+        agent.add_session("sess1")
+        store._save_session(session)
+        store._save_agent(agent)
+
+        result = call_tool("get_workflow_agents", {"workflow_id": "wf1"}, store)
+
+        assert result["agents"][0]["system_prompt"] == "You are a helpful assistant"
+
+    def test_get_workflow_agents_excludes_system_prompts(self, store):
+        """Test system prompts excluded when include_system_prompts=False."""
+        session = SessionData("sess1", "agent1", "wf1")
+        agent = AgentData("agent1", "wf1")
+        agent.add_session("sess1")
+        store._save_session(session)
+        store._save_agent(agent)
+
+        result = call_tool("get_workflow_agents", {
+            "workflow_id": "wf1",
+            "include_system_prompts": False
+        }, store)
+
+        assert "system_prompt" not in result["agents"][0]
+
+    def test_get_workflow_agents_returns_recent_sessions(self, store):
+        """Test recent_sessions returns session data."""
+        session = SessionData("sess1", "agent1", "wf1")
+        agent = AgentData("agent1", "wf1")
+        agent.add_session("sess1")
+        store._save_session(session)
+        store._save_agent(agent)
+
+        result = call_tool("get_workflow_agents", {"workflow_id": "wf1"}, store)
+
+        assert "recent_sessions" in result
+        assert isinstance(result["recent_sessions"], list)
+
+    def test_get_workflow_agents_truncates_long_ids(self, store):
+        """Test agent_id_short is truncated for long IDs."""
+        long_id = "agent-very-long-identifier-12345"
+        session = SessionData("sess1", long_id, "wf1")
+        agent = AgentData(long_id, "wf1")
+        agent.add_session("sess1")
+        store._save_session(session)
+        store._save_agent(agent)
+
+        result = call_tool("get_workflow_agents", {"workflow_id": "wf1"}, store)
+
+        assert result["agents"][0]["agent_id"] == long_id
+        assert result["agents"][0]["agent_id_short"] == long_id[:12]
+
+    # ==================== get_workflow_sessions comprehensive tests ====================
+
+    def test_get_workflow_sessions_filter_by_agent(self, store):
+        """Test filtering sessions by agent_id."""
+        session1 = SessionData("sess1", "agent1", "wf1")
+        session2 = SessionData("sess2", "agent2", "wf1")
+        store._save_session(session1)
+        store._save_session(session2)
+
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "wf1",
+            "agent_id": "agent1"
+        }, store)
+
+        assert all(s.get("agent_id") == "agent1" for s in result["sessions"])
+
+    def test_get_workflow_sessions_filter_by_status(self, store):
+        """Test filtering sessions by status."""
+        session1 = SessionData("sess1", "agent1", "wf1")
+        session1.is_completed = True
+        session2 = SessionData("sess2", "agent1", "wf1")
+        session2.is_completed = False
+        store._save_session(session1)
+        store._save_session(session2)
+
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "wf1",
+            "status": "COMPLETED"
+        }, store)
+
+        assert result["total_count"] == 1
+
+    def test_get_workflow_sessions_limit_capped(self, store):
+        """Test limit is capped at 100."""
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "wf1",
+            "limit": 500
+        }, store)
+
+        assert result["limit"] == 100
+
+    def test_get_workflow_sessions_offset(self, store):
+        """Test offset pagination."""
+        for i in range(5):
+            session = SessionData(f"sess{i}", "agent1", "wf1")
+            store._save_session(session)
+
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "wf1",
+            "limit": 2,
+            "offset": 2
+        }, store)
+
+        assert result["offset"] == 2
+        assert len(result["sessions"]) <= 2
+
+    def test_get_workflow_sessions_has_more_flag(self, store):
+        """Test has_more flag is correct."""
+        for i in range(5):
+            session = SessionData(f"sess{i}", "agent1", "wf1")
+            store._save_session(session)
+
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "wf1",
+            "limit": 2,
+            "offset": 0
+        }, store)
+
+        assert result["has_more"] == True
+
+        result2 = call_tool("get_workflow_sessions", {
+            "workflow_id": "wf1",
+            "limit": 10,
+            "offset": 0
+        }, store)
+
+        assert result2["has_more"] == False
+
+    # ==================== get_session_events comprehensive tests ====================
+
+    def test_get_session_events_returns_event_fields(self, store):
+        """Test events have all expected fields."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={"test": "value"}
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        assert result["count"] == 1
+        evt = result["events"][0]
+        assert "id" in evt
+        assert "name" in evt
+        assert "timestamp" in evt
+        assert "level" in evt
+        assert "attributes" in evt
+
+    def test_get_session_events_filter_by_type(self, store):
+        """Test filtering by event_types."""
+        events = [
+            BaseEvent(trace_id="a"*32, span_id="b"*16, name=EventName.LLM_CALL_START, agent_id="agent1", session_id="sess1"),
+            BaseEvent(trace_id="a"*32, span_id="c"*16, name=EventName.TOOL_EXECUTION, agent_id="agent1", session_id="sess1"),
+            BaseEvent(trace_id="a"*32, span_id="d"*16, name=EventName.LLM_CALL_FINISH, agent_id="agent1", session_id="sess1"),
+        ]
+        session = SessionData("sess1", "agent1", "wf1")
+        for e in events:
+            session.add_event(e)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "event_types": ["llm.call.start", "llm.call.finish"]
+        }, store)
+
+        assert result["total_count"] == 2
+        assert all(e["name"] in ["llm.call.start", "llm.call.finish"] for e in result["events"])
+
+    def test_get_session_events_limit_capped(self, store):
+        """Test limit is capped at 200."""
+        session = SessionData("sess1", "agent1", "wf1")
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "limit": 500
+        }, store)
+
+        assert result["limit"] == 200
+
+    def test_get_session_events_offset(self, store):
+        """Test offset pagination."""
+        session = SessionData("sess1", "agent1", "wf1")
+        for i in range(10):
+            event = BaseEvent(trace_id="a"*32, span_id=f"{i:016x}", name=EventName.LLM_CALL_START, agent_id="agent1", session_id="sess1")
+            session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "limit": 3,
+            "offset": 5
+        }, store)
+
+        assert result["offset"] == 5
+        assert result["count"] == 3
+
+    def test_get_session_events_has_more_flag(self, store):
+        """Test has_more flag is correct."""
+        session = SessionData("sess1", "agent1", "wf1")
+        for i in range(10):
+            event = BaseEvent(trace_id="a"*32, span_id=f"{i:016x}", name=EventName.LLM_CALL_START, agent_id="agent1", session_id="sess1")
+            session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "limit": 5
+        }, store)
+
+        assert result["has_more"] == True
+
+        result2 = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "limit": 20
+        }, store)
+
+        assert result2["has_more"] == False
