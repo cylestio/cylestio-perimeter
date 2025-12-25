@@ -664,6 +664,43 @@ def handle_get_session_events(args: Dict[str, Any], store: Any) -> Dict[str, Any
     }
 
 
+@register_handler("get_event")
+def handle_get_event(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get complete details for a single event."""
+    session_id = args.get("session_id")
+    event_id = args.get("event_id")
+
+    if not session_id:
+        return {"error": "session_id is required"}
+    if not event_id:
+        return {"error": "event_id is required"}
+
+    session = store.get_session(session_id)
+    if not session:
+        return {"error": f"Session '{session_id}' not found"}
+
+    # Find event by span_id
+    for event in session.events:
+        if event.span_id == event_id:
+            timestamp = event.timestamp
+            timestamp_str = timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+
+            return {
+                "event": {
+                    "id": event.span_id,
+                    "trace_id": event.trace_id,
+                    "name": event.name.value,
+                    "timestamp": timestamp_str,
+                    "level": event.level.value,
+                    "agent_id": event.agent_id,
+                    "session_id": event.session_id,
+                    "attributes": dict(event.attributes) if hasattr(event.attributes, 'items') else event.attributes,
+                }
+            }
+
+    return {"error": f"Event '{event_id}' not found in session '{session_id}'"}
+
+
 # ==================== IDE Connection Tools ====================
 
 @register_handler("register_ide_connection")

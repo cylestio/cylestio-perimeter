@@ -437,3 +437,56 @@ class TestWorkflowQueryHandlers:
         }, store)
 
         assert result2["has_more"] == False
+
+    # ==================== get_event tests ====================
+
+    def test_get_event_returns_full_details(self, store):
+        """Test get_event returns complete event with all attributes."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "llm.request.data": {
+                    "model": "claude-3",
+                    "messages": [{"role": "user", "content": "Hello"}],
+                    "tools": [{"name": "bash", "description": "Run bash"}]
+                }
+            }
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_event", {
+            "session_id": "sess1",
+            "event_id": "b" * 16
+        }, store)
+
+        assert "event" in result
+        assert result["event"]["id"] == "b" * 16
+        assert "llm.request.data" in result["event"]["attributes"]
+        assert result["event"]["attributes"]["llm.request.data"]["model"] == "claude-3"
+
+    def test_get_event_not_found(self, store):
+        """Test get_event returns error for missing event."""
+        session = SessionData("sess1", "agent1", "wf1")
+        store._save_session(session)
+
+        result = call_tool("get_event", {
+            "session_id": "sess1",
+            "event_id": "nonexistent"
+        }, store)
+
+        assert "error" in result
+
+    def test_get_event_session_not_found(self, store):
+        """Test get_event returns error for missing session."""
+        result = call_tool("get_event", {
+            "session_id": "nonexistent",
+            "event_id": "abc123"
+        }, store)
+
+        assert "error" in result
