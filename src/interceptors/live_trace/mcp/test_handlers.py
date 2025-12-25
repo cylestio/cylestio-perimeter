@@ -490,3 +490,93 @@ class TestWorkflowQueryHandlers:
         }, store)
 
         assert "error" in result
+
+    # ==================== get_session_events slim format tests ====================
+
+    def test_get_session_events_returns_slim_format(self, store):
+        """Test get_session_events returns condensed event data."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "llm.request.data": {
+                    "model": "claude-3",
+                    "max_tokens": 1024,
+                    "messages": [
+                        {"role": "system", "content": "You are helpful"},
+                        {"role": "user", "content": "Hello world"}
+                    ],
+                    "tools": [
+                        {"name": "bash", "description": "Run bash commands"},
+                        {"name": "read", "description": "Read files"}
+                    ]
+                }
+            }
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        evt = result["events"][0]
+        # Should have summary fields
+        assert evt["model"] == "claude-3"
+        assert evt["max_tokens"] == 1024
+        assert evt["message_count"] == 2
+        assert evt["tool_names"] == ["bash", "read"]
+        # Should NOT have full attributes
+        assert "attributes" not in evt
+
+    def test_get_session_events_llm_finish_has_metrics(self, store):
+        """Test llm.call.finish events include response metrics."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_FINISH,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "llm.response.duration_ms": 1500,
+                "llm.usage.total_tokens": 500,
+                "llm.usage.input_tokens": 100,
+                "llm.usage.output_tokens": 400
+            }
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        evt = result["events"][0]
+        assert evt["duration_ms"] == 1500
+        assert evt["total_tokens"] == 500
+        assert evt["input_tokens"] == 100
+        assert evt["output_tokens"] == 400
+
+    def test_get_session_events_tool_execution_has_name(self, store):
+        """Test tool.execution events include tool name."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.TOOL_EXECUTION,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "tool.name": "bash",
+                "tool.execution_time_ms": 250
+            }
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        evt = result["events"][0]
+        assert evt["tool_name"] == "bash"
+        assert evt["execution_time_ms"] == 250

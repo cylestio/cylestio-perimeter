@@ -615,6 +615,67 @@ def handle_get_workflow_sessions(args: Dict[str, Any], store: Any) -> Dict[str, 
     }
 
 
+def _summarize_event(event) -> Dict[str, Any]:
+    """Create a slim summary of an event for list views."""
+    timestamp = event.timestamp
+    timestamp_str = timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+
+    summary = {
+        "id": event.span_id,
+        "name": event.name.value,
+        "timestamp": timestamp_str,
+        "level": event.level.value,
+    }
+
+    attrs = event.attributes if hasattr(event.attributes, 'get') else {}
+    event_name = event.name.value
+
+    # llm.call.start - extract model, message_count, max_tokens, tool_names
+    if event_name == "llm.call.start":
+        request_data = attrs.get("llm.request.data", {})
+        if isinstance(request_data, dict):
+            if request_data.get("model"):
+                summary["model"] = request_data["model"]
+            if request_data.get("max_tokens"):
+                summary["max_tokens"] = request_data["max_tokens"]
+
+            # Message count (Anthropic or OpenAI format)
+            messages = request_data.get("messages", [])
+            if messages:
+                summary["message_count"] = len(messages)
+
+            # Tool names only
+            tools = request_data.get("tools", [])
+            if tools:
+                summary["tool_names"] = [t.get("name") for t in tools if t.get("name")]
+
+    # llm.call.finish - extract metrics
+    elif event_name == "llm.call.finish":
+        if attrs.get("llm.response.duration_ms"):
+            summary["duration_ms"] = attrs["llm.response.duration_ms"]
+        if attrs.get("llm.usage.total_tokens"):
+            summary["total_tokens"] = attrs["llm.usage.total_tokens"]
+        if attrs.get("llm.usage.input_tokens"):
+            summary["input_tokens"] = attrs["llm.usage.input_tokens"]
+        if attrs.get("llm.usage.output_tokens"):
+            summary["output_tokens"] = attrs["llm.usage.output_tokens"]
+
+    # tool.execution - extract tool name and time
+    elif event_name == "tool.execution":
+        if attrs.get("tool.name"):
+            summary["tool_name"] = attrs["tool.name"]
+        if attrs.get("tool.execution_time_ms"):
+            summary["execution_time_ms"] = attrs["tool.execution_time_ms"]
+
+    # error events - include error type and message
+    if attrs.get("error.type"):
+        summary["error_type"] = attrs["error.type"]
+    if attrs.get("error.message"):
+        summary["error_message"] = attrs["error.message"]
+
+    return summary
+
+
 @register_handler("get_session_events")
 def handle_get_session_events(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """Get paginated events for a specific session."""
@@ -640,16 +701,7 @@ def handle_get_session_events(args: Dict[str, Any], store: Any) -> Dict[str, Any
 
     events = []
     for event in paginated_events:
-        timestamp = event.timestamp
-        timestamp_str = timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
-
-        events.append({
-            "id": event.span_id,
-            "name": event.name.value,
-            "timestamp": timestamp_str,
-            "level": event.level.value,
-            "attributes": dict(event.attributes) if hasattr(event.attributes, 'items') else event.attributes,
-        })
+        events.append(_summarize_event(event))
 
     return {
         "session_id": session_id,
