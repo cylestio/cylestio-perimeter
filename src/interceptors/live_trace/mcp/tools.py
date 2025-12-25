@@ -410,6 +410,24 @@ MCP_TOOLS: List[Dict[str, Any]] = [
             "required": ["session_id"]
         }
     },
+    {
+        "name": "get_event",
+        "description": "Get complete details for a single event by ID. Use this after get_session_events to retrieve full event data including all attributes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID containing the event"
+                },
+                "event_id": {
+                    "type": "string",
+                    "description": "Event ID (span_id) to retrieve"
+                }
+            },
+            "required": ["session_id", "event_id"]
+        }
+    },
     # ==================== IDE Connection Tools ====================
     {
         "name": "register_ide_connection",
