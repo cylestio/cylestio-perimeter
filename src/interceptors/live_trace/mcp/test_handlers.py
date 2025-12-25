@@ -746,3 +746,129 @@ class TestWorkflowQueryHandlers:
         assert full_evt["id"] == event_id
         assert "attributes" in full_evt  # Full attributes available
         assert full_evt["attributes"]["llm.request.data"]["messages"][1]["content"] == "Hello world, this is a long message"
+
+    # ==================== Additional edge case and normal use tests ====================
+
+    def test_get_workflow_agents_multiple_agents(self, store):
+        """Test get_workflow_agents returns multiple agents correctly."""
+        # Create sessions for different agents in same workflow
+        session1 = SessionData("sess1", "agent-alpha", "shared-workflow")
+        session2 = SessionData("sess2", "agent-beta", "shared-workflow")
+        session3 = SessionData("sess3", "agent-alpha", "shared-workflow")  # Same agent, different session
+
+        agent1 = AgentData("agent-alpha", "shared-workflow")
+        agent1.add_session("sess1")
+        agent1.add_session("sess3")
+
+        agent2 = AgentData("agent-beta", "shared-workflow")
+        agent2.add_session("sess2")
+
+        store._save_session(session1)
+        store._save_session(session2)
+        store._save_session(session3)
+        store._save_agent(agent1)
+        store._save_agent(agent2)
+
+        result = call_tool("get_workflow_agents", {"workflow_id": "shared-workflow"}, store)
+
+        assert result["total_count"] == 2
+        agent_ids = [a["agent_id"] for a in result["agents"]]
+        assert "agent-alpha" in agent_ids
+        assert "agent-beta" in agent_ids
+
+    def test_get_workflow_sessions_empty_workflow(self, store):
+        """Test get_workflow_sessions with workflow that has no sessions."""
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "nonexistent-workflow"
+        }, store)
+
+        assert result["sessions"] == []
+        assert result["total_count"] == 0
+        assert result["has_more"] == False
+
+    def test_get_session_events_empty_session(self, store):
+        """Test get_session_events with session that has no events."""
+        session = SessionData("empty-sess", "agent1", "wf1")
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "empty-sess"}, store)
+
+        assert result["events"] == []
+        assert result["count"] == 0
+        assert result["total_count"] == 0
+        assert result["has_more"] == False
+
+    def test_get_event_requires_session_id(self, store):
+        """Test get_event returns error when session_id is missing."""
+        result = call_tool("get_event", {"event_id": "some-event"}, store)
+
+        assert "error" in result
+        assert "session_id" in result["error"]
+
+    def test_get_event_requires_event_id(self, store):
+        """Test get_event returns error when event_id is missing."""
+        result = call_tool("get_event", {"session_id": "some-session"}, store)
+
+        assert "error" in result
+        assert "event_id" in result["error"]
+
+    def test_get_workflow_sessions_multiple_sessions_sorted(self, store):
+        """Test get_workflow_sessions returns multiple sessions."""
+        for i in range(5):
+            session = SessionData(f"sess-{i}", "agent1", "multi-sess-wf")
+            store._save_session(session)
+
+        result = call_tool("get_workflow_sessions", {
+            "workflow_id": "multi-sess-wf",
+            "limit": 10
+        }, store)
+
+        assert result["total_count"] == 5
+        assert len(result["sessions"]) == 5
+
+    def test_get_session_events_large_session(self, store):
+        """Test get_session_events with many events and pagination."""
+        session = SessionData("large-sess", "agent1", "wf1")
+        for i in range(50):
+            event = BaseEvent(
+                trace_id="a" * 32,
+                span_id=f"{i:016x}",
+                name=EventName.LLM_CALL_START,
+                agent_id="agent1",
+                session_id="large-sess",
+                attributes={"llm.request.data": {"model": f"model-{i}"}}
+            )
+            session.add_event(event)
+        store._save_session(session)
+
+        # First page
+        result1 = call_tool("get_session_events", {
+            "session_id": "large-sess",
+            "limit": 20,
+            "offset": 0
+        }, store)
+
+        assert result1["count"] == 20
+        assert result1["total_count"] == 50
+        assert result1["has_more"] == True
+
+        # Second page
+        result2 = call_tool("get_session_events", {
+            "session_id": "large-sess",
+            "limit": 20,
+            "offset": 20
+        }, store)
+
+        assert result2["count"] == 20
+        assert result2["offset"] == 20
+        assert result2["has_more"] == True
+
+        # Last page
+        result3 = call_tool("get_session_events", {
+            "session_id": "large-sess",
+            "limit": 20,
+            "offset": 40
+        }, store)
+
+        assert result3["count"] == 10  # Only 10 remaining
+        assert result3["has_more"] == False
