@@ -55,24 +55,6 @@ class LoggingConfig(BaseModel):
 
 
 
-class CylestioConfig(BaseModel):
-    """Cylestio tracing configuration."""
-    
-    enabled: bool = Field(default=False, description="Enable Cylestio tracing")
-    api_url: str = Field(..., description="Cylestio API endpoint URL")
-    access_key: str = Field(..., description="Cylestio API access key")
-    timeout: int = Field(default=10, ge=1, description="HTTP request timeout in seconds")
-    
-    @field_validator("api_url")
-    @classmethod
-    def validate_api_url(cls, v: str) -> str:
-        """Ensure API URL is properly formatted."""
-        v = v.rstrip("/")
-        if not v.startswith(("http://", "https://")):
-            raise ValueError("api_url must start with http:// or https://")
-        return v
-
-
 class LiveTraceConfig(BaseModel):
     """Live trace global configuration."""
     
@@ -95,7 +77,6 @@ class Settings(BaseModel):
     llm: LLMConfig
     interceptors: List[InterceptorConfig] = Field(default_factory=list)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    cylestio: Optional[CylestioConfig] = Field(default=None, description="Cylestio tracing configuration")
     live_trace: Optional[LiveTraceConfig] = Field(default=None, description="Live trace global configuration")
     
     @classmethod

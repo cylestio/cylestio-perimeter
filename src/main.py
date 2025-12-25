@@ -18,7 +18,6 @@ from src.proxy.middleware import LLMMiddleware
 from src.proxy.interceptor_manager import interceptor_manager
 from src.interceptors.printer import PrinterInterceptor
 from src.interceptors.message_logger import MessageLoggerInterceptor
-from src.interceptors.cylestio_trace import CylestioTraceInterceptor
 from src.interceptors.event_recorder import EventRecorderInterceptor
 from src.interceptors.http_recorder import HttpRecorderInterceptor
 from src.interceptors.live_trace import LiveTraceInterceptor
@@ -55,7 +54,6 @@ def create_app(config: Settings) -> FastAPI:
     # Register interceptor types
     interceptor_manager.register_interceptor("printer", PrinterInterceptor)
     interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
-    interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
     interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
     interceptor_manager.register_interceptor("http_recorder", HttpRecorderInterceptor)
     interceptor_manager.register_interceptor("live_trace", LiveTraceInterceptor)
@@ -159,10 +157,7 @@ def create_app(config: Settings) -> FastAPI:
             "service": "llm-proxy",
             "timestamp": datetime.utcnow().isoformat()
         }
-        
-        # Add session metrics from Cylestio interceptor if available
-        # TODO: Get session metrics from active Cylestio interceptor instance
-        
+
         return metrics_data
     
     # Configuration endpoint
@@ -324,7 +319,6 @@ async def replay_recordings(input_path: str, delay: float, config_path: Optional
                 # Register interceptor types for replay
                 interceptor_manager.register_interceptor("printer", PrinterInterceptor)
                 interceptor_manager.register_interceptor("message_logger", MessageLoggerInterceptor)
-                interceptor_manager.register_interceptor("cylestio_trace", CylestioTraceInterceptor)
                 interceptor_manager.register_interceptor("event_recorder", EventRecorderInterceptor)
                 interceptor_manager.register_interceptor("http_recorder", HttpRecorderInterceptor)
                 interceptor_manager.register_interceptor("live_trace", LiveTraceInterceptor)
@@ -385,12 +379,11 @@ def generate_example_config(output_path: str):
         },
         "interceptors": [
             {
-                "type": "cylestio_trace",
-                "enabled": False,
+                "type": "printer",
+                "enabled": True,
                 "config": {
-                    "api_url": "https://api.cylestio.com",
-                    "access_key": "your-cylestio-access-key-here",
-                    "timeout": 10
+                    "log_requests": True,
+                    "log_responses": True
                 }
             }
         ],
