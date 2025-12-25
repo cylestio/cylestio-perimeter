@@ -390,6 +390,41 @@ class TestWorkflowQueryHandlers:
         assert result["total_count"] == 2
         assert all(e["name"] in ["llm.call.start", "llm.call.finish"] for e in result["events"])
 
+    def test_get_session_events_filter_updates_total_count(self, store):
+        """Test that total_count reflects filtered results, not all events."""
+        events = [
+            BaseEvent(trace_id="a"*32, span_id="1"*16, name=EventName.LLM_CALL_START, agent_id="agent1", session_id="sess1"),
+            BaseEvent(trace_id="a"*32, span_id="2"*16, name=EventName.TOOL_EXECUTION, agent_id="agent1", session_id="sess1"),
+            BaseEvent(trace_id="a"*32, span_id="3"*16, name=EventName.TOOL_EXECUTION, agent_id="agent1", session_id="sess1"),
+            BaseEvent(trace_id="a"*32, span_id="4"*16, name=EventName.LLM_CALL_FINISH, agent_id="agent1", session_id="sess1"),
+            BaseEvent(trace_id="a"*32, span_id="5"*16, name=EventName.LLM_CALL_START, agent_id="agent1", session_id="sess1"),
+        ]
+        session = SessionData("sess1", "agent1", "wf1")
+        for e in events:
+            session.add_event(e)
+        store._save_session(session)
+
+        # Without filter - all 5 events
+        result_all = call_tool("get_session_events", {"session_id": "sess1"}, store)
+        assert result_all["total_count"] == 5
+        assert result_all["count"] == 5
+
+        # Filter for tool.execution only - should be 2
+        result_tools = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "event_types": ["tool.execution"]
+        }, store)
+        assert result_tools["total_count"] == 2
+        assert result_tools["count"] == 2
+
+        # Filter for llm events - should be 3
+        result_llm = call_tool("get_session_events", {
+            "session_id": "sess1",
+            "event_types": ["llm.call.start", "llm.call.finish"]
+        }, store)
+        assert result_llm["total_count"] == 3
+        assert result_llm["count"] == 3
+
     def test_get_session_events_limit_capped(self, store):
         """Test limit is capped at 200."""
         session = SessionData("sess1", "agent1", "wf1")
