@@ -344,14 +344,14 @@ class TestWorkflowQueryHandlers:
     # ==================== get_session_events comprehensive tests ====================
 
     def test_get_session_events_returns_event_fields(self, store):
-        """Test events have all expected fields."""
+        """Test events have all expected core fields (slim format)."""
         event = BaseEvent(
             trace_id="a" * 32,
             span_id="b" * 16,
             name=EventName.LLM_CALL_START,
             agent_id="agent1",
             session_id="sess1",
-            attributes={"test": "value"}
+            attributes={"llm.request.data": {"model": "test-model"}}
         )
         session = SessionData("sess1", "agent1", "wf1")
         session.add_event(event)
@@ -361,11 +361,14 @@ class TestWorkflowQueryHandlers:
 
         assert result["count"] == 1
         evt = result["events"][0]
+        # Core fields always present
         assert "id" in evt
         assert "name" in evt
         assert "timestamp" in evt
         assert "level" in evt
-        assert "attributes" in evt
+        # Slim format: model extracted, no full attributes
+        assert evt.get("model") == "test-model"
+        assert "attributes" not in evt
 
     def test_get_session_events_filter_by_type(self, store):
         """Test filtering by event_types."""
@@ -580,3 +583,166 @@ class TestWorkflowQueryHandlers:
         evt = result["events"][0]
         assert evt["tool_name"] == "bash"
         assert evt["execution_time_ms"] == 250
+
+    def test_get_session_events_error_event_has_error_fields(self, store):
+        """Test error events include error_type and error_message."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_FINISH,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "error.type": "RateLimitError",
+                "error.message": "Too many requests"
+            }
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        evt = result["events"][0]
+        assert evt["error_type"] == "RateLimitError"
+        assert evt["error_message"] == "Too many requests"
+
+    def test_get_session_events_minimal_event(self, store):
+        """Test events without specific attributes still work."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="b" * 16,
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={}
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        evt = result["events"][0]
+        # Core fields present
+        assert evt["id"] == "b" * 16
+        assert evt["name"] == "llm.call.start"
+        assert "timestamp" in evt
+        assert evt["level"] == "INFO"
+        # No extra fields for empty attributes
+        assert "model" not in evt
+        assert "attributes" not in evt
+
+    def test_get_session_events_mixed_event_types(self, store):
+        """Test realistic session with mixed event types."""
+        events = [
+            BaseEvent(
+                trace_id="a" * 32,
+                span_id="1" * 16,
+                name=EventName.LLM_CALL_START,
+                agent_id="agent1",
+                session_id="sess1",
+                attributes={
+                    "llm.request.data": {
+                        "model": "claude-3-opus",
+                        "max_tokens": 4096,
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "tools": [{"name": "read_file"}, {"name": "write_file"}]
+                    }
+                }
+            ),
+            BaseEvent(
+                trace_id="a" * 32,
+                span_id="2" * 16,
+                name=EventName.TOOL_EXECUTION,
+                agent_id="agent1",
+                session_id="sess1",
+                attributes={
+                    "tool.name": "read_file",
+                    "tool.execution_time_ms": 150
+                }
+            ),
+            BaseEvent(
+                trace_id="a" * 32,
+                span_id="3" * 16,
+                name=EventName.LLM_CALL_FINISH,
+                agent_id="agent1",
+                session_id="sess1",
+                attributes={
+                    "llm.response.duration_ms": 2500,
+                    "llm.usage.total_tokens": 1000,
+                    "llm.usage.input_tokens": 200,
+                    "llm.usage.output_tokens": 800
+                }
+            ),
+        ]
+        session = SessionData("sess1", "agent1", "wf1")
+        for e in events:
+            session.add_event(e)
+        store._save_session(session)
+
+        result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+
+        assert result["count"] == 3
+
+        # Check llm.call.start event
+        start_evt = result["events"][0]
+        assert start_evt["name"] == "llm.call.start"
+        assert start_evt["model"] == "claude-3-opus"
+        assert start_evt["max_tokens"] == 4096
+        assert start_evt["message_count"] == 1
+        assert start_evt["tool_names"] == ["read_file", "write_file"]
+
+        # Check tool.execution event
+        tool_evt = result["events"][1]
+        assert tool_evt["name"] == "tool.execution"
+        assert tool_evt["tool_name"] == "read_file"
+        assert tool_evt["execution_time_ms"] == 150
+
+        # Check llm.call.finish event
+        finish_evt = result["events"][2]
+        assert finish_evt["name"] == "llm.call.finish"
+        assert finish_evt["duration_ms"] == 2500
+        assert finish_evt["total_tokens"] == 1000
+
+    def test_get_event_after_get_session_events_workflow(self, store):
+        """Test typical workflow: list events, then get full details."""
+        event = BaseEvent(
+            trace_id="a" * 32,
+            span_id="target123456789",
+            name=EventName.LLM_CALL_START,
+            agent_id="agent1",
+            session_id="sess1",
+            attributes={
+                "llm.request.data": {
+                    "model": "claude-3",
+                    "messages": [
+                        {"role": "system", "content": "You are helpful"},
+                        {"role": "user", "content": "Hello world, this is a long message"}
+                    ]
+                }
+            }
+        )
+        session = SessionData("sess1", "agent1", "wf1")
+        session.add_event(event)
+        store._save_session(session)
+
+        # Step 1: Get slim event list
+        list_result = call_tool("get_session_events", {"session_id": "sess1"}, store)
+        assert list_result["count"] == 1
+        slim_evt = list_result["events"][0]
+        assert slim_evt["message_count"] == 2
+        assert "attributes" not in slim_evt  # No full attributes in list
+
+        # Step 2: Get full details using the event ID from list
+        event_id = slim_evt["id"]
+        detail_result = call_tool("get_event", {
+            "session_id": "sess1",
+            "event_id": event_id
+        }, store)
+
+        assert "event" in detail_result
+        full_evt = detail_result["event"]
+        assert full_evt["id"] == event_id
+        assert "attributes" in full_evt  # Full attributes available
+        assert full_evt["attributes"]["llm.request.data"]["messages"][1]["content"] == "Hello world, this is a long message"
