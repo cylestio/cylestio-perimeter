@@ -526,6 +526,233 @@ def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]
     return {"agent": result, "message": "Agent updated successfully"}
 
 
+# ==================== Workflow Query Tools ====================
+
+@register_handler("get_workflow_agents")
+def handle_get_workflow_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """List all agents in a workflow with system prompts and session info."""
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    include_system_prompts = args.get("include_system_prompts", True)
+
+    agents = store.get_all_agents(agent_workflow_id=workflow_id)
+
+    if not agents:
+        return {
+            "workflow_id": workflow_id,
+            "agents": [],
+            "total_count": 0,
+            "recent_sessions": [],
+            "message": "No agents found for this workflow.",
+        }
+
+    agent_list = []
+    for agent in agents:
+        agent_info = {
+            "agent_id": agent.agent_id,
+            "agent_id_short": agent.agent_id[:12] if len(agent.agent_id) > 12 else agent.agent_id,
+            "display_name": agent.display_name,
+            "description": agent.description,
+            "last_seen": agent.last_seen.isoformat() if hasattr(agent.last_seen, 'isoformat') else str(agent.last_seen),
+            "session_count": agent.total_sessions,
+        }
+
+        if include_system_prompts:
+            agent_info["system_prompt"] = store.get_agent_system_prompt(agent.agent_id)
+
+        agent_list.append(agent_info)
+
+    recent_sessions = store.get_sessions_filtered(
+        agent_workflow_id=workflow_id,
+        limit=10,
+        offset=0,
+    )
+
+    return {
+        "workflow_id": workflow_id,
+        "agents": agent_list,
+        "total_count": len(agent_list),
+        "recent_sessions": recent_sessions,
+    }
+
+
+@register_handler("get_workflow_sessions")
+def handle_get_workflow_sessions(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get paginated sessions for a workflow."""
+    workflow_id = args.get("workflow_id") or args.get("agent_workflow_id")
+    if not workflow_id:
+        return {"error": "workflow_id is required"}
+
+    agent_id = args.get("agent_id")
+    status = args.get("status")
+    limit = min(args.get("limit", 20), 100)
+    offset = args.get("offset", 0)
+
+    sessions = store.get_sessions_filtered(
+        agent_workflow_id=workflow_id,
+        agent_id=agent_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+
+    total_count = store.count_sessions_filtered(
+        agent_workflow_id=workflow_id,
+        agent_id=agent_id,
+        status=status,
+    )
+
+    return {
+        "workflow_id": workflow_id,
+        "sessions": sessions,
+        "count": len(sessions),
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(sessions) < total_count,
+    }
+
+
+def _summarize_event(event) -> Dict[str, Any]:
+    """Create a slim summary of an event for list views."""
+    timestamp = event.timestamp
+    timestamp_str = timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+
+    summary = {
+        "id": event.span_id,
+        "name": event.name.value,
+        "timestamp": timestamp_str,
+        "level": event.level.value,
+    }
+
+    attrs = event.attributes if hasattr(event.attributes, 'get') else {}
+    event_name = event.name.value
+
+    # llm.call.start - extract model, message_count, max_tokens, tool_names
+    if event_name == "llm.call.start":
+        request_data = attrs.get("llm.request.data", {})
+        if isinstance(request_data, dict):
+            if request_data.get("model"):
+                summary["model"] = request_data["model"]
+            if request_data.get("max_tokens"):
+                summary["max_tokens"] = request_data["max_tokens"]
+
+            # Message count (Anthropic or OpenAI format)
+            messages = request_data.get("messages", [])
+            if messages:
+                summary["message_count"] = len(messages)
+
+            # Tool names only
+            tools = request_data.get("tools", [])
+            if tools:
+                summary["tool_names"] = [t.get("name") for t in tools if t.get("name")]
+
+    # llm.call.finish - extract metrics
+    elif event_name == "llm.call.finish":
+        if attrs.get("llm.response.duration_ms"):
+            summary["duration_ms"] = attrs["llm.response.duration_ms"]
+        if attrs.get("llm.usage.total_tokens"):
+            summary["total_tokens"] = attrs["llm.usage.total_tokens"]
+        if attrs.get("llm.usage.input_tokens"):
+            summary["input_tokens"] = attrs["llm.usage.input_tokens"]
+        if attrs.get("llm.usage.output_tokens"):
+            summary["output_tokens"] = attrs["llm.usage.output_tokens"]
+
+    # tool.execution - extract tool name and time
+    elif event_name == "tool.execution":
+        if attrs.get("tool.name"):
+            summary["tool_name"] = attrs["tool.name"]
+        if attrs.get("tool.execution_time_ms"):
+            summary["execution_time_ms"] = attrs["tool.execution_time_ms"]
+
+    # error events - include error type and message
+    if attrs.get("error.type"):
+        summary["error_type"] = attrs["error.type"]
+    if attrs.get("error.message"):
+        summary["error_message"] = attrs["error.message"]
+
+    return summary
+
+
+@register_handler("get_session_events")
+def handle_get_session_events(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get paginated events for a specific session."""
+    session_id = args.get("session_id")
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    limit = min(args.get("limit", 50), 200)
+    offset = args.get("offset", 0)
+    event_types = args.get("event_types")
+
+    session = store.get_session(session_id)
+    if not session:
+        return {"error": f"Session '{session_id}' not found"}
+
+    all_events = list(session.events)
+
+    if event_types:
+        all_events = [e for e in all_events if e.name.value in event_types]
+
+    total_count = len(all_events)
+    paginated_events = all_events[offset:offset + limit]
+
+    events = []
+    for event in paginated_events:
+        events.append(_summarize_event(event))
+
+    return {
+        "session_id": session_id,
+        "agent_id": session.agent_id,
+        "agent_workflow_id": session.agent_workflow_id,
+        "events": events,
+        "count": len(events),
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + len(events) < total_count,
+    }
+
+
+@register_handler("get_event")
+def handle_get_event(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """Get complete details for a single event."""
+    session_id = args.get("session_id")
+    event_id = args.get("event_id")
+
+    if not session_id:
+        return {"error": "session_id is required"}
+    if not event_id:
+        return {"error": "event_id is required"}
+
+    session = store.get_session(session_id)
+    if not session:
+        return {"error": f"Session '{session_id}' not found"}
+
+    # Find event by span_id
+    for event in session.events:
+        if event.span_id == event_id:
+            timestamp = event.timestamp
+            timestamp_str = timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+
+            return {
+                "event": {
+                    "id": event.span_id,
+                    "trace_id": event.trace_id,
+                    "name": event.name.value,
+                    "timestamp": timestamp_str,
+                    "level": event.level.value,
+                    "agent_id": event.agent_id,
+                    "session_id": event.session_id,
+                    "attributes": dict(event.attributes) if hasattr(event.attributes, 'items') else event.attributes,
+                }
+            }
+
+    return {"error": f"Event '{event_id}' not found in session '{session_id}'"}
+
+
 # ==================== IDE Connection Tools ====================
 
 @register_handler("register_ide_connection")
