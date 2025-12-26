@@ -4,7 +4,7 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A configurable Python proxy server for LLM API requests with middleware support, built with FastAPI.
+A configurable Python proxy server for LLM API requests with interceptor support, built with FastAPI.
 
 ## ✨ Features
 
@@ -14,11 +14,16 @@ A configurable Python proxy server for LLM API requests with middleware support,
 - **📊 Request Tracing**: Capture and save request/response data to JSON files
 - **🔍 Session Management**: Intelligent session detection using message history hashing
 - **🏷️ External ID Support**: Custom session and agent IDs via `x-cylestio-*` headers
-- **⚙️ Middleware System**: Extensible middleware for cross-cutting concerns
+- **⚙️ Interceptor System**: Extensible interceptors for tracing, logging, and analysis
 - **💻 CLI Interface**: Simple command-line interface with configuration file support
 - **🐳 Docker Support**: Ready-to-use Docker containers
 - **📈 Metrics Endpoint**: Monitor proxy performance and session statistics
 
+### Live Trace & Security
+- **🖥️ Live Trace Dashboard**: Real-time web UI for monitoring agent sessions and events
+- **🔒 Security Analysis**: OWASP LLM Top 10 pattern detection and risk scoring
+- **🕵️ PII Detection**: Automatic detection of personally identifiable information
+- **🤖 MCP Integration**: AI assistant integration via Model Context Protocol
 
 
 ## Quick Start
@@ -110,13 +115,12 @@ llm:
   type: "openai"
   api_key: "sk-your-key-here"
 
-middlewares:
-  - type: "trace"
+interceptors:
+  - type: "printer"
     enabled: true
     config:
-      directory: "./traces"
-      include_headers: true
-      include_body: true
+      log_requests: true
+      log_responses: true
 ```
 
 ### External ID Headers
@@ -165,6 +169,11 @@ cylestio-perimeter generate-config example.yaml
 cylestio-perimeter validate-config config.yaml
 ```
 
+### Replay Recorded Traffic
+```bash
+cylestio-perimeter replay recordings/ --config config.yaml --delay 0.5
+```
+
 ### Get Help
 ```bash
 cylestio-perimeter --help
@@ -187,31 +196,40 @@ uvicorn src.main:app --reload --port 4000
 - `--log-level`: Logging level (INFO, DEBUG, etc.)
 - `--config`: Path to YAML configuration file
 
-### Middleware Configuration
+### Interceptor Configuration
 
-#### Trace Middleware
-Captures request/response data to timestamped JSON files:
-```yaml
-middlewares:
-  - type: "trace"
-    enabled: true
-    config:
-      directory: "./traces"
-      include_headers: true
-      include_body: true
-      max_body_size: 1048576  # 1MB
-```
+Available interceptors that can be enabled in your config file:
 
-#### Printer Middleware
-Logs request/response information to console:
+| Interceptor | Description |
+|-------------|-------------|
+| `printer` | Logs requests/responses to console |
+| `message_logger` | Saves LLM conversations to JSONL files |
+| `event_recorder` | Records raw events per session |
+| `http_recorder` | Records HTTP traffic for replay testing |
+| `cylestio_trace` | Sends events to Cylestio platform |
+| `live_trace` | Real-time dashboard with security analysis |
+
+#### Printer Interceptor
 ```yaml
-middlewares:
+interceptors:
   - type: "printer"
     enabled: true
     config:
       log_requests: true
       log_responses: true
       log_body: false
+```
+
+#### Live Trace Interceptor
+```yaml
+interceptors:
+  - type: "live_trace"
+    enabled: true
+    config:
+      server_port: 7100
+      auto_open_browser: true
+      storage_mode: "sqlite"  # "memory" (default) or "sqlite" for persistence
+      enable_presidio: true   # PII detection
 ```
 
 ## Testing
@@ -234,8 +252,14 @@ pytest tests/test_config.py -v
 
 - `GET /health` - Health check endpoint
 - `GET /metrics` - Metrics endpoint with session statistics
-- `GET /config` - Current server configuration and middleware status
+- `GET /config` - Current server configuration and interceptor status
 - `/{path:path}` - Catch-all proxy route (all HTTP methods)
+
+**Live Trace endpoints** (when enabled):
+- `GET /api/dashboard` - Dashboard data with agents and sessions
+- `GET /api/agent/{id}` - Agent details with risk analysis
+- `GET /api/session/{id}` - Session timeline with events
+- `POST /mcp` - MCP protocol endpoint (SSE) for AI assistants
 
 ## Session Management
 
@@ -269,6 +293,30 @@ Response includes:
 - Cache hit/miss rates
 - Session creation rate
 - Fuzzy match statistics
+
+## Live Trace Dashboard
+
+When the `live_trace` interceptor is enabled, a real-time web dashboard is available for monitoring agent activity.
+
+### Features
+- **Real-time Monitoring**: View active sessions and events as they happen
+- **Security Analysis**: Automatic OWASP LLM Top 10 pattern detection
+- **PII Detection**: Identify personally identifiable information in requests/responses
+- **Risk Scoring**: Aggregate security scores for agents and sessions
+- **MCP Integration**: AI assistants can query data via the `/mcp` endpoint
+
+### Quick Start
+```yaml
+interceptors:
+  - type: "live_trace"
+    enabled: true
+    config:
+      server_port: 7100        # Dashboard port
+      auto_open_browser: true  # Open browser on startup
+      storage_mode: "sqlite"   # Persistent storage
+```
+
+Access the dashboard at `http://localhost:7100` after starting the server.
 
 ## Environment Variables
 

@@ -1,5 +1,5 @@
-# Basic Anthropic Claude Configuration
-# Usage: python -m src.main --config examples/configs/anthropic-basic.yaml
+# OpenAI Configuration with Live Trace Dashboard
+# Usage: python -m src.main --config examples/configs/openai-live-trace.yaml
 
 server:
   port: 4000
