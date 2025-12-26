@@ -1,4 +1,6 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fn } from 'storybook/test';
+
 import { ScanStatusCard } from './ScanStatusCard';
 
 const meta: Meta<typeof ScanStatusCard> = {
@@ -17,6 +19,11 @@ export const NoScansYet: Story = {
   args: {
     lastScan: null,
     summary: null,
+    onRunScan: fn(),
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('No scans yet')).toBeInTheDocument();
+    await expect(canvas.getByText('Run Security Scan')).toBeInTheDocument();
   },
 };
 
@@ -52,6 +59,12 @@ export const GateBlocked: Story = {
       { status: 'PASS' },
     ],
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Scan Status')).toBeInTheDocument();
+    await expect(canvas.getByText('15 files analyzed')).toBeInTheDocument();
+    await expect(canvas.getByText(/by claude-opus-4\.5/)).toBeInTheDocument();
+    await expect(canvas.getByText('Critical')).toBeInTheDocument();
+  },
 };
 
 export const GateOpen: Story = {
@@ -86,6 +99,11 @@ export const GateOpen: Story = {
       { status: 'PASS' },
     ],
   },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Scan Status')).toBeInTheDocument();
+    await expect(canvas.getByText('12 files analyzed')).toBeInTheDocument();
+    await expect(canvas.getByText('Low')).toBeInTheDocument();
+  },
 };
 
 export const WithInfoOnly: Story = {
@@ -119,5 +137,45 @@ export const WithInfoOnly: Story = {
       { status: 'PASS' },
       { status: 'PASS' },
     ],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Scan Status')).toBeInTheDocument();
+    await expect(canvas.getByText('8 files analyzed')).toBeInTheDocument();
+    await expect(canvas.getByText(/by gpt-4-turbo/)).toBeInTheDocument();
+  },
+};
+
+/** Shows scan with minimal data - only scanned_by, no files_analyzed or duration_ms */
+export const MinimalScanData: Story = {
+  args: {
+    lastScan: {
+      timestamp: '2025-12-21T13:54:02.905483+00:00',
+      scanned_by: 'AI Assistant',
+      files_analyzed: null,
+      duration_ms: null,
+      session_id: 'sess_cddf0aa67831',
+    },
+    summary: {
+      total_checks: 5,
+      passed: 5,
+      failed: 0,
+      info: 0,
+      gate_status: 'UNBLOCKED',
+    },
+    checkStatuses: [
+      { status: 'PASS' },
+      { status: 'PASS' },
+      { status: 'PASS' },
+      { status: 'PASS' },
+      { status: 'PASS' },
+    ],
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Scan Status')).toBeInTheDocument();
+    // Should show scanned_by without the separator since files_analyzed is null
+    await expect(canvas.getByText(/by AI Assistant/)).toBeInTheDocument();
+    // Should NOT show "files analyzed" text since it's null
+    const filesText = canvas.queryByText(/files analyzed/);
+    await expect(filesText).not.toBeInTheDocument();
   },
 };

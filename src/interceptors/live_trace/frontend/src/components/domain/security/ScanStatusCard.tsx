@@ -140,25 +140,27 @@ export const ScanStatusCard: FC<ScanStatusCardProps> = ({
             <Clock size={12} />
             Last scan: {formatDateTime(lastScan.timestamp)}
           </LastScanTime>
-          <ScanMeta>
-            {lastScan.files_analyzed !== undefined && (
-              <span>
-                <Files size={10} /> {lastScan.files_analyzed} files analyzed
-              </span>
-            )}
-            {lastScan.scanned_by && (
-              <span>
-                {' · '}
-                <Bot size={10} /> by {lastScan.scanned_by}
-              </span>
-            )}
-            {lastScan.duration_ms !== undefined && (
-              <span>
-                {' · '}
-                {(lastScan.duration_ms / 1000).toFixed(1)}s
-              </span>
-            )}
-          </ScanMeta>
+          {(lastScan.files_analyzed || lastScan.scanned_by || lastScan.duration_ms) && (
+            <ScanMeta>
+              {lastScan.files_analyzed && (
+                <span>
+                  <Files size={10} /> {lastScan.files_analyzed} files analyzed
+                </span>
+              )}
+              {lastScan.scanned_by && (
+                <span>
+                  {lastScan.files_analyzed && ' · '}
+                  <Bot size={10} /> by {lastScan.scanned_by}
+                </span>
+              )}
+              {lastScan.duration_ms && (
+                <span>
+                  {(lastScan.files_analyzed || lastScan.scanned_by) && ' · '}
+                  {(lastScan.duration_ms / 1000).toFixed(1)}s
+                </span>
+              )}
+            </ScanMeta>
+          )}
         </LastScanInfo>
         
         {onRunScan && (
