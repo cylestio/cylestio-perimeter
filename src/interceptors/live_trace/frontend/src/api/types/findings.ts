@@ -160,9 +160,9 @@ export interface SecurityCheck {
 // Static Summary Response with 7 check categories
 export interface StaticSummaryScan {
   timestamp: string;
-  scanned_by?: string;
-  files_analyzed?: number;
-  duration_ms?: number;
+  scanned_by?: string | null;
+  files_analyzed?: number | null;
+  duration_ms?: number | null;
   session_id: string;
 }
 

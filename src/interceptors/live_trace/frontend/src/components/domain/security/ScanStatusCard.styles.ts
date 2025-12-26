@@ -42,8 +42,18 @@ export const LastScanTime = styled.span`
 `;
 
 export const ScanMeta = styled.span`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing[1]};
   font-size: 11px;
   color: ${({ theme }) => theme.colors.white50};
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
 `;
 
 export const ScanActions = styled.div`
