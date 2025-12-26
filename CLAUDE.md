@@ -80,7 +80,6 @@ pytest -v
 - `src/providers/` - LLM provider implementations (OpenAI, Anthropic)
 - `src/interceptors/` - Request/response interceptors for tracing, logging, and analysis
   - `live_trace/` - Live tracing with web UI, analysis modules (PII, security, behavioral)
-  - `cylestio_trace/` - Cylestio platform integration
 - `src/events/` - Event system for request/response tracking
 - `src/replay/` - HTTP traffic replay service and pipeline
 - `src/utils/` - Utilities for logging
@@ -97,14 +96,12 @@ pytest -v
 - **pydantic-settings**: Type-safe configuration management
 - **uvicorn**: ASGI server for running the application
 - **typer**: CLI framework for command-line interface
-- **descope**: Authentication service integration
 - **presidio-analyzer/spacy**: PII detection and NLP
 
 ### Interceptor System
 The proxy supports configurable interceptors specified in config.yaml:
 - **printer**: Logs requests and responses to console
 - **message_logger**: Logs messages to files
-- **cylestio_trace**: Traces requests to Cylestio platform
 - **event_recorder**: Records events for analysis and replay
 - **http_recorder**: Records HTTP request/response pairs for replay
 - **live_trace**: Real-time tracing with web UI, security analysis, PII detection

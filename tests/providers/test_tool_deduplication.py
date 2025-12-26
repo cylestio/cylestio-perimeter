@@ -267,7 +267,7 @@ class TestIndexBasedDeduplication:
         assert new_index == 3  # Same index
         assert len(events) == 0  # No events created
     
-    def test_conversation_growth_metadata(self):
+    def test_conversation_growth_cylestio_metadata(self):
         """Test that metadata correctly reflects conversation growth."""
         initial_messages = [
             {'role': 'system', 'content': 'You are a helpful assistant.'},

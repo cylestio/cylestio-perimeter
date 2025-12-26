@@ -28,15 +28,7 @@ interceptors:
       file_format: "jsonl"              # "json" or "jsonl" format
       pretty_print: false               # Pretty-print JSON (only for "json" format)
       include_metadata: true            # Include file metadata
-      
-  # Cylestio trace interceptor
-  - type: "cylestio_trace"
-    enabled: true
-    config:
-      api_url: "http://localhost:8000"
-      access_key: "${CYLESTIO_ACCESS_KEY}"  # Set this environment variable
-      timeout: 10
-      
+
 logging:
   level: "INFO"
   format: "text"
