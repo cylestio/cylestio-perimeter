@@ -49,6 +49,16 @@ export interface OutlierSession {
   session_id: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
   primary_causes: string[];
+  distance_to_nearest_centroid?: number;
+  anomaly_score?: number;
+  nearest_cluster_id?: string;
+}
+
+export interface CentroidDistance {
+  from_cluster: string;
+  to_cluster: string;
+  distance: number;
+  similarity_score: number;
 }
 
 export interface BehavioralAnalysis {
@@ -60,6 +70,7 @@ export interface BehavioralAnalysis {
   interpretation?: string;
   clusters?: BehavioralCluster[];
   outliers?: OutlierSession[];
+  centroid_distances?: CentroidDistance[];
 }
 
 export interface RiskAnalysisSummary {

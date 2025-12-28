@@ -5,6 +5,7 @@ export type {
   ClusterNodeType,
   ClusterNodeSize,
   ClusterNodeMetadata,
+  ClusterLink,
 } from './ClusterVisualization';
 
 export { SurfaceNode } from './SurfaceNode';

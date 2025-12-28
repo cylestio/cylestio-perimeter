@@ -23,6 +23,40 @@ export const ClusterArea = styled.div<ClusterAreaProps>`
   );
 `;
 
+// SVG Canvas for links and nodes
+export const SvgCanvas = styled.svg`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+`;
+
+export type LinkType = 'cluster-to-cluster' | 'outlier-to-cluster';
+
+interface SvgLinkProps {
+  $type: LinkType;
+  $opacity: number;
+}
+
+export const SvgLink = styled.line<SvgLinkProps>`
+  opacity: ${({ $opacity }) => $opacity};
+  transition: opacity ${({ theme }) => theme.transitions.base};
+
+  ${({ $type, theme }) =>
+    $type === 'cluster-to-cluster' &&
+    css`
+      stroke: ${theme.colors.cyan};
+    `}
+
+  ${({ $type, theme }) =>
+    $type === 'outlier-to-cluster' &&
+    css`
+      stroke: ${theme.colors.white30};
+    `}
+`;
+
 interface NodeWrapperProps {
   $x: number;
   $y: number;
@@ -33,6 +67,7 @@ export const NodeWrapper = styled.div<NodeWrapperProps>`
   left: ${({ $x }) => $x}%;
   top: ${({ $y }) => $y}%;
   transform: translate(-50%, -50%);
+  z-index: 1;
 `;
 
 const glowPulse = keyframes`
