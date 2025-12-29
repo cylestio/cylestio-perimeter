@@ -49,7 +49,24 @@ const calculateClusterPosition = (
 };
 
 /**
+ * Map node size to radius in percentage units.
+ * Original used pixels (20-40px), we use % for CSS positioning.
+ * In a ~400px container: sm=12px≈3%, md=20px≈5%, lg=32px≈8%
+ */
+const sizeToRadius: Record<string, number> = {
+  sm: 3,
+  md: 5,
+  lg: 8,
+};
+
+/**
  * Calculate outlier position based on distance to nearest cluster.
+ *
+ * Original algorithm (clusterVisualization.js):
+ *   distancePixels = min(120, distance * 80 + clusterRadius + 10)
+ *
+ * Converted to percentages (400px → 100%):
+ *   distancePercent = min(30, distance * 20 + clusterRadiusPercent + 2.5)
  */
 const calculateOutlierPosition = (
   outlier: OutlierSession,
@@ -64,14 +81,15 @@ const calculateOutlierPosition = (
 
   if (!nearestCluster) {
     // Fallback to edge positioning
-    return { x: 85, y: 20 + (indexInCluster * 20) % 60 };
+    return { x: 85, y: 20 + ((indexInCluster * 20) % 60) };
   }
 
   // Position outlier based on distance from cluster center
-  // Scale: 0.0 distance = close, 1.0 distance = far away
-  // Use distance * 20% as radius, plus base offset
+  // Original: distance * 80 + clusterRadius + 10, capped at 120px
+  // Converted: distance * 20 + clusterRadius% + 2.5, capped at 30%
   const distance = outlier.distance_to_nearest_centroid ?? 0.5;
-  const distanceRadius = Math.min(30, distance * 20 + 10);
+  const clusterRadius = sizeToRadius[nearestCluster.size] ?? 5;
+  const distanceRadius = Math.min(30, distance * 20 + clusterRadius + 2.5);
 
   // Distribute outliers around the cluster at different angles
   // Add π/4 offset to prevent alignment at 0°
