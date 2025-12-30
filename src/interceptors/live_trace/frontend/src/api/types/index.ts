@@ -5,6 +5,7 @@ export {
   type BehavioralClusterCharacteristics,
   type BehavioralCluster,
   type OutlierSession,
+  type CentroidDistance,
   type BehavioralAnalysis,
   type RiskAnalysisSummary,
   type RiskAnalysis,

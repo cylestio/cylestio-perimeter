@@ -10,6 +10,8 @@ import {
   ClusterLegend,
   LegendItem,
   LegendDot,
+  SvgCanvas,
+  SvgLink,
   TooltipWrapper,
   TooltipHeader,
   TooltipIndicator,
@@ -50,8 +52,16 @@ export interface ClusterNodeData {
   metadata?: ClusterNodeMetadata;
 }
 
+export interface ClusterLink {
+  source: string;
+  target: string;
+  type: 'outlier-to-cluster' | 'cluster-to-cluster';
+  strength?: number;
+}
+
 export interface ClusterVisualizationProps {
   nodes: ClusterNodeData[];
+  links?: ClusterLink[];
   height?: number;
   onNodeClick?: (node: ClusterNodeData) => void;
   showLegend?: boolean;
@@ -167,22 +177,53 @@ const buildTooltipContent = (node: ClusterNodeData, hasClickHandler: boolean): R
   );
 };
 
+
 // Component
 export const ClusterVisualization: FC<ClusterVisualizationProps> = ({
   nodes,
+  links = [],
   height = 200,
   onNodeClick,
   showLegend = true,
 }) => {
+  // Create a map of node positions for link rendering
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+
   return (
     <ClusterContainer>
       <ClusterArea $height={height}>
+        {/* SVG layer for links only */}
+        <SvgCanvas>
+          {links.map((link) => {
+            const sourceNode = nodeMap.get(link.source);
+            const targetNode = nodeMap.get(link.target);
+
+            if (!sourceNode || !targetNode) return null;
+
+            const isClusterLink = link.type === 'cluster-to-cluster';
+            const opacity = isClusterLink ? (link.strength ?? 0.5) * 0.6 + 0.2 : 0.4;
+            const strokeWidth = isClusterLink ? 2 : 1;
+            const dashArray = isClusterLink ? undefined : '4,4';
+
+            return (
+              <SvgLink
+                key={`${link.source}-${link.target}`}
+                x1={`${sourceNode.x}%`}
+                y1={`${sourceNode.y}%`}
+                x2={`${targetNode.x}%`}
+                y2={`${targetNode.y}%`}
+                $type={link.type}
+                $opacity={opacity}
+                strokeWidth={strokeWidth}
+                strokeDasharray={dashArray}
+              />
+            );
+          })}
+        </SvgCanvas>
+
+        {/* Node layer with div-based circles for proper theme colors */}
         {nodes.map((node) => (
-          <NodeWrapper
-            key={node.id}
-            $x={node.x}
-            $y={node.y}
-          >
+          <NodeWrapper key={node.id} $x={node.x} $y={node.y}>
             <Tooltip content={buildTooltipContent(node, !!onNodeClick)} position="top" delay={100}>
               <ClusterNodeCircle
                 data-testid={`cluster-node-${node.id}`}

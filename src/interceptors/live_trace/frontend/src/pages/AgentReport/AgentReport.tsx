@@ -609,15 +609,22 @@ export const AgentReport: FC = () => {
                   </ScoresRow>
 
                   {/* Cluster Visualization */}
-                  <ClusterVisualization
-                    nodes={buildVisualizationNodes(
+                  {(() => {
+                    const { nodes, links } = buildVisualizationNodes(
                       riskAnalysis.behavioral_analysis.clusters,
-                      riskAnalysis.behavioral_analysis.outliers
-                    )}
-                    height={200}
-                    showLegend={true}
-                    onNodeClick={handleClusterNodeClick}
-                  />
+                      riskAnalysis.behavioral_analysis.outliers,
+                      riskAnalysis.behavioral_analysis.centroid_distances
+                    );
+                    return (
+                      <ClusterVisualization
+                        nodes={nodes}
+                        links={links}
+                        height={200}
+                        showLegend={true}
+                        onNodeClick={handleClusterNodeClick}
+                      />
+                    );
+                  })()}
                 </>
               ) : (
                 <InterpretationBox>

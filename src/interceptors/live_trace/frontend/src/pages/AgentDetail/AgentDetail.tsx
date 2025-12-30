@@ -333,15 +333,22 @@ export const AgentDetail: FC = () => {
                         {(riskAnalysis.behavioral_analysis.clusters?.length ?? 0) > 0 && (
                           <ChartColumn>
                             <ChartLabel>Cluster Map</ChartLabel>
-                            <ClusterVisualization
-                              nodes={buildVisualizationNodes(
+                            {(() => {
+                              const { nodes, links } = buildVisualizationNodes(
                                 riskAnalysis.behavioral_analysis.clusters,
-                                riskAnalysis.behavioral_analysis.outliers
-                              )}
-                              height={160}
-                              showLegend={true}
-                              onNodeClick={handleClusterNodeClick}
-                            />
+                                riskAnalysis.behavioral_analysis.outliers,
+                                riskAnalysis.behavioral_analysis.centroid_distances
+                              );
+                              return (
+                                <ClusterVisualization
+                                  nodes={nodes}
+                                  links={links}
+                                  height={160}
+                                  showLegend={true}
+                                  onNodeClick={handleClusterNodeClick}
+                                />
+                              );
+                            })()}
                           </ChartColumn>
                         )}
 
