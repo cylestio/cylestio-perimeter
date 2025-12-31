@@ -102,3 +102,25 @@ export interface DashboardResponse {
   refresh_interval: number;
   security_analysis?: SecurityAnalysis;
 }
+
+// Production Readiness - Single source of truth for security status
+export type ProductionReadinessStatus = 'pending' | 'running' | 'completed';
+
+export interface AnalysisStatus {
+  status: ProductionReadinessStatus;
+  critical_count: number;
+  session_id: string | null;
+}
+
+export interface GateInfo {
+  is_blocked: boolean;
+  blocking_count: number;
+  state: 'BLOCKED' | 'OPEN';
+}
+
+export interface ProductionReadinessResponse {
+  workflow_id: string;
+  static_analysis: AnalysisStatus;
+  dynamic_analysis: AnalysisStatus;
+  gate: GateInfo;
+}

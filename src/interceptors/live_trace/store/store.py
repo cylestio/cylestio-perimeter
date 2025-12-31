@@ -3698,66 +3698,92 @@ class TraceStore:
                 'superseded_count': resolved_count,
             }
 
-    def get_gate_status(self, workflow_id: str) -> Dict[str, Any]:
-        """Calculate gate status for a workflow.
+    def get_production_readiness(self, workflow_id: str) -> Dict[str, Any]:
+        """Single source of truth for production readiness status.
 
-        Returns blocking item counts and whether the gate is open or blocked.
+        Combines analysis session status with recommendation counts to provide
+        a unified view of static/dynamic analysis progress and gate status.
 
         Args:
             workflow_id: The workflow ID
 
         Returns:
-            Dict with gate status information
+            Dict with production readiness information including:
+            - static_analysis: status and critical count
+            - dynamic_analysis: status and critical count
+            - gate: blocking status
         """
         with self._lock:
-            # Get blocking recommendations (CRITICAL/HIGH not fixed/verified/dismissed)
+            # Get analysis sessions for this workflow
             cursor = self.db.execute("""
-                SELECT severity, COUNT(*) as count
+                SELECT session_id, session_type, status, created_at
+                FROM analysis_sessions
+                WHERE agent_workflow_id = ?
+                ORDER BY created_at DESC
+            """, (workflow_id,))
+            sessions = cursor.fetchall()
+
+            # Determine static analysis status
+            static_sessions = [s for s in sessions if s['session_type'] == 'STATIC']
+            static_in_progress = any(s['status'] == 'IN_PROGRESS' for s in static_sessions)
+            static_completed = any(s['status'] == 'COMPLETED' for s in static_sessions)
+            latest_static_session_id = static_sessions[0]['session_id'] if static_sessions else None
+
+            if static_in_progress:
+                static_status = 'running'
+            elif static_completed:
+                static_status = 'completed'
+            else:
+                static_status = 'pending'
+
+            # Determine dynamic analysis status
+            dynamic_sessions = [s for s in sessions if s['session_type'] == 'DYNAMIC']
+            dynamic_in_progress = any(s['status'] == 'IN_PROGRESS' for s in dynamic_sessions)
+            dynamic_completed = any(s['status'] == 'COMPLETED' for s in dynamic_sessions)
+            latest_dynamic_session_id = dynamic_sessions[0]['session_id'] if dynamic_sessions else None
+
+            if dynamic_in_progress:
+                dynamic_status = 'running'
+            elif dynamic_completed:
+                dynamic_status = 'completed'
+            else:
+                dynamic_status = 'pending'
+
+            # Count blocking recommendations by source_type
+            # Only count CRITICAL/HIGH that are not in terminal states
+            terminal_states = ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED')
+
+            cursor = self.db.execute("""
+                SELECT source_type, COUNT(*) as count
                 FROM recommendations
                 WHERE workflow_id = ?
                   AND severity IN ('CRITICAL', 'HIGH')
-                  AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED')
-                GROUP BY severity
-            """, (workflow_id,))
+                  AND status NOT IN (?, ?, ?, ?, ?, ?)
+                GROUP BY source_type
+            """, (workflow_id, *terminal_states))
 
-            blocking = {row['severity']: row['count'] for row in cursor.fetchall()}
-            critical_count = blocking.get('CRITICAL', 0)
-            high_count = blocking.get('HIGH', 0)
-            total_blocking = critical_count + high_count
-
-            # Get total counts by status
-            cursor = self.db.execute("""
-                SELECT status, COUNT(*) as count
-                FROM recommendations
-                WHERE workflow_id = ?
-                GROUP BY status
-            """, (workflow_id,))
-
-            by_status = {row['status']: row['count'] for row in cursor.fetchall()}
-
-            # Get total counts by severity
-            cursor = self.db.execute("""
-                SELECT severity, COUNT(*) as count
-                FROM recommendations
-                WHERE workflow_id = ?
-                GROUP BY severity
-            """, (workflow_id,))
-
-            by_severity = {row['severity']: row['count'] for row in cursor.fetchall()}
-
-            # Calculate gate state
-            gate_state = 'BLOCKED' if total_blocking > 0 else 'OPEN'
+            blocking_by_source = {row['source_type']: row['count'] for row in cursor.fetchall()}
+            static_critical_count = blocking_by_source.get('STATIC', 0)
+            dynamic_critical_count = blocking_by_source.get('DYNAMIC', 0)
+            total_blocking = static_critical_count + dynamic_critical_count
 
             return {
                 'workflow_id': workflow_id,
-                'gate_state': gate_state,
-                'is_blocked': total_blocking > 0,
-                'blocking_count': total_blocking,
-                'blocking_critical': critical_count,
-                'blocking_high': high_count,
-                'by_status': by_status,
-                'by_severity': by_severity,
-                'total_recommendations': sum(by_status.values()) if by_status else 0,
+                'static_analysis': {
+                    'status': static_status,
+                    'critical_count': static_critical_count,
+                    'session_id': latest_static_session_id,
+                },
+                'dynamic_analysis': {
+                    'status': dynamic_status,
+                    'critical_count': dynamic_critical_count,
+                    'session_id': latest_dynamic_session_id,
+                },
+                'gate': {
+                    'is_blocked': total_blocking > 0,
+                    'blocking_count': total_blocking,
+                    'state': 'BLOCKED' if total_blocking > 0 else 'OPEN',
+                },
             }
 
     def _deserialize_recommendation(self, row: sqlite3.Row) -> Dict[str, Any]:

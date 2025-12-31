@@ -1109,14 +1109,24 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error dismissing recommendation: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    @app.get("/api/workflow/{workflow_id}/gate-status")
-    async def api_get_gate_status(workflow_id: str):
-        """Get the gate status for a workflow (blocked/open)."""
+    @app.get("/api/workflow/{workflow_id}/production-readiness")
+    async def api_get_production_readiness(workflow_id: str):
+        """Get production readiness status for a workflow.
+
+        Single source of truth for static/dynamic analysis status and gate status.
+        Used by both the Overview page ProductionReadiness component and the
+        sidebar Security Checks timeline.
+
+        Returns:
+            - static_analysis: status (pending/running/completed), critical_count
+            - dynamic_analysis: status (pending/running/completed), critical_count
+            - gate: is_blocked, blocking_count, state (BLOCKED/OPEN)
+        """
         try:
-            gate_status = insights.store.get_gate_status(workflow_id)
-            return JSONResponse(gate_status)
+            readiness = insights.store.get_production_readiness(workflow_id)
+            return JSONResponse(readiness)
         except Exception as e:
-            logger.error(f"Error getting gate status: {e}")
+            logger.error(f"Error getting production readiness: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/workflow/{workflow_id}/compliance-report")

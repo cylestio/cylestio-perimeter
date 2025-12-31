@@ -16,11 +16,11 @@ import {
   SystemPromptsIcon,
 } from '@constants/pageIcons';
 import type { ConfigResponse } from '@api/types/config';
-import type { DashboardResponse, AnalysisStage } from '@api/types/dashboard';
+import type { DashboardResponse, ProductionReadinessResponse, ProductionReadinessStatus } from '@api/types/dashboard';
 import type { IDEConnectionStatus } from '@api/types/ide';
 import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchConfig } from '@api/endpoints/config';
-import { fetchDashboard, fetchAgentWorkflows } from '@api/endpoints/dashboard';
+import { fetchDashboard, fetchAgentWorkflows, fetchProductionReadiness } from '@api/endpoints/dashboard';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import { fetchRecommendations } from '@api/endpoints/agentWorkflow';
 import type { Recommendation } from '@api/types/findings';
@@ -57,60 +57,20 @@ import {
   AgentWorkflowsHome
 } from '@pages/index';
 
-// Convert backend stage status to SecurityCheckStatus
-function stageToSecurityStatus(stage: AnalysisStage | undefined): SecurityCheckStatus {
-  if (!stage) return 'inactive';
-
-  switch (stage.status) {
-    case 'active':
+// Convert ProductionReadinessStatus to SecurityCheckStatus
+function readinessToSecurityStatus(
+  status: ProductionReadinessStatus,
+  criticalCount: number
+): SecurityCheckStatus {
+  switch (status) {
+    case 'running':
       return 'running';
     case 'completed':
-      // For completed analysis, derive severity from embedded findings
-      if (stage.findings) {
-        const openCritical = stage.findings.by_severity?.CRITICAL ?? 0;
-        const openHigh = stage.findings.by_severity?.HIGH ?? 0;
-        const openMedium = stage.findings.by_severity?.MEDIUM ?? 0;
-        if (openCritical > 0 || openHigh > 0) return 'critical';
-        if (openMedium > 0) return 'warning';
-        return 'ok';
-      }
-      return 'ok';
+      return criticalCount > 0 ? 'critical' : 'ok';
     case 'pending':
     default:
       return 'inactive';
   }
-}
-
-// Get open findings count from stage
-function getOpenFindingsCount(stage: AnalysisStage | undefined): number | undefined {
-  if (!stage?.findings) return undefined;
-  const openCount = stage.findings.by_status?.OPEN ?? 0;
-  return openCount > 0 ? openCount : undefined;
-}
-
-// Get badge color based on highest severity of open findings
-function getSeverityBadgeColor(stage: AnalysisStage | undefined): 'red' | 'orange' | 'yellow' | 'green' | 'cyan' | undefined {
-  if (!stage?.findings?.by_severity) return undefined;
-  const sev = stage.findings.by_severity;
-  // Check highest severity first
-  if ((sev.CRITICAL ?? 0) > 0) return 'red';
-  if ((sev.HIGH ?? 0) > 0) return 'red';
-  if ((sev.MEDIUM ?? 0) > 0) return 'yellow';
-  if ((sev.LOW ?? 0) > 0) return 'cyan';
-  return undefined;
-}
-
-// Get dynamic analysis stat text (sessions progress or findings count)
-function getDynamicAnalysisStat(stage: AnalysisStage | undefined): string | undefined {
-  if (!stage) return undefined;
-  
-  // If we have sessions progress and status is active, show progress
-  if (stage.sessions_progress && stage.status === 'active') {
-    const { current, required } = stage.sessions_progress;
-    return `${current}/${required}`;
-  }
-  
-  return undefined;
 }
 
 // Convert API agent workflow to component agent workflow
@@ -124,14 +84,6 @@ const toAgentWorkflow = (api: APIAgentWorkflow): AgentWorkflow => ({
 function getAgentWorkflowIdFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/agent-workflow\/([^/]+)/);
   return match ? match[1] : null;
-}
-
-// Determine if all security checks are passed (for Production unlock)
-function areAllChecksGreen(data: DashboardResponse | null): boolean {
-  if (!data?.security_analysis) return false;
-  const staticStatus = stageToSecurityStatus(data.security_analysis.static);
-  const dynamicStatus = stageToSecurityStatus(data.security_analysis.dynamic);
-  return staticStatus === 'ok' && dynamicStatus === 'ok';
 }
 
 function AppLayout() {
@@ -288,6 +240,18 @@ function AppLayout() {
     enabled: true,
   });
 
+  // Poll production readiness for security check states
+  const readinessFetchFn = useCallback(
+    () => urlAgentWorkflowId && urlAgentWorkflowId !== 'unassigned'
+      ? fetchProductionReadiness(urlAgentWorkflowId)
+      : Promise.resolve(null),
+    [urlAgentWorkflowId]
+  );
+  const { data: readinessData } = usePolling<ProductionReadinessResponse | null>(readinessFetchFn, {
+    interval: 2000,
+    enabled: !!urlAgentWorkflowId && urlAgentWorkflowId !== 'unassigned',
+  });
+
   const agents = data?.agents ?? [];
   const dashboardLoaded = !loading && data !== null;
 
@@ -305,11 +269,17 @@ function AppLayout() {
     }
   }, [location.pathname, agentWorkflowsLoaded, dashboardLoaded, hasData, navigate]);
 
-  // Security check states
-  const staticStatus = stageToSecurityStatus(data?.security_analysis?.static);
-  const dynamicStatus = stageToSecurityStatus(data?.security_analysis?.dynamic);
-  const allChecksGreen = areAllChecksGreen(data);
-  
+  // Security check states (from production-readiness endpoint)
+  const staticStatus = readinessData
+    ? readinessToSecurityStatus(readinessData.static_analysis.status, readinessData.static_analysis.critical_count)
+    : 'inactive';
+  const dynamicStatus = readinessData
+    ? readinessToSecurityStatus(readinessData.dynamic_analysis.status, readinessData.dynamic_analysis.critical_count)
+    : 'inactive';
+  const allChecksGreen = readinessData
+    ? !readinessData.gate.is_blocked && staticStatus === 'ok' && dynamicStatus === 'ok'
+    : false;
+
   // Dev connection status - from actual IDE connection
   // States:
   // - 'running': Actively developing (pulsing green animation)
@@ -418,8 +388,8 @@ function AppLayout() {
               <SecurityCheckItem
                 label="Static Analysis"
                 status={staticStatus}
-                count={getOpenFindingsCount(data?.security_analysis?.static)}
-                badgeColor={getSeverityBadgeColor(data?.security_analysis?.static)}
+                count={readinessData?.static_analysis.critical_count || undefined}
+                badgeColor={readinessData?.static_analysis.critical_count ? 'red' : undefined}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/static-analysis`}
@@ -430,9 +400,8 @@ function AppLayout() {
               <SecurityCheckItem
                 label="Dynamic Analysis"
                 status={dynamicStatus}
-                count={getOpenFindingsCount(data?.security_analysis?.dynamic)}
-                badgeColor={getSeverityBadgeColor(data?.security_analysis?.dynamic)}
-                stat={getDynamicAnalysisStat(data?.security_analysis?.dynamic)}
+                count={readinessData?.dynamic_analysis.critical_count || undefined}
+                badgeColor={readinessData?.dynamic_analysis.critical_count ? 'red' : undefined}
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/dynamic-analysis`}

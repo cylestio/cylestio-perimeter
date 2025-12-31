@@ -4,13 +4,13 @@ import { RefreshCw } from 'lucide-react';
 import styled from 'styled-components';
 
 import { RecommendationsIcon } from '@constants/pageIcons';
-import { 
-  fetchRecommendations, 
-  fetchGateStatus,
+import {
+  fetchRecommendations,
   completeFix,
   dismissRecommendation,
-  type GateStatusResponse,
 } from '@api/endpoints/agentWorkflow';
+import { fetchProductionReadiness } from '@api/endpoints/dashboard';
+import type { ProductionReadinessResponse } from '@api/types/dashboard';
 import type { 
   Recommendation, 
   SecurityCheckCategory,
@@ -179,7 +179,7 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
 
   // State
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-  const [gateStatus, setGateStatus] = useState<GateStatusResponse | null>(null);
+  const [productionReadiness, setProductionReadiness] = useState<ProductionReadinessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -218,12 +218,12 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
     setError(null);
 
     try {
-      const [recsData, gateData] = await Promise.all([
+      const [recsData, readinessData] = await Promise.all([
         fetchRecommendations(agentWorkflowId, { limit: 500 }),
-        fetchGateStatus(agentWorkflowId),
+        fetchProductionReadiness(agentWorkflowId),
       ]);
       setRecommendations(recsData.recommendations);
-      setGateStatus(gateData);
+      setProductionReadiness(readinessData);
     } catch (err) {
       console.error('Failed to fetch recommendations:', err);
       setError(err instanceof Error ? err.message : 'Failed to load recommendations');
@@ -420,12 +420,12 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
             />
 
             {/* Overview Tab */}
-            {activeTab === 'overview' && gateStatus && (
+            {activeTab === 'overview' && productionReadiness && (
               <TabContent>
                 {/* Summary Stats */}
                 <SummaryStatsBar
                   recommendations={recommendations}
-                  gateStatus={gateStatus.gate_status}
+                  gateStatus={productionReadiness.gate.state === 'BLOCKED' ? 'BLOCKED' : 'UNBLOCKED'}
                   blockingCritical={blockingCritical}
                   blockingHigh={blockingHigh}
                 />
