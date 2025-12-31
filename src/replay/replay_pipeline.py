@@ -131,7 +131,7 @@ class ReplayPipeline:
                 "type": config.llm.type if config.llm else "unknown",
                 "timeout": config.llm.timeout if config.llm else 30,
                 "max_retries": config.llm.max_retries if config.llm else 3,
-                "proxy_host": config.server.host if config.server else "0.0.0.0",
+                "proxy_host": config.server.host if config.server else "127.0.0.1",
                 "proxy_port": config.server.port if config.server else 4000
             }
             # Prepare global config for interceptors
@@ -141,11 +141,11 @@ class ReplayPipeline:
                     "session_completion_timeout": config.live_trace.session_completion_timeout,
                     "completion_check_interval": config.live_trace.completion_check_interval
                 }
-            
+
             self.interceptors = interceptor_manager.create_interceptors(
-                config.interceptors, 
-                provider_name, 
-                provider_config, 
+                config.interceptors,
+                provider_name,
+                provider_config,
                 global_config
             )
             # Only use enabled interceptors and exclude http_recorder during replay

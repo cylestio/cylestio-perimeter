@@ -74,7 +74,7 @@ class LiveTraceInterceptor(BaseInterceptor):
         proxy_config = {
             "provider_type": self.provider_name,
             "provider_base_url": self.provider_config.get("base_url", "unknown"),
-            "proxy_host": self.provider_config.get("proxy_host", "0.0.0.0"),
+            "proxy_host": self.provider_config.get("proxy_host", "127.0.0.1"),
             "proxy_port": self.provider_config.get("proxy_port", 4000),
             "enable_presidio": self.enable_presidio,
             "api_key": self.provider_config.get("api_key"),
