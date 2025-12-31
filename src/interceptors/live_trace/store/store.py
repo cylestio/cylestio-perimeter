@@ -3962,7 +3962,17 @@ class TraceStore:
         findings = self.get_findings(agent_workflow_id=workflow_id, limit=1000)
         recommendations = self.get_recommendations(workflow_id=workflow_id, limit=1000)
         audit_log = self.get_audit_log(limit=50)  # Last 50 entries
-        gate_status = self.get_gate_status(workflow_id)
+        readiness = self.get_production_readiness(workflow_id)
+        # Build backwards-compatible gate_status from new format
+        static_critical = readiness['static_analysis']['critical_count']
+        dynamic_critical = readiness['dynamic_analysis']['critical_count']
+        gate_status = {
+            "gate_state": readiness['gate']['state'],
+            "is_blocked": readiness['gate']['is_blocked'],
+            "blocking_count": readiness['gate']['blocking_count'],
+            "blocking_critical": static_critical + dynamic_critical,
+            "blocking_high": 0,  # Not tracked separately in new format
+        }
 
         # Group findings by OWASP LLM category
         by_owasp = self._group_findings_by_owasp(findings)

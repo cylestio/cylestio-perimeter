@@ -1049,33 +1049,31 @@ class TestRecommendationMethods:
         finding = store.get_finding("find_dismiss")
         assert finding['status'] == "DISMISSED"
 
-    def test_get_gate_status_blocked(self, store):
-        """Test gate status when critical/high issues exist."""
+    def test_get_production_readiness_blocked(self, store):
+        """Test production readiness when critical/high issues exist."""
         store.store_finding("f1", "sess_recs", "test_workflow", "/f.py", "LLM01", "CRITICAL", "Critical")
         store.store_finding("f2", "sess_recs", "test_workflow", "/f.py", "LLM02", "HIGH", "High1")
         store.store_finding("f3", "sess_recs", "test_workflow", "/f.py", "LLM03", "HIGH", "High2")
         store.store_finding("f4", "sess_recs", "test_workflow", "/f.py", "LLM04", "MEDIUM", "Medium")
 
-        gate = store.get_gate_status("test_workflow")
-        
-        assert gate['gate_state'] == "BLOCKED"
-        assert gate['is_blocked'] is True
-        assert gate['blocking_critical'] == 1
-        assert gate['blocking_high'] == 2
-        assert gate['blocking_count'] == 3
+        readiness = store.get_production_readiness("test_workflow")
 
-    def test_get_gate_status_open(self, store):
-        """Test gate status when no blocking issues."""
+        assert readiness['gate']['state'] == "BLOCKED"
+        assert readiness['gate']['is_blocked'] is True
+        assert readiness['gate']['blocking_count'] == 3  # 1 critical + 2 high
+
+    def test_get_production_readiness_open(self, store):
+        """Test production readiness when no blocking issues."""
         store.store_finding("f1", "sess_recs", "test_workflow", "/f.py", "LLM01", "MEDIUM", "Medium")
         store.store_finding("f2", "sess_recs", "test_workflow", "/f.py", "LLM02", "LOW", "Low")
 
-        gate = store.get_gate_status("test_workflow")
-        
-        assert gate['gate_state'] == "OPEN"
-        assert gate['is_blocked'] is False
-        assert gate['blocking_count'] == 0
+        readiness = store.get_production_readiness("test_workflow")
 
-    def test_get_gate_status_open_after_fixes(self, store):
+        assert readiness['gate']['state'] == "OPEN"
+        assert readiness['gate']['is_blocked'] is False
+        assert readiness['gate']['blocking_count'] == 0
+
+    def test_get_production_readiness_open_after_fixes(self, store):
         """Test gate opens after all critical/high issues are fixed."""
         finding = store.store_finding(
             "f1", "sess_recs", "test_workflow", "/f.py", "LLM01", "CRITICAL", "Critical"
@@ -1083,16 +1081,16 @@ class TestRecommendationMethods:
         rec_id = finding['recommendation_id']
 
         # Initially blocked
-        gate = store.get_gate_status("test_workflow")
-        assert gate['is_blocked'] is True
+        readiness = store.get_production_readiness("test_workflow")
+        assert readiness['gate']['is_blocked'] is True
 
         # Fix the issue
         store.start_fix(rec_id)
         store.complete_fix(rec_id, fix_notes="Fixed")
 
         # Now open
-        gate = store.get_gate_status("test_workflow")
-        assert gate['is_blocked'] is False
+        readiness = store.get_production_readiness("test_workflow")
+        assert readiness['gate']['is_blocked'] is False
 
 
 class TestAuditLogMethods:

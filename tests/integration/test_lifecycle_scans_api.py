@@ -153,18 +153,18 @@ class TestRecommendationsAPI(TestLifecycleScansAPISetup):
 
 class TestGateStatusAPI(TestLifecycleScansAPISetup):
     """Tests for Gate Status API endpoints."""
-    
+
     def test_gate_status_open_no_findings(self, mock_insights):
         """Test gate status is open with no findings."""
-        status = mock_insights.store.get_gate_status("test-workflow")
-        
-        assert status["gate_state"] == "OPEN"
-        assert status["is_blocked"] is False
+        readiness = mock_insights.store.get_production_readiness("test-workflow")
+
+        assert readiness["gate"]["state"] == "OPEN"
+        assert readiness["gate"]["is_blocked"] is False
 
     def test_gate_status_blocked_with_critical(self, mock_insights):
         """Test gate status is blocked with critical findings."""
         store = mock_insights.store
-        
+
         store.create_analysis_session(
             session_id="sess_gate_api",
             agent_workflow_id="test-workflow",
@@ -181,12 +181,12 @@ class TestGateStatusAPI(TestLifecycleScansAPISetup):
             description="Critical vulnerability",
             auto_create_recommendation=True,
         )
-        
-        status = store.get_gate_status("test-workflow")
-        
-        assert status["gate_state"] == "BLOCKED"
-        assert status["is_blocked"] is True
-        assert status["blocking_critical"] >= 1
+
+        readiness = store.get_production_readiness("test-workflow")
+
+        assert readiness["gate"]["state"] == "BLOCKED"
+        assert readiness["gate"]["is_blocked"] is True
+        assert readiness["gate"]["blocking_count"] >= 1
 
 
 class TestCorrelationAPI(TestLifecycleScansAPISetup):

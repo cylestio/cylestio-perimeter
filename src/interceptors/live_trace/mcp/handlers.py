@@ -1029,15 +1029,26 @@ def handle_get_gate_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     if not workflow_id:
         return {"error": "workflow_id or agent_workflow_id is required"}
 
-    gate_status = store.get_gate_status(workflow_id)
+    readiness = store.get_production_readiness(workflow_id)
+    gate = readiness['gate']
+    static_critical = readiness['static_analysis']['critical_count']
+    dynamic_critical = readiness['dynamic_analysis']['critical_count']
 
-    if gate_status['is_blocked']:
-        message = f"🚫 Production BLOCKED: {gate_status['blocking_critical']} critical and {gate_status['blocking_high']} high severity issues must be addressed."
+    if gate['is_blocked']:
+        message = f"🚫 Production BLOCKED: {gate['blocking_count']} blocking issues ({static_critical} static, {dynamic_critical} dynamic) must be addressed."
     else:
         message = "✅ Production READY: No blocking security issues."
 
+    # Return in a backwards-compatible format with new structure nested
     return {
-        **gate_status,
+        "workflow_id": workflow_id,
+        "gate_state": gate['state'],
+        "is_blocked": gate['is_blocked'],
+        "blocking_count": gate['blocking_count'],
+        "blocking_critical": static_critical + dynamic_critical,  # Combined for backwards compat
+        "blocking_high": 0,  # Not tracked separately in new format
+        "static_analysis": readiness['static_analysis'],
+        "dynamic_analysis": readiness['dynamic_analysis'],
         "message": message,
     }
 
