@@ -1,4 +1,4 @@
-import type { DashboardResponse } from '../types/dashboard';
+import type { DashboardResponse, ProductionReadinessResponse } from '../types/dashboard';
 import type { AgentWorkflowsResponse } from '../types/agentWorkflows';
 
 export const fetchDashboard = async (agentWorkflowId?: string | null): Promise<DashboardResponse> => {
@@ -20,6 +20,14 @@ export const fetchAgentWorkflows = async (): Promise<AgentWorkflowsResponse> => 
   const response = await fetch('/api/agent-workflows');
   if (!response.ok) {
     throw new Error(`Failed to fetch agent workflows: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const fetchProductionReadiness = async (workflowId: string): Promise<ProductionReadinessResponse> => {
+  const response = await fetch(`/api/workflow/${encodeURIComponent(workflowId)}/production-readiness`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch production readiness: ${response.statusText}`);
   }
   return response.json();
 };

@@ -641,14 +641,15 @@ class TestGateStatus:
             description="This is high severity",
             auto_create_recommendation=True,
         )
-        
+
         result = handle_get_gate_status(
             {"agent_workflow_id": "test-agent"},
             store,
         )
-        
+
         assert result["gate_state"] == "BLOCKED"
-        assert result["blocking_high"] >= 1
+        assert result["is_blocked"] is True
+        assert result["blocking_count"] >= 1  # HIGH severity blocks the gate
 
     def test_gate_open_after_fix(self, store):
         """Test gate opens after critical finding is fixed."""

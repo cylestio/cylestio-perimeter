@@ -1,13 +1,12 @@
-import type { 
-  AgentWorkflowFindingsResponse, 
+import type {
+  AgentWorkflowFindingsResponse,
   AnalysisSessionsResponse,
   StaticSummaryResponse,
-  GateStatusResponse,
   Recommendation,
 } from '../types/findings';
 
 // Re-export for convenience
-export type { AnalysisSession, AnalysisSessionsResponse, GateStatusResponse } from '../types/findings';
+export type { AnalysisSession, AnalysisSessionsResponse } from '../types/findings';
 
 export interface FetchAgentWorkflowFindingsParams {
   severity?: string;
@@ -119,21 +118,6 @@ export const fetchStaticSummary = async (
   const response = await fetch(`/api/workflow/${workflowId}/static-summary`);
   if (!response.ok) {
     throw new Error(`Failed to fetch static summary: ${response.statusText}`);
-  }
-  const data = await response.json();
-  if (data.error) {
-    throw new Error(data.error);
-  }
-  return data;
-};
-
-// Gate Status
-export const fetchGateStatus = async (
-  workflowId: string
-): Promise<GateStatusResponse> => {
-  const response = await fetch(`/api/workflow/${workflowId}/gate-status`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch gate status: ${response.statusText}`);
   }
   const data = await response.json();
   if (data.error) {

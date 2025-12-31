@@ -33,11 +33,12 @@
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/analytics/` | TokenUsageInsights, ModelUsageAnalytics, ToolUsageAnalytics |
 | `domain/charts/` | LineChart, BarChart, PieChart, DistributionBar |
-| `domain/activity/` | ActivityFeed, SessionItem, ToolChain, LifecycleProgress |
+| `domain/activity/` | ActivityFeed, SessionItem, ToolChain |
 | `domain/findings/` | FindingCard, FindingsTab |
 | `domain/recommendations/` | RecommendationCard, DismissModal, ProgressSummary, AuditTrail |
 | `domain/recommendations/dashboard/` | SummaryStatsBar, SeverityProgressBar, IssueCard, CategoryDonut, SourceDistribution, DetectionTimeline |
 | `domain/visualization/` | ClusterVisualization, SurfaceNode |
+| `domain/security/` | ProductionReadiness, ScanStatusCard, SecurityCheckCard, GateProgress, FrameworkBadges, FixActionCard, DynamicCheckItem, DynamicCheckDrawer, DynamicChecksGrid |
 
 ---
 
@@ -1436,22 +1437,43 @@ interface DistributionBarProps {
 - Tooltips show formatted values and labels
 - Data is automatically sorted by value (descending) for BarChart
 
-### LifecycleProgress
+### ProductionReadiness
 
-Security lifecycle stage indicator.
+Standalone production readiness indicator bar showing static/dynamic analysis status and overall production readiness.
 
 ```typescript
-interface LifecycleStage {
-  id: string;
-  label: string;
-  icon: ReactNode;
-  status: 'pending' | 'active' | 'completed';
-  stat?: string;
+interface AnalysisStageProps {
+  status: 'pending' | 'running' | 'completed';
+  criticalCount: number;
 }
 
-interface LifecycleProgressProps {
-  stages: LifecycleStage[];
+interface ProductionReadinessProps {
+  staticAnalysis: AnalysisStageProps;
+  dynamicAnalysis: AnalysisStageProps;
+  isBlocked: boolean;  // Computed internally: both must be complete AND green
+  workflowId: string;
 }
+```
+
+**States:**
+- `pending` - Gray styling, no status determined yet
+- `running` - Gray with spinner, "Analysis In Progress"
+- `completed` with criticalCount=0 - Green checkmark
+- `completed` with criticalCount>0 - Red badge with count, clickable
+
+**Production Ready Logic:**
+- BOTH static AND dynamic must be `completed` with `criticalCount === 0`
+- If either is running/pending, shows gray "In Progress" state
+- If either has issues, shows red "Not Ready" state
+
+**Usage:**
+```tsx
+<ProductionReadiness
+  staticAnalysis={{ status: 'completed', criticalCount: 0 }}
+  dynamicAnalysis={{ status: 'completed', criticalCount: 2 }}
+  isBlocked={false}
+  workflowId="workflow-123"
+/>
 ```
 
 ### ComplianceGauge

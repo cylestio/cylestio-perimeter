@@ -11,22 +11,15 @@ import {
   MessageSquare,
   TrendingUp,
   Timer,
-  Code,
-  Search,
-  Play,
-  Rocket,
-  Shield,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
-import { fetchDashboard } from '@api/endpoints/dashboard';
+import { fetchDashboard, fetchProductionReadiness } from '@api/endpoints/dashboard';
 import { fetchSessions } from '@api/endpoints/session';
-import { fetchGateStatus } from '@api/endpoints/agentWorkflow';
 import type { AgentResponse, ToolAnalytics } from '@api/types/agent';
-import type { APIAgent, DashboardResponse, AnalysisStage } from '@api/types/dashboard';
+import type { APIAgent, DashboardResponse, ProductionReadinessResponse } from '@api/types/dashboard';
 import type { SessionListItem } from '@api/types/session';
-import type { GateStatusResponse } from '@api/types/findings';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 import { formatDuration, formatLatency, formatTokens, formatCost, formatThroughput } from '@utils/formatting';
 
@@ -42,8 +35,7 @@ import { StatsRow } from '@ui/layout/Grid';
 
 import { LineChart, BarChart } from '@domain/charts';
 import { StatCard } from '@domain/metrics/StatCard';
-import { LifecycleProgress, type LifecycleStage } from '@domain/activity/LifecycleProgress';
-import { ProductionGateCard } from '@domain/security/ProductionGateCard';
+import { ProductionReadiness } from '@domain/security/ProductionReadiness';
 
 import { usePageMeta } from '../../context';
 import {
@@ -130,7 +122,7 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   const [dashboardData, setDashboardData] = useState<DashboardResponse | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [agentData, setAgentData] = useState<AgentResponse | null>(null);
-  const [gateStatus, setGateStatus] = useState<GateStatusResponse | null>(null);
+  const [productionReadiness, setProductionReadiness] = useState<ProductionReadinessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,14 +131,14 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     if (!agentWorkflowId) return;
 
     try {
-      const [dashData, sessionsData, gateData] = await Promise.all([
+      const [dashData, sessionsData, readinessData] = await Promise.all([
         fetchDashboard(agentWorkflowId),
         fetchSessions({ agent_workflow_id: agentWorkflowId, limit: 100 }),
-        fetchGateStatus(agentWorkflowId).catch(() => null), // Don't fail if gate status fails
+        fetchProductionReadiness(agentWorkflowId).catch(() => null), // Don't fail if readiness fails
       ]);
       setDashboardData(dashData);
       setSessions(sessionsData.sessions || []);
-      setGateStatus(gateData);
+      setProductionReadiness(readinessData);
 
       // Fetch agent analytics if we have an agent
       if (dashData?.agents?.length > 0) {
@@ -171,71 +163,6 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Helper to convert stage to status - matches sidebar logic exactly
-  const stageToStatus = (stage: AnalysisStage | undefined): LifecycleStage['status'] => {
-    if (!stage) return 'inactive';
-    
-    switch (stage.status) {
-      case 'active':
-        return 'running';
-      case 'completed':
-        // For completed analysis, derive severity from embedded findings
-        if (stage.findings) {
-          const openCritical = stage.findings.by_severity?.CRITICAL ?? 0;
-          const openHigh = stage.findings.by_severity?.HIGH ?? 0;
-          const openMedium = stage.findings.by_severity?.MEDIUM ?? 0;
-          if (openCritical > 0 || openHigh > 0) return 'critical';
-          if (openMedium > 0) return 'warning';
-          return 'ok';
-        }
-        return 'ok';
-      case 'pending':
-      default:
-        return 'inactive';
-    }
-  };
-
-  // Calculate lifecycle stages based on security analysis data
-  const getLifecycleStages = (): LifecycleStage[] => {
-    const secAnalysis = dashboardData?.security_analysis;
-    
-    // Dev stage - based on dashboard data presence (simplified - matches sidebar showing green when connected)
-    const devStatus: LifecycleStage['status'] = dashboardData ? 'ok' : 'inactive';
-    
-    // Static stage - use exact same logic as sidebar
-    const staticStatus = stageToStatus(secAnalysis?.static);
-    const staticFindings = secAnalysis?.static?.findings;
-    const staticOpenCount = staticFindings?.by_status?.OPEN ?? staticFindings?.total ?? 0;
-    const staticStat = staticOpenCount > 0 ? `${staticOpenCount} findings` : 
-                       staticStatus === 'ok' ? 'Passed' : undefined;
-    
-    // Dynamic stage - use exact same logic as sidebar
-    const dynamicStatus = stageToStatus(secAnalysis?.dynamic);
-    const dynamicStat = secAnalysis?.dynamic?.sessions_progress 
-      ? `${secAnalysis.dynamic.sessions_progress.current}/${secAnalysis.dynamic.sessions_progress.required}` 
-      : undefined;
-    
-    // Production stage - based on gate status
-    const productionStatus: LifecycleStage['status'] = 
-      gateStatus?.is_blocked 
-        ? 'critical'
-        : gateStatus && !gateStatus.is_blocked 
-          ? 'ok' 
-          : (staticStatus !== 'inactive' && dynamicStatus !== 'inactive')
-            ? 'running' 
-            : 'inactive';
-    const productionStat = gateStatus?.is_blocked 
-      ? `${gateStatus.blocking_count} blocking` 
-      : productionStatus === 'ok' ? 'Ready' : undefined;
-
-    return [
-      { id: 'dev', label: 'Dev', icon: <Code size={16} />, status: devStatus, stat: 'Connected' },
-      { id: 'static', label: 'Static', icon: <Search size={16} />, status: staticStatus, stat: staticStat },
-      { id: 'dynamic', label: 'Dynamic', icon: <Play size={16} />, status: dynamicStatus, stat: dynamicStat },
-      { id: 'production', label: 'Production', icon: <Rocket size={16} />, status: productionStatus, stat: productionStat },
-    ];
-  };
 
   // Set breadcrumbs
   usePageMeta({
@@ -302,8 +229,6 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
     value: point.requests,
   }));
 
-  const lifecycleStages = getLifecycleStages();
-
   return (
     <Page className={className} data-testid="overview">
       {/* Header */}
@@ -312,34 +237,20 @@ export const Overview: FC<OverviewProps> = ({ className }) => {
         description={`Aggregated metrics for agent workflow: ${agentWorkflowId}`}
       />
 
-      {/* Lifecycle Progress */}
-      <Section>
-        <Section.Header>
-          <Section.Title icon={<Shield size={16} />}>Security Lifecycle</Section.Title>
-        </Section.Header>
-        <Section.Content>
-          <Card>
-            <LifecycleProgress stages={lifecycleStages} />
-          </Card>
-        </Section.Content>
-      </Section>
-
-      {/* Production Gate Status */}
-      {gateStatus && (
-        <Section>
-          <Section.Header>
-            <Section.Title icon={<Rocket size={16} />}>Production Gate</Section.Title>
-          </Section.Header>
-          <Section.Content>
-            <ProductionGateCard
-              isBlocked={gateStatus.is_blocked}
-              blockingCount={gateStatus.blocking_count}
-              blockingCritical={gateStatus.blocking_critical}
-              blockingHigh={gateStatus.blocking_high}
-              onViewAll={() => navigate(`/agent-workflow/${agentWorkflowId}/recommendations?blocking_only=true`)}
-            />
-          </Section.Content>
-        </Section>
+      {/* Production Readiness */}
+      {productionReadiness && agentWorkflowId && (
+        <ProductionReadiness
+          staticAnalysis={{
+            status: productionReadiness.static_analysis.status,
+            criticalCount: productionReadiness.static_analysis.critical_count,
+          }}
+          dynamicAnalysis={{
+            status: productionReadiness.dynamic_analysis.status,
+            criticalCount: productionReadiness.dynamic_analysis.critical_count,
+          }}
+          isBlocked={productionReadiness.gate.is_blocked}
+          workflowId={agentWorkflowId}
+        />
       )}
 
       {/* Key Metrics Row */}

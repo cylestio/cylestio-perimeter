@@ -76,7 +76,7 @@ const mockRecommendations = [
 ];
 
 // Create mock fetch function
-const createMockFetch = (recommendations: unknown[], gateStatus = 'BLOCKED') => {
+const createMockFetch = (recommendations: unknown[], isBlocked = true) => {
   return (url: string) => {
     if (url.includes('/recommendations')) {
       return Promise.resolve({
@@ -84,10 +84,15 @@ const createMockFetch = (recommendations: unknown[], gateStatus = 'BLOCKED') => 
         json: () => Promise.resolve({ recommendations }),
       });
     }
-    if (url.includes('/gate-status')) {
+    if (url.includes('/production-readiness')) {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ gate_status: gateStatus }),
+        json: () => Promise.resolve({
+          workflow_id: 'test-agent-workflow',
+          static_analysis: { status: 'completed', critical_count: isBlocked ? 2 : 0, session_id: 's1' },
+          dynamic_analysis: { status: 'completed', critical_count: 0, session_id: 's2' },
+          gate: { is_blocked: isBlocked, blocking_count: isBlocked ? 2 : 0, state: isBlocked ? 'BLOCKED' : 'OPEN' },
+        }),
       });
     }
     return Promise.reject(new Error(`Unknown URL: ${url}`));
@@ -143,7 +148,7 @@ export const WithCriticalRecommendations: Story = {
 export const Empty: Story = {
   decorators: [
     (Story) => {
-      window.fetch = createMockFetch([], 'OPEN') as typeof fetch;
+      window.fetch = createMockFetch([], false) as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -163,12 +168,12 @@ export const Empty: Story = {
 export const AllResolved: Story = {
   decorators: [
     (Story) => {
-      const resolvedRecommendations = mockRecommendations.map((r) => ({ 
-        ...r, 
+      const resolvedRecommendations = mockRecommendations.map((r) => ({
+        ...r,
         status: 'FIXED',
         fixed_at: new Date().toISOString(),
       }));
-      window.fetch = createMockFetch(resolvedRecommendations, 'OPEN') as typeof fetch;
+      window.fetch = createMockFetch(resolvedRecommendations, false) as typeof fetch;
       return (
         <RouteWrapper>
           <Story />

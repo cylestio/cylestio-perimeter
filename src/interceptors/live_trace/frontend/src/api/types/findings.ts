@@ -268,17 +268,3 @@ export interface SessionFindingsResponse {
   findings: Finding[];
   total_count: number;
 }
-
-export interface GateStatusResponse {
-  workflow_id: string;
-  gate_status: GateStatus;
-  gate_state?: 'BLOCKED' | 'OPEN';
-  is_blocked: boolean;
-  blocking_count: number;
-  blocking_critical: number;
-  blocking_high: number;
-  critical_count: number;
-  high_count: number;
-  total_recommendations: number;
-  recommendations_by_status: Record<string, number>;
-}
