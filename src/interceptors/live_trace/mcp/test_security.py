@@ -132,6 +132,7 @@ class TestSecurityMiddleware:
         """Create a mock request."""
         request = MagicMock()
         request.url.path = "/mcp"
+        request.method = "POST"
         request.headers = MagicMock()
         return request
 
@@ -188,17 +189,48 @@ class TestSecurityMiddleware:
         call_next.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_skips_non_mcp_paths(self, middleware, mock_request):
-        """Non-MCP paths should not be checked."""
+    async def test_allows_api_get_requests(self, middleware, mock_request):
+        """GET requests to API should be allowed (read-only)."""
         mock_request.url.path = "/api/dashboard"
+        mock_request.method = "GET"
         mock_request.headers.get = lambda key: {
-            "host": "evil.com",  # Would normally be blocked
+            "host": "evil.com",  # Would be blocked for POST
             "origin": "https://evil.com",
         }.get(key)
 
         call_next = AsyncMock(return_value=MagicMock())
         response = await middleware.dispatch(mock_request, call_next)
-        call_next.assert_called_once()  # Should pass through
+        call_next.assert_called_once()  # GET should pass through
+
+    @pytest.mark.asyncio
+    async def test_blocks_api_post_from_external_origin(self, middleware, mock_request):
+        """POST requests to API from external origin should be blocked."""
+        mock_request.url.path = "/api/recommendations/123/dismiss"
+        mock_request.method = "POST"
+        mock_request.headers.get = lambda key: {
+            "host": "localhost:7100",
+            "origin": "https://evil.com",
+        }.get(key)
+
+        call_next = AsyncMock()
+        with pytest.raises(Exception) as exc_info:
+            await middleware.dispatch(mock_request, call_next)
+        assert "Cross-origin" in str(exc_info.value.detail)
+        call_next.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_allows_api_post_from_localhost(self, middleware, mock_request):
+        """POST requests to API from localhost should be allowed."""
+        mock_request.url.path = "/api/findings"
+        mock_request.method = "POST"
+        mock_request.headers.get = lambda key: {
+            "host": "localhost:7100",
+            "origin": "http://localhost:7100",
+        }.get(key)
+
+        call_next = AsyncMock(return_value=MagicMock())
+        response = await middleware.dispatch(mock_request, call_next)
+        call_next.assert_called_once()
 
 
 class TestCSRFAttackScenarios:

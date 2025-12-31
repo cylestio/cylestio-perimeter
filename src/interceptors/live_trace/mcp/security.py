@@ -113,9 +113,21 @@ class MCPSecurityMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
+        method = request.method
 
-        # Only enforce security on MCP endpoints
-        if not path.startswith("/mcp"):
+        # Determine if this endpoint needs CSRF protection
+        needs_protection = False
+
+        # MCP endpoints - always protect (can execute tools)
+        if path.startswith("/mcp"):
+            needs_protection = True
+
+        # API endpoints - protect state-changing methods (POST, PATCH, DELETE)
+        # GET requests are safe (read-only)
+        elif path.startswith("/api/") and method in ("POST", "PATCH", "DELETE", "PUT"):
+            needs_protection = True
+
+        if not needs_protection:
             return await call_next(request)
 
         # Validate Host header - must be localhost
