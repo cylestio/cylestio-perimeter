@@ -15,7 +15,7 @@ from src.utils.logger import get_logger
 
 from .runtime.engine import InsightsEngine
 from .mcp import create_mcp_router
-from .mcp.security import MCPSecurityMiddleware
+from .mcp.security import LocalhostSecurityMiddleware
 from .models import (
     FindingSeverity,
     SessionType,
@@ -65,9 +65,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         allow_headers=["*"],
     )
 
-    # Add MCP security middleware for CSRF protection
-    # Validates Origin and Host headers to prevent cross-origin attacks
-    app.add_middleware(MCPSecurityMiddleware)
+    app.add_middleware(LocalhostSecurityMiddleware)
 
     # Include MCP router
     mcp_router = create_mcp_router(lambda: insights.store)

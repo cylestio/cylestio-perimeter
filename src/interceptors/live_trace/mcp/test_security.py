@@ -118,14 +118,14 @@ class TestValidateHost:
         assert validate_host("[::1]:7100") is False
 
 
-class TestSecurityMiddleware:
-    """Tests for MCPSecurityMiddleware."""
+class TestLocalhostSecurityMiddleware:
+    """Tests for LocalhostSecurityMiddleware."""
 
     @pytest.fixture
     def middleware(self):
         """Create middleware instance."""
-        from src.interceptors.live_trace.mcp.security import MCPSecurityMiddleware
-        return MCPSecurityMiddleware(app=MagicMock())
+        from src.interceptors.live_trace.mcp.security import LocalhostSecurityMiddleware
+        return LocalhostSecurityMiddleware(app=MagicMock())
 
     @pytest.fixture
     def mock_request(self):
@@ -185,7 +185,7 @@ class TestSecurityMiddleware:
         call_next = AsyncMock()
         with pytest.raises(Exception) as exc_info:
             await middleware.dispatch(mock_request, call_next)
-        assert "localhost" in str(exc_info.value.detail)
+        assert "Access denied" in str(exc_info.value.detail)
         call_next.assert_not_called()
 
     @pytest.mark.asyncio
