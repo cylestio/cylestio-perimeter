@@ -19,6 +19,8 @@ npm run lint           # Run ESLint
 npm run format         # Run Prettier
 ```
 
+**Don't kill or restart Storybook without asking.**
+
 ## Development Guide
 
 **IMPORTANT: Before starting any component work, you MUST read [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md).**
@@ -47,4 +49,22 @@ You must read those files if you're doing anything relevant:
 - **Need theme tokens**
   - Template: [THEME_REFERENCE.md](./docs/THEME_REFERENCE.md)
   - What's Inside: Colors, spacing, typography, radii, shadows, transitions
+
+## Page Icons
+
+Page and navigation icons are centralized in `@constants/pageIcons`. This ensures consistency between sidebar navigation (App.tsx) and page headers.
+
+**When adding a new page:**
+1. Add its icon to `src/constants/pageIcons.ts`
+2. Import from `@constants/pageIcons` in both App.tsx and the page component
+3. Do NOT import icons directly from `lucide-react` for page headers
+
+**Note:** Icons used within page content (not in headers/navigation) can still be imported directly from `lucide-react`.
+
+## Before Committing
+
+- [ ] `npm run build` passes
+- [ ] `npm run test-storybook` passes
+- [ ] `npm run lint` passes
+- [ ] COMPONENTS_INDEX.md updated if components changed
 
