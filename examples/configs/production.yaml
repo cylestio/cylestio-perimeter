@@ -3,7 +3,10 @@
 
 server:
   port: 4000
-  host: "0.0.0.0"
+  # SECURITY: Bind to localhost only to prevent network exposure
+  # Use a reverse proxy (nginx, traefik) for external access
+  # WARNING: Never use 0.0.0.0 - it exposes the server to CSRF attacks
+  host: "127.0.0.1"
   workers: 4
 
 llm:
