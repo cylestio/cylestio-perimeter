@@ -99,18 +99,21 @@ export const ProductionReadiness: FC<ProductionReadinessProps> = ({
   const isProductionReady = staticGreen && dynamicGreen;
 
   const handleStaticClick = () => {
-    navigate(`/agent-workflow/${workflowId}/static-analysis`);
+    // Navigate to recommendations filtered by static analysis + blocking severities
+    navigate(`/agent-workflow/${workflowId}/recommendations?tab=by-severity&source_type=STATIC&severity=CRITICAL,HIGH`);
   };
 
   const handleDynamicClick = () => {
-    navigate(`/agent-workflow/${workflowId}/dynamic-analysis`);
+    // Navigate to recommendations filtered by dynamic analysis + blocking severities
+    navigate(`/agent-workflow/${workflowId}/recommendations?tab=by-severity&source_type=DYNAMIC&severity=CRITICAL,HIGH`);
   };
 
   const handleActionClick = () => {
     if (isProductionReady) {
       navigate(`/agent-workflow/${workflowId}/reports`);
     } else {
-      navigate(`/agent-workflow/${workflowId}/recommendations`);
+      // "Fix Issues" shows all blocking (critical + high) issues
+      navigate(`/agent-workflow/${workflowId}/recommendations?tab=by-severity&severity=CRITICAL,HIGH`);
     }
   };
 

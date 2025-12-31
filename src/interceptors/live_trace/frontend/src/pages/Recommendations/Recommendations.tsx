@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useMemo, type FC } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import styled from 'styled-components';
 
@@ -173,25 +173,67 @@ export interface RecommendationsProps {
 
 type DashboardTab = 'overview' | 'by-severity' | 'resolved';
 
+// URL Parsing Helpers
+const VALID_TABS: DashboardTab[] = ['overview', 'by-severity', 'resolved'];
+const VALID_SEVERITIES: FindingSeverity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+const VALID_SOURCE_TYPES = ['STATIC', 'DYNAMIC'] as const;
+const VALID_CATEGORIES: SecurityCheckCategory[] = ['PROMPT', 'OUTPUT', 'TOOL', 'DATA', 'MEMORY', 'SUPPLY', 'BEHAVIOR'];
+
+const parseTab = (param: string | null): DashboardTab => {
+  return VALID_TABS.includes(param as DashboardTab) ? (param as DashboardTab) : 'overview';
+};
+
+const parseSeverities = (param: string | null): FindingSeverity[] => {
+  if (!param) return [];
+  return param.split(',').filter((s): s is FindingSeverity =>
+    VALID_SEVERITIES.includes(s as FindingSeverity)
+  );
+};
+
+const parseSourceTypes = (param: string | null): ('STATIC' | 'DYNAMIC')[] => {
+  if (!param) return [];
+  return param.split(',').filter((s): s is 'STATIC' | 'DYNAMIC' =>
+    VALID_SOURCE_TYPES.includes(s as 'STATIC' | 'DYNAMIC')
+  );
+};
+
+const parseCategory = (param: string | null): SecurityCheckCategory | null => {
+  return VALID_CATEGORIES.includes(param as SecurityCheckCategory)
+    ? (param as SecurityCheckCategory)
+    : null;
+};
+
 // Component
 export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // State
+  // URL param helper (same pattern as Sessions.tsx)
+  const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null) {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    });
+    setSearchParams(newParams);
+  }, [searchParams, setSearchParams]);
+
+  // Derived state from URL params
+  const activeTab = parseTab(searchParams.get('tab'));
+  const selectedSeverities = parseSeverities(searchParams.get('severity'));
+  const selectedSourceTypes = parseSourceTypes(searchParams.get('source_type'));
+  const selectedCategory = parseCategory(searchParams.get('category'));
+  const selectedSource = searchParams.get('source');
+
+  // Data state
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [productionReadiness, setProductionReadiness] = useState<ProductionReadinessResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Tab state
-  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
-  const [selectedSeverity, setSelectedSeverity] = useState<FindingSeverity | 'ALL'>('ALL');
-  
-  // Filter state (from charts)
-  const [selectedCategory, setSelectedCategory] = useState<SecurityCheckCategory | null>(null);
-  const [selectedSource, setSelectedSource] = useState<string | null>(null);
-  const [selectedSourceType, setSelectedSourceType] = useState<'STATIC' | 'DYNAMIC' | null>(null);
 
   // Dismiss modal state
   const [dismissModalOpen, setDismissModalOpen] = useState(false);
@@ -253,14 +295,20 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
     [recommendations]
   );
 
-  // Filter by severity, category, file
+  // Filter by severity, source type, category, file
   const filteredByTab = useMemo(() => {
-    let filtered = activeTab === 'resolved' 
-      ? resolvedRecommendations 
+    let filtered = activeTab === 'resolved'
+      ? resolvedRecommendations
       : pendingRecommendations;
 
-    if (selectedSeverity !== 'ALL') {
-      filtered = filtered.filter(r => r.severity === selectedSeverity);
+    // Multi-select severity filter (empty = all)
+    if (selectedSeverities.length > 0) {
+      filtered = filtered.filter(r => selectedSeverities.includes(r.severity));
+    }
+
+    // Multi-select source type filter (empty = all)
+    if (selectedSourceTypes.length > 0) {
+      filtered = filtered.filter(r => selectedSourceTypes.includes(r.source_type));
     }
 
     if (selectedCategory) {
@@ -269,16 +317,12 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
 
     if (selectedSource) {
       filtered = filtered.filter(r => {
-        if (selectedSourceType === 'STATIC') {
-          return r.file_path === selectedSource;
-        } else {
-          return (r.file_path || 'Runtime Detection') === selectedSource;
-        }
+        return (r.file_path || 'Runtime Detection') === selectedSource;
       });
     }
 
     return filtered;
-  }, [activeTab, pendingRecommendations, resolvedRecommendations, selectedSeverity, selectedCategory, selectedSource, selectedSourceType]);
+  }, [activeTab, pendingRecommendations, resolvedRecommendations, selectedSeverities, selectedSourceTypes, selectedCategory, selectedSource]);
 
   // Severity counts for pills
   const severityCounts = useMemo(() => ({
@@ -323,25 +367,70 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
     }
   };
 
-  const clearFilters = () => {
-    setSelectedCategory(null);
-    setSelectedSource(null);
-    setSelectedSourceType(null);
+  // URL-based filter handlers
+  const handleTabChange = (tabId: string) => {
+    updateSearchParams({ tab: tabId === 'overview' ? null : tabId });
+  };
+
+  const handleSeverityToggle = (severity: FindingSeverity) => {
+    const current = selectedSeverities;
+    let updated: FindingSeverity[];
+
+    if (current.includes(severity)) {
+      updated = current.filter(s => s !== severity);
+    } else {
+      updated = [...current, severity];
+    }
+
+    updateSearchParams({
+      severity: updated.length > 0 ? updated.join(',') : null,
+    });
+  };
+
+  const handleSourceTypeToggle = (sourceType: 'STATIC' | 'DYNAMIC') => {
+    const current = selectedSourceTypes;
+    let updated: ('STATIC' | 'DYNAMIC')[];
+
+    if (current.includes(sourceType)) {
+      updated = current.filter(s => s !== sourceType);
+    } else {
+      updated = [...current, sourceType];
+    }
+
+    updateSearchParams({
+      source_type: updated.length > 0 ? updated.join(',') : null,
+    });
+  };
+
+  const handleCategoryClick = (category: SecurityCheckCategory | null) => {
+    updateSearchParams({ category: category || null });
   };
 
   const handleSourceClick = (source: string | null, type: 'STATIC' | 'DYNAMIC') => {
-    if (source === null) {
-      setSelectedSource(null);
-      setSelectedSourceType(null);
-    } else {
-      setSelectedSource(source);
-      setSelectedSourceType(type);
-    }
+    updateSearchParams({
+      source: source || null,
+      source_type: source ? type : null,
+    });
+  };
+
+  const clearFilters = () => {
+    updateSearchParams({
+      severity: null,
+      source_type: null,
+      category: null,
+      source: null,
+    });
   };
 
   // Blocking counts
   const blockingCritical = severityCounts.CRITICAL;
   const blockingHigh = severityCounts.HIGH;
+
+  // Source type counts
+  const sourceTypeCounts = useMemo(() => ({
+    STATIC: pendingRecommendations.filter(r => r.source_type === 'STATIC').length,
+    DYNAMIC: pendingRecommendations.filter(r => r.source_type === 'DYNAMIC').length,
+  }), [pendingRecommendations]);
 
   // Tab config
   const tabs: Tab[] = [
@@ -350,14 +439,22 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
     { id: 'resolved', label: 'Resolved', count: resolvedRecommendations.length },
   ];
 
-  // Severity pills for By Severity tab
-  const severityOptions = [
-    { id: 'ALL', label: 'All', active: selectedSeverity === 'ALL' },
-    { id: 'CRITICAL', label: `Critical (${severityCounts.CRITICAL})`, active: selectedSeverity === 'CRITICAL' },
-    { id: 'HIGH', label: `High (${severityCounts.HIGH})`, active: selectedSeverity === 'HIGH' },
-    { id: 'MEDIUM', label: `Medium (${severityCounts.MEDIUM})`, active: selectedSeverity === 'MEDIUM' },
-    { id: 'LOW', label: `Low (${severityCounts.LOW})`, active: selectedSeverity === 'LOW' },
+  // Source type toggle options (multi-select)
+  const sourceTypeOptions = [
+    { id: 'STATIC', label: `Static (${sourceTypeCounts.STATIC})`, active: selectedSourceTypes.includes('STATIC') },
+    { id: 'DYNAMIC', label: `Dynamic (${sourceTypeCounts.DYNAMIC})`, active: selectedSourceTypes.includes('DYNAMIC') },
   ];
+
+  // Severity toggle options (multi-select, no 'ALL' option)
+  const severityOptions = [
+    { id: 'CRITICAL', label: `Critical (${severityCounts.CRITICAL})`, active: selectedSeverities.includes('CRITICAL') },
+    { id: 'HIGH', label: `High (${severityCounts.HIGH})`, active: selectedSeverities.includes('HIGH') },
+    { id: 'MEDIUM', label: `Medium (${severityCounts.MEDIUM})`, active: selectedSeverities.includes('MEDIUM') },
+    { id: 'LOW', label: `Low (${severityCounts.LOW})`, active: selectedSeverities.includes('LOW') },
+  ];
+
+  // Check if any filters are active
+  const hasActiveFilters = selectedSeverities.length > 0 || selectedSourceTypes.length > 0 || selectedCategory || selectedSource;
 
   // Loading state
   if (loading) {
@@ -411,11 +508,7 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
             <Tabs
               tabs={tabs}
               activeTab={activeTab}
-              onChange={(tabId) => {
-                setActiveTab(tabId as DashboardTab);
-                clearFilters();
-                setSelectedSeverity('ALL');
-              }}
+              onChange={handleTabChange}
               variant="pills"
             />
 
@@ -440,7 +533,7 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
                   <CategoryDonut
                     recommendations={recommendations}
                     selectedCategory={selectedCategory}
-                    onCategoryClick={setSelectedCategory}
+                    onCategoryClick={handleCategoryClick}
                   />
                   <SourceDistribution
                     recommendations={recommendations}
@@ -455,27 +548,40 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
                 </div>
 
                 {/* Active Filters and Filtered Issues */}
-                {(selectedCategory || selectedSource) && (
+                {hasActiveFilters && (
                   <>
                     <FiltersRow style={{ marginTop: '20px' }}>
                       <FilterLabel>Filters:</FilterLabel>
+                      {selectedSeverities.map(sev => (
+                        <ActiveFilter key={sev} onClick={() => handleSeverityToggle(sev)}>
+                          {sev} ✕
+                        </ActiveFilter>
+                      ))}
+                      {selectedSourceTypes.map(type => (
+                        <ActiveFilter key={type} onClick={() => handleSourceTypeToggle(type)}>
+                          {type === 'STATIC' ? 'Static Analysis' : 'Dynamic Analysis'} ✕
+                        </ActiveFilter>
+                      ))}
                       {selectedCategory && (
-                        <ActiveFilter onClick={() => setSelectedCategory(null)}>
+                        <ActiveFilter onClick={() => handleCategoryClick(null)}>
                           Category: {selectedCategory} ✕
                         </ActiveFilter>
                       )}
                       {selectedSource && (
-                        <ActiveFilter onClick={() => { setSelectedSource(null); setSelectedSourceType(null); }}>
-                          {selectedSourceType}: {selectedSource.split('/').pop()} ✕
+                        <ActiveFilter onClick={() => handleSourceClick(null, 'STATIC')}>
+                          File: {selectedSource.split('/').pop()} ✕
                         </ActiveFilter>
                       )}
+                      <ActiveFilter onClick={clearFilters} style={{ marginLeft: 'auto' }}>
+                        Clear All ✕
+                      </ActiveFilter>
                     </FiltersRow>
 
                     <div style={{ marginTop: '16px' }}>
                       <SectionHeader>
                         <SectionTitle>Filtered Issues ({filteredByTab.length})</SectionTitle>
                       </SectionHeader>
-                      
+
                       {filteredByTab.length > 0 ? (
                         <IssuesList>
                           {filteredByTab.map(rec => (
@@ -502,10 +608,45 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
             {/* By Severity Tab */}
             {activeTab === 'by-severity' && (
               <TabContent>
-                <ToggleGroup
-                  options={severityOptions}
-                  onChange={(val) => setSelectedSeverity(val as FindingSeverity | 'ALL')}
-                />
+                {/* Filter Pills */}
+                <div style={{ display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <FilterLabel>Source:</FilterLabel>
+                    <ToggleGroup
+                      options={sourceTypeOptions}
+                      onChange={(id) => handleSourceTypeToggle(id as 'STATIC' | 'DYNAMIC')}
+                      multiSelect
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <FilterLabel>Severity:</FilterLabel>
+                    <ToggleGroup
+                      options={severityOptions}
+                      onChange={(id) => handleSeverityToggle(id as FindingSeverity)}
+                      multiSelect
+                    />
+                  </div>
+                </div>
+
+                {/* Active Filters Bar */}
+                {hasActiveFilters && (
+                  <FiltersRow style={{ marginTop: '16px' }}>
+                    <FilterLabel>Active:</FilterLabel>
+                    {selectedSeverities.map(sev => (
+                      <ActiveFilter key={sev} onClick={() => handleSeverityToggle(sev)}>
+                        {sev} ✕
+                      </ActiveFilter>
+                    ))}
+                    {selectedSourceTypes.map(type => (
+                      <ActiveFilter key={type} onClick={() => handleSourceTypeToggle(type)}>
+                        {type === 'STATIC' ? 'Static' : 'Dynamic'} ✕
+                      </ActiveFilter>
+                    ))}
+                    <ActiveFilter onClick={clearFilters} style={{ marginLeft: 'auto' }}>
+                      Clear All ✕
+                    </ActiveFilter>
+                  </FiltersRow>
+                )}
 
                 <div style={{ marginTop: '20px' }}>
                   {filteredByTab.length > 0 ? (
@@ -523,9 +664,9 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
                     <EmptyState>
                       <h3>No issues found</h3>
                       <p>
-                        {selectedSeverity === 'ALL' 
-                          ? 'No pending issues to display.'
-                          : `No ${selectedSeverity.toLowerCase()} severity issues.`
+                        {hasActiveFilters
+                          ? 'No issues match the selected filters.'
+                          : 'No pending issues to display.'
                         }
                       </p>
                     </EmptyState>
