@@ -1765,30 +1765,6 @@ interface UserMenuProps {
 
 # Features Components
 
-## Connect Components
-
-### ConnectIDETab
-
-Instructions for connecting IDE clients (Cursor and Claude Code) to the Agent Inspector.
-
-```typescript
-interface ConnectIDETabProps {
-  className?: string;
-}
-```
-
-**Features:**
-- Cursor connection instructions with one-click copy command
-- Claude Code connection instructions with numbered steps
-- Uses CursorIcon and ClaudeCodeIcon for branding
-- Copy button with success feedback state
-
-**Usage:**
-```tsx
-<ConnectIDETab />
-```
-
----
 
 ## GatheringData
 

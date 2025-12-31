@@ -12,7 +12,7 @@ export const TabsContainer = styled.div<TabsContainerProps>`
   ${({ $variant, theme }) =>
     $variant === 'default' &&
     css`
-      border-bottom: 1px solid ${theme.colors.borderSubtle};
+      border-bottom: 1px solid ${theme.colors.borderMedium};
     `}
 `;
 
@@ -66,17 +66,19 @@ export const TabButton = styled.button<TabButtonProps>`
     // Default variant
     if ($active) {
       return css`
-        background: ${theme.colors.white08};
+        background: ${theme.colors.surface3};
         color: ${theme.colors.white};
+        border-bottom: 2px solid ${theme.colors.cyan};
+        margin-bottom: -1px;
       `;
     }
 
     return css`
-      color: ${theme.colors.white50};
+      color: ${theme.colors.white70};
 
       &:hover {
-        background: ${theme.colors.white04};
-        color: ${theme.colors.white70};
+        background: ${theme.colors.white08};
+        color: ${theme.colors.white};
       }
     `;
   }}

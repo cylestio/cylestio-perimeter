@@ -20,6 +20,6 @@ interceptors:
       max_events: 10000
       retention_minutes: 30
       refresh_interval: 2
-      storage_mode: "sqlite"
-      db_path: "./trace_data/test_data.db"
-      enable_presidio: true  # Disable PII detection (enabled by default)
+      # storage_mode: "sqlite"
+      # db_path: "./trace_data/test_data.db"
+      # enable_presidio: true  # Disable PII detection (enabled by default)
