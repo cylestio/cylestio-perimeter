@@ -42,3 +42,18 @@ repos:
     hooks:
       - id: yamllint
         args: [--format, parsable, --strict]
+
+  # Dependency vulnerability scanning
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.7.3
+    hooks:
+      - id: pip-audit
+        args: [-r, requirements.txt, --skip-editable]
+
+  # Advanced static analysis with Semgrep
+  - repo: https://github.com/semgrep/semgrep
+    rev: v1.90.0
+    hooks:
+      - id: semgrep
+        args: ['--config', 'p/python', '--config', 'p/security-audit']
+        exclude: ^(tests/|src/interceptors/live_trace/frontend/)

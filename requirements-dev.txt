@@ -4,3 +4,7 @@
 # Development tools
 ipython==8.18.1
 pre-commit==3.6.0
+
+# Security scanning
+pip-audit>=2.7.0
+semgrep>=1.51.0
