@@ -15,6 +15,7 @@ from src.utils.logger import get_logger
 
 from .runtime.engine import InsightsEngine
 from .mcp import create_mcp_router
+from .mcp.security import LocalhostSecurityMiddleware
 from .models import (
     FindingSeverity,
     SessionType,
@@ -63,6 +64,8 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(LocalhostSecurityMiddleware)
 
     # Include MCP router
     mcp_router = create_mcp_router(lambda: insights.store)

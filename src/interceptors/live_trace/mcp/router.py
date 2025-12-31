@@ -7,7 +7,6 @@ Implements Streamable HTTP transport (MCP spec 2025-03-26):
 """
 import asyncio
 import json
-import uuid
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import APIRouter, Request, Response
@@ -17,6 +16,7 @@ from sse_starlette.sse import EventSourceResponse
 from src.utils.logger import get_logger
 
 from .handlers import call_tool
+from .security import generate_session_id
 from .tools import MCP_TOOLS
 
 logger = get_logger(__name__)
@@ -45,7 +45,7 @@ def _get_or_create_session(session_id: Optional[str]) -> str:
     """Get existing session or create new one."""
     if session_id and session_id in _sessions:
         return session_id
-    new_id = f"mcp-{uuid.uuid4().hex[:12]}"
+    new_id = generate_session_id()
     _sessions[new_id] = {"created": asyncio.get_event_loop().time()}
     return new_id
 
