@@ -115,17 +115,9 @@ class MCPSecurityMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         method = request.method
 
-        # Determine if this endpoint needs CSRF protection
-        needs_protection = False
-
-        # MCP endpoints - always protect (can execute tools)
-        if path.startswith("/mcp"):
-            needs_protection = True
-
-        # API endpoints - protect state-changing methods (POST, PATCH, DELETE)
-        # GET requests are safe (read-only)
-        elif path.startswith("/api/") and method in ("POST", "PATCH", "DELETE", "PUT"):
-            needs_protection = True
+        # Protect MCP and API endpoints from cross-origin requests
+        # Static assets and health checks are excluded
+        needs_protection = path.startswith("/mcp") or path.startswith("/api/")
 
         if not needs_protection:
             return await call_next(request)

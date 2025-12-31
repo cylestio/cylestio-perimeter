@@ -189,18 +189,34 @@ class TestSecurityMiddleware:
         call_next.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_allows_api_get_requests(self, middleware, mock_request):
-        """GET requests to API should be allowed (read-only)."""
+    async def test_blocks_api_get_from_external_origin(self, middleware, mock_request):
+        """GET requests to API from external origin should be blocked."""
         mock_request.url.path = "/api/dashboard"
         mock_request.method = "GET"
         mock_request.headers.get = lambda key: {
-            "host": "evil.com",  # Would be blocked for POST
+            "host": "localhost:7100",
             "origin": "https://evil.com",
+        }.get(key)
+
+        call_next = AsyncMock()
+        with pytest.raises(Exception) as exc_info:
+            await middleware.dispatch(mock_request, call_next)
+        assert "Cross-origin" in str(exc_info.value.detail)
+        call_next.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_allows_api_get_from_localhost(self, middleware, mock_request):
+        """GET requests to API from localhost should be allowed."""
+        mock_request.url.path = "/api/dashboard"
+        mock_request.method = "GET"
+        mock_request.headers.get = lambda key: {
+            "host": "localhost:7100",
+            "origin": "http://localhost:7100",
         }.get(key)
 
         call_next = AsyncMock(return_value=MagicMock())
         response = await middleware.dispatch(mock_request, call_next)
-        call_next.assert_called_once()  # GET should pass through
+        call_next.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_blocks_api_post_from_external_origin(self, middleware, mock_request):
