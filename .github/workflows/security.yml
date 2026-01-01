@@ -66,6 +66,13 @@ jobs:
           bandit -r src/ -ll --skip B104 -f json \
             -o security-reports/bandit-results.json
 
+      - name: Advanced static analysis (semgrep)
+        run: |
+          pip install semgrep
+          semgrep --config p/python --config p/security-audit \
+            --exclude tests/ --exclude src/interceptors/live_trace/frontend/ \
+            --json -o security-reports/semgrep-results.json src/ || true
+
       - name: Generate security summary
         if: always()
         run: |
