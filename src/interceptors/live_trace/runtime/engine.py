@@ -165,10 +165,10 @@ class AnalysisEngine:
         """Serialize risk analysis with computed properties included."""
         if not risk_analysis:
             return None
-        
+
         # Get the base dict
         result = risk_analysis.dict() if hasattr(risk_analysis, 'dict') else risk_analysis.model_dump()
-        
+
         # Add computed properties for SecurityReport
         if hasattr(risk_analysis, 'security_report') and risk_analysis.security_report:
             result['security_report']['overall_status'] = risk_analysis.security_report.overall_status
@@ -176,7 +176,7 @@ class AnalysisEngine:
             result['security_report']['critical_issues'] = risk_analysis.security_report.critical_issues
             result['security_report']['warnings'] = risk_analysis.security_report.warnings
             result['security_report']['passed_checks'] = risk_analysis.security_report.passed_checks
-            
+
             # Add computed properties for each category
             if 'categories' in result['security_report']:
                 for category_id, category in risk_analysis.security_report.categories.items():
@@ -186,7 +186,7 @@ class AnalysisEngine:
                         result['security_report']['categories'][category_id]['passed_checks'] = category.passed_checks
                         result['security_report']['categories'][category_id]['critical_checks'] = category.critical_checks
                         result['security_report']['categories'][category_id]['warning_checks'] = category.warning_checks
-        
+
         # Add computed properties for BehavioralAnalysis
         if hasattr(risk_analysis, 'behavioral_analysis') and risk_analysis.behavioral_analysis:
             # Calculate and add confidence level
@@ -526,17 +526,17 @@ class AnalysisEngine:
                 "current_sessions": agent.total_sessions,
                 "min_sessions_required": MIN_SESSIONS_FOR_RISK_ANALYSIS
             }
-            
+
             # Add analysis summary if available
             if analysis_summary:
                 agent_data["analysis_summary"] = analysis_summary
-            
+
             agents.append(agent_data)
 
         # Sort by last seen
         agents.sort(key=lambda x: x["last_seen"], reverse=True)
         return agents
-    
+
     async def _get_agent_analysis_summary(self, agent_id: str) -> Dict[str, Any]:
         """Get lightweight analysis summary for dashboard display."""
         # Read persisted analysis from DB (no longer compute inline)
@@ -593,20 +593,20 @@ class AnalysisEngine:
             summary["behavioral_waiting"] = True
 
         return summary
-    
+
     def _calculate_behavioral_confidence(self, behavioral_analysis) -> str:
         """
         Calculate confidence level based on cluster maturity and data volume.
-        
+
         Confidence Criteria:
         - HIGH: Single cluster with 30-40+ sessions, OR
                 2 clusters with 80+ total sessions, OR
                 3+ clusters with 150+ total sessions
                 AND very low outlier rate (≤5% with 200+ sessions)
-        
+
         - MEDIUM: Meaningful patterns emerging but not enough data
                   OR moderate outlier rate (≤10% with 200+ sessions)
-        
+
         - LOW: Insufficient data for confident analysis
                OR high outlier rate (>10%)
         """
@@ -614,25 +614,25 @@ class AnalysisEngine:
         num_clusters = behavioral_analysis.num_clusters
         num_outliers = behavioral_analysis.num_outliers
         clusters = behavioral_analysis.clusters
-        
+
         # Calculate outlier rate
         outlier_rate = (num_outliers / total_sessions * 100) if total_sessions > 0 else 0
-        
+
         # Get cluster sizes
         cluster_sizes = [cluster.size for cluster in clusters] if clusters else []
         cluster_sizes.sort(reverse=True)  # Largest first
-        
+
         # Check if we have enough sessions to evaluate outlier rate
         evaluate_outliers = total_sessions >= 200
-        
+
         # If high outlier rate with sufficient data, cap at MEDIUM or LOW
         if evaluate_outliers and outlier_rate > 10:
             # Too many outliers = unpredictable behavior
             return "low"
-        
+
         # HIGH CONFIDENCE CRITERIA
         # Requires substantial data AND low outlier rate
-        
+
         # Single dominant cluster with substantial data
         if num_clusters == 1 and cluster_sizes and cluster_sizes[0] >= 30:
             if evaluate_outliers:
@@ -643,7 +643,7 @@ class AnalysisEngine:
                     return "medium"  # Good cluster but moderate outliers
             else:
                 return "high"  # Not enough sessions to judge outliers yet
-        
+
         # Two clusters with significant data
         if num_clusters == 2 and cluster_sizes and len(cluster_sizes) >= 2:
             total_in_clusters = sum(cluster_sizes[:2])
@@ -655,7 +655,7 @@ class AnalysisEngine:
                         return "medium"  # Good clusters but moderate outliers
                 else:
                     return "high"
-        
+
         # Three or more clusters with substantial data
         if num_clusters >= 3 and cluster_sizes and len(cluster_sizes) >= 3:
             total_in_clusters = sum(cluster_sizes[:3])
@@ -667,30 +667,30 @@ class AnalysisEngine:
                         return "medium"  # Good clusters but moderate outliers
                 else:
                     return "high"
-        
+
         # MEDIUM CONFIDENCE CRITERIA
         # Patterns emerging but need more data
         # OR good patterns but moderate outlier rate (5-10%)
-        
+
         if num_clusters == 1 and cluster_sizes and cluster_sizes[0] >= 15:
             if evaluate_outliers and outlier_rate > 10:
                 return "low"
             return "medium"
-        
+
         if num_clusters == 2 and cluster_sizes and len(cluster_sizes) >= 2:
             total_in_clusters = sum(cluster_sizes[:2])
             if total_in_clusters >= 40:
                 if evaluate_outliers and outlier_rate > 10:
                     return "low"
                 return "medium"
-        
+
         if num_clusters >= 3 and cluster_sizes and len(cluster_sizes) >= 3:
             total_in_clusters = sum(cluster_sizes[:3])
             if total_in_clusters >= 75:
                 if evaluate_outliers and outlier_rate > 10:
                     return "low"
                 return "medium"
-        
+
         # LOW CONFIDENCE - insufficient data or unpredictable behavior
         return "low"
 
@@ -720,7 +720,7 @@ class AnalysisEngine:
                 status = "ACTIVE"
             else:
                 status = "INACTIVE"
-            
+
             sessions.append({
                 "id": session.session_id,
                 "id_short": session.session_id[:8] + "..." if len(session.session_id) > 8 else session.session_id,
@@ -810,7 +810,7 @@ class AnalysisEngine:
         from collections import defaultdict
         from datetime import datetime, timezone
         from .model_pricing import get_model_pricing, get_last_updated
-        
+
         # Aggregated data structures
         model_stats = defaultdict(lambda: {
             "requests": 0,
@@ -820,7 +820,7 @@ class AnalysisEngine:
             "response_times": [],
             "errors": 0
         })
-        
+
         tool_stats = defaultdict(lambda: {
             "executions": 0,
             "execution_times": [],
@@ -828,58 +828,58 @@ class AnalysisEngine:
             "successes": 0,
             "last_start_time": None  # Track last start time for duration calculation
         })
-        
+
         timeline_data = defaultdict(lambda: {
             "requests": 0,
             "tokens": 0,
             "input_tokens": 0,
             "output_tokens": 0
         })
-        
+
         tool_timeline_data = defaultdict(lambda: defaultdict(lambda: {
             "executions": 0,
             "total_duration": 0
         }))
-        
+
         # Process all events from all sessions
         for session in sessions:
             for event in session.events:
                 event_name = event.name.value
                 attrs = event.attributes
-                
+
                 # Collect model usage data
                 if event_name == "llm.call.finish":
                     # Get model name from various possible attributes
                     model = attrs.get("llm.model") or attrs.get("llm.request.model") or attrs.get("model")
-                    
+
                     # If still no model, check in request data
                     if not model:
                         request_data = attrs.get("llm.request.data", {})
                         if isinstance(request_data, dict):
                             model = request_data.get("model")
-                    
+
                     # Use "unknown" only as last resort
                     if not model:
                         model = "unknown"
-                    
+
                     # Normalize model name (remove provider prefixes, trailing version numbers, etc.)
                     model = model.strip()
-                    
+
                     input_tokens = attrs.get("llm.usage.input_tokens", 0)
                     output_tokens = attrs.get("llm.usage.output_tokens", 0)
                     total_tokens = attrs.get("llm.usage.total_tokens", input_tokens + output_tokens)
                     response_time = attrs.get("llm.response.duration_ms", 0)
-                    
+
                     model_stats[model]["requests"] += 1
                     model_stats[model]["input_tokens"] += input_tokens
                     model_stats[model]["output_tokens"] += output_tokens
                     model_stats[model]["total_tokens"] += total_tokens
                     model_stats[model]["response_times"].append(response_time)
-                    
+
                     # Timeline data (aggregate by date)
                     timestamp = event.timestamp
                     date_key = None
-                    
+
                     # Extract date from timestamp (timestamps are ISO format strings)
                     if isinstance(timestamp, str):
                         # String timestamp like "2025-11-13T10:30:45.123456+00:00"
@@ -891,109 +891,109 @@ class AnalysisEngine:
                     elif hasattr(timestamp, 'isoformat'):
                         # datetime object, get date part
                         date_key = timestamp.isoformat().split('T')[0]
-                    
+
                     if not date_key or date_key == "unknown" or not date_key.strip():
                         # Fallback: use event's session created_at or current date
                         logger.warning(f"Could not extract date from timestamp: {timestamp}, using fallback")
                         date_key = datetime.now(timezone.utc).date().isoformat()
-                    
+
                     timeline_data[date_key]["requests"] += 1
                     timeline_data[date_key]["tokens"] += total_tokens
                     timeline_data[date_key]["input_tokens"] += input_tokens
                     timeline_data[date_key]["output_tokens"] += output_tokens
-                
+
                 elif event_name.endswith(".error"):
                     model = attrs.get("llm.model") or attrs.get("model") or "unknown"
                     model_stats[model]["errors"] += 1
-                
+
                 # Collect tool usage data
                 elif event_name == "tool.execution":
                     tool_name = attrs.get("tool.name", "unknown")
                     duration = attrs.get("tool.duration_ms", 0)
-                    
+
                     tool_stats[tool_name]["executions"] += 1
-                    
+
                     # Store start time for duration calculation
                     tool_stats[tool_name]["last_start_time"] = event.timestamp
-                    
+
                     # If duration is provided, use it
                     if duration > 0:
                         tool_stats[tool_name]["execution_times"].append(duration)
-                    
+
                     # Track tool execution timeline
                     timestamp = event.timestamp
                     date_key = None
-                    
+
                     if isinstance(timestamp, str):
                         date_key = timestamp.split('T')[0] if 'T' in timestamp else timestamp.split(' ')[0]
                     elif hasattr(timestamp, 'date'):
                         date_key = timestamp.date().isoformat()
                     elif hasattr(timestamp, 'isoformat'):
                         date_key = timestamp.isoformat().split('T')[0]
-                    
+
                     if not date_key or date_key == "unknown" or not date_key.strip():
                         date_key = datetime.now(timezone.utc).date().isoformat()
-                    
+
                     tool_timeline_data[date_key][tool_name]["executions"] += 1
                     if duration > 0:
                         tool_timeline_data[date_key][tool_name]["total_duration"] += duration
-                
+
                 elif event_name == "tool.result":
                     tool_name = attrs.get("tool.name", "unknown")
                     status = attrs.get("tool.status", "success")
-                    
+
                     # Calculate duration if we have a start time
                     if tool_stats[tool_name]["last_start_time"] is not None:
                         start_time_str = tool_stats[tool_name]["last_start_time"]
                         end_time_str = event.timestamp
-                        
+
                         try:
                             # Parse timestamps
                             if isinstance(start_time_str, str):
                                 start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
                             else:
                                 start_time = start_time_str
-                                
+
                             if isinstance(end_time_str, str):
                                 end_time = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
                             else:
                                 end_time = end_time_str
-                            
+
                             # Calculate duration in milliseconds
                             duration_ms = (end_time - start_time).total_seconds() * 1000
-                            
+
                             if duration_ms > 0 and duration_ms < 3600000:  # Sanity check: less than 1 hour
                                 tool_stats[tool_name]["execution_times"].append(duration_ms)
-                                
+
                                 # Update timeline data with calculated duration
                                 timestamp = event.timestamp
                                 date_key = None
-                                
+
                                 if isinstance(timestamp, str):
                                     date_key = timestamp.split('T')[0] if 'T' in timestamp else timestamp.split(' ')[0]
                                 elif hasattr(timestamp, 'date'):
                                     date_key = timestamp.date().isoformat()
                                 elif hasattr(timestamp, 'isoformat'):
                                     date_key = timestamp.isoformat().split('T')[0]
-                                
+
                                 if date_key and date_key != "unknown" and date_key.strip():
                                     tool_timeline_data[date_key][tool_name]["total_duration"] += duration_ms
-                            
+
                             # Clear start time
                             tool_stats[tool_name]["last_start_time"] = None
                         except Exception as e:
                             logger.warning(f"Failed to calculate tool duration for {tool_name}: {e}")
-                    
+
                     if status == "success":
                         tool_stats[tool_name]["successes"] += 1
                     else:
                         tool_stats[tool_name]["failures"] += 1
-        
+
         # Compute token breakdowns
         total_input_tokens = sum(stats["input_tokens"] for stats in model_stats.values())
         total_output_tokens = sum(stats["output_tokens"] for stats in model_stats.values())
         total_tokens = total_input_tokens + total_output_tokens
-        
+
         # Compute costs using the pricing module
         total_cost = 0.0
         model_costs = {}
@@ -1004,13 +1004,13 @@ class AnalysisEngine:
             model_cost = input_cost + output_cost
             total_cost += model_cost
             model_costs[model] = model_cost
-        
+
         # Prepare model analytics
         models_data = []
         for model, stats in model_stats.items():
             avg_response_time = sum(stats["response_times"]) / len(stats["response_times"]) if stats["response_times"] else 0
             p95_response_time = sorted(stats["response_times"])[int(len(stats["response_times"]) * 0.95)] if len(stats["response_times"]) > 0 else 0
-            
+
             models_data.append({
                 "model": model,
                 "requests": stats["requests"],
@@ -1022,17 +1022,17 @@ class AnalysisEngine:
                 "errors": stats["errors"],
                 "cost": round(model_costs.get(model, 0), 4)
             })
-        
+
         # Sort models by total tokens
         models_data.sort(key=lambda x: x["total_tokens"], reverse=True)
-        
+
         # Prepare tool analytics
         tools_data = []
         for tool_name, stats in tool_stats.items():
             avg_duration = sum(stats["execution_times"]) / len(stats["execution_times"]) if stats["execution_times"] else 0
             max_duration = max(stats["execution_times"]) if stats["execution_times"] else 0
             failure_rate = (stats["failures"] / (stats["successes"] + stats["failures"]) * 100) if (stats["successes"] + stats["failures"]) > 0 else 0
-            
+
             tools_data.append({
                 "tool": tool_name,
                 "executions": stats["executions"],
@@ -1042,10 +1042,10 @@ class AnalysisEngine:
                 "successes": stats["successes"],
                 "failure_rate": round(failure_rate, 2)
             })
-        
+
         # Sort tools by executions
         tools_data.sort(key=lambda x: x["executions"], reverse=True)
-        
+
         # Prepare timeline data
         timeline = []
         for date_key in sorted(timeline_data.keys()):
@@ -1057,7 +1057,7 @@ class AnalysisEngine:
                 "input_tokens": data["input_tokens"],
                 "output_tokens": data["output_tokens"]
             })
-        
+
         # Prepare tool timeline data
         tool_timeline = []
         for date_key in sorted(tool_timeline_data.keys()):
@@ -1072,7 +1072,7 @@ class AnalysisEngine:
                     for tool_name, data in tools_by_date.items()
                 }
             })
-        
+
         return {
             "token_summary": {
                 "total_tokens": total_tokens,
@@ -1099,7 +1099,6 @@ class AnalysisEngine:
                 "description": self._get_event_description(event),
                 "level": event["level"],
                 "details": event["attributes"],
-                "raw_event": event  # Include full raw event data
             }
             timeline.append(timeline_item)
 
@@ -1212,20 +1211,20 @@ class AnalysisEngine:
 
     def _should_run_pii_analysis(self, agent_id: str, cache_key: tuple) -> tuple[bool, Optional[Any], str]:
         """Determine if PII analysis should run and get current PII status.
-        
+
         This method centralizes all PII execution gating logic:
         1. If PII is already running - do not run another
         2. If PII was completed - check if sessions changed, run if needed
         3. Never run more than one PII analysis at once per agent
         4. Never cancel, stop, or ignore a running PII analysis
-        
+
         This is a synchronous method that performs fast dictionary lookups only.
         Must be called while holding _pii_launch_lock to ensure atomicity.
-        
+
         Args:
             agent_id: Agent identifier
             cache_key: Current (session_count, completed_count) tuple
-            
+
         Returns:
             Tuple of (should_launch: bool, current_pii_result: Optional[PIIAnalysisResult], pii_status: str)
             - should_launch: True if caller should launch new PII analysis
@@ -1243,19 +1242,19 @@ class AnalysisEngine:
             )
             logger.info(f"[PII GUARD] Agent {agent_id}: PII analysis disabled by configuration")
             return False, disabled_result, "disabled"
-        
+
         # Get cached PII data (result + the cache_key it was computed for)
         old_pii_data = self._pii_results_cache.get(agent_id)
         if old_pii_data:
             old_pii_result, old_pii_cache_key = old_pii_data
         else:
             old_pii_result, old_pii_cache_key = None, None
-        
+
         # Check if PII result is fresh (matches current sessions)
         if old_pii_result and old_pii_cache_key == cache_key:
             logger.info(f"[PII GUARD] Agent {agent_id}: Fresh PII result available (key={cache_key})")
             return False, old_pii_result, "complete"
-        
+
         # Check if analysis is already running
         # IMPORTANT: Never launch a second task if one is running
         if agent_id in self._pii_analysis_tasks:
@@ -1269,7 +1268,7 @@ class AnalysisEngine:
                 # Task completed/failed but wasn't cleaned up - remove it
                 logger.info(f"[PII GUARD] Agent {agent_id}: Cleaning up completed task")
                 del self._pii_analysis_tasks[agent_id]
-        
+
         # Need new analysis: either no previous result or sessions changed
         if old_pii_result:
             logger.info(f"[PII GUARD] Agent {agent_id}: Sessions changed {old_pii_cache_key} → {cache_key}, need refresh")
@@ -1360,7 +1359,7 @@ class AnalysisEngine:
                     logger.info(f"[PII BACKGROUND] Cleaned up task for agent {agent_id}")
 
     async def compute_risk_analysis(
-        self, 
+        self,
         agent_id: str,
         sessions: Optional[List[SessionData]] = None,
     ) -> Optional[RiskAnalysisResult]:
@@ -1371,7 +1370,7 @@ class AnalysisEngine:
 
         Args:
             agent_id: Agent identifier
-            sessions: Optional list of specific sessions to analyze. If None, 
+            sessions: Optional list of specific sessions to analyze. If None,
                      analyzes ALL sessions for the agent. For incremental analysis,
                      pass only the new sessions to analyze.
 
@@ -1387,7 +1386,7 @@ class AnalysisEngine:
             agent_sessions = sessions
         else:
             agent_sessions = self.store.get_agent_sessions(agent_id)
-        
+
         # Check minimum session requirement
         if len(agent_sessions) < MIN_SESSIONS_FOR_RISK_ANALYSIS:
             return RiskAnalysisResult(
@@ -1403,14 +1402,14 @@ class AnalysisEngine:
                     "sessions_needed": MIN_SESSIONS_FOR_RISK_ANALYSIS - len(agent_sessions)
                 }
             )
-        
+
         # Count completed sessions for cache key
         completed_count = len([s for s in agent_sessions if s.is_completed])
 
         # Skip cache when specific sessions are provided (incremental analysis)
         # Cache is only used when analyzing ALL sessions for an agent
         use_cache = sessions is None
-        
+
         if use_cache:
             # Check cache (invalidate only if session count OR completion count changed)
             cache_key = (len(agent_sessions), completed_count)
@@ -1437,15 +1436,15 @@ class AnalysisEngine:
 
             logger.info(f"[RISK ANALYSIS] Agent {agent_id}: {len(agent_sessions)} total sessions, "
                        f"{len(completed_sessions)} completed, {active_sessions_count} active")
-            
+
             # Run behavioral analysis with frozen percentiles
             # Percentiles are calculated once and never change (stability)
             # Signatures are computed once per session and stored (efficiency)
             behavioral_result, frozen_percentiles = analyze_agent_behavior(
-                agent_sessions, 
+                agent_sessions,
                 cached_percentiles=agent.cached_percentiles
             )
-            
+
             # Store frozen percentiles if this is the first calculation
             if agent.cached_percentiles is None and frozen_percentiles is not None:
                 agent.cached_percentiles = frozen_percentiles
@@ -1467,7 +1466,7 @@ class AnalysisEngine:
 
             logger.info(f"[RISK ANALYSIS] Behavioral analysis result: total_sessions={behavioral_result.total_sessions}, "
                        f"num_clusters={behavioral_result.num_clusters}, error={behavioral_result.error}")
-            
+
             behavioral_status = "COMPLETE" if behavioral_result.total_sessions >= 2 else "WAITING_FOR_COMPLETION"
 
             # Run PII analysis (works on all sessions - doesn't need completion)
@@ -1477,7 +1476,7 @@ class AnalysisEngine:
             # Note: Using threading.Lock (not asyncio.Lock) since lock is held for < 1ms
             with self._pii_launch_lock:
                 should_launch, pii_result, pii_status = self._should_run_pii_analysis(agent_id, cache_key)
-                
+
                 if should_launch:
                     # Launch new PII analysis task (runs in background, doesn't block)
                     logger.info(f"[PII LAUNCH] Launching analysis for {agent_id} with key {cache_key}")
@@ -1498,7 +1497,7 @@ class AnalysisEngine:
                 evaluation_status = "COMPLETE"
             else:
                 evaluation_status = "PARTIAL"  # Security done, behavioral waiting
-            
+
             # Create summary with session status info
             summary = {
                 "critical_issues": security_report.critical_issues,
@@ -1558,7 +1557,7 @@ class AnalysisEngine:
                 logger.info(f"[INCREMENTAL] Skipping cache for incremental analysis of agent {agent_id}")
 
             return result
-            
+
         except Exception as e:
             logger.error(f"[RISK ANALYSIS] Exception in risk analysis for agent {agent_id}: {e}", exc_info=True)
             return RiskAnalysisResult(

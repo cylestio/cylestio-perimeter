@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, type FC } from 'react';
 import { useParams } from 'react-router-dom';
+import { Download, FileJson, MessageSquare } from 'lucide-react';
 
 import { fetchSession } from '@api/endpoints/session';
 import { fetchModels } from '@api/endpoints/replay';
@@ -8,11 +9,14 @@ import type { ModelsResponse, ModelInfo } from '@api/types/replay';
 import { usePolling } from '@hooks/usePolling';
 import { buildAgentWorkflowBreadcrumbs, agentWorkflowLink } from '../../utils/breadcrumbs';
 
-import { OrbLoader } from '@ui/feedback/OrbLoader';
-import { EmptyState } from '@ui/feedback/EmptyState';
+import { Button } from '@ui/core';
 import { Timeline } from '@ui/data-display/Timeline';
+import { EmptyState } from '@ui/feedback/EmptyState';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Page } from '@ui/layout/Page';
 import { Section } from '@ui/layout/Section';
+import { Dropdown } from '@ui/overlays';
+import { parseConversation, downloadJSON } from '@utils/export';
 
 import { usePageMeta } from '../../context';
 import { ReplayPanel } from './ReplayPanel';
@@ -97,6 +101,32 @@ export const SessionDetail: FC = () => {
     setReplayEventId(null);
   };
 
+  const handleExportRawEvents = () => {
+    if (!data) return;
+    downloadJSON(data.timeline, `session-${sessionId}-events.json`);
+  };
+
+  const handleExportConversation = () => {
+    if (!data) return;
+    const conversation = parseConversation(data.timeline);
+    downloadJSON(conversation, `session-${sessionId}-conversation.json`);
+  };
+
+  const exportItems = [
+    {
+      id: 'raw-events',
+      label: 'Export Raw Events',
+      icon: <FileJson size={14} />,
+      onClick: handleExportRawEvents,
+    },
+    {
+      id: 'conversation',
+      label: 'Export Conversation',
+      icon: <MessageSquare size={14} />,
+      onClick: handleExportConversation,
+    },
+  ];
+
   if (loading && !data) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
@@ -144,6 +174,17 @@ export const SessionDetail: FC = () => {
           <Section>
             <Section.Header>
               <Section.Title>Event Timeline ({timeline.length} events)</Section.Title>
+              {timeline.length > 0 && (
+                <Dropdown
+                  trigger={
+                    <Button variant="secondary" size="sm" icon={<Download size={14} />}>
+                      Export
+                    </Button>
+                  }
+                  items={exportItems}
+                  align="right"
+                />
+              )}
             </Section.Header>
             <TimelineContent>
               {timeline.length > 0 ? (
