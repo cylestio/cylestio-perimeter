@@ -11,7 +11,8 @@
     "format": "prettier --write .",
     "storybook": "storybook dev -p 7501",
     "build-storybook": "storybook build",
-    "test-storybook": "vitest --project=storybook"
+    "test-storybook": "vitest --project=storybook",
+    "test": "vitest --project=unit"
   },
   "keywords": [
     "react",
