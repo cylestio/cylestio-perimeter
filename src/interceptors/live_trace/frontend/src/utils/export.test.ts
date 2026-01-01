@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseConversation, type ConversationMessage } from './export';
+import { parseConversation } from './export';
 import type { TimelineEvent } from '@api/types/session';
 
 describe('parseConversation', () => {
