@@ -1389,7 +1389,7 @@ class TraceStore:
                     FROM findings
                     WHERE agent_workflow_id IN ({placeholders})
                     GROUP BY agent_workflow_id
-                """, workflow_ids)
+                """, workflow_ids)  # nosec B608 - safe: placeholders is only ?,?,? pattern
 
                 findings_by_workflow = {
                     row["agent_workflow_id"]: {
@@ -1411,7 +1411,7 @@ class TraceStore:
                     FROM recommendations
                     WHERE workflow_id IN ({placeholders})
                     GROUP BY workflow_id
-                """, (*terminal_states, *workflow_ids))
+                """, (*terminal_states, *workflow_ids))  # nosec B608 - safe: placeholders is only ?,?,? pattern
 
                 recommendations_by_workflow = {
                     row["workflow_id"]: {
