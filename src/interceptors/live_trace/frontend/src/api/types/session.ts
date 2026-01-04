@@ -23,6 +23,7 @@ export interface TimelineEvent {
 export interface SessionDetail {
   id: string;
   agent_id: string;
+  agent_workflow_id?: string | null;
   is_active: boolean;
   is_completed: boolean;
   model?: string | null;
@@ -40,6 +41,7 @@ export interface SessionDetail {
   available_tools?: string[];
   tool_usage_details?: Record<string, number>;
   avg_response_time_ms?: number;
+  tags?: Record<string, string>;
 }
 
 export interface SessionResponse {
@@ -71,12 +73,14 @@ export interface SessionListItem {
   errors: number;
   total_tokens: number;
   error_rate: number;
+  tags?: Record<string, string>;
 }
 
 export interface SessionsListFilters {
   agent_workflow_id?: string;
   agent_id?: string;
   status?: LiveSessionStatus;
+  tag?: string;
   limit: number;
   offset: number;
 }

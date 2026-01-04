@@ -2,6 +2,7 @@ import { useState, useMemo, type FC } from 'react';
 import {
   Server,
   Wrench,
+  Tag,
   // Brain,    // TODO: Uncomment when Behavioral Insights is implemented
   // Shield,   // TODO: Uncomment when Security Checks is implemented
   // Activity, // TODO: Uncomment if Metrics section header is restored
@@ -15,6 +16,8 @@ import { Text } from '@ui/core/Text';
 import { Section } from '@ui/layout/Section';
 import { KeyValueList } from '@ui/data-display/KeyValueList';
 import { ProgressBar } from '@ui/feedback/ProgressBar';
+
+import { SessionTags } from '@domain/sessions';
 
 import type { SessionEvent } from '@api/types/session';
 import type { ModelInfo } from '@api/types/replay';
@@ -93,6 +96,8 @@ export interface SessionSidebarInfoProps {
   toolUsageDetails?: Record<string, number>;
   /** Model pricing info from /api/models (for cost calculation) */
   modelPricing?: ModelInfo;
+  /** Session tags */
+  tags?: Record<string, string>;
   className?: string;
 }
 
@@ -263,6 +268,7 @@ export const SessionSidebarInfo: FC<SessionSidebarInfoProps> = ({
   availableTools = [],
   toolUsageDetails = {},
   modelPricing,
+  tags,
   className,
 }) => {
   const [showAllTools, setShowAllTools] = useState(false);
@@ -364,6 +370,18 @@ export const SessionSidebarInfo: FC<SessionSidebarInfoProps> = ({
           <KeyValueList items={metadataItems} size="sm" />
         </Section.Content>
       </Section>
+
+      {/* ====== SESSION TAGS ====== */}
+      {tags && Object.keys(tags).length > 0 && (
+        <Section>
+          <Section.Header>
+            <Section.Title icon={<Tag size={14} />}>Tags</Section.Title>
+          </Section.Header>
+          <Section.Content>
+            <SessionTags tags={tags} maxTags={10} />
+          </Section.Content>
+        </Section>
+      )}
 
       {/* ====== OPERATIONAL METRICS ====== */}
       <MetricsGrid>

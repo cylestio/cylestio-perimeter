@@ -9,6 +9,8 @@ import { Avatar, Badge, TimeAgo } from '@ui/core';
 import { Table, type Column } from '@ui/data-display/Table';
 import { EmptyState } from '@ui/feedback/EmptyState';
 
+import { SessionTags } from './SessionTags';
+
 // Props
 export interface SessionsTableProps {
   /** Sessions data to display */
@@ -128,6 +130,13 @@ const getColumns = (agentWorkflowId: string, showAgentColumn: boolean): Column<S
           <span style={{ color: 'var(--color-green)' }}>0%</span>
         ),
       sortable: true,
+    },
+    {
+      key: 'tags',
+      header: 'Tags',
+      render: (session) => (
+        <SessionTags tags={session.tags} maxTags={3} />
+      ),
     },
     {
       key: 'last_activity',

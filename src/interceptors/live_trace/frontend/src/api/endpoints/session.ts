@@ -17,6 +17,7 @@ export interface FetchSessionsParams {
   agent_id?: string;
   status?: LiveSessionStatus;
   cluster_id?: string;
+  tag?: string;
   limit?: number;
   offset?: number;
 }
@@ -35,6 +36,9 @@ export const fetchSessions = async (params?: FetchSessionsParams): Promise<Sessi
   }
   if (params?.cluster_id) {
     searchParams.set('cluster_id', params.cluster_id);
+  }
+  if (params?.tag) {
+    searchParams.set('tag', params.tag);
   }
   if (params?.limit) {
     searchParams.set('limit', params.limit.toString());

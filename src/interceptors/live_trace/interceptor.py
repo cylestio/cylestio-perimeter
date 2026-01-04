@@ -141,11 +141,24 @@ class LiveTraceInterceptor(BaseInterceptor):
         if not self.enabled:
             return None
 
+        # Extract agent_id and tags from request metadata
+        agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
+        tags = getattr(request_data.request.state, 'tags', None)
+
+        # Update session tags if present
+        if tags and request_data.session_id:
+            try:
+                self.store.update_session_tags(
+                    session_id=request_data.session_id,
+                    tags=tags,
+                    agent_id=agent_id
+                )
+            except Exception as e:
+                logger.error(f"Error updating session tags: {e}")
+
         # Process all events from the request
         for event in request_data.events:
             try:
-                # Extract agent_id from request metadata or use default
-                agent_id = getattr(request_data.request.state, 'agent_id', 'unknown')
                 self.store.add_event(event, request_data.session_id, agent_id)
             except Exception as e:
                 logger.error(f"Error processing request event: {e}")

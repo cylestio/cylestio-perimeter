@@ -168,6 +168,7 @@ export const SessionDetail: FC = () => {
           availableTools={session.available_tools}
           toolUsageDetails={session.tool_usage_details}
           modelPricing={modelPricing}
+          tags={session.tags}
         />
 
         <SessionMain>

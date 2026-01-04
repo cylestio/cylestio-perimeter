@@ -334,22 +334,82 @@ class LLMMiddleware(BaseHTTPMiddleware):
 
     def _evaluate_agent_id(self, request: Request, body: Dict[str, Any]) -> str:
         """Evaluate and return the appropriate agent ID for a request.
-        
+
         This method centralizes agent ID evaluation logic, checking for external
         agent ID from headers first, then falling back to provider-computed agent ID.
-        
+
         Args:
             request: FastAPI request object
             body: Parsed request body
-            
+
         Returns:
             The agent ID to use for this request
         """
         # Check for external agent ID in headers
         external_agent_id = request.headers.get("x-cylestio-agent-id")
-        
+
         # Use provider's evaluation method which handles the fallback logic
         return self.provider.evaluate_agent_id(body, external_agent_id)
+
+    def _parse_tags_header(self, request: Request) -> Dict[str, str]:
+        """Parse the x-cylestio-tags header into a dictionary.
+
+        Header format: key1:value1,key2:value2,...
+        Example: user:someone@email.com,env:production,workflowId:my-workflow
+
+        Tag limits:
+        - Max 50 tags per request
+        - Max 64 chars for key
+        - Max 512 chars for value
+
+        Args:
+            request: FastAPI request object
+
+        Returns:
+            Dictionary of tag key-value pairs
+        """
+        tags_header = request.headers.get("x-cylestio-tags")
+        if not tags_header:
+            return {}
+
+        tags: Dict[str, str] = {}
+        tag_count = 0
+        max_tags = 50
+        max_key_len = 64
+        max_value_len = 512
+
+        for tag_pair in tags_header.split(","):
+            if tag_count >= max_tags:
+                logger.warning(f"Tags limit exceeded ({max_tags}), ignoring remaining tags")
+                break
+
+            tag_pair = tag_pair.strip()
+            if not tag_pair:
+                continue
+
+            # Split on first colon only (value may contain colons)
+            if ":" in tag_pair:
+                key, value = tag_pair.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+            else:
+                # Tag without value - treat as boolean tag
+                key = tag_pair
+                value = "true"
+
+            # Validate key and value lengths
+            if len(key) > max_key_len:
+                logger.warning(f"Tag key '{key[:20]}...' exceeds max length ({max_key_len}), skipping")
+                continue
+            if len(value) > max_value_len:
+                logger.warning(f"Tag value for '{key}' exceeds max length ({max_value_len}), truncating")
+                value = value[:max_value_len]
+
+            if key:
+                tags[key] = value
+                tag_count += 1
+
+        return tags
     
     async def _create_request_data(self, request: Request) -> Optional[LLMRequestData]:
         """Parse request and create LLMRequestData.
@@ -400,7 +460,11 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     request.state.cylestio_trace_id = trace_id
                     request.state.agent_id = agent_id
                     request.state.model = model
-                    
+
+                    # Parse and store tags from header
+                    tags = self._parse_tags_header(request)
+                    request.state.tags = tags
+
                     # Note: span_id will be set by individual events as needed
                     
                     # Extract events from request with computed agent_id
