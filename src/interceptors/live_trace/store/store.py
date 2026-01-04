@@ -1302,26 +1302,35 @@ class TraceStore:
             }
 
     def get_agent_workflows(self) -> List[Dict[str, Any]]:
-        """Get all unique agent workflows with their agent counts.
+        """Get all unique agent workflows with comprehensive stats.
 
         Returns:
-            List of agent workflow dicts with id, name, agent_count, and session_count.
-            Includes agent workflows from agents and sessions tables.
+            List of agent workflow dicts with:
+            - id, name: Basic identification
+            - agent_count, session_count: Activity counts
+            - findings_total, findings_open: Finding counts
+            - recommendations_total, recommendations_pending: Recommendation counts
+            - last_activity: ISO timestamp of last activity
+            - gate_status: 'OPEN' or 'BLOCKED'
+            - is_blocked: Boolean for quick checks
             Includes "Unassigned" for agents without an agent workflow.
         """
         with self._lock:
             agent_workflows = []
 
-            # Get agent workflows with agent counts and session counts
+            # Get agent workflows with agent counts, session counts, and last activity
             cursor = self.db.execute("""
                 SELECT
                     agent_workflow_id,
                     COALESCE(MAX(agent_workflow_name), agent_workflow_id) as name,
                     SUM(agent_count) as agent_count,
-                    SUM(session_count) as session_count
+                    SUM(session_count) as session_count,
+                    MAX(last_activity) as last_activity
                 FROM (
                     -- Agent workflows from agents
-                    SELECT agent_workflow_id, NULL as agent_workflow_name, COUNT(*) as agent_count, 0 as session_count
+                    SELECT agent_workflow_id, NULL as agent_workflow_name,
+                           COUNT(*) as agent_count, 0 as session_count,
+                           MAX(last_seen) as last_activity
                     FROM agents
                     WHERE agent_workflow_id IS NOT NULL
                     GROUP BY agent_workflow_id
@@ -1329,7 +1338,9 @@ class TraceStore:
                     UNION ALL
 
                     -- Agent workflows from sessions (actual agent sessions)
-                    SELECT agent_workflow_id, NULL as agent_workflow_name, 0 as agent_count, COUNT(*) as session_count
+                    SELECT agent_workflow_id, NULL as agent_workflow_name,
+                           0 as agent_count, COUNT(*) as session_count,
+                           MAX(last_activity) as last_activity
                     FROM sessions
                     WHERE agent_workflow_id IS NOT NULL
                     GROUP BY agent_workflow_id
@@ -1337,7 +1348,9 @@ class TraceStore:
                     UNION ALL
 
                     -- Agent workflows from analysis_sessions (for agent workflow names)
-                    SELECT agent_workflow_id, agent_workflow_name, 0 as agent_count, 0 as session_count
+                    SELECT agent_workflow_id, agent_workflow_name,
+                           0 as agent_count, 0 as session_count,
+                           MAX(created_at) as last_activity
                     FROM analysis_sessions
                     WHERE agent_workflow_id IS NOT NULL
                     GROUP BY agent_workflow_id
@@ -1346,13 +1359,81 @@ class TraceStore:
                 ORDER BY agent_workflow_id
             """)
 
+            workflow_ids = []
             for row in cursor.fetchall():
+                workflow_id = row["agent_workflow_id"]
+                workflow_ids.append(workflow_id)
                 agent_workflows.append({
-                    "id": row["agent_workflow_id"],
+                    "id": workflow_id,
                     "name": row["name"],
                     "agent_count": row["agent_count"],
-                    "session_count": row["session_count"]
+                    "session_count": row["session_count"],
+                    "last_activity": row["last_activity"],
+                    # Defaults - will be populated below
+                    "findings_total": 0,
+                    "findings_open": 0,
+                    "recommendations_total": 0,
+                    "recommendations_pending": 0,
+                    "gate_status": "OPEN",
+                    "is_blocked": False,
                 })
+
+            # Batch query: Get findings counts per workflow
+            if workflow_ids:
+                placeholders = ",".join("?" * len(workflow_ids))
+                cursor = self.db.execute(f"""
+                    SELECT
+                        agent_workflow_id,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) as open_count
+                    FROM findings
+                    WHERE agent_workflow_id IN ({placeholders})
+                    GROUP BY agent_workflow_id
+                """, workflow_ids)
+
+                findings_by_workflow = {
+                    row["agent_workflow_id"]: {
+                        "total": row["total"],
+                        "open": row["open_count"]
+                    }
+                    for row in cursor.fetchall()
+                }
+
+                # Batch query: Get recommendations counts per workflow
+                terminal_states = ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED')
+                cursor = self.db.execute(f"""
+                    SELECT
+                        workflow_id,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending_count,
+                        SUM(CASE WHEN severity IN ('CRITICAL', 'HIGH')
+                                  AND status NOT IN (?, ?, ?, ?, ?, ?) THEN 1 ELSE 0 END) as blocking_count
+                    FROM recommendations
+                    WHERE workflow_id IN ({placeholders})
+                    GROUP BY workflow_id
+                """, (*terminal_states, *workflow_ids))
+
+                recommendations_by_workflow = {
+                    row["workflow_id"]: {
+                        "total": row["total"],
+                        "pending": row["pending_count"],
+                        "blocking": row["blocking_count"]
+                    }
+                    for row in cursor.fetchall()
+                }
+
+                # Populate the additional fields
+                for wf in agent_workflows:
+                    wf_id = wf["id"]
+                    if wf_id in findings_by_workflow:
+                        wf["findings_total"] = findings_by_workflow[wf_id]["total"]
+                        wf["findings_open"] = findings_by_workflow[wf_id]["open"]
+                    if wf_id in recommendations_by_workflow:
+                        rec_data = recommendations_by_workflow[wf_id]
+                        wf["recommendations_total"] = rec_data["total"]
+                        wf["recommendations_pending"] = rec_data["pending"]
+                        wf["is_blocked"] = rec_data["blocking"] > 0
+                        wf["gate_status"] = "BLOCKED" if rec_data["blocking"] > 0 else "OPEN"
 
             # Get count of unassigned agents
             cursor = self.db.execute(
@@ -1364,7 +1445,15 @@ class TraceStore:
                 agent_workflows.append({
                     "id": None,
                     "name": "Unassigned",
-                    "agent_count": unassigned_count
+                    "agent_count": unassigned_count,
+                    "session_count": 0,
+                    "last_activity": None,
+                    "findings_total": 0,
+                    "findings_open": 0,
+                    "recommendations_total": 0,
+                    "recommendations_pending": 0,
+                    "gate_status": "OPEN",
+                    "is_blocked": False,
                 })
 
             return agent_workflows
