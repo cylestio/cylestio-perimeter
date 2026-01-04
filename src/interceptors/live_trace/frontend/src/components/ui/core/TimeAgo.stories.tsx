@@ -101,10 +101,12 @@ export const AbsoluteFormat: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     // Absolute format shows full date with month, day, year, and time
-    // Check that at least one absolute date is displayed (contains month name and year)
+    // Check that both absolute dates are displayed (contains month name and year)
     const currentYear = new Date().getFullYear().toString();
-    const dateElement = canvas.getByText(new RegExp(`\\w+ \\d+, ${currentYear}`));
-    await expect(dateElement).toBeInTheDocument();
+    const dateElements = canvas.getAllByText(
+      new RegExp(`\\w+ \\d+, ${currentYear}`)
+    );
+    await expect(dateElements.length).toBe(2);
   },
 };
 
