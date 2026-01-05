@@ -286,16 +286,9 @@ function AppLayout() {
     : false;
 
   // Dev connection status - from actual IDE connection
-  // States:
-  // - 'running': Has activity with IDE metadata (pulsing green animation)
-  // - 'ok': Has activity (solid green)
-  // - 'inactive': No activity detected (gray)
-  const devConnectionStatus: SecurityCheckStatus = (() => {
-    if (!ideConnectionStatus) return 'inactive';
-    if (ideConnectionStatus.has_activity && ideConnectionStatus.ide) return 'running'; // Has IDE metadata
-    if (ideConnectionStatus.has_activity) return 'ok'; // Has activity but no IDE info
-    return 'inactive';
-  })();
+  // States: 'ok' (green) when has activity, 'inactive' (gray) otherwise
+  const devConnectionStatus: SecurityCheckStatus =
+    ideConnectionStatus?.has_activity ? 'ok' : 'inactive';
 
   return (
     <Shell>
