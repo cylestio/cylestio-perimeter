@@ -1,213 +1,647 @@
-import type { FC, ReactNode } from 'react';
+import type { FC } from 'react';
 import { useState, useEffect, useCallback } from 'react';
 
 import {
   Check,
-  X,
-  Terminal,
-  Code,
-  Zap,
-  User,
-  FolderOpen,
-  Server,
   Copy,
-  CheckCircle,
-  Cpu,
-  Clock
+  AlertTriangle,
+  FolderOpen,
+  Clock,
+  ArrowRight,
+  Settings,
+  X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 
 import { DevConnectionIcon } from '@constants/pageIcons';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
+import { fetchConfig } from '@api/endpoints/config';
 import type { IDEConnectionStatus } from '@api/types/ide';
+import type { ConfigResponse } from '@api/types/config';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Badge } from '@ui/core/Badge';
+import { Button } from '@ui/core/Button';
+import { Card } from '@ui/core/Card';
+import { TimeAgo } from '@ui/core/TimeAgo';
 import { CursorIcon, ClaudeCodeIcon } from '@ui/icons';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
-import { Section } from '@ui/layout/Section';
+import { OrbLoader } from '@ui/feedback/OrbLoader';
 
 import { usePageMeta } from '../../context';
 import {
-  ConnectionStatus,
-  StatusIcon,
+  StatusBanner,
+  StatusIconWrapper,
   StatusContent,
   StatusTitle,
-  StatusDescription,
-  IDEList,
-  IDECard,
-  IDEIcon,
-  IDEInfo,
-  IDEName,
-  IDEDescription,
-  IDEStatus,
-  SetupSteps,
-  Step,
-  StepNumber,
-  StepContent,
-  StepTitle,
-  StepDescription,
-  CodeBlock,
-  LiveIndicator,
+  StatusDetails,
+  StatusDetail,
+  LiveBadge,
   LiveDot,
+  SplitContainer,
+  LeftPanel,
+  LeftPanelHeader,
+  IntegrationCards,
+  IntegrationCard,
+  CardHeader,
+  CardIcon,
+  CardTitle,
+  CardBadge,
+  FeatureList,
+  FeatureItem,
+  FeatureIcon,
+  RightPanel,
+  RightPanelHeader,
+  RightPanelDescription,
+  InstructionSection,
+  InstructionLabel,
+  CommandBlock,
+  CommandNumber,
+  CommandText,
+  CodeBlock,
+  WarningNote,
+  WarningIcon,
+  WarningText,
+  FeatureCardWrapper,
+  FeatureTable,
+  TableHead,
+  TableRow,
+  TableHeader,
+  TableCell,
+  FeatureName,
+  FeatureDescription,
+  CheckIcon,
+  SuccessContent,
+  SuccessHeader,
+  SuccessTitle,
+  ConnectionDetails,
   DetailItem,
   DetailLabel,
   DetailValue,
-  DevelopingBanner,
-  DevelopingIcon,
-  DevelopingContent,
-  DevelopingTitle,
-  DevelopingDescription,
-  CopyButton,
-  QuickSetupCard,
-  QuickSetupTitle,
-  QuickSetupDescription,
-  QuickSetupCode,
-  InlineConnectionDetails,
-  StepDescriptionWithMargin,
+  ActionButton,
+  CollapsibleSection,
+  CollapsibleHeader,
+  CollapsibleTitle,
+  CollapsibleIcon,
+  CollapsibleContent,
 } from './DevConnection.styles';
 
 export interface DevConnectionProps {
   className?: string;
 }
 
-interface IDEInfoType {
-  id: string;
-  name: string;
-  description: string;
-  icon: ReactNode;
-}
+type ConnectionTab = 'cursor' | 'claude-code' | 'mcp-only';
 
-// Static IDE info for the list - only Cursor and Claude Code are supported
-const ideInfoList: IDEInfoType[] = [
-  {
-    id: 'cursor',
-    name: 'Cursor',
-    description: 'AI-powered code editor with MCP support',
-    icon: <CursorIcon size={24} />,
-  },
-  {
-    id: 'claude-code',
-    name: 'Claude Code',
-    description: 'Claude coding assistant CLI',
-    icon: <ClaudeCodeIcon size={24} />,
-  },
+const CURSOR_COMMAND =
+  'Fetch and follow instructions from https://raw.githubusercontent.com/cylestio/agent-inspector/main/integrations/AGENT_INSPECTOR_SETUP.md';
+
+const CLAUDE_CODE_COMMANDS = [
+  '/plugin marketplace add cylestio/agent-inspector',
+  '/plugin install agent-inspector@cylestio',
+  '/agent-inspector:setup',
 ];
 
-// Get IDE display name
+// Feature definitions with detailed descriptions
+const FEATURE_DETAILS = {
+  staticAnalysis: {
+    name: 'Static Analysis',
+    shortName: 'Static Analysis',
+    isSkill: true,
+    description: 'Examines agent code without execution to identify security vulnerabilities. Scans across OWASP LLM Top 10 categories including prompt injection, insecure output, data leakage, and excessive agency.',
+  },
+  correlation: {
+    name: 'Correlation',
+    shortName: 'Correlation',
+    isSkill: true,
+    description: 'Connects static code findings with runtime evidence to distinguish genuine vulnerabilities from false positives.',
+  },
+  fixRecommendations: {
+    name: 'Fix Recommendations',
+    shortName: 'Fix Recommendations',
+    isSkill: true,
+    description: 'Provides actionable fix recommendations for each security finding. Generates code patches and remediation guidance based on vulnerability type and context.',
+  },
+  dataAccess: {
+    name: 'Direct Data Access',
+    shortName: 'Direct Data Access',
+    isSkill: false,
+    description: 'Query the Agent Inspector database directly from your IDE. Access sessions, findings, security checks, and agent status through MCP tools.',
+  },
+  debugTrace: {
+    name: 'Debug & Trace',
+    shortName: 'Debug & Trace',
+    isSkill: false,
+    description: 'Debug running sessions in your IDE with access to detailed trace and dynamic run data to verify hypotheses, track LLM decisions, and understand agent behavior.',
+  },
+};
+
+// Feature availability per integration type
+const INTEGRATION_FEATURES = {
+  cursor: {
+    staticAnalysis: true,
+    correlation: true,
+    fixRecommendations: true,
+    dataAccess: true,
+    debugTrace: true,
+  },
+  'claude-code': {
+    staticAnalysis: true,
+    correlation: true,
+    fixRecommendations: true,
+    dataAccess: true,
+    debugTrace: true,
+  },
+  'mcp-only': {
+    staticAnalysis: false,
+    correlation: false,
+    fixRecommendations: false,
+    dataAccess: true,
+    debugTrace: true,
+  },
+};
+
+// Feature comparison table data (order matters for display)
+const FEATURE_TABLE_DATA: Array<{ key: keyof typeof FEATURE_DETAILS; name: string; description: string; isSkill: boolean }> = [
+  { key: 'staticAnalysis', name: FEATURE_DETAILS.staticAnalysis.shortName, description: FEATURE_DETAILS.staticAnalysis.description, isSkill: FEATURE_DETAILS.staticAnalysis.isSkill },
+  { key: 'correlation', name: FEATURE_DETAILS.correlation.shortName, description: FEATURE_DETAILS.correlation.description, isSkill: FEATURE_DETAILS.correlation.isSkill },
+  { key: 'fixRecommendations', name: FEATURE_DETAILS.fixRecommendations.shortName, description: FEATURE_DETAILS.fixRecommendations.description, isSkill: FEATURE_DETAILS.fixRecommendations.isSkill },
+  { key: 'dataAccess', name: FEATURE_DETAILS.dataAccess.shortName, description: FEATURE_DETAILS.dataAccess.description, isSkill: FEATURE_DETAILS.dataAccess.isSkill },
+  { key: 'debugTrace', name: FEATURE_DETAILS.debugTrace.shortName, description: FEATURE_DETAILS.debugTrace.description, isSkill: FEATURE_DETAILS.debugTrace.isSkill },
+];
+
 function getIDEDisplayName(ideType: string): string {
-  const ide = ideInfoList.find(i => i.id === ideType);
-  return ide?.name ?? ideType;
+  switch (ideType) {
+    case 'cursor':
+      return 'Cursor';
+    case 'claude-code':
+      return 'Claude Code';
+    default:
+      return ideType;
+  }
 }
 
-// The instructions URL that users paste into their IDE
-const SETUP_INSTRUCTIONS_URL = 'https://www.cylestio.com/install';
-
-// The message to copy to clipboard
-const SETUP_MESSAGE = `Install Agent Inspector from: ${SETUP_INSTRUCTIONS_URL}`;
+function getMcpServerUrl(config: ConfigResponse | null): string {
+  if (!config) return 'http://localhost:7100/mcp';
+  const host = config.proxy_host === '0.0.0.0' ? 'localhost' : config.proxy_host;
+  return `http://${host}:${config.proxy_port}/mcp`;
+}
 
 export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
+  const navigate = useNavigate();
+
   const [connectionStatus, setConnectionStatus] = useState<IDEConnectionStatus | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [serverConfig, setServerConfig] = useState<ConfigResponse | null>(null);
+  const [activeTab, setActiveTab] = useState<ConnectionTab>('cursor');
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showSetup, setShowSetup] = useState(true);
+  const [showFeatures, setShowFeatures] = useState(true);
 
   usePageMeta({
     breadcrumbs: agentWorkflowId
-      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'Dev Connection' })
-      : [{ label: 'Agent Workflows', href: '/' }, { label: 'Dev Connection' }],
+      ? buildAgentWorkflowBreadcrumbs(agentWorkflowId, { label: 'IDE Connection' })
+      : [{ label: 'Agent Workflows', href: '/' }, { label: 'IDE Connection' }],
   });
 
-  // Fetch connection status
   const fetchStatus = useCallback(async () => {
-    try {
-      const status = await fetchIDEConnectionStatus(agentWorkflowId === 'unassigned' ? undefined : agentWorkflowId);
-      setConnectionStatus(status);
-    } catch (err) {
-      // Silently handle errors - connection status is optional
-      // The user can still see the setup instructions
-      console.debug('IDE connection status not available:', err);
+    // Need a workflow ID for the simplified API
+    if (!agentWorkflowId || agentWorkflowId === 'unassigned') {
       setConnectionStatus({
-        is_connected: false,
-        is_developing: false,
-        has_ever_connected: false,
-        connected_ide: null,
-        active_connections: [],
-        recent_connections: [],
-        connection_count: 0,
+        has_activity: false,
+        last_seen: null,
+        ide: null,
       });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const status = await fetchIDEConnectionStatus(agentWorkflowId);
+      setConnectionStatus(status);
+
+      // Auto-select the IDE's tab if we have IDE metadata
+      if (status.has_activity && status.ide) {
+        setActiveTab(status.ide.ide_type as ConnectionTab);
+      }
+    } catch {
+      setConnectionStatus({
+        has_activity: false,
+        last_seen: null,
+        ide: null,
+      });
+    } finally {
+      setIsLoading(false);
     }
   }, [agentWorkflowId]);
 
-  // Initial fetch and polling
+  // Fetch server config for MCP URL
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const config = await fetchConfig();
+        setServerConfig(config);
+      } catch {
+        // Use defaults if config fetch fails
+        setServerConfig(null);
+      }
+    };
+    loadConfig();
+  }, []);
+
   useEffect(() => {
     fetchStatus();
-    // Poll every 5 seconds for connection status
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
   }, [fetchStatus]);
 
-  const handleCopyInstructions = async () => {
-    try {
-      await navigator.clipboard.writeText(SETUP_MESSAGE);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
+  // Collapse setup and features sections by default when connected
+  useEffect(() => {
+    if (connectionStatus?.has_activity) {
+      setShowSetup(false);
+      setShowFeatures(false);
+    }
+  }, [connectionStatus?.has_activity]);
+
+  const handleCopy = async (command: string) => {
+    await navigator.clipboard.writeText(command);
+    setCopiedCommand(command);
+    setTimeout(() => setCopiedCommand(null), 2000);
+  };
+
+  const handleNavigate = () => {
+    if (agentWorkflowId && agentWorkflowId !== 'unassigned') {
+      navigate(`/agent-workflow/${agentWorkflowId}`);
+    } else {
+      navigate('/');
     }
   };
 
-  const isConnected = connectionStatus?.is_connected ?? false;
-  const isDeveloping = connectionStatus?.is_developing ?? false;
-  const hasEverConnected = connectionStatus?.has_ever_connected ?? false;
-  const connectedIDE = connectionStatus?.connected_ide;
+  const hasActivity = connectionStatus?.has_activity ?? false;
+  const ideMetadata = connectionStatus?.ide;
 
-  // Check which IDEs are connected
-  const connectedIDETypes = new Set(
-    connectionStatus?.active_connections?.map(c => c.ide_type) ?? []
+  // Check if the currently selected tab matches the connected IDE
+  const isSelectedTabConnected =
+    hasActivity &&
+    ideMetadata &&
+    ideMetadata.ide_type === activeTab;
+
+  // Generate MCP config JSON with dynamic URL
+  const mcpServerUrl = getMcpServerUrl(serverConfig);
+  const MCP_CONFIG_CURSOR = `{
+  "mcpServers": {
+    "agent-inspector": {
+      "type": "streamable-http",
+      "url": "${mcpServerUrl}"
+    }
+  }
+}`;
+
+  const MCP_CONFIG_CLAUDE = `{
+  "mcpServers": {
+    "agent-inspector": {
+      "type": "http",
+      "url": "${mcpServerUrl}"
+    }
+  }
+}`;
+
+  const renderFeatureCheckmark = (available: boolean) => (
+    <FeatureIcon $available={available}>
+      {available ? <Check size={12} /> : <X size={12} />}
+    </FeatureIcon>
   );
 
-  // Determine the connection state for display
-  // - Green with pulse: actively developing (is_connected + is_developing)
-  // - Green solid: connected (is_connected)
-  // - Green faded: was connected but inactive (has_ever_connected + !is_connected)
-  // - Gray: never connected
-  const showGreen = hasEverConnected || isConnected;
-  const showPulse = isConnected && isDeveloping;
+  const renderIntegrationCard = (
+    type: ConnectionTab,
+    icon: React.ReactNode,
+    title: string,
+    isFullIntegration: boolean
+  ) => {
+    const features = INTEGRATION_FEATURES[type];
+    const isActive = activeTab === type;
+    const isThisConnected = hasActivity && ideMetadata?.ide_type === type;
 
-  // Get status text and description
-  const getStatusText = () => {
-    if (isConnected && isDeveloping) {
-      return `Developing with ${connectedIDE ? getIDEDisplayName(connectedIDE.ide_type) : 'IDE'}`;
-    }
-    if (isConnected) {
-      return `Connected to ${connectedIDE ? getIDEDisplayName(connectedIDE.ide_type) : 'IDE'}`;
-    }
-    if (hasEverConnected && connectedIDE) {
-      return `${getIDEDisplayName(connectedIDE.ide_type)} Configured`;
-    }
-    return 'Not Connected';
+    return (
+      <IntegrationCard
+        $active={isActive}
+        $connected={isThisConnected}
+        onClick={() => setActiveTab(type)}
+      >
+        <CardHeader>
+          <CardIcon $active={isActive}>{icon}</CardIcon>
+          <CardTitle $active={isActive}>{title}</CardTitle>
+          {isThisConnected ? (
+            <CardBadge $variant="connected">Connected</CardBadge>
+          ) : (
+            <CardBadge $variant={isFullIntegration ? 'full' : 'basic'}>
+              {isFullIntegration ? 'Full' : 'Basic'}
+            </CardBadge>
+          )}
+        </CardHeader>
+        <FeatureList>
+          <FeatureItem $available={features.staticAnalysis}>
+            {renderFeatureCheckmark(features.staticAnalysis)}
+            {FEATURE_DETAILS.staticAnalysis.shortName}
+          </FeatureItem>
+          <FeatureItem $available={features.correlation}>
+            {renderFeatureCheckmark(features.correlation)}
+            {FEATURE_DETAILS.correlation.shortName}
+          </FeatureItem>
+          <FeatureItem $available={features.debugTrace}>
+            {renderFeatureCheckmark(features.debugTrace)}
+            {FEATURE_DETAILS.debugTrace.shortName}
+          </FeatureItem>
+        </FeatureList>
+      </IntegrationCard>
+    );
   };
 
-  const getStatusDescription = () => {
-    if (isConnected && isDeveloping) {
-      return 'Actively developing agent code. Changes are being tracked.';
+  const renderInstructions = () => {
+    switch (activeTab) {
+      case 'cursor':
+        return (
+          <>
+            <RightPanelHeader>Connect Cursor</RightPanelHeader>
+            <RightPanelDescription>
+              AI-powered code editor with full Agent Inspector integration including slash commands, MCP tools, and static security scanning.
+            </RightPanelDescription>
+            <InstructionSection>
+              <InstructionLabel>Run this command in Cursor:</InstructionLabel>
+              <CommandBlock>
+                <CommandText>{CURSOR_COMMAND}</CommandText>
+                <Button
+                  variant={copiedCommand === CURSOR_COMMAND ? 'success' : 'ghost'}
+                  size="sm"
+                  icon={copiedCommand === CURSOR_COMMAND ? <Check size={14} /> : <Copy size={14} />}
+                  onClick={() => handleCopy(CURSOR_COMMAND)}
+                />
+              </CommandBlock>
+            </InstructionSection>
+          </>
+        );
+
+      case 'claude-code':
+        return (
+          <>
+            <RightPanelHeader>Connect Claude Code</RightPanelHeader>
+            <RightPanelDescription>
+              Claude coding assistant CLI with full Agent Inspector integration including slash commands, MCP tools, and static security scanning.
+            </RightPanelDescription>
+            <InstructionSection>
+              <InstructionLabel>
+                <strong>Important:</strong> These are the instructions for Claude Code only!
+              </InstructionLabel>
+              <InstructionLabel>Run these commands in Claude Code:</InstructionLabel>
+              {CLAUDE_CODE_COMMANDS.map((cmd, index) => (
+                <CommandBlock key={cmd}>
+                  <CommandNumber>{index + 1}</CommandNumber>
+                  <CommandText>{cmd}</CommandText>
+                  <Button
+                    variant={copiedCommand === cmd ? 'success' : 'ghost'}
+                    size="sm"
+                    icon={copiedCommand === cmd ? <Check size={14} /> : <Copy size={14} />}
+                    onClick={() => handleCopy(cmd)}
+                  />
+                </CommandBlock>
+              ))}
+              <InstructionLabel>
+                <strong>Note:</strong> You might need to restart Claude Code for the MCP connection to activate.
+              </InstructionLabel>
+            </InstructionSection>
+          </>
+        );
+
+      case 'mcp-only':
+        return (
+          <>
+            <RightPanelHeader>MCP Configuration Only</RightPanelHeader>
+            <RightPanelDescription>
+              Manual MCP server configuration for basic runtime monitoring without IDE integration features.
+            </RightPanelDescription>
+            <InstructionSection>
+              <InstructionLabel>
+                MCP Server URL: <code>{mcpServerUrl}</code>
+              </InstructionLabel>
+            </InstructionSection>
+            <InstructionSection>
+              <InstructionLabel>For Cursor - add to <code>.cursor/mcp.json</code>:</InstructionLabel>
+              <CodeBlock>{MCP_CONFIG_CURSOR}</CodeBlock>
+              <Button
+                variant={copiedCommand === MCP_CONFIG_CURSOR ? 'success' : 'ghost'}
+                size="sm"
+                icon={copiedCommand === MCP_CONFIG_CURSOR ? <Check size={14} /> : <Copy size={14} />}
+                onClick={() => handleCopy(MCP_CONFIG_CURSOR)}
+              >
+                {copiedCommand === MCP_CONFIG_CURSOR ? 'Copied!' : 'Copy'}
+              </Button>
+            </InstructionSection>
+            <InstructionSection>
+              <InstructionLabel>For Claude Code - add to <code>.mcp.json</code>:</InstructionLabel>
+              <CodeBlock>{MCP_CONFIG_CLAUDE}</CodeBlock>
+              <Button
+                variant={copiedCommand === MCP_CONFIG_CLAUDE ? 'success' : 'ghost'}
+                size="sm"
+                icon={copiedCommand === MCP_CONFIG_CLAUDE ? <Check size={14} /> : <Copy size={14} />}
+                onClick={() => handleCopy(MCP_CONFIG_CLAUDE)}
+              >
+                {copiedCommand === MCP_CONFIG_CLAUDE ? 'Copied!' : 'Copy'}
+              </Button>
+            </InstructionSection>
+            <WarningNote>
+              <WarningIcon>
+                <AlertTriangle size={16} />
+              </WarningIcon>
+              <WarningText>
+                MCP-only configuration provides live tracing and MCP tools access but does not include static code security scanning, correlation, or slash commands.
+                For full features, use the Cursor or Claude Code integration.
+              </WarningText>
+            </WarningNote>
+          </>
+        );
     }
-    if (isConnected) {
-      return 'IDE connected and ready for security analysis.';
-    }
-    if (hasEverConnected && connectedIDE) {
-      return 'IDE setup complete. Ready for security analysis when you need it.';
-    }
-    return 'Connect your IDE to enable AI-powered security scanning in your development workflow';
   };
 
-  const getBadgeText = () => {
-    if (isDeveloping) return 'Active';
-    if (isConnected) return 'Connected';
-    if (hasEverConnected) return 'Ready';
-    return 'Setup';
+  const renderSuccess = () => {
+    if (!ideMetadata) return null;
+
+    return (
+      <SuccessContent>
+        <SuccessHeader>
+          <SuccessTitle>Connected to {getIDEDisplayName(ideMetadata.ide_type)}</SuccessTitle>
+          <LiveBadge>
+            <LiveDot />
+            Live
+          </LiveBadge>
+        </SuccessHeader>
+
+        <ConnectionDetails>
+          <DetailItem>
+            <DetailLabel><FolderOpen size={10} /> Workspace</DetailLabel>
+            <DetailValue>{ideMetadata.workspace_path || 'Unknown'}</DetailValue>
+          </DetailItem>
+          <DetailItem>
+            <DetailLabel><Clock size={10} /> Last seen</DetailLabel>
+            <DetailValue>
+              {connectionStatus?.last_seen ? (
+                <TimeAgo timestamp={connectionStatus.last_seen} />
+              ) : (
+                'Unknown'
+              )}
+            </DetailValue>
+          </DetailItem>
+        </ConnectionDetails>
+
+        <ActionButton>
+          <Button
+            variant="primary"
+            size="md"
+            icon={<ArrowRight size={16} />}
+            onClick={handleNavigate}
+          >
+            View Dashboard
+          </Button>
+        </ActionButton>
+      </SuccessContent>
+    );
   };
+
+  const renderStatusBanner = () => {
+    if (isLoading) {
+      return (
+        <StatusBanner $connected={false}>
+          <StatusIconWrapper $connected={false}>
+            <OrbLoader size="sm" />
+          </StatusIconWrapper>
+          <StatusContent>
+            <StatusTitle>Checking connection...</StatusTitle>
+          </StatusContent>
+        </StatusBanner>
+      );
+    }
+
+    // Has IDE metadata from heartbeat - show rich status
+    if (hasActivity && ideMetadata) {
+      return (
+        <StatusBanner $connected={true}>
+          <StatusIconWrapper $connected={true}>
+            <Check size={24} />
+          </StatusIconWrapper>
+          <StatusContent>
+            <StatusTitle>Connected to {getIDEDisplayName(ideMetadata.ide_type)}</StatusTitle>
+            <StatusDetails>
+              <StatusDetail>
+                <FolderOpen size={12} />
+                {ideMetadata.workspace_path || 'Unknown workspace'}
+              </StatusDetail>
+              <StatusDetail>
+                <Clock size={12} />
+                {connectionStatus?.last_seen ? (
+                  <TimeAgo timestamp={connectionStatus.last_seen} />
+                ) : (
+                  'Unknown'
+                )}
+              </StatusDetail>
+            </StatusDetails>
+          </StatusContent>
+          <LiveBadge>
+            <LiveDot />
+            Live
+          </LiveBadge>
+        </StatusBanner>
+      );
+    }
+
+    // Has activity but no IDE metadata - show basic status
+    if (hasActivity) {
+      return (
+        <StatusBanner $connected={true}>
+          <StatusIconWrapper $connected={true}>
+            <Check size={24} />
+          </StatusIconWrapper>
+          <StatusContent>
+            <StatusTitle>IDE Activity Detected</StatusTitle>
+            <StatusDetails>
+              <StatusDetail>
+                <Clock size={12} />
+                Last activity{' '}
+                {connectionStatus?.last_seen ? (
+                  <TimeAgo timestamp={connectionStatus.last_seen} />
+                ) : (
+                  'unknown'
+                )}
+              </StatusDetail>
+            </StatusDetails>
+          </StatusContent>
+        </StatusBanner>
+      );
+    }
+
+    return (
+      <StatusBanner $connected={false}>
+        <StatusIconWrapper $connected={false}>
+          <OrbLoader size="sm" />
+        </StatusIconWrapper>
+        <StatusContent>
+          <StatusTitle>Waiting for connection...</StatusTitle>
+          <StatusDetails>
+            <StatusDetail>Follow the instructions below to connect your IDE</StatusDetail>
+          </StatusDetails>
+        </StatusContent>
+      </StatusBanner>
+    );
+  };
+
+  const renderFeatureTable = (noMargin = false) => (
+    <FeatureCardWrapper $noMargin={noMargin}>
+      <Card>
+        <Card.Header title="Feature Comparison" />
+        <Card.Content noPadding>
+          <FeatureTable>
+          <TableHead>
+            <TableRow>
+              <TableHeader>Feature</TableHeader>
+              <TableHeader>Cursor</TableHeader>
+              <TableHeader>Claude Code</TableHeader>
+              <TableHeader>MCP</TableHeader>
+            </TableRow>
+          </TableHead>
+          <tbody>
+            {FEATURE_TABLE_DATA.map((feature) => (
+              <TableRow key={feature.key}>
+                <TableCell>
+                  <FeatureName>
+                    {feature.name}
+                    {feature.isSkill && <Badge variant="ai" size="sm">Skill</Badge>}
+                  </FeatureName>
+                  <FeatureDescription>{feature.description}</FeatureDescription>
+                </TableCell>
+                <TableCell>
+                  <CheckIcon $available={INTEGRATION_FEATURES.cursor[feature.key]}>
+                    {INTEGRATION_FEATURES.cursor[feature.key] ? <Check size={16} /> : <X size={16} />}
+                  </CheckIcon>
+                </TableCell>
+                <TableCell>
+                  <CheckIcon $available={INTEGRATION_FEATURES['claude-code'][feature.key]}>
+                    {INTEGRATION_FEATURES['claude-code'][feature.key] ? <Check size={16} /> : <X size={16} />}
+                  </CheckIcon>
+                </TableCell>
+                <TableCell>
+                  <CheckIcon $available={INTEGRATION_FEATURES['mcp-only'][feature.key]}>
+                    {INTEGRATION_FEATURES['mcp-only'][feature.key] ? <Check size={16} /> : <X size={16} />}
+                  </CheckIcon>
+                </TableCell>
+              </TableRow>
+            ))}
+          </tbody>
+          </FeatureTable>
+        </Card.Content>
+      </Card>
+    </FeatureCardWrapper>
+  );
 
   return (
     <Page className={className} data-testid="dev-connection">
@@ -217,228 +651,79 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
         description="Connect your development environment for AI-powered security scanning"
       />
 
-      {/* Actively Developing Banner */}
-      {isDeveloping && connectedIDE && (
-        <DevelopingBanner>
-          <DevelopingIcon>
-            <Zap size={24} />
-          </DevelopingIcon>
-          <DevelopingContent>
-            <DevelopingTitle>
-              <LiveDot $isDeveloping />
-              Actively Developing
-            </DevelopingTitle>
-            <DevelopingDescription>
-              Code changes are being made via {getIDEDisplayName(connectedIDE.ide_type)}. 
-              Security analysis will run automatically on new sessions.
-            </DevelopingDescription>
-          </DevelopingContent>
-          <LiveIndicator $isDeveloping>
-            <LiveDot $isDeveloping />
-            Live
-          </LiveIndicator>
-        </DevelopingBanner>
+      {/* Status Banner - Top, Full Width, Separated */}
+      {renderStatusBanner()}
+
+      {/* Setup Section - Collapsible when connected */}
+      {hasActivity ? (
+        <CollapsibleSection>
+          <CollapsibleHeader onClick={() => setShowSetup(!showSetup)}>
+            <CollapsibleTitle>
+              <Settings size={14} />
+              Setup Instructions
+            </CollapsibleTitle>
+            <CollapsibleIcon>
+              {showSetup ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </CollapsibleIcon>
+          </CollapsibleHeader>
+          <CollapsibleContent $expanded={showSetup}>
+            <SplitContainer>
+              {/* Left Panel - Integration Cards */}
+              <LeftPanel>
+                <LeftPanelHeader>Choose Integration</LeftPanelHeader>
+                <IntegrationCards>
+                  {renderIntegrationCard('cursor', <CursorIcon size={20} />, 'Cursor', true)}
+                  {renderIntegrationCard('claude-code', <ClaudeCodeIcon size={20} />, 'Claude Code', true)}
+                  {renderIntegrationCard('mcp-only', <Settings size={20} />, 'MCP Only', false)}
+                </IntegrationCards>
+              </LeftPanel>
+
+              {/* Right Panel - Instructions */}
+              <RightPanel>
+                <LeftPanelHeader>Instructions</LeftPanelHeader>
+                {isSelectedTabConnected ? renderSuccess() : renderInstructions()}
+              </RightPanel>
+            </SplitContainer>
+          </CollapsibleContent>
+        </CollapsibleSection>
+      ) : (
+        <SplitContainer $standalone>
+          {/* Left Panel - Integration Cards */}
+          <LeftPanel>
+            <LeftPanelHeader>Choose Integration</LeftPanelHeader>
+            <IntegrationCards>
+              {renderIntegrationCard('cursor', <CursorIcon size={20} />, 'Cursor', true)}
+              {renderIntegrationCard('claude-code', <ClaudeCodeIcon size={20} />, 'Claude Code', true)}
+              {renderIntegrationCard('mcp-only', <Settings size={20} />, 'MCP Only', false)}
+            </IntegrationCards>
+          </LeftPanel>
+
+          {/* Right Panel - Instructions */}
+          <RightPanel>
+            <LeftPanelHeader>Instructions</LeftPanelHeader>
+            {isSelectedTabConnected ? renderSuccess() : renderInstructions()}
+          </RightPanel>
+        </SplitContainer>
       )}
 
-      {/* Connection Status */}
-      <ConnectionStatus $connected={showGreen}>
-        <StatusIcon $connected={showGreen}>
-          {showGreen ? <Check size={32} /> : <X size={32} />}
-        </StatusIcon>
-        <StatusContent>
-          <StatusTitle>{getStatusText()}</StatusTitle>
-          <StatusDescription>{getStatusDescription()}</StatusDescription>
-          {/* Inline connection details when connected */}
-          {hasEverConnected && connectedIDE && (
-            <InlineConnectionDetails>
-              {connectedIDE.user && (
-                <DetailItem>
-                  <DetailLabel><User size={10} />&nbsp;User</DetailLabel>
-                  <DetailValue>{connectedIDE.user}</DetailValue>
-                </DetailItem>
-              )}
-              {connectedIDE.host && (
-                <DetailItem>
-                  <DetailLabel><Server size={10} />&nbsp;Host</DetailLabel>
-                  <DetailValue>{connectedIDE.host}</DetailValue>
-                </DetailItem>
-              )}
-              <DetailItem>
-                <DetailLabel><FolderOpen size={10} />&nbsp;Workspace</DetailLabel>
-                <DetailValue>{connectedIDE.workspace_path || 'Unknown'}</DetailValue>
-              </DetailItem>
-              <DetailItem>
-                <DetailLabel><Clock size={10} />&nbsp;Connected</DetailLabel>
-                <DetailValue>{new Date(connectedIDE.connected_at).toLocaleString()}</DetailValue>
-              </DetailItem>
-              <DetailItem>
-                <DetailLabel><Zap size={10} />&nbsp;Last Dev Check</DetailLabel>
-                <DetailValue>{new Date(connectedIDE.last_heartbeat).toLocaleString()}</DetailValue>
-              </DetailItem>
-              {connectedIDE.model && (
-                <DetailItem>
-                  <DetailLabel><Cpu size={10} />&nbsp;Model</DetailLabel>
-                  <DetailValue>{connectedIDE.model}</DetailValue>
-                </DetailItem>
-              )}
-            </InlineConnectionDetails>
-          )}
-        </StatusContent>
-        {showGreen ? (
-          <LiveIndicator $isDeveloping={showPulse}>
-            <LiveDot $isDeveloping={showPulse} />
-            {getBadgeText()}
-          </LiveIndicator>
-        ) : (
-          <Badge variant="medium">Setup Required</Badge>
-        )}
-      </ConnectionStatus>
-
-      {/* IDE List */}
-      <Section>
-        <Section.Header>
-          <Section.Title icon={<Code size={16} />}>
-            Supported IDEs
-          </Section.Title>
-        </Section.Header>
-        <Section.Content>
-          <IDEList>
-            {ideInfoList.map((ide) => {
-              const isIDECurrentlyConnected = connectedIDETypes.has(ide.id as 'cursor' | 'claude-code');
-              const wasIDEEverConnected = connectedIDE?.ide_type === ide.id;
-              const isIDEConnected = isIDECurrentlyConnected || wasIDEEverConnected;
-              return (
-                <IDECard key={ide.id} $connected={isIDEConnected}>
-                  <IDEIcon>{ide.icon}</IDEIcon>
-                  <IDEInfo>
-                    <IDEName>{ide.name}</IDEName>
-                    <IDEDescription>{ide.description}</IDEDescription>
-                  </IDEInfo>
-                  <IDEStatus $connected={isIDEConnected}>
-                    {isIDECurrentlyConnected ? (
-                      <>
-                        <Check size={14} />
-                        Connected
-                      </>
-                    ) : wasIDEEverConnected ? (
-                      <>
-                        <Check size={14} />
-                        Last Used
-                      </>
-                    ) : (
-                      <>
-                        <X size={14} />
-                        Not Connected
-                      </>
-                    )}
-                  </IDEStatus>
-                </IDECard>
-              );
-            })}
-          </IDEList>
-        </Section.Content>
-      </Section>
-
-
-      {/* Quick Setup - Primary Method */}
-      <Section>
-        <Section.Header>
-          <Section.Title icon={<Zap size={16} />}>
-            Quick Setup (Recommended)
-          </Section.Title>
-        </Section.Header>
-        <Section.Content>
-          <QuickSetupCard>
-            <QuickSetupTitle>One-Click Setup</QuickSetupTitle>
-            <QuickSetupDescription>
-              Copy this message and paste it into your IDE (Cursor or Claude Code). 
-              The AI assistant will automatically install and configure everything.
-            </QuickSetupDescription>
-            <QuickSetupCode>
-              {SETUP_MESSAGE}
-            </QuickSetupCode>
-            <CopyButton onClick={handleCopyInstructions} $copied={copied}>
-              {copied ? (
-                <>
-                  <CheckCircle size={16} />
-                  Copied! Now paste in your IDE
-                </>
-              ) : (
-                <>
-                  <Copy size={16} />
-                  Copy Setup Instructions
-                </>
-              )}
-            </CopyButton>
-          </QuickSetupCard>
-        </Section.Content>
-      </Section>
-
-      {/* Manual Setup - Alternative */}
-      <Section>
-        <Section.Header>
-          <Section.Title icon={<Terminal size={16} />}>
-            Manual Setup (Alternative)
-          </Section.Title>
-        </Section.Header>
-        <Section.Content>
-          <SetupSteps>
-            <Step>
-              <StepNumber>1</StepNumber>
-              <StepContent>
-                <StepTitle>Start the Agent Inspector server</StepTitle>
-                <StepDescription>
-                  The server should already be running if you can see this page.
-                </StepDescription>
-              </StepContent>
-            </Step>
-            <Step>
-              <StepNumber>2</StepNumber>
-              <StepContent>
-                <StepTitle>Configure MCP in your IDE</StepTitle>
-                <StepDescription>
-                  <strong>For Cursor:</strong> Add to <code>.cursor/mcp.json</code>:
-                </StepDescription>
-                <CodeBlock>
-{`{
-  "mcpServers": {
-    "agent-inspector": {
-      "type": "streamable-http",
-      "url": "http://localhost:7100/mcp"
-    }
-  }
-}`}
-                </CodeBlock>
-                <StepDescriptionWithMargin>
-                  <strong>For Claude Code:</strong> Add to <code>.mcp.json</code>:
-                </StepDescriptionWithMargin>
-                <CodeBlock>
-{`{
-  "mcpServers": {
-    "agent-inspector": {
-      "type": "http",
-      "url": "http://localhost:7100/mcp"
-    }
-  }
-}`}
-                </CodeBlock>
-              </StepContent>
-            </Step>
-            <Step>
-              <StepNumber>3</StepNumber>
-              <StepContent>
-                <StepTitle>Reload your IDE and start scanning</StepTitle>
-                <StepDescription>
-                  Reload the IDE to connect to MCP, then ask:
-                </StepDescription>
-                <CodeBlock>
-                  "Run a security scan on this agent code"
-                </CodeBlock>
-              </StepContent>
-            </Step>
-          </SetupSteps>
-        </Section.Content>
-      </Section>
+      {/* Feature Comparison Table - Collapsible when connected */}
+      {hasActivity ? (
+        <CollapsibleSection>
+          <CollapsibleHeader onClick={() => setShowFeatures(!showFeatures)}>
+            <CollapsibleTitle>
+              Feature Comparison
+            </CollapsibleTitle>
+            <CollapsibleIcon>
+              {showFeatures ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </CollapsibleIcon>
+          </CollapsibleHeader>
+          <CollapsibleContent $expanded={showFeatures}>
+            {renderFeatureTable(true)}
+          </CollapsibleContent>
+        </CollapsibleSection>
+      ) : (
+        renderFeatureTable()
+      )}
     </Page>
   );
 };

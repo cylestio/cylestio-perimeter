@@ -1,36 +1,29 @@
 /**
- * Types for IDE connection status
+ * Types for simplified IDE activity status
+ *
+ * Activity is tracked automatically when any MCP tool with agent_workflow_id is called.
+ * IDE metadata (type, workspace, model) is optional and provided via ide_heartbeat.
  */
 
-export interface IDEConnection {
-  connection_id: string;
+/**
+ * Optional IDE metadata - only available if ide_heartbeat was called
+ */
+export interface IDEMetadata {
   ide_type: 'cursor' | 'claude-code';
-  workflow_id: string | null;
-  mcp_session_id: string | null;
-  host: string | null;
-  user: string | null;
   workspace_path: string | null;
   model: string | null;
-  connected_at: string;
-  last_heartbeat: string;
-  last_seen_relative: string;
-  is_active: boolean;
-  is_developing: boolean;
-  disconnected_at: string | null;
-  metadata: Record<string, unknown> | null;
+  host: string | null;
+  user: string | null;
 }
 
+/**
+ * Simplified IDE activity status
+ */
 export interface IDEConnectionStatus {
-  is_connected: boolean;
-  is_developing: boolean;
-  has_ever_connected: boolean;
-  connected_ide: IDEConnection | null;
-  active_connections: IDEConnection[];
-  recent_connections: IDEConnection[];
-  connection_count: number;
-}
-
-export interface IDEConnectionsResponse {
-  connections: IDEConnection[];
-  total_count: number;
+  /** Whether any MCP activity has been recorded for this workflow */
+  has_activity: boolean;
+  /** ISO timestamp of last activity, null if no activity */
+  last_seen: string | null;
+  /** IDE metadata, null if ide_heartbeat was never called */
+  ide: IDEMetadata | null;
 }

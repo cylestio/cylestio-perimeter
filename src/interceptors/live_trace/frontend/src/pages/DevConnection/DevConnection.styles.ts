@@ -1,82 +1,37 @@
-import styled, { keyframes, css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
-const spin = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
-
+// ============ Status Banner (Full Width, Top) ============
 const pulse = keyframes`
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 `;
 
-const glow = keyframes`
-  0%, 100% { box-shadow: 0 0 5px ${({ theme }) => theme.colors.green}40; }
-  50% { box-shadow: 0 0 20px ${({ theme }) => theme.colors.green}80; }
-`;
-
-export const RefreshButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
-  background: ${({ theme }) => theme.colors.surface2};
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.white};
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-
-  &:hover:not(:disabled) {
-    background: ${({ theme }) => theme.colors.surface3};
-    border-color: ${({ theme }) => theme.colors.cyan};
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .spinning {
-    animation: ${spin} 1s linear infinite;
-  }
-`;
-
-interface ConnectionStatusProps {
-  $connected: boolean;
-}
-
-export const ConnectionStatus = styled.div<ConnectionStatusProps>`
+export const StatusBanner = styled.div<{ $connected: boolean }>`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing[5]};
-  padding: ${({ theme }) => theme.spacing[6]};
-  background: ${({ $connected, theme }) => 
-    $connected 
+  gap: ${({ theme }) => theme.spacing[4]};
+  padding: ${({ theme }) => theme.spacing[4]} ${({ theme }) => theme.spacing[5]};
+  background: ${({ $connected, theme }) =>
+    $connected
       ? `linear-gradient(135deg, ${theme.colors.greenSoft} 0%, ${theme.colors.surface} 100%)`
-      : `linear-gradient(135deg, ${theme.colors.surface2} 0%, ${theme.colors.surface} 100%)`
-  };
-  border: 1px solid ${({ $connected, theme }) => 
-    $connected ? `${theme.colors.green}40` : theme.colors.borderSubtle
-  };
-  border-radius: ${({ theme }) => theme.radii.xl};
+      : theme.colors.surface};
+  border: 1px solid ${({ $connected, theme }) =>
+    $connected ? `${theme.colors.green}40` : theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  margin-bottom: ${({ theme }) => theme.spacing[6]};
 `;
 
-export const StatusIcon = styled.div<ConnectionStatusProps>`
-  width: 64px;
-  height: 64px;
+export const StatusIconWrapper = styled.div<{ $connected: boolean }>`
+  width: 48px;
+  height: 48px;
+  border-radius: ${({ theme }) => theme.radii.full};
+  background: ${({ $connected, theme }) =>
+    $connected ? theme.colors.greenSoft : theme.colors.surface2};
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: ${({ theme }) => theme.radii.lg};
-  background: ${({ $connected, theme }) => 
-    $connected ? theme.colors.greenSoft : theme.colors.white08
-  };
-  color: ${({ $connected, theme }) => 
-    $connected ? theme.colors.green : theme.colors.white30
-  };
+  color: ${({ $connected, theme }) =>
+    $connected ? theme.colors.green : theme.colors.cyan};
   flex-shrink: 0;
 `;
 
@@ -87,404 +42,484 @@ export const StatusContent = styled.div`
   gap: ${({ theme }) => theme.spacing[1]};
 `;
 
-export const StatusTitle = styled.h2`
-  font-family: ${({ theme }) => theme.typography.fontDisplay};
-  font-size: 20px;
-  font-weight: 600;
+export const StatusTitle = styled.h3`
+  font-size: 16px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
   color: ${({ theme }) => theme.colors.white};
   margin: 0;
 `;
 
-export const StatusDescription = styled.p`
+export const StatusDetails = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
   font-size: 13px;
   color: ${({ theme }) => theme.colors.white50};
-  margin: 0;
 `;
 
-export const IDEList = styled.div`
+export const StatusDetail = styled.span`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const LiveBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[3]}`};
+  background: ${({ theme }) => theme.colors.orangeSoft};
+  border: 1px solid ${({ theme }) => theme.colors.orange}60;
+  border-radius: ${({ theme }) => theme.radii.full};
+  font-size: 11px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.orange};
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  animation: ${pulse} 2s ease-in-out infinite;
+`;
+
+export const LiveDot = styled.span`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.orange};
+`;
+
+// ============ Main Split Container ============
+export const SplitContainer = styled.div<{ $standalone?: boolean }>`
+  display: flex;
+  width: 100%;
+  min-height: 400px;
+  background: ${({ theme }) => theme.colors.surface};
+  ${({ $standalone, theme }) =>
+    $standalone &&
+    `
+    border: 1px solid ${theme.colors.borderMedium};
+    border-radius: ${theme.radii.xl};
+    overflow: hidden;
+    margin-bottom: ${theme.spacing[4]};
+  `}
+`;
+
+// ============ Left Panel (Integration Cards) ============
+export const LeftPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  min-width: 300px;
+  background: ${({ theme }) => theme.colors.surface2};
+  border-right: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  padding: ${({ theme }) => theme.spacing[5]};
+`;
+
+export const LeftPanelHeader = styled.h3`
+  font-size: 13px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 ${({ theme }) => theme.spacing[4]} 0;
+`;
+
+export const IntegrationCards = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[3]};
 `;
 
-interface IDECardProps {
-  $connected: boolean;
-}
-
-export const IDECard = styled.div<IDECardProps>`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[4]};
-  padding: ${({ theme }) => theme.spacing[4]};
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ $connected, theme }) => 
-    $connected ? `${theme.colors.green}40` : theme.colors.borderSubtle
-  };
-  border-radius: ${({ theme }) => theme.radii.lg};
-  transition: all ${({ theme }) => theme.transitions.base};
-
-  &:hover {
-    border-color: ${({ $connected, theme }) => 
-      $connected ? `${theme.colors.green}60` : theme.colors.borderMedium
-    };
-  }
-`;
-
-export const IDEIcon = styled.div`
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme }) => theme.colors.void};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.cyan};
-  flex-shrink: 0;
-`;
-
-export const IDEInfo = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[1]};
-`;
-
-export const IDEName = styled.span`
-  font-size: 14px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-`;
-
-export const IDEDescription = styled.span`
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-export const IDEStatus = styled.span<IDECardProps>`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[1]};
-  font-size: 12px;
-  font-weight: 500;
-  color: ${({ $connected, theme }) => 
-    $connected ? theme.colors.green : theme.colors.white30
-  };
-`;
-
-export const SetupSteps = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[5]};
-`;
-
-export const Step = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.spacing[4]};
-`;
-
-export const StepNumber = styled.div`
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme }) => theme.colors.cyanSoft};
-  color: ${({ theme }) => theme.colors.cyan};
-  border-radius: ${({ theme }) => theme.radii.full};
-  font-size: 14px;
-  font-weight: 700;
-  flex-shrink: 0;
-`;
-
-export const StepContent = styled.div`
-  flex: 1;
+export const IntegrationCard = styled.button<{ $active: boolean; $connected?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  border: 1px solid ${({ $active, $connected, theme }) =>
+    $connected
+      ? `${theme.colors.green}60`
+      : $active
+        ? theme.colors.cyan
+        : theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.lg};
+  background: ${({ $active, theme }) =>
+    $active ? `${theme.colors.cyan}08` : 'transparent'};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.base};
+  text-align: left;
+
+  &:hover {
+    border-color: ${({ $active, $connected, theme }) =>
+      $connected
+        ? `${theme.colors.green}80`
+        : $active
+          ? theme.colors.cyan
+          : theme.colors.white30};
+    background: ${({ $active, theme }) =>
+      $active ? `${theme.colors.cyan}08` : theme.colors.surface3};
+  }
 `;
 
-export const StepTitle = styled.h3`
+export const CardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const CardIcon = styled.span<{ $active?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.cyan : theme.colors.white50};
+`;
+
+export const CardTitle = styled.span<{ $active?: boolean }>`
   font-size: 14px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.cyan : theme.colors.white};
 `;
 
-export const StepDescription = styled.p`
+export const CardBadge = styled.span<{ $variant: 'full' | 'basic' | 'connected' }>`
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  border-radius: ${({ theme }) => theme.radii.sm};
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'connected':
+        return css`
+          background: ${theme.colors.greenSoft};
+          color: ${theme.colors.green};
+        `;
+      case 'full':
+        return css`
+          background: ${theme.colors.cyanSoft};
+          color: ${theme.colors.cyan};
+        `;
+      case 'basic':
+        return css`
+          background: ${theme.colors.white08};
+          color: ${theme.colors.white50};
+        `;
+    }
+  }}
+`;
+
+export const FeatureList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
+  margin-top: ${({ theme }) => theme.spacing[1]};
+`;
+
+export const FeatureItem = styled.span<{ $available: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  font-size: 12px;
+  color: ${({ $available, theme }) =>
+    $available ? theme.colors.white70 : theme.colors.white30};
+`;
+
+export const FeatureIcon = styled.span<{ $available: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ $available, theme }) =>
+    $available ? theme.colors.green : theme.colors.white30};
+`;
+
+// ============ Right Panel (Instructions) ============
+export const RightPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: ${({ theme }) => theme.spacing[6]};
+  overflow-y: auto;
+`;
+
+export const RightPanelHeader = styled.h2`
+  font-size: 18px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white};
+  margin: 0 0 ${({ theme }) => theme.spacing[2]} 0;
+`;
+
+export const RightPanelDescription = styled.p`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.white50};
+  margin: 0 0 ${({ theme }) => theme.spacing[5]} 0;
+  line-height: 1.5;
+`;
+
+export const InstructionSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[3]};
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const InstructionLabel = styled.p`
   font-size: 13px;
   color: ${({ theme }) => theme.colors.white50};
   margin: 0;
-  line-height: 1.5;
+
+  code {
+    background: ${({ theme }) => theme.colors.void};
+    padding: 2px 6px;
+    border-radius: ${({ theme }) => theme.radii.sm};
+    font-family: ${({ theme }) => theme.typography.fontMono};
+    color: ${({ theme }) => theme.colors.cyan};
+  }
+`;
+
+export const CommandBlock = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.void};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  padding: ${({ theme }) => theme.spacing[3]} ${({ theme }) => theme.spacing[4]};
+`;
+
+export const CommandNumber = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: ${({ theme }) => theme.radii.full};
+  background: ${({ theme }) => theme.colors.cyan}20;
+  color: ${({ theme }) => theme.colors.cyan};
+  font-size: 11px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  flex-shrink: 0;
+`;
+
+export const CommandText = styled.code`
+  flex: 1;
+  font-family: ${({ theme }) => theme.typography.fontMono};
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.cyan};
+  word-break: break-all;
+  line-height: 1.4;
 `;
 
 export const CodeBlock = styled.pre`
   background: ${({ theme }) => theme.colors.void};
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
   border-radius: ${({ theme }) => theme.radii.md};
   padding: ${({ theme }) => theme.spacing[4]};
   font-family: ${({ theme }) => theme.typography.fontMono};
   font-size: 12px;
   color: ${({ theme }) => theme.colors.cyan};
   overflow-x: auto;
-  margin: ${({ theme }) => theme.spacing[2]} 0 0;
+  margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
 `;
 
-// Live indicator for actively developing
-interface LiveIndicatorProps {
-  $isDeveloping?: boolean;
-}
+// ============ Feature Comparison Card ============
+export const FeatureCardWrapper = styled.div<{ $noMargin?: boolean }>`
+  ${({ $noMargin, theme }) => !$noMargin && `margin-top: ${theme.spacing[6]};`}
+`;
 
-export const LiveIndicator = styled.div<LiveIndicatorProps>`
-  display: inline-flex;
+export const FeatureTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+`;
+
+export const TableHead = styled.thead`
+  background: ${({ theme }) => theme.colors.surface2};
+`;
+
+export const TableRow = styled.tr`
+  &:not(:last-child) {
+    border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  }
+`;
+
+export const TableHeader = styled.th`
+  padding: ${({ theme }) => theme.spacing[3]} ${({ theme }) => theme.spacing[4]};
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white70};
+  text-align: left;
+
+  &:first-child {
+    width: 50%;
+  }
+
+  &:not(:first-child) {
+    text-align: center;
+    width: 16.66%;
+  }
+`;
+
+export const TableCell = styled.td`
+  padding: ${({ theme }) => theme.spacing[3]} ${({ theme }) => theme.spacing[4]};
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.white70};
+  vertical-align: top;
+
+  &:not(:first-child) {
+    text-align: center;
+    vertical-align: middle;
+  }
+`;
+
+export const FeatureName = styled.div`
+  display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing[2]};
-  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[3]}`};
-  background: ${({ $isDeveloping, theme }) =>
-    $isDeveloping ? theme.colors.orangeSoft : theme.colors.greenSoft};
-  border: 1px solid ${({ $isDeveloping, theme }) =>
-    $isDeveloping ? `${theme.colors.orange}60` : `${theme.colors.green}60`};
-  border-radius: ${({ theme }) => theme.radii.full};
-  font-size: 11px;
-  font-weight: 600;
-  color: ${({ $isDeveloping, theme }) =>
-    $isDeveloping ? theme.colors.orange : theme.colors.green};
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-
-  ${({ $isDeveloping }) =>
-    $isDeveloping &&
-    css`
-      animation: ${pulse} 1.5s ease-in-out infinite;
-    `}
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white};
+  margin-bottom: ${({ theme }) => theme.spacing[1]};
 `;
 
-export const LiveDot = styled.span<LiveIndicatorProps>`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${({ $isDeveloping, theme }) =>
-    $isDeveloping ? theme.colors.orange : theme.colors.green};
-
-  ${({ $isDeveloping }) =>
-    $isDeveloping &&
-    css`
-      animation: ${pulse} 1s ease-in-out infinite;
-    `}
+export const FeatureDescription = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.colors.white50};
+  line-height: 1.4;
 `;
 
-// Connection details card
-export const ConnectionDetails = styled.div`
+export const CheckIcon = styled.span<{ $available: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ $available, theme }) =>
+    $available ? theme.colors.green : theme.colors.white30};
+`;
+
+// ============ Warning Note ============
+export const WarningNote = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.spacing[6]};
-  padding: ${({ theme }) => theme.spacing[5]};
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  border-radius: ${({ theme }) => theme.radii.lg};
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.orangeSoft};
+  border: 1px solid ${({ theme }) => theme.colors.orange}40;
+  border-radius: ${({ theme }) => theme.radii.md};
   margin-top: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const WarningIcon = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.orange};
+  flex-shrink: 0;
+`;
+
+export const WarningText = styled.p`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.white70};
+  margin: 0;
+  line-height: 1.5;
+`;
+
+// ============ Success Content (Connected State) ============
+export const SuccessContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[5]};
+`;
+
+export const SuccessHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+`;
+
+export const SuccessTitle = styled.h2`
+  font-size: 18px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
+  color: ${({ theme }) => theme.colors.white};
+  margin: 0;
+`;
+
+export const ConnectionDetails = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: ${({ theme }) => theme.spacing[3]};
 `;
 
 export const DetailItem = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing[1]};
-  min-width: 150px;
-  max-width: 350px;
+  padding: ${({ theme }) => theme.spacing[3]};
+  background: ${({ theme }) => theme.colors.surface2};
+  border-radius: ${({ theme }) => theme.radii.md};
 `;
 
 export const DetailLabel = styled.span`
-  font-size: 11px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.white30};
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   display: flex;
   align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.white50};
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 `;
 
 export const DetailValue = styled.span`
   font-size: 13px;
   color: ${({ theme }) => theme.colors.white};
-  font-family: ${({ theme }) => theme.typography.fontMono};
   word-break: break-all;
-  overflow-wrap: break-word;
 `;
 
-// Connection history
-export const ConnectionHistory = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[2]};
+export const ActionButton = styled.div`
+  margin-top: ${({ theme }) => theme.spacing[2]};
 `;
 
-export const HistoryItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[3]};
-  padding: ${({ theme }) => theme.spacing[3]};
+// ============ Collapsible Section ============
+export const CollapsibleSection = styled.div<{ $collapsed?: boolean }>`
   background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  border-radius: ${({ theme }) => theme.radii.md};
-`;
-
-export const HistoryIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme }) => theme.colors.void};
-  border-radius: ${({ theme }) => theme.radii.sm};
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-export const HistoryInfo = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`;
-
-export const HistoryTitle = styled.span`
-  font-size: 13px;
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.white};
-`;
-
-export const HistoryMeta = styled.span`
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors.white50};
-`;
-
-// Developing banner
-export const DevelopingBanner = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[4]};
-  padding: ${({ theme }) => theme.spacing[4]};
-  background: linear-gradient(135deg, ${({ theme }) => theme.colors.orangeSoft} 0%, ${({ theme }) => theme.colors.surface} 100%);
-  border: 1px solid ${({ theme }) => theme.colors.orange}40;
-  border-radius: ${({ theme }) => theme.radii.lg};
-  animation: ${glow} 2s ease-in-out infinite;
-`;
-
-export const DevelopingIcon = styled.div`
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: ${({ theme }) => theme.colors.orangeSoft};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.orange};
-`;
-
-export const DevelopingContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.spacing[1]};
-`;
-
-export const DevelopingTitle = styled.h3`
-  font-size: 16px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const DevelopingDescription = styled.p`
-  font-size: 13px;
-  color: ${({ theme }) => theme.colors.white50};
-  margin: 0;
-`;
-
-// Copy button for instructions
-interface CopyButtonProps {
-  $copied?: boolean;
-}
-
-export const CopyButton = styled.button<CopyButtonProps>`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[5]}`};
-  background: ${({ $copied, theme }) =>
-    $copied ? theme.colors.greenSoft : theme.colors.cyanSoft};
-  border: 1px solid ${({ $copied, theme }) =>
-    $copied ? `${theme.colors.green}60` : `${theme.colors.cyan}60`};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ $copied, theme }) =>
-    $copied ? theme.colors.green : theme.colors.cyan};
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-  margin-top: ${({ theme }) => theme.spacing[4]};
-
-  &:hover:not(:disabled) {
-    background: ${({ $copied, theme }) =>
-      $copied ? theme.colors.greenSoft : theme.colors.cyan}20;
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-`;
-
-// Quick setup card
-export const QuickSetupCard = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: ${({ theme }) => theme.spacing[8]};
-  background: linear-gradient(135deg, ${({ theme }) => theme.colors.cyanSoft} 0%, ${({ theme }) => theme.colors.surface} 100%);
-  border: 1px solid ${({ theme }) => theme.colors.cyan}30;
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
   border-radius: ${({ theme }) => theme.radii.xl};
+  overflow: hidden;
+  margin-bottom: ${({ theme }) => theme.spacing[4]};
 `;
 
-export const QuickSetupTitle = styled.h3`
-  font-size: 18px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0 0 ${({ theme }) => theme.spacing[2]};
+export const CollapsibleHeader = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: ${({ theme }) => theme.spacing[4]} ${({ theme }) => theme.spacing[5]};
+  background: ${({ theme }) => theme.colors.surface2};
+  border: none;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surface3};
+  }
 `;
 
-export const QuickSetupDescription = styled.p`
+export const CollapsibleTitle = styled.span`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
   font-size: 14px;
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
   color: ${({ theme }) => theme.colors.white70};
-  margin: 0 0 ${({ theme }) => theme.spacing[4]};
-  max-width: 500px;
 `;
 
-export const QuickSetupCode = styled.code`
-  display: block;
-  background: ${({ theme }) => theme.colors.void};
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  border-radius: ${({ theme }) => theme.radii.md};
-  padding: ${({ theme }) => theme.spacing[4]};
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  font-size: 12px;
-  color: ${({ theme }) => theme.colors.cyan};
-  word-break: break-all;
-  max-width: 100%;
+export const CollapsibleIcon = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.white50};
 `;
 
-// Inline connection details variant
-export const InlineConnectionDetails = styled(ConnectionDetails)`
-  margin-top: ${({ theme }) => theme.spacing[3]};
-  padding: ${({ theme }) => theme.spacing[3]};
-  background: rgba(0, 0, 0, 0.2);
-`;
-
-// Step description with top margin for grouped descriptions
-export const StepDescriptionWithMargin = styled(StepDescription)`
-  margin-top: ${({ theme }) => theme.spacing[3]};
+export const CollapsibleContent = styled.div<{ $expanded: boolean }>`
+  display: ${({ $expanded }) => ($expanded ? 'block' : 'none')};
 `;

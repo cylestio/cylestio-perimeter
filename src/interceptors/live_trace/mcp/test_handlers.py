@@ -907,3 +907,68 @@ class TestWorkflowQueryHandlers:
 
         assert result3["count"] == 10  # Only 10 remaining
         assert result3["has_more"] == False
+
+
+class TestIDEHeartbeatHandler:
+    """Tests for IDE heartbeat handler."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store for testing."""
+        return TraceStore(storage_mode="memory")
+
+    def test_ide_heartbeat_requires_agent_workflow_id(self, store):
+        """Test ide_heartbeat returns error when agent_workflow_id is missing."""
+        result = call_tool("ide_heartbeat", {}, store)
+
+        assert "error" in result
+        assert "agent_workflow_id" in result["error"]
+
+    def test_ide_heartbeat_creates_activity_record(self, store):
+        """Test ide_heartbeat creates activity record with IDE metadata."""
+        result = call_tool("ide_heartbeat", {
+            "agent_workflow_id": "test-workflow",
+            "ide_type": "cursor",
+            "workspace_path": "/path/to/project",
+            "model": "claude-sonnet-4"
+        }, store)
+
+        assert "error" not in result
+        assert result["has_activity"] is True
+        assert result["last_seen"] is not None
+        assert result["ide"] is not None
+        assert result["ide"]["ide_type"] == "cursor"
+        assert result["ide"]["workspace_path"] == "/path/to/project"
+        assert result["ide"]["model"] == "claude-sonnet-4"
+        assert "message" in result
+
+    def test_ide_heartbeat_with_minimal_args(self, store):
+        """Test ide_heartbeat works with just agent_workflow_id."""
+        result = call_tool("ide_heartbeat", {
+            "agent_workflow_id": "test-workflow"
+        }, store)
+
+        assert "error" not in result
+        assert result["has_activity"] is True
+        assert result["last_seen"] is not None
+        # No IDE metadata since ide_type not provided
+        assert result["ide"] is None
+        assert "message" in result
+
+    def test_ide_heartbeat_updates_existing(self, store):
+        """Test ide_heartbeat updates existing record."""
+        # First heartbeat
+        call_tool("ide_heartbeat", {
+            "agent_workflow_id": "test-workflow",
+            "ide_type": "cursor"
+        }, store)
+
+        # Second heartbeat with different IDE type
+        result = call_tool("ide_heartbeat", {
+            "agent_workflow_id": "test-workflow",
+            "ide_type": "claude-code",
+            "workspace_path": "/new/path"
+        }, store)
+
+        assert result["ide"]["ide_type"] == "claude-code"
+        assert result["ide"]["workspace_path"] == "/new/path"

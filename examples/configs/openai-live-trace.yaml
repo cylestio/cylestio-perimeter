@@ -1,3 +1,4 @@
+---
 # OpenAI Configuration with Live Trace Dashboard
 # Usage: python -m src.main --config examples/configs/openai-live-trace.yaml
 
@@ -7,7 +8,7 @@ server:
   workers: 1
 
 llm:
-  base_url: "https://api.openai.com/v1"
+  base_url: "https://api.openai.com"
   type: "openai"
 
 interceptors:
@@ -22,5 +23,5 @@ interceptors:
       refresh_interval: 2
       storage_mode: "sqlite"
       # db_path: "./trace_data/anthropic-live-trac2e.db"
-      db_path: "./trace_data/test_data_openai.db"
+      db_path: "./trace_data/test_data_openai2.db"
       # enable_presidio: false  # Disable PII detection (enabled by default)
