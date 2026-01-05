@@ -114,6 +114,12 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
 
             try:
                 store = get_store()
+
+                # Auto-track IDE activity: update last_seen for any tool with agent_workflow_id
+                agent_workflow_id = arguments.get("agent_workflow_id")
+                if agent_workflow_id:
+                    store.update_workflow_last_seen(agent_workflow_id)
+
                 result = call_tool(tool_name, arguments, store)
                 resp = JSONResponse(_jsonrpc_response(request_id, {
                     "content": [{"type": "text", "text": json.dumps(result)}],
@@ -135,7 +141,7 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
     @router.delete("/mcp")
     async def mcp_delete_session(request: Request):
         """Terminate an MCP session.
-        
+
         Per MCP spec 2025-03-26, clients can explicitly terminate sessions.
         """
         session_id = request.headers.get("Mcp-Session-Id")
@@ -149,7 +155,7 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
     @router.get("/mcp")
     async def mcp_sse_endpoint(request: Request):
         """MCP SSE endpoint for server-to-client streaming.
-        
+
         Per MCP spec 2025-03-26, GET opens an SSE stream for:
         - Server-initiated notifications
         - Keepalive pings
@@ -158,7 +164,7 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
         # Get or create session
         incoming_session = request.headers.get("Mcp-Session-Id")
         session_id = _get_or_create_session(incoming_session)
-        
+
         # Check for stream resumption
         last_event_id = request.headers.get("Last-Event-ID")
         if last_event_id:
@@ -166,7 +172,7 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
 
         async def event_generator():
             event_id = 0
-            
+
             # Send initial connection message with session
             yield {
                 "id": str(event_id),
@@ -177,13 +183,13 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
                 })
             }
             event_id += 1
-            
+
             # Keep connection alive with periodic pings
             while True:
                 if await request.is_disconnected():
                     logger.info(f"MCP SSE client disconnected (session: {session_id})")
                     break
-                    
+
                 # Send keepalive ping every 30 seconds
                 yield {
                     "id": str(event_id),
@@ -192,7 +198,7 @@ def create_mcp_router(get_store: Callable[[], Any]) -> APIRouter:
                 }
                 event_id += 1
                 await asyncio.sleep(30)
-        
+
         return EventSourceResponse(
             event_generator(),
             headers={"Mcp-Session-Id": session_id}

@@ -20,7 +20,7 @@ import {
 } from './ConnectIDETab.styles';
 
 const CURSOR_COMMAND =
-  'Fetch and follow instructions from https://raw.githubusercontent.com/cylestio/agent-inspector/refs/heads/main/integrations/AGENT_INSPECTOR_SETUP.md';
+  'Fetch and follow instructions from https://raw.githubusercontent.com/cylestio/agent-inspector/main/integrations/AGENT_INSPECTOR_SETUP.md';
 
 const CLAUDE_CODE_COMMANDS = [
   '/plugin marketplace add cylestio/agent-inspector',

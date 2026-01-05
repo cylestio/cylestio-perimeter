@@ -171,27 +171,17 @@ CREATE TABLE IF NOT EXISTS behavioral_analysis (
 CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_agent_id ON behavioral_analysis(agent_id);
 CREATE INDEX IF NOT EXISTS idx_behavioral_analysis_session_id ON behavioral_analysis(analysis_session_id);
 
-CREATE TABLE IF NOT EXISTS ide_connections (
-    connection_id TEXT PRIMARY KEY,
-    ide_type TEXT NOT NULL,
-    agent_workflow_id TEXT,
-    mcp_session_id TEXT,
-    host TEXT,
-    user TEXT,
+-- IDE activity tracking: auto-updated on any MCP tool call with agent_workflow_id
+CREATE TABLE IF NOT EXISTS workflow_ide_activity (
+    agent_workflow_id TEXT PRIMARY KEY,
+    last_seen REAL NOT NULL,
+    -- Optional IDE metadata (provided via optional heartbeat)
+    ide_type TEXT,
     workspace_path TEXT,
     model TEXT,
-    connected_at REAL NOT NULL,
-    last_heartbeat REAL NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    is_developing INTEGER NOT NULL DEFAULT 0,
-    disconnected_at REAL,
-    metadata TEXT
+    host TEXT,
+    user TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_ide_connections_agent_workflow_id ON ide_connections(agent_workflow_id);
-CREATE INDEX IF NOT EXISTS idx_ide_connections_is_active ON ide_connections(is_active);
-CREATE INDEX IF NOT EXISTS idx_ide_connections_mcp_session_id ON ide_connections(mcp_session_id);
-CREATE INDEX IF NOT EXISTS idx_ide_connections_last_heartbeat ON ide_connections(last_heartbeat);
 
 CREATE TABLE IF NOT EXISTS recommendations (
     recommendation_id TEXT PRIMARY KEY,
@@ -303,7 +293,7 @@ class SessionData:
         # Tool tracking
         self.tool_usage_details = defaultdict(int)  # {"tool_name": count}
         self.available_tools = set()  # All tools seen in this session
-        
+
         # Session completion tracking
         self.is_completed = False  # True when session is marked as completed
         self.completed_at = None  # Timestamp when session was marked completed
@@ -322,7 +312,7 @@ class SessionData:
         self.events.append(event)
         self.total_events += 1
         self.last_activity = datetime.now(timezone.utc)
-        
+
         # If session was completed and new event arrives, reactivate it
         if self.is_completed:
             self.reactivate()
@@ -396,10 +386,10 @@ class SessionData:
         if self.message_count == 0:
             return 0.0
         return (self.errors / self.message_count) * 100
-    
+
     def mark_completed(self):
         """Mark this session as completed (inactive for timeout period).
-        
+
         Signatures and features are computed immediately upon completion and stored.
         They are never recalculated to ensure clustering stability.
         """
@@ -407,7 +397,7 @@ class SessionData:
         self.is_active = False
         self.completed_at = datetime.now(timezone.utc)
         logger.info(f"Session {self.session_id[:8]}... marked as completed after inactivity")
-    
+
     def reactivate(self):
         """Reactivate a completed session when new events arrive."""
         if self.is_completed:
@@ -446,7 +436,7 @@ class AgentData:
         self.available_tools = set()  # All tools this agent has access to
         self.used_tools = set()  # Tools this agent has actually used
         self.tool_usage_details = defaultdict(int)  # Total usage count per tool
-        
+
         # Behavioral analysis - percentiles frozen for stability
         # Once calculated, percentiles NEVER change to ensure clustering stability
         self.cached_percentiles = None  # Frozen percentiles (calculated once from first sessions)
@@ -560,16 +550,6 @@ class TraceStore:
             )
             self.db.commit()
             logger.info("Migration: Added last_analyzed_session_count column to agents table")
-
-        # Migration: add model column to ide_connections if missing
-        cursor = self.db.execute("PRAGMA table_info(ide_connections)")
-        columns = {row[1] for row in cursor.fetchall()}
-        if 'model' not in columns:
-            self.db.execute(
-                "ALTER TABLE ide_connections ADD COLUMN model TEXT"
-            )
-            self.db.commit()
-            logger.info("Migration: Added model column to ide_connections table")
 
         # Migration: add cluster_id column to sessions if missing
         cursor = self.db.execute("PRAGMA table_info(sessions)")
@@ -1365,13 +1345,13 @@ class TraceStore:
         agent_workflow_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Update agent display name, description, and/or agent_workflow_id.
-        
+
         Args:
             agent_id: The agent ID to update
             display_name: Human-friendly name for the agent
             description: Description of what the agent does
             agent_workflow_id: Link this agent to an agent workflow for correlation
-            
+
         Returns:
             Updated agent info dict, or None if agent not found
         """
@@ -1659,7 +1639,7 @@ class TraceStore:
         sessions_analyzed: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Mark an analysis session as completed.
-        
+
         Also auto-resolves any OPEN findings from previous scans that were not
         found in this scan (meaning the issue no longer exists in the codebase).
         """
@@ -1671,29 +1651,29 @@ class TraceStore:
             session = self.get_analysis_session(session_id)
             if not session:
                 return None
-            
+
             agent_workflow_id = session.get('agent_workflow_id')
             session_type = session.get('session_type')
 
             # Mark session as completed (include sessions_analyzed)
             self.db.execute("""
                 UPDATE analysis_sessions
-                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count), 
+                SET status = ?, completed_at = ?, findings_count = COALESCE(?, findings_count),
                     risk_score = ?, sessions_analyzed = COALESCE(?, sessions_analyzed)
                 WHERE session_id = ?
             """, ('COMPLETED', completed_at, findings_count, risk_score, sessions_analyzed, session_id))
-            
+
             # Auto-resolve old findings that are no longer present (only for STATIC scans)
             if session_type == 'STATIC' and agent_workflow_id:
                 resolved_count = self._auto_resolve_old_findings(session_id, agent_workflow_id, completed_at)
                 if resolved_count > 0:
                     logger.info(f"Auto-resolved {resolved_count} findings no longer present in latest scan")
-            
+
             self.db.commit()
 
             # Return the updated session
             return self.get_analysis_session(session_id)
-    
+
     def _auto_resolve_old_findings(
         self,
         current_session_id: str,
@@ -1701,7 +1681,7 @@ class TraceStore:
         resolved_at: float,
     ) -> int:
         """Auto-resolve OPEN findings from previous scans not found in current scan.
-        
+
         If a finding (identified by file_path + finding_type) was OPEN in a previous
         scan but not found in the current scan, it means the issue no longer exists
         (either fixed or code was removed). Mark it as RESOLVED.
@@ -1711,17 +1691,17 @@ class TraceStore:
             SELECT file_path, finding_type FROM findings WHERE session_id = ?
         """, (current_session_id,))
         current_findings = {(row['file_path'], row['finding_type']) for row in cursor.fetchall()}
-        
+
         # Find all OPEN findings from previous sessions for this workflow
         cursor = self.db.execute("""
-            SELECT finding_id, file_path, finding_type FROM findings 
-            WHERE agent_workflow_id = ? 
+            SELECT finding_id, file_path, finding_type FROM findings
+            WHERE agent_workflow_id = ?
             AND session_id != ?
             AND status = 'OPEN'
         """, (agent_workflow_id, current_session_id))
-        
+
         old_findings = cursor.fetchall()
-        
+
         # Mark old findings that are NOT in current scan as RESOLVED
         resolved_count = 0
         for row in old_findings:
@@ -1729,52 +1709,52 @@ class TraceStore:
             if finding_key not in current_findings:
                 # This finding is no longer present - auto-resolve it
                 self.db.execute("""
-                    UPDATE findings 
+                    UPDATE findings
                     SET status = 'RESOLVED', updated_at = ?
                     WHERE finding_id = ?
                 """, (resolved_at, row['finding_id']))
-                
+
                 # Also update the linked recommendation if any
                 self.db.execute("""
-                    UPDATE recommendations 
+                    UPDATE recommendations
                     SET status = 'RESOLVED', fixed_at = ?
                     WHERE source_finding_id = ? AND status NOT IN ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED')
                 """, (resolved_at, row['finding_id']))
-                
+
                 resolved_count += 1
-        
+
         return resolved_count
 
     def cleanup_stale_analysis_sessions(self, stale_threshold_minutes: int = 60) -> int:
         """Auto-complete analysis sessions that have been IN_PROGRESS for too long.
-        
+
         This cleans up orphaned sessions that were never completed (e.g., due to crashes).
-        
+
         Args:
             stale_threshold_minutes: Sessions older than this are considered stale (default: 60 min)
-            
+
         Returns:
             Number of sessions cleaned up
         """
         with self._lock:
             now = datetime.now(timezone.utc)
             threshold_timestamp = (now - timedelta(minutes=stale_threshold_minutes)).timestamp()
-            
+
             # Find and complete stale sessions
             cursor = self.db.execute("""
                 UPDATE analysis_sessions
-                SET status = 'COMPLETED', 
+                SET status = 'COMPLETED',
                     completed_at = ?
-                WHERE status = 'IN_PROGRESS' 
+                WHERE status = 'IN_PROGRESS'
                 AND created_at < ?
             """, (now.timestamp(), threshold_timestamp))
-            
+
             count = cursor.rowcount
             self.db.commit()
-            
+
             if count > 0:
                 logger.info(f"Auto-completed {count} stale analysis sessions (older than {stale_threshold_minutes} min)")
-            
+
             return count
 
     def get_analysis_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -2093,18 +2073,18 @@ class TraceStore:
         correlation_evidence: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Update the correlation state of a finding.
-        
+
         Correlation states:
         - VALIDATED: Static finding confirmed by runtime evidence
         - UNEXERCISED: Static finding, code path never executed at runtime
         - RUNTIME_ONLY: Issue found at runtime, no static counterpart
         - THEORETICAL: Static finding, but safe at runtime (other safeguards)
-        
+
         Args:
             finding_id: The finding to update
             correlation_state: One of VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL
             correlation_evidence: Optional dict with evidence details (tool calls, session count, etc.)
-            
+
         Returns:
             Updated finding dict or None if not found
         """
@@ -2112,21 +2092,21 @@ class TraceStore:
         if correlation_state.upper() not in valid_states:
             logger.warning(f"Invalid correlation state: {correlation_state}. Must be one of {valid_states}")
             return None
-            
+
         with self._lock:
             now = datetime.now(timezone.utc)
             updated_at = now.timestamp()
-            
+
             evidence_json = json.dumps(correlation_evidence) if correlation_evidence else None
-            
+
             self.db.execute("""
                 UPDATE findings
                 SET correlation_state = ?, correlation_evidence = ?, updated_at = ?
                 WHERE finding_id = ?
             """, (correlation_state.upper(), evidence_json, updated_at, finding_id))
-            
+
             self.db.commit()
-            
+
             # Return the updated finding
             return self.get_finding(finding_id)
 
@@ -2135,7 +2115,7 @@ class TraceStore:
         agent_workflow_id: str,
     ) -> Dict[str, Any]:
         """Get correlation summary for an agent workflow.
-        
+
         Returns counts of findings by correlation state and overall correlation status.
         """
         with self._lock:
@@ -2145,12 +2125,12 @@ class TraceStore:
                 WHERE agent_workflow_id = ? AND status = 'OPEN'
                 GROUP BY correlation_state
             """, (agent_workflow_id,))
-            
+
             counts = {row['correlation_state']: row['count'] for row in cursor.fetchall()}
-            
+
             # Count uncorrelated (NULL correlation_state)
             uncorrelated = counts.pop(None, 0)
-            
+
             # Get total sessions for context
             cursor = self.db.execute("""
                 SELECT COUNT(DISTINCT session_id) as session_count
@@ -2159,7 +2139,7 @@ class TraceStore:
             """, (agent_workflow_id,))
             row = cursor.fetchone()
             sessions_count = row['session_count'] if row else 0
-            
+
             return {
                 'agent_workflow_id': agent_workflow_id,
                 'validated': counts.get('VALIDATED', 0),
@@ -2172,12 +2152,12 @@ class TraceStore:
             }
 
     def get_agent_workflow_findings_summary(
-        self, 
+        self,
         agent_workflow_id: str,
         source_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get a summary of findings for an agent workflow.
-        
+
         Args:
             agent_workflow_id: The workflow ID
             source_type: Optional filter by source type ('STATIC' or 'DYNAMIC').
@@ -2190,7 +2170,7 @@ class TraceStore:
             if source_type:
                 base_where += " AND source_type = ?"
                 params.append(source_type)
-            
+
             # Count by severity (only OPEN findings for severity breakdown)
             cursor = self.db.execute(f"""
                 SELECT severity, COUNT(*) as count
@@ -2278,7 +2258,7 @@ class TraceStore:
         - Completed session count > last_analyzed_session_count
 
         Used for startup check to trigger analysis for agents missed during downtime.
-        
+
         Note: min_sessions default is 1 (per Phase 4 spec). Some checks like variance
         analysis require 2+ sessions for meaningful results, but analysis can still
         run with 1 session.
@@ -2310,7 +2290,7 @@ class TraceStore:
 
     def get_unanalyzed_sessions(self, workflow_id: str) -> List[Dict[str, Any]]:
         """Get sessions not yet analyzed for a workflow.
-        
+
         Returns completed sessions where last_analysis_session_id is NULL.
         Used for incremental dynamic analysis.
         """
@@ -2319,16 +2299,16 @@ class TraceStore:
             if not self._has_last_analysis_column():
                 # Fallback: return all completed sessions
                 cursor = self.db.execute("""
-                    SELECT * FROM sessions 
-                    WHERE agent_workflow_id = ? 
-                    AND is_completed = 1 
+                    SELECT * FROM sessions
+                    WHERE agent_workflow_id = ?
+                    AND is_completed = 1
                     ORDER BY completed_at ASC
                 """, (workflow_id,))
             else:
                 cursor = self.db.execute("""
-                    SELECT * FROM sessions 
-                    WHERE agent_workflow_id = ? 
-                    AND is_completed = 1 
+                    SELECT * FROM sessions
+                    WHERE agent_workflow_id = ?
+                    AND is_completed = 1
                     AND last_analysis_session_id IS NULL
                     ORDER BY completed_at ASC
                 """, (workflow_id,))
@@ -2342,15 +2322,15 @@ class TraceStore:
             if not self._has_last_analysis_column():
                 # Fallback: return all completed sessions count
                 cursor = self.db.execute("""
-                    SELECT COUNT(*) as count FROM sessions 
-                    WHERE agent_workflow_id = ? 
-                    AND is_completed = 1 
+                    SELECT COUNT(*) as count FROM sessions
+                    WHERE agent_workflow_id = ?
+                    AND is_completed = 1
                 """, (workflow_id,))
             else:
                 cursor = self.db.execute("""
-                    SELECT COUNT(*) as count FROM sessions 
-                    WHERE agent_workflow_id = ? 
-                    AND is_completed = 1 
+                    SELECT COUNT(*) as count FROM sessions
+                    WHERE agent_workflow_id = ?
+                    AND is_completed = 1
                     AND last_analysis_session_id IS NULL
                 """, (workflow_id,))
             row = cursor.fetchone()
@@ -2358,7 +2338,7 @@ class TraceStore:
 
     def get_unanalyzed_sessions_by_agent(self, workflow_id: str) -> Dict[str, List[str]]:
         """Get unanalyzed session IDs grouped by agent_id.
-        
+
         Used for per-agent incremental analysis.
         """
         with self._lock:
@@ -2366,16 +2346,16 @@ class TraceStore:
             if not self._has_last_analysis_column():
                 # Fallback: return all completed sessions
                 cursor = self.db.execute("""
-                    SELECT agent_id, session_id FROM sessions 
-                    WHERE agent_workflow_id = ? 
-                    AND is_completed = 1 
+                    SELECT agent_id, session_id FROM sessions
+                    WHERE agent_workflow_id = ?
+                    AND is_completed = 1
                     ORDER BY agent_id, completed_at ASC
                 """, (workflow_id,))
             else:
                 cursor = self.db.execute("""
-                    SELECT agent_id, session_id FROM sessions 
-                    WHERE agent_workflow_id = ? 
-                    AND is_completed = 1 
+                    SELECT agent_id, session_id FROM sessions
+                    WHERE agent_workflow_id = ?
+                    AND is_completed = 1
                     AND last_analysis_session_id IS NULL
                     ORDER BY agent_id, completed_at ASC
                 """, (workflow_id,))
@@ -2388,22 +2368,22 @@ class TraceStore:
             return result
 
     def mark_sessions_analyzed(
-        self, 
-        session_ids: List[str], 
+        self,
+        session_ids: List[str],
         analysis_session_id: str
     ) -> int:
         """Mark sessions as analyzed after analysis completes.
-        
+
         Args:
             session_ids: List of session IDs to mark
             analysis_session_id: The analysis session that analyzed these
-            
+
         Returns:
             Number of sessions marked
         """
         if not session_ids:
             return 0
-            
+
         with self._lock:
             placeholders = ','.join(['?' for _ in session_ids])
             self.db.execute(f"""
@@ -2417,21 +2397,21 @@ class TraceStore:
 
     def reset_sessions_to_unanalyzed(self, workflow_id: str) -> int:
         """Reset all sessions in a workflow to unanalyzed state.
-        
+
         Used for force re-running analysis on all sessions.
-        
+
         Args:
             workflow_id: The workflow ID
-            
+
         Returns:
             Number of sessions reset
         """
         with self._lock:
             if not self._has_last_analysis_column():
                 return 0
-                
+
             cursor = self.db.execute("""
-                UPDATE sessions 
+                UPDATE sessions
                 SET last_analysis_session_id = NULL
                 WHERE agent_workflow_id = ?
                 AND is_completed = 1
@@ -2443,7 +2423,7 @@ class TraceStore:
 
     def get_dynamic_analysis_status(self, workflow_id: str) -> Dict[str, Any]:
         """Get comprehensive dynamic analysis status for a workflow.
-        
+
         Returns status for UI and MCP including:
         - Whether analysis can be triggered
         - Unanalyzed session counts per agent
@@ -2454,16 +2434,16 @@ class TraceStore:
             # Get unanalyzed sessions by agent
             unanalyzed_by_agent = self.get_unanalyzed_sessions_by_agent(workflow_id)
             total_unanalyzed = sum(len(sessions) for sessions in unanalyzed_by_agent.values())
-            
+
             # Get all agents in workflow with session counts
             # Use backwards-compatible query
             has_column = self._has_last_analysis_column()
             if has_column:
                 cursor = self.db.execute("""
                     SELECT a.agent_id, a.display_name, a.total_sessions,
-                           (SELECT COUNT(*) FROM sessions s 
-                            WHERE s.agent_id = a.agent_id 
-                            AND s.is_completed = 1 
+                           (SELECT COUNT(*) FROM sessions s
+                            WHERE s.agent_id = a.agent_id
+                            AND s.is_completed = 1
                             AND s.last_analysis_session_id IS NULL) as unanalyzed_count
                     FROM agents a
                     WHERE a.agent_workflow_id = ?
@@ -2473,14 +2453,14 @@ class TraceStore:
                 # Fallback: all completed sessions are "unanalyzed"
                 cursor = self.db.execute("""
                     SELECT a.agent_id, a.display_name, a.total_sessions,
-                           (SELECT COUNT(*) FROM sessions s 
-                            WHERE s.agent_id = a.agent_id 
+                           (SELECT COUNT(*) FROM sessions s
+                            WHERE s.agent_id = a.agent_id
                             AND s.is_completed = 1) as unanalyzed_count
                     FROM agents a
                     WHERE a.agent_workflow_id = ?
                     ORDER BY a.last_seen DESC
                 """, (workflow_id,))
-            
+
             agents_status = []
             for row in cursor.fetchall():
                 agents_status.append({
@@ -2489,17 +2469,17 @@ class TraceStore:
                     'total_sessions': row['total_sessions'],
                     'unanalyzed_count': row['unanalyzed_count'],
                 })
-            
+
             # Get last DYNAMIC analysis session
             cursor = self.db.execute("""
-                SELECT * FROM analysis_sessions 
-                WHERE agent_workflow_id = ? 
+                SELECT * FROM analysis_sessions
+                WHERE agent_workflow_id = ?
                 AND session_type = 'DYNAMIC'
                 ORDER BY created_at DESC
                 LIMIT 1
             """, (workflow_id,))
             last_analysis_row = cursor.fetchone()
-            
+
             last_analysis = None
             is_running = False
             if last_analysis_row:
@@ -2512,13 +2492,13 @@ class TraceStore:
                     'sessions_analyzed': last_analysis_row['sessions_analyzed'],
                     'findings_count': last_analysis_row['findings_count'],
                 }
-            
+
             # Determine if we can trigger analysis
             can_trigger = total_unanalyzed > 0 and not is_running
-            
+
             # Count agents with new sessions
             agents_with_new_sessions = sum(1 for a in agents_status if a['unanalyzed_count'] > 0)
-            
+
             return {
                 'workflow_id': workflow_id,
                 'can_trigger': can_trigger,
@@ -2944,291 +2924,113 @@ class TraceStore:
             'created_at': datetime.fromtimestamp(row['created_at'], tz=timezone.utc).isoformat(),
         }
 
-    # ==================== IDE Connection Methods ====================
+    # ==================== IDE Activity Methods ====================
 
-    def register_ide_connection(
+    def update_workflow_last_seen(self, agent_workflow_id: str) -> None:
+        """Update last_seen timestamp for a workflow.
+
+        Called automatically by MCP router on any tool call with agent_workflow_id.
+        Creates a new record if none exists (with NULL IDE metadata).
+
+        Args:
+            agent_workflow_id: The workflow ID
+        """
+        with self._lock:
+            now = datetime.now(timezone.utc).timestamp()
+            self.db.execute("""
+                INSERT INTO workflow_ide_activity (agent_workflow_id, last_seen)
+                VALUES (?, ?)
+                ON CONFLICT(agent_workflow_id) DO UPDATE SET last_seen = excluded.last_seen
+            """, (agent_workflow_id, now))
+            self.db.commit()
+
+    def upsert_ide_metadata(
         self,
-        connection_id: str,
-        ide_type: str,
-        mcp_session_id: Optional[str] = None,
-        agent_workflow_id: Optional[str] = None,
-        host: Optional[str] = None,
-        user: Optional[str] = None,
+        agent_workflow_id: str,
+        ide_type: Optional[str] = None,
         workspace_path: Optional[str] = None,
         model: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        host: Optional[str] = None,
+        user: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Register a new IDE connection.
+        """Upsert IDE metadata for a workflow.
+
+        Called by optional ide_heartbeat tool to provide rich IDE information.
+        Also updates last_seen timestamp.
 
         Args:
-            connection_id: Unique connection identifier
-            ide_type: Type of IDE (cursor, claude-code, vscode)
-            mcp_session_id: MCP session ID for this connection
-            agent_workflow_id: Optional agent workflow/agent being developed
-            host: Hostname of the connected machine
-            user: Username on the connected machine
-            workspace_path: Path to the workspace being edited
-            model: AI model being used (e.g., claude-sonnet-4, gpt-4o)
-            metadata: Additional connection metadata
+            agent_workflow_id: The workflow ID (required)
+            ide_type: Type of IDE (cursor, claude-code)
+            workspace_path: Path to workspace
+            model: AI model being used
+            host: Hostname
+            user: Username
 
         Returns:
-            Dict with connection details
+            Dict with updated activity info
         """
         with self._lock:
-            now = datetime.now(timezone.utc)
-            connected_at = now.timestamp()
-
+            now = datetime.now(timezone.utc).timestamp()
             self.db.execute("""
-                INSERT OR REPLACE INTO ide_connections (
-                    connection_id, ide_type, agent_workflow_id, mcp_session_id,
-                    host, user, workspace_path, model, connected_at, last_heartbeat,
-                    is_active, is_developing, disconnected_at, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                connection_id,
-                ide_type,
-                agent_workflow_id,
-                mcp_session_id,
-                host,
-                user,
-                workspace_path,
-                model,
-                connected_at,
-                connected_at,  # last_heartbeat = connected_at initially
-                1,  # is_active
-                0,  # is_developing
-                None,  # disconnected_at
-                json.dumps(metadata) if metadata else None,
-            ))
+                INSERT INTO workflow_ide_activity
+                    (agent_workflow_id, last_seen, ide_type, workspace_path, model, host, user)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_workflow_id) DO UPDATE SET
+                    last_seen = excluded.last_seen,
+                    ide_type = COALESCE(excluded.ide_type, ide_type),
+                    workspace_path = COALESCE(excluded.workspace_path, workspace_path),
+                    model = COALESCE(excluded.model, model),
+                    host = COALESCE(excluded.host, host),
+                    user = COALESCE(excluded.user, user)
+            """, (agent_workflow_id, now, ide_type, workspace_path, model, host, user))
             self.db.commit()
-            logger.info(f"IDE connection registered: {ide_type} ({connection_id[:12]})")
 
-            return self.get_ide_connection(connection_id)
+            return self.get_workflow_ide_status(agent_workflow_id)
 
-    def get_ide_connection(self, connection_id: str) -> Optional[Dict[str, Any]]:
-        """Get an IDE connection by ID."""
+    def get_workflow_ide_status(self, agent_workflow_id: str) -> Dict[str, Any]:
+        """Get simplified IDE activity status for a workflow.
+
+        Args:
+            agent_workflow_id: The workflow ID
+
+        Returns:
+            Dict with:
+            - has_activity: Whether any activity has been recorded
+            - last_seen: ISO timestamp of last activity
+            - ide: IDE metadata dict or None if not provided
+        """
         with self._lock:
             cursor = self.db.execute(
-                "SELECT * FROM ide_connections WHERE connection_id = ?",
-                (connection_id,)
+                "SELECT * FROM workflow_ide_activity WHERE agent_workflow_id = ?",
+                (agent_workflow_id,)
             )
             row = cursor.fetchone()
-            if row:
-                return self._deserialize_ide_connection(row)
-            return None
 
-    def get_ide_connections(
-        self,
-        agent_workflow_id: Optional[str] = None,
-        ide_type: Optional[str] = None,
-        active_only: bool = True,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        """Get IDE connections with optional filtering.
+            if not row:
+                return {
+                    'has_activity': False,
+                    'last_seen': None,
+                    'ide': None,
+                }
 
-        Args:
-            agent_workflow_id: Filter by agent agent workflow/agent being developed
-            ide_type: Filter by IDE type (cursor, claude-code, vscode)
-            active_only: Only return active connections
-            limit: Maximum number of connections to return
+            last_seen = datetime.fromtimestamp(row['last_seen'], tz=timezone.utc)
 
-        Returns:
-            List of connection dicts
-        """
-        with self._lock:
-            query = "SELECT * FROM ide_connections WHERE 1=1"
-            params = []
-
-            if agent_workflow_id:
-                query += " AND agent_workflow_id = ?"
-                params.append(agent_workflow_id)
-
-            if ide_type:
-                query += " AND ide_type = ?"
-                params.append(ide_type)
-
-            if active_only:
-                query += " AND is_active = 1"
-
-            query += " ORDER BY last_heartbeat DESC LIMIT ?"
-            params.append(limit)
-
-            cursor = self.db.execute(query, params)
-            return [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
-
-    def update_ide_heartbeat(
-        self,
-        connection_id: str,
-        is_developing: bool = False,
-        agent_workflow_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Update heartbeat timestamp for an IDE connection.
-
-        Args:
-            connection_id: The connection ID
-            is_developing: Whether active development is happening
-            agent_workflow_id: Update the workflow being developed
-
-        Returns:
-            Updated connection dict or None if not found
-        """
-        with self._lock:
-            now = datetime.now(timezone.utc)
-
-            # Build update query dynamically
-            updates = ["last_heartbeat = ?", "is_developing = ?"]
-            params = [now.timestamp(), 1 if is_developing else 0]
-
-            if agent_workflow_id is not None:
-                updates.append("agent_workflow_id = ?")
-                params.append(agent_workflow_id)
-
-            params.append(connection_id)
-
-            self.db.execute(
-                f"UPDATE ide_connections SET {', '.join(updates)} WHERE connection_id = ?",  # nosec B608 - parameterized
-                params
-            )
-            self.db.commit()
-
-            return self.get_ide_connection(connection_id)
-
-    def disconnect_ide(self, connection_id: str) -> Optional[Dict[str, Any]]:
-        """Mark an IDE connection as disconnected.
-
-        Args:
-            connection_id: The connection ID to disconnect
-
-        Returns:
-            Updated connection dict or None if not found
-        """
-        with self._lock:
-            now = datetime.now(timezone.utc)
-
-            self.db.execute("""
-                UPDATE ide_connections
-                SET is_active = 0, is_developing = 0, disconnected_at = ?
-                WHERE connection_id = ?
-            """, (now.timestamp(), connection_id))
-            self.db.commit()
-            logger.info(f"IDE disconnected: {connection_id[:12]}")
-
-            return self.get_ide_connection(connection_id)
-
-    def get_ide_connection_status(self, agent_workflow_id: Optional[str] = None) -> Dict[str, Any]:
-        """Get overall IDE connection status for an agent workflow.
-
-        Args:
-            agent_workflow_id: Optional workflow to check status for
-
-        Returns:
-            Dict with connection status summary including:
-            - is_connected: Currently has active heartbeat
-            - has_ever_connected: Has ever successfully connected (for green state)
-            - is_developing: Currently actively developing
-            - connected_ide: Current or most recent IDE info
-        """
-        with self._lock:
-            # First, mark stale connections as inactive (no heartbeat for 60 seconds)
-            cutoff_time = datetime.now(timezone.utc).timestamp() - 60
-            self.db.execute("""
-                UPDATE ide_connections
-                SET is_active = 0, is_developing = 0
-                WHERE is_active = 1 AND last_heartbeat < ?
-            """, (cutoff_time,))
-            self.db.commit()
-
-            # Get active connections (currently connected with recent heartbeat)
-            query = "SELECT * FROM ide_connections WHERE is_active = 1"
-            params = []
-            if agent_workflow_id:
-                query += " AND agent_workflow_id = ?"
-                params.append(agent_workflow_id)
-            query += " ORDER BY last_heartbeat DESC"
-
-            cursor = self.db.execute(query, params)
-            active_connections = [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
-
-            # Get the most recent connection for this agent workflow (even if inactive)
-            # This is used to show "was connected" state
-            most_recent_query = "SELECT * FROM ide_connections WHERE 1=1"
-            most_recent_params = []
-            if agent_workflow_id:
-                most_recent_query += " AND agent_workflow_id = ?"
-                most_recent_params.append(agent_workflow_id)
-            most_recent_query += " ORDER BY last_heartbeat DESC LIMIT 1"
-
-            cursor = self.db.execute(most_recent_query, most_recent_params)
-            most_recent_row = cursor.fetchone()
-            most_recent_connection = self._deserialize_ide_connection(most_recent_row) if most_recent_row else None
-
-            # Get recent connections (last 24 hours) for history
-            history_cutoff = datetime.now(timezone.utc).timestamp() - (24 * 60 * 60)
-            history_query = "SELECT * FROM ide_connections WHERE connected_at > ?"
-            history_params = [history_cutoff]
-            if agent_workflow_id:
-                history_query += " AND agent_workflow_id = ?"
-                history_params.append(agent_workflow_id)
-            history_query += " ORDER BY connected_at DESC LIMIT 10"
-
-            cursor = self.db.execute(history_query, history_params)
-            recent_connections = [self._deserialize_ide_connection(row) for row in cursor.fetchall()]
-
-            # Determine status
-            is_connected = len(active_connections) > 0
-            is_developing = any(c.get('is_developing') for c in active_connections)
-            has_ever_connected = most_recent_connection is not None
-            
-            # Use active connection if available, otherwise most recent for display
-            connected_ide = active_connections[0] if active_connections else most_recent_connection
+            # Build IDE metadata if any field is set
+            ide = None
+            if row['ide_type']:
+                ide = {
+                    'ide_type': row['ide_type'],
+                    'workspace_path': row['workspace_path'],
+                    'model': row['model'],
+                    'host': row['host'],
+                    'user': row['user'],
+                }
 
             return {
-                'is_connected': is_connected,
-                'is_developing': is_developing,
-                'has_ever_connected': has_ever_connected,
-                'connected_ide': connected_ide,
-                'active_connections': active_connections,
-                'recent_connections': recent_connections,
-                'connection_count': len(active_connections),
+                'has_activity': True,
+                'last_seen': last_seen.isoformat(),
+                'ide': ide,
             }
-
-    def _deserialize_ide_connection(self, row: sqlite3.Row) -> Dict[str, Any]:
-        """Deserialize an ide_connections row."""
-        connected_at = datetime.fromtimestamp(row['connected_at'], tz=timezone.utc)
-        last_heartbeat = datetime.fromtimestamp(row['last_heartbeat'], tz=timezone.utc)
-        now = datetime.now(timezone.utc)
-
-        # Calculate relative time for last heartbeat
-        delta = now - last_heartbeat
-        if delta.total_seconds() < 60:
-            last_seen_relative = "just now"
-        elif delta.total_seconds() < 3600:
-            mins = int(delta.total_seconds() / 60)
-            last_seen_relative = f"{mins}m ago"
-        elif delta.total_seconds() < 86400:
-            hours = int(delta.total_seconds() / 3600)
-            last_seen_relative = f"{hours}h ago"
-        else:
-            days = int(delta.total_seconds() / 86400)
-            last_seen_relative = f"{days}d ago"
-
-        return {
-            'connection_id': row['connection_id'],
-            'ide_type': row['ide_type'],
-            'agent_workflow_id': row['agent_workflow_id'],
-            'mcp_session_id': row['mcp_session_id'],
-            'host': row['host'],
-            'user': row['user'],
-            'workspace_path': row['workspace_path'],
-            'model': row['model'] if 'model' in row.keys() else None,
-            'connected_at': connected_at.isoformat(),
-            'last_heartbeat': last_heartbeat.isoformat(),
-            'last_seen_relative': last_seen_relative,
-            'is_active': bool(row['is_active']),
-            'is_developing': bool(row['is_developing']),
-            'disconnected_at': datetime.fromtimestamp(row['disconnected_at'], tz=timezone.utc).isoformat() if row['disconnected_at'] else None,
-            'metadata': json.loads(row['metadata']) if row['metadata'] else None,
-        }
 
     # ==================== Recommendation Methods ====================
 
@@ -3638,26 +3440,26 @@ class TraceStore:
         current_check_ids: List[str],
     ) -> Dict[str, Any]:
         """Auto-resolve findings/recommendations not detected in the current scan.
-        
-        When a new dynamic analysis runs and doesn't find issues that were 
-        previously detected, those are automatically resolved since the 
+
+        When a new dynamic analysis runs and doesn't find issues that were
+        previously detected, those are automatically resolved since the
         underlying issue appears to be fixed.
-        
+
         Args:
             workflow_id: The workflow being analyzed
             analysis_session_id: Current analysis session ID
             current_check_ids: List of check_ids found in current analysis
-            
+
         Returns:
             Dict with counts of auto-resolved items
         """
         with self._lock:
             now = datetime.now(timezone.utc)
-            
+
             # Find open recommendations from DYNAMIC source that are not in current_check_ids
             if current_check_ids:
                 placeholders = ','.join(['?' for _ in current_check_ids])
-                
+
                 # Get stale recommendations (those not in the current findings)
                 cursor = self.db.execute(f"""
                     SELECT r.recommendation_id, r.source_finding_id, r.title, f.check_id
@@ -3678,17 +3480,17 @@ class TraceStore:
                       AND r.source_type = 'DYNAMIC'
                       AND r.status IN ('PENDING', 'FIXING')
                 """, (workflow_id,))
-            
+
             stale_recs = cursor.fetchall()
-            
+
             resolved_count = 0
             resolved_items = []
-            
+
             for row in stale_recs:
                 rec_id = row['recommendation_id']
                 finding_id = row['source_finding_id']
                 title = row['title']
-                
+
                 # Update recommendation status to RESOLVED
                 self.db.execute("""
                     UPDATE recommendations
@@ -3704,7 +3506,7 @@ class TraceStore:
                     now.timestamp(),
                     rec_id,
                 ))
-                
+
                 # Update the underlying finding
                 if finding_id:
                     self.db.execute("""
@@ -3713,7 +3515,7 @@ class TraceStore:
                             updated_at = ?
                         WHERE finding_id = ?
                     """, (now.timestamp(), finding_id))
-                
+
                 # Log audit event
                 self.log_audit_event(
                     entity_type='recommendation',
@@ -3724,15 +3526,15 @@ class TraceStore:
                     reason=f'Not detected in analysis {analysis_session_id}',
                     performed_by='system',
                 )
-                
+
                 resolved_items.append({'id': rec_id, 'title': title})
                 resolved_count += 1
-            
+
             self.db.commit()
-            
+
             if resolved_count > 0:
                 logger.info(f"Auto-resolved {resolved_count} stale dynamic findings for {workflow_id}")
-            
+
             return {
                 'workflow_id': workflow_id,
                 'analysis_session_id': analysis_session_id,
@@ -3746,20 +3548,20 @@ class TraceStore:
         analysis_session_id: str,
     ) -> Dict[str, Any]:
         """Resolve ALL open dynamic findings before a new scan.
-        
+
         This ensures each new scan starts fresh - only the current scan's
         findings will be active. Previous findings are marked as superseded.
-        
+
         Args:
             workflow_id: The workflow being analyzed
             analysis_session_id: New analysis session ID (for audit trail)
-            
+
         Returns:
             Dict with counts of resolved items
         """
         with self._lock:
             now = datetime.now(timezone.utc)
-            
+
             # Find all OPEN dynamic recommendations for this workflow
             cursor = self.db.execute("""
                 SELECT r.recommendation_id, r.source_finding_id, r.title
@@ -3768,15 +3570,15 @@ class TraceStore:
                   AND r.source_type = 'DYNAMIC'
                   AND r.status IN ('PENDING', 'FIXING')
             """, (workflow_id,))
-            
+
             open_recs = cursor.fetchall()
-            
+
             resolved_count = 0
-            
+
             for row in open_recs:
                 rec_id = row['recommendation_id']
                 finding_id = row['source_finding_id']
-                
+
                 # Mark as superseded (replaced by new scan)
                 self.db.execute("""
                     UPDATE recommendations
@@ -3792,7 +3594,7 @@ class TraceStore:
                     now.timestamp(),
                     rec_id,
                 ))
-                
+
                 # Update the underlying finding
                 if finding_id:
                     self.db.execute("""
@@ -3801,14 +3603,14 @@ class TraceStore:
                             updated_at = ?
                         WHERE finding_id = ?
                     """, (now.timestamp(), finding_id))
-                
+
                 resolved_count += 1
-            
+
             self.db.commit()
-            
+
             if resolved_count > 0:
                 logger.info(f"Superseded {resolved_count} previous dynamic findings for {workflow_id} (new scan: {analysis_session_id})")
-            
+
             return {
                 'workflow_id': workflow_id,
                 'superseded_count': resolved_count,
@@ -4107,7 +3909,7 @@ class TraceStore:
         # Calculate risk score
         risk_score = self._calculate_risk_score(open_findings)
         risk_breakdown = self._calculate_risk_breakdown(open_findings)
-        
+
         # Calculate business impact
         business_impact = self._calculate_business_impact(findings, recommendations)
 
@@ -4139,7 +3941,7 @@ class TraceStore:
                 "blocking_critical": gate_status["blocking_critical"],
                 "blocking_high": gate_status["blocking_high"],
             },
-            
+
             "business_impact": business_impact,
 
             "owasp_llm_coverage": {
@@ -4255,12 +4057,12 @@ class TraceStore:
     def _calculate_risk_breakdown(self, open_findings: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculate detailed risk score breakdown for reports."""
         severity_weights = {'CRITICAL': 25, 'HIGH': 15, 'MEDIUM': 5, 'LOW': 2}
-        
+
         by_severity = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
         for f in open_findings:
             sev = f.get('severity', 'LOW')
             by_severity[sev] = by_severity.get(sev, 0) + 1
-        
+
         return {
             "formula": "CRITICAL×25 + HIGH×15 + MEDIUM×5 + LOW×2 (capped at 100)",
             "breakdown": [
@@ -4276,12 +4078,12 @@ class TraceStore:
     def _calculate_business_impact(self, findings: List[Dict[str, Any]], recommendations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Assess business impact for CISO/executive summary."""
         open_findings = [f for f in findings if f.get('status') == 'OPEN']
-        
+
         # Helper to compare risk levels
         def higher_risk(current: str, new: str) -> str:
             order = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
             return new if order.get(new, 0) > order.get(current, 0) else current
-        
+
         # Categorize by business impact type
         impacts = {
             "remote_code_execution": {
@@ -4290,13 +4092,13 @@ class TraceStore:
                 "affected_components": [],
             },
             "data_exfiltration": {
-                "risk_level": "NONE", 
+                "risk_level": "NONE",
                 "description": "No data exfiltration risk detected",
                 "affected_components": [],
             },
             "privilege_escalation": {
                 "risk_level": "NONE",
-                "description": "No privilege escalation risk detected", 
+                "description": "No privilege escalation risk detected",
                 "affected_components": [],
             },
             "supply_chain": {
@@ -4310,7 +4112,7 @@ class TraceStore:
                 "affected_components": [],
             },
         }
-        
+
         for f in open_findings:
             category = f.get('category', '')
             finding_type = f.get('finding_type', '')
@@ -4319,7 +4121,7 @@ class TraceStore:
             file_path = f.get('file_path', '')
             owasp_str = str(f.get('owasp_mapping', []))
             title_lower = title.lower()
-            
+
             # Remote Code Execution risk (TOOL issues, excessive agency)
             if category == 'TOOL' or 'LLM08' in owasp_str or 'agency' in title_lower or 'execution' in title_lower:
                 if severity in ['CRITICAL', 'HIGH']:
@@ -4327,7 +4129,7 @@ class TraceStore:
                     impacts["remote_code_execution"]["risk_level"] = higher_risk(impacts["remote_code_execution"]["risk_level"], new_level)
                     impacts["remote_code_execution"]["affected_components"].append(file_path or title)
                     impacts["remote_code_execution"]["description"] = "Agent tools may allow uncontrolled system access or code execution"
-            
+
             # Data Exfiltration risk (DATA issues, sensitive info disclosure)
             if category == 'DATA' or 'LLM06' in owasp_str or 'secret' in title_lower or 'credential' in title_lower or 'pii' in title_lower:
                 if severity in ['CRITICAL', 'HIGH']:
@@ -4335,7 +4137,7 @@ class TraceStore:
                     impacts["data_exfiltration"]["risk_level"] = higher_risk(impacts["data_exfiltration"]["risk_level"], new_level)
                     impacts["data_exfiltration"]["affected_components"].append(file_path or title)
                     impacts["data_exfiltration"]["description"] = "Sensitive data (credentials, PII) may be exposed through agent responses"
-            
+
             # Privilege Escalation (PROMPT injection, insecure output)
             if category == 'PROMPT' or 'LLM01' in owasp_str or 'injection' in title_lower:
                 if severity in ['CRITICAL', 'HIGH']:
@@ -4343,7 +4145,7 @@ class TraceStore:
                     impacts["privilege_escalation"]["risk_level"] = higher_risk(impacts["privilege_escalation"]["risk_level"], new_level)
                     impacts["privilege_escalation"]["affected_components"].append(file_path or title)
                     impacts["privilege_escalation"]["description"] = "Prompt injection may allow attackers to bypass security controls"
-            
+
             # Supply Chain risk
             if category == 'SUPPLY' or 'LLM05' in owasp_str:
                 if severity in ['CRITICAL', 'HIGH', 'MEDIUM']:
@@ -4351,16 +4153,16 @@ class TraceStore:
                     impacts["supply_chain"]["risk_level"] = higher_risk(impacts["supply_chain"]["risk_level"], new_level)
                     impacts["supply_chain"]["affected_components"].append(file_path or title)
                     impacts["supply_chain"]["description"] = "Third-party dependencies may introduce vulnerabilities"
-            
+
             # Compliance risk (any critical/high finding)
             if severity in ['CRITICAL', 'HIGH']:
                 impacts["compliance_violation"]["risk_level"] = "HIGH"
                 impacts["compliance_violation"]["description"] = "Unresolved critical/high issues may violate compliance requirements (SOC2, GDPR)"
-        
+
         # Dedupe affected components
         for key in impacts:
             impacts[key]["affected_components"] = list(set(impacts[key]["affected_components"]))[:5]
-        
+
         # Calculate overall business risk
         risk_levels = [impacts[k]["risk_level"] for k in impacts]
         if "HIGH" in risk_levels:
@@ -4375,7 +4177,7 @@ class TraceStore:
         else:
             overall = "NONE"
             overall_desc = "No significant security risks identified"
-        
+
         return {
             "overall_risk": overall,
             "overall_description": overall_desc,
@@ -4386,15 +4188,15 @@ class TraceStore:
     def _generate_executive_bullets(self, impacts: Dict[str, Any], open_findings: List[Dict[str, Any]]) -> List[str]:
         """Generate executive summary bullet points."""
         bullets = []
-        
+
         critical_count = len([f for f in open_findings if f.get('severity') == 'CRITICAL'])
         high_count = len([f for f in open_findings if f.get('severity') == 'HIGH'])
-        
+
         if critical_count > 0:
             bullets.append(f"🔴 {critical_count} critical security issue(s) require immediate attention")
         if high_count > 0:
             bullets.append(f"🟠 {high_count} high severity issue(s) should be resolved before deployment")
-        
+
         if impacts["remote_code_execution"]["risk_level"] in ["HIGH", "MEDIUM"]:
             bullets.append("⚠️ RCE Risk: Agent tools may allow uncontrolled system access")
         if impacts["data_exfiltration"]["risk_level"] in ["HIGH", "MEDIUM"]:
@@ -4403,10 +4205,10 @@ class TraceStore:
             bullets.append("⚠️ Access Risk: Prompt injection vulnerabilities may bypass security controls")
         if impacts["compliance_violation"]["risk_level"] == "HIGH":
             bullets.append("⚠️ Compliance Risk: Unresolved issues may violate SOC2/regulatory requirements")
-        
+
         if not bullets:
             bullets.append("✅ No critical security risks identified")
-        
+
         return bullets
 
     def _owasp_status(self, owasp_id: str, findings: List[Dict[str, Any]]) -> Dict[str, Any]:
