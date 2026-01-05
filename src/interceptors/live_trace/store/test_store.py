@@ -934,7 +934,7 @@ class TestRecommendationMethods:
         """Test filtering recommendations by workflow."""
         # Create findings in different workflows
         store.create_analysis_session("sess2", "other_workflow", "STATIC")
-        
+
         store.store_finding("find1", "sess_recs", "test_workflow", "/f1.py", "LLM01", "HIGH", "F1")
         store.store_finding("find2", "sess_recs", "test_workflow", "/f2.py", "LLM02", "MEDIUM", "F2")
         store.store_finding("find3", "sess2", "other_workflow", "/f3.py", "LLM03", "HIGH", "F3")
@@ -961,7 +961,7 @@ class TestRecommendationMethods:
         rec_id = finding['recommendation_id']
 
         rec = store.start_fix(rec_id, fixed_by="developer@example.com")
-        
+
         assert rec['status'] == "FIXING"
         assert rec['fixed_by'] == "developer@example.com"
 
@@ -980,7 +980,7 @@ class TestRecommendationMethods:
             fix_commit="abc123",
             fixed_by="developer@example.com"
         )
-        
+
         assert rec['status'] == "FIXED"
         assert rec['fix_notes'] == "Applied input sanitization"
         assert rec['files_modified'] == ["/f.py", "/utils.py"]
@@ -1005,7 +1005,7 @@ class TestRecommendationMethods:
             verification_result="Tested with malicious inputs, no injection possible",
             success=True
         )
-        
+
         assert rec['status'] == "VERIFIED"
         assert rec['verification_result'] == "Tested with malicious inputs, no injection possible"
         assert rec['verified_at'] is not None
@@ -1024,7 +1024,7 @@ class TestRecommendationMethods:
             verification_result="Still vulnerable to injection",
             success=False
         )
-        
+
         assert rec['status'] == "PENDING"  # Reopened
 
     def test_dismiss_recommendation(self, store):
@@ -1040,7 +1040,7 @@ class TestRecommendationMethods:
             dismiss_type="DISMISSED",
             dismissed_by="security@example.com"
         )
-        
+
         assert rec['status'] == "DISMISSED"
         assert rec['dismissed_reason'] == "False positive - input is already validated upstream"
         assert rec['dismissed_at'] is not None
@@ -1130,7 +1130,7 @@ class TestAuditLogMethods:
         store.log_audit_event("finding", "FND-001", "CREATED")
 
         entries = store.get_audit_log(entity_type="recommendation", entity_id="REC-001")
-        
+
         assert len(entries) == 2
         assert all(e['entity_id'] == "REC-001" for e in entries)
 
@@ -1142,7 +1142,7 @@ class TestAuditLogMethods:
         store.log_audit_event("recommendation", "REC-003", "DISMISSED")
 
         entries = store.get_audit_log(action="STATUS_CHANGED")
-        
+
         assert len(entries) == 2
         assert all(e['action'] == "STATUS_CHANGED" for e in entries)
 
@@ -1162,7 +1162,7 @@ class TestAuditLogMethods:
 
         # Check audit log
         entries = store.get_audit_log(entity_type="recommendation", entity_id=rec_id)
-        
+
         # Should have: CREATED, STATUS_CHANGED (FIXING), STATUS_CHANGED (FIXED), VERIFIED
         assert len(entries) >= 4
         actions = [e['action'] for e in entries]
@@ -1200,7 +1200,7 @@ class TestComplianceReportMethods:
     def test_generate_compliance_report_with_findings(self, store):
         """Test generating report with various findings."""
         # Create findings with different severities
-        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical Issue", 
+        store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical Issue",
                           owasp_mapping=["LLM01"])
         store.store_finding("f2", "sess_report", "report_workflow", "/f2.py", "LLM06", "HIGH", "High Issue",
                           owasp_mapping=["LLM06"])
@@ -1219,7 +1219,7 @@ class TestComplianceReportMethods:
         """Test OWASP LLM coverage in report."""
         store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "HIGH", "Prompt Injection",
                           owasp_mapping=["LLM01"])
-        
+
         report = store.generate_compliance_report("report_workflow")
 
         # LLM01 should show FAIL since there's an open HIGH finding
@@ -1233,7 +1233,7 @@ class TestComplianceReportMethods:
             "f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical"
         )
         rec_id = finding['recommendation_id']
-        
+
         # Fix the finding
         store.start_fix(rec_id)
         store.complete_fix(rec_id, fix_notes="Fixed")
@@ -1266,7 +1266,7 @@ class TestComplianceReportMethods:
         """Test retrieving list of saved reports."""
         # Generate and save multiple reports
         report_data = store.generate_compliance_report("report_workflow")
-        
+
         store.save_report("report_workflow", "security_assessment", report_data)
         store.save_report("report_workflow", "executive_summary", report_data)
         store.save_report("report_workflow", "customer_dd", report_data)
@@ -1335,7 +1335,7 @@ class TestComplianceReportMethods:
         finding = store.store_finding(
             "f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "HIGH", "High Issue"
         )
-        
+
         report = store.generate_compliance_report("report_workflow")
 
         assert 'remediation_summary' in report
@@ -1346,7 +1346,7 @@ class TestComplianceReportMethods:
         """Test that saved report has correct metadata for listing."""
         # Create a finding to have some data
         store.store_finding("f1", "sess_report", "report_workflow", "/f1.py", "LLM01", "CRITICAL", "Critical")
-        
+
         report_data = store.generate_compliance_report("report_workflow")
         report_id = store.save_report(
             workflow_id="report_workflow",
@@ -1358,7 +1358,7 @@ class TestComplianceReportMethods:
         # Get from list
         reports = store.get_reports("report_workflow")
         assert len(reports) == 1
-        
+
         saved = reports[0]
         assert saved['report_id'] == report_id
         assert saved['report_name'] == "My Custom Report Name"
@@ -1369,9 +1369,9 @@ class TestComplianceReportMethods:
     def test_reports_ordered_by_date(self, store):
         """Test that reports are returned in reverse chronological order."""
         import time
-        
+
         report_data = store.generate_compliance_report("report_workflow")
-        
+
         id1 = store.save_report("report_workflow", "security_assessment", report_data, report_name="First")
         time.sleep(0.1)  # Small delay to ensure different timestamps
         id2 = store.save_report("report_workflow", "security_assessment", report_data, report_name="Second")
@@ -1379,7 +1379,7 @@ class TestComplianceReportMethods:
         id3 = store.save_report("report_workflow", "security_assessment", report_data, report_name="Third")
 
         reports = store.get_reports("report_workflow")
-        
+
         # Should be in reverse order (newest first)
         assert reports[0]['report_id'] == id3
         assert reports[1]['report_id'] == id2
@@ -1400,10 +1400,10 @@ class TestComplianceReportMethods:
         assert 'overall_risk' in report['business_impact']
         assert 'impacts' in report['business_impact']
         assert 'executive_bullets' in report['business_impact']
-        
+
         # Should have HIGH overall risk due to CRITICAL finding
         assert report['business_impact']['overall_risk'] == 'HIGH'
-        
+
         # Should have executive bullets
         assert len(report['business_impact']['executive_bullets']) > 0
 
@@ -1419,14 +1419,14 @@ class TestComplianceReportMethods:
         # Should have risk_breakdown in executive_summary
         assert 'risk_breakdown' in report['executive_summary']
         rb = report['executive_summary']['risk_breakdown']
-        
+
         assert 'formula' in rb
         assert 'breakdown' in rb
         assert 'final_score' in rb
-        
+
         # Should have 4 breakdown items (one per severity)
         assert len(rb['breakdown']) == 4
-        
+
         # Verify breakdown calculation
         # CRITICAL(1)*25 + HIGH(1)*15 + MEDIUM(1)*5 = 45
         assert rb['final_score'] == 45
@@ -1546,3 +1546,120 @@ class TestGetAgentSystemPrompt:
         """Test returns None when agent has no sessions."""
         result = store.get_agent_system_prompt("nonexistent-agent")
         assert result is None
+
+
+class TestIDEActivityMethods:
+    """Test IDE activity tracking methods."""
+
+    @pytest.fixture
+    def store(self):
+        """Create an in-memory store for testing."""
+        return TraceStore(storage_mode="memory")
+
+    def test_update_workflow_last_seen_creates_record(self, store):
+        """Test that update_workflow_last_seen creates a record if none exists."""
+        store.update_workflow_last_seen("test-workflow")
+
+        status = store.get_workflow_ide_status("test-workflow")
+        assert status['has_activity'] is True
+        assert status['last_seen'] is not None
+        assert status['ide'] is None  # No IDE metadata yet
+
+    def test_update_workflow_last_seen_updates_timestamp(self, store):
+        """Test that update_workflow_last_seen updates existing record."""
+        import time
+
+        store.update_workflow_last_seen("test-workflow")
+        status1 = store.get_workflow_ide_status("test-workflow")
+
+        time.sleep(0.01)  # Small delay to ensure different timestamp
+        store.update_workflow_last_seen("test-workflow")
+        status2 = store.get_workflow_ide_status("test-workflow")
+
+        # Timestamps should be different (updated)
+        assert status2['last_seen'] >= status1['last_seen']
+
+    def test_get_workflow_ide_status_no_activity(self, store):
+        """Test get_workflow_ide_status returns no activity for unknown workflow."""
+        status = store.get_workflow_ide_status("unknown-workflow")
+
+        assert status['has_activity'] is False
+        assert status['last_seen'] is None
+        assert status['ide'] is None
+
+    def test_upsert_ide_metadata_creates_record(self, store):
+        """Test upsert_ide_metadata creates record with IDE info."""
+        status = store.upsert_ide_metadata(
+            agent_workflow_id="test-workflow",
+            ide_type="cursor",
+            workspace_path="/path/to/project",
+            model="claude-sonnet-4",
+            host="laptop",
+            user="developer"
+        )
+
+        assert status['has_activity'] is True
+        assert status['last_seen'] is not None
+        assert status['ide'] is not None
+        assert status['ide']['ide_type'] == "cursor"
+        assert status['ide']['workspace_path'] == "/path/to/project"
+        assert status['ide']['model'] == "claude-sonnet-4"
+        assert status['ide']['host'] == "laptop"
+        assert status['ide']['user'] == "developer"
+
+    def test_upsert_ide_metadata_updates_existing(self, store):
+        """Test upsert_ide_metadata updates existing record."""
+        # Create initial record
+        store.upsert_ide_metadata(
+            agent_workflow_id="test-workflow",
+            ide_type="cursor",
+            workspace_path="/old/path"
+        )
+
+        # Update with new metadata
+        status = store.upsert_ide_metadata(
+            agent_workflow_id="test-workflow",
+            ide_type="claude-code",
+            workspace_path="/new/path",
+            model="claude-opus-4"
+        )
+
+        assert status['ide']['ide_type'] == "claude-code"
+        assert status['ide']['workspace_path'] == "/new/path"
+        assert status['ide']['model'] == "claude-opus-4"
+
+    def test_activity_tracking_preserves_ide_metadata(self, store):
+        """Test that update_workflow_last_seen preserves existing IDE metadata."""
+        # Set IDE metadata first
+        store.upsert_ide_metadata(
+            agent_workflow_id="test-workflow",
+            ide_type="cursor",
+            workspace_path="/path/to/project"
+        )
+
+        # Update last_seen without IDE metadata
+        store.update_workflow_last_seen("test-workflow")
+
+        # IDE metadata should still be there
+        status = store.get_workflow_ide_status("test-workflow")
+        assert status['ide'] is not None
+        assert status['ide']['ide_type'] == "cursor"
+        assert status['ide']['workspace_path'] == "/path/to/project"
+
+    def test_multiple_workflows_isolated(self, store):
+        """Test that different workflows have isolated activity tracking."""
+        store.update_workflow_last_seen("workflow-1")
+        store.upsert_ide_metadata(
+            agent_workflow_id="workflow-2",
+            ide_type="claude-code"
+        )
+
+        status1 = store.get_workflow_ide_status("workflow-1")
+        status2 = store.get_workflow_ide_status("workflow-2")
+
+        assert status1['has_activity'] is True
+        assert status1['ide'] is None  # No IDE metadata for workflow-1
+
+        assert status2['has_activity'] is True
+        assert status2['ide'] is not None
+        assert status2['ide']['ide_type'] == "claude-code"

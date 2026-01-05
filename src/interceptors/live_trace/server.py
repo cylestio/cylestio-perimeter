@@ -75,7 +75,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     if STATIC_DIR.exists():
         app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
         logger.info(f"Mounted static files from {STATIC_DIR}")
-        
+
         # Serve logo and favicon from root
         @app.get("/cylestio_full_logo.png")
         async def get_logo():
@@ -83,7 +83,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             if logo_path.exists():
                 return FileResponse(logo_path)
             return JSONResponse({"error": "Logo not found"}, status_code=404)
-        
+
         @app.get("/favicon.ico")
         async def get_favicon():
             favicon_path = STATIC_DIR / "favicon.ico"
@@ -1215,7 +1215,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     @app.get("/api/workflow/{workflow_id}/static-summary")
     async def api_get_static_summary(workflow_id: str):
         """Get static analysis summary for a workflow with 7 security check categories.
-        
+
         Returns findings grouped by the 7 security check categories:
         PROMPT, OUTPUT, TOOL, DATA, MEMORY, SUPPLY, BEHAVIOR
         """
@@ -1230,7 +1230,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 {"category_id": "SUPPLY", "name": "Supply Chain", "owasp_llm": ["LLM05"]},
                 {"category_id": "BEHAVIOR", "name": "Behavioral Boundaries", "owasp_llm": ["LLM08", "LLM09"]},
             ]
-            
+
             # Severity order for determining max severity
             severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
@@ -1240,14 +1240,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 limit=100,
             )
             static_sessions = [s for s in sessions if s.get('session_type') == 'STATIC']
-            
+
             # Find the latest COMPLETED static session
             latest_session = None
             for s in static_sessions:
                 if s.get('status') == 'COMPLETED':
                     latest_session = s
                     break
-            
+
             # Get findings from the LATEST scan only (current state of the codebase)
             # Historical findings are accessible via their respective sessions
             if latest_session:
@@ -1261,7 +1261,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     agent_workflow_id=workflow_id,
                     limit=1000,
                 )
-            
+
             # Also get ALL findings for this workflow (for historical context)
             all_findings = insights.store.get_findings(
                 agent_workflow_id=workflow_id,
@@ -1275,7 +1275,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 if cat not in findings_by_category:
                     findings_by_category[cat] = []
                 findings_by_category[cat].append(f)
-            
+
             # Build the 7 security check cards only if a completed static analysis exists
             checks = []
             # Only count OPEN findings for severity summary
@@ -1325,7 +1325,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                         "max_severity": max_severity,  # Max severity of OPEN findings only
                         "findings": cat_findings[:10],  # All findings for display
                     })
-            
+
             # Calculate summary based on check statuses (which are based on OPEN findings)
             passed_count = sum(1 for c in checks if c["status"] == "PASS")
             failed_count = sum(1 for c in checks if c["status"] == "FAIL")
@@ -1333,7 +1333,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             # Gate is blocked only if there are OPEN HIGH/CRITICAL findings
             has_open_blocking = severity_counts["critical"] > 0 or severity_counts["high"] > 0
             gate_status = "BLOCKED" if has_open_blocking else "UNBLOCKED"
-            
+
             # Get last scan info (only from completed sessions)
             last_scan = None
             if latest_session:
@@ -1344,14 +1344,14 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "duration_ms": latest_session.get("duration_ms"),
                     "session_id": latest_session.get("session_id"),
                 }
-            
+
             # Build scan history with findings per session
             scan_history = []
             for session in static_sessions:
                 session_id = session.get('session_id')
                 # Get findings for this specific session
                 session_findings = insights.store.get_findings(session_id=session_id, limit=1000)
-                
+
                 scan_history.append({
                     "session_id": session_id,
                     "created_at": session.get("created_at"),
@@ -1365,7 +1365,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                         "low": sum(1 for f in session_findings if f.get('severity') == 'LOW'),
                     }
                 })
-            
+
             # Calculate historical findings summary (resolved findings from previous scans)
             resolved_findings = [f for f in all_findings if f.get('status') in ['FIXED', 'RESOLVED', 'DISMISSED', 'IGNORED']]
             historical_summary = {
@@ -1374,10 +1374,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "resolved": sum(1 for f in resolved_findings if f.get('status') == 'RESOLVED'),
                 "dismissed": sum(1 for f in resolved_findings if f.get('status') in ['DISMISSED', 'IGNORED']),
             }
-            
+
             # Get recommendations count
             all_recs = insights.store.get_recommendations(workflow_id=workflow_id, limit=1000)
-            
+
             return JSONResponse({
                 "workflow_id": workflow_id,
                 "last_scan": last_scan,
@@ -1406,7 +1406,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         limit: int = 1000,
     ):
         """Get findings for a specific analysis session (for viewing historical scans).
-        
+
         Supports optional filtering by severity and status.
         Returns findings with severity breakdown.
         """
@@ -1415,7 +1415,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             session = insights.store.get_analysis_session(session_id)
             if not session:
                 return JSONResponse({"error": "Session not found"}, status_code=404)
-            
+
             # Get findings for this session with optional filters
             findings = insights.store.get_findings(
                 session_id=session_id,
@@ -1423,7 +1423,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 status=status.upper() if status else None,
                 limit=limit,
             )
-            
+
             # Calculate severity breakdown
             severity_breakdown = {
                 "critical": sum(1 for f in findings if f.get('severity') == 'CRITICAL'),
@@ -1431,7 +1431,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "medium": sum(1 for f in findings if f.get('severity') == 'MEDIUM'),
                 "low": sum(1 for f in findings if f.get('severity') == 'LOW'),
             }
-            
+
             return JSONResponse({
                 "session_id": session_id,
                 "session": session,
@@ -1497,7 +1497,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     @app.get("/api/workflow/{workflow_id}/correlation-summary")
     async def api_get_correlation_summary(workflow_id: str):
         """Get correlation summary for a workflow.
-        
+
         Phase 5: Shows counts of findings by correlation state
         (VALIDATED, UNEXERCISED, RUNTIME_ONLY, THEORETICAL).
         """
@@ -1535,7 +1535,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     @app.get("/api/workflow/{workflow_id}/dynamic-analysis-status")
     async def api_get_dynamic_analysis_status(workflow_id: str):
         """Get comprehensive dynamic analysis status for a workflow.
-        
+
         Returns:
         - can_trigger: Whether analysis can be triggered
         - is_running: Whether analysis is currently running
@@ -1554,16 +1554,16 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     @app.post("/api/workflow/{workflow_id}/trigger-dynamic-analysis")
     async def api_trigger_dynamic_analysis(workflow_id: str, force: bool = False):
         """Trigger on-demand dynamic analysis for a workflow.
-        
+
         Analysis:
         - Only processes sessions not yet analyzed (incremental)
         - Runs per-agent security checks and behavioral analysis
         - Creates findings and recommendations for failed checks
         - Auto-resolves issues not seen in new scans
-        
+
         Query params:
         - force: If true, re-run on all completed sessions even if already analyzed
-        
+
         Returns:
         - status: "triggered", "already_running", or "no_new_sessions"
         - sessions_analyzed: Number of sessions analyzed
@@ -1573,84 +1573,84 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         try:
             from datetime import datetime, timezone
             import uuid
-            
+
             # Get current status
             status = insights.store.get_dynamic_analysis_status(workflow_id)
-            
+
             if status['is_running']:
                 return JSONResponse({
                     "status": "already_running",
                     "message": "Analysis is already in progress",
                     "last_analysis": status.get('last_analysis'),
                 })
-            
+
             # If force=true, reset sessions to unanalyzed state first
             if force:
                 insights.store.reset_sessions_to_unanalyzed(workflow_id)
                 # Re-fetch status after reset
                 status = insights.store.get_dynamic_analysis_status(workflow_id)
-            
+
             if status['total_unanalyzed_sessions'] == 0:
                 return JSONResponse({
                     "status": "no_new_sessions",
                     "message": "All sessions have already been analyzed. Run more test sessions first.",
                     "last_analysis": status.get('last_analysis'),
                 })
-            
+
             # Create analysis session (IN_PROGRESS)
             analysis_session_id = f"dynamic_{workflow_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-            
+
             insights.store.create_analysis_session(
                 session_id=analysis_session_id,
                 agent_workflow_id=workflow_id,
                 session_type="DYNAMIC",
                 agent_workflow_name=workflow_id,
             )
-            
+
             # IMPORTANT: Resolve ALL existing dynamic findings before creating new ones
             # This ensures only the current scan's findings are active (like static analysis)
             insights.store.resolve_all_dynamic_findings(workflow_id, analysis_session_id)
-            
+
             # Get unanalyzed sessions by agent
             unanalyzed_by_agent = insights.store.get_unanalyzed_sessions_by_agent(workflow_id)
-            
+
             # Track results
             total_sessions_analyzed = 0
             agents_analyzed = 0
             total_findings_created = 0
             all_check_ids_found = []  # For auto-resolve
-            
+
             for agent_id, session_ids in unanalyzed_by_agent.items():
                 if not session_ids:
                     continue
-                
+
                 # Get the actual SessionData objects for these sessions
                 sessions = []
                 for sid in session_ids:
                     session = insights.store.get_session(sid)
                     if session:
                         sessions.append(session)
-                
+
                 if not sessions:
                     continue
-                
+
                 # Run the full analysis for this agent using ONLY the new sessions
                 # This ensures analysis reflects the current state, not historical issues
                 try:
                     result = await insights.compute_risk_analysis(agent_id, sessions=sessions)
-                    
+
                     if result and result.security_report:
                         # Persist security checks
                         agent = insights.store.get_agent(agent_id)
                         agent_workflow_id = agent.agent_workflow_id if agent else workflow_id
-                        
+
                         checks_persisted = insights.store.persist_security_checks(
                             agent_id=agent_id,
                             security_report=result.security_report,
                             analysis_session_id=analysis_session_id,
                             agent_workflow_id=agent_workflow_id,
                         )
-                        
+
                         # Create findings and recommendations for failed checks
                         findings_created = await _create_dynamic_findings_and_recommendations(
                             insights.store,
@@ -1659,15 +1659,15 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                             analysis_session_id,
                             result.security_report,
                         )
-                        
+
                         total_findings_created += findings_created
-                        
+
                         # Collect check IDs for auto-resolve
                         for category in result.security_report.categories.values():
                             for check in category.checks:
                                 if check.status in ('critical', 'warning'):
                                     all_check_ids_found.append(check.check_id)
-                        
+
                         # Persist behavioral analysis if available
                         if result.behavioral_analysis:
                             insights.store.store_behavioral_analysis(
@@ -1675,32 +1675,32 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                                 analysis_session_id=analysis_session_id,
                                 behavioral_result=result.behavioral_analysis,
                             )
-                        
+
                         logger.info(f"[DYNAMIC] Persisted {checks_persisted} checks, {findings_created} findings for agent {agent_id}")
-                    
+
                 except Exception as e:
                     logger.error(f"[DYNAMIC] Error analyzing agent {agent_id}: {e}", exc_info=True)
                     continue
-                
+
                 # Mark sessions as analyzed
                 insights.store.mark_sessions_analyzed(session_ids, analysis_session_id)
                 total_sessions_analyzed += len(session_ids)
                 agents_analyzed += 1
-            
+
             # Auto-resolve old findings not seen in this scan
             resolved = insights.store.auto_resolve_stale_findings(
                 workflow_id=workflow_id,
                 analysis_session_id=analysis_session_id,
                 current_check_ids=all_check_ids_found,
             )
-            
+
             # Complete the analysis session (with sessions_analyzed count)
             insights.store.complete_analysis_session(
                 session_id=analysis_session_id,
                 findings_count=total_findings_created,
                 sessions_analyzed=total_sessions_analyzed,
             )
-            
+
             return JSONResponse({
                 "status": "completed",
                 "message": f"Analysis completed for {agents_analyzed} agent(s)",
@@ -1710,7 +1710,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 "findings_created": total_findings_created,
                 "issues_auto_resolved": resolved.get('resolved_count', 0),
             })
-            
+
         except Exception as e:
             logger.error(f"Error in dynamic analysis: {e}", exc_info=True)
             return JSONResponse({"error": str(e)}, status_code=500)
@@ -1723,29 +1723,29 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         security_report,
     ) -> int:
         """Create findings and recommendations for failed security checks.
-        
+
         Similar pattern to static analysis - each failed check creates:
         - A finding (what was detected)
         - A recommendation (what to do about it)
         """
         import uuid
         from datetime import datetime, timezone
-        
+
         findings_created = 0
-        
+
         for category_id, category in security_report.categories.items():
             for check in category.checks:
                 # Only create findings for failed checks (critical or warning)
                 if check.status not in ('critical', 'warning'):
                     continue
-                
+
                 # Map check status to severity
                 severity = 'CRITICAL' if check.status == 'critical' else 'HIGH'
-                
+
                 # Generate IDs
                 finding_id = f"FND-DYN-{uuid.uuid4().hex[:8].upper()}"
                 rec_id = f"REC-DYN-{uuid.uuid4().hex[:8].upper()}"
-                
+
                 # Create the finding (code_snippet goes in evidence)
                 store.store_finding(
                     finding_id=finding_id,
@@ -1773,7 +1773,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     },
                     auto_create_recommendation=False,  # We create it manually
                 )
-                
+
                 # Create the recommendation
                 store.create_recommendation(
                     recommendation_id=rec_id,
@@ -1794,10 +1794,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     impact=f"Detected in runtime analysis: {check.value}",
                     fix_complexity='MEDIUM',
                 )
-                
+
                 findings_created += 1
                 logger.debug(f"[DYNAMIC] Created finding {finding_id} and recommendation {rec_id} for check {check.check_id}")
-        
+
         return findings_created
 
     @app.get("/api/workflow/{workflow_id}/analysis-history")
@@ -1807,7 +1807,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         limit: int = 20,
     ):
         """Get analysis history for a workflow.
-        
+
         Shows past analysis runs with their results.
         Latest analysis is marked and impacts gate status.
         Historical analyses are view-only.
@@ -1817,10 +1817,10 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 agent_workflow_id=workflow_id,
                 limit=limit,
             )
-            
+
             # Filter by session_type
             filtered = [s for s in sessions if s.get('session_type') == session_type.upper()]
-            
+
             # Determine latest
             latest_id = None
             if filtered:
@@ -1828,7 +1828,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                 completed = [s for s in filtered if s.get('status') == 'COMPLETED']
                 if completed:
                     latest_id = completed[0]['session_id']
-            
+
             return JSONResponse({
                 "workflow_id": workflow_id,
                 "session_type": session_type,
@@ -1863,56 +1863,30 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting audit log: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
-    # ==================== IDE Connection Status Endpoints ====================
+    # ==================== IDE Activity Status Endpoints ====================
 
     @app.get("/api/ide/status")
-    async def api_ide_connection_status(agent_workflow_id: Optional[str] = None):
-        """Get IDE connection status for the dashboard.
+    async def api_ide_connection_status(agent_workflow_id: str):
+        """Get simplified IDE activity status for the dashboard.
+
+        Activity is tracked automatically when any MCP tool with agent_workflow_id is called.
+        IDE metadata (type, workspace, model) is optional and provided via ide_heartbeat.
 
         Args:
-            agent_workflow_id: Optional filter by agent workflow being developed
+            agent_workflow_id: The workflow to check (required)
 
         Returns:
-            JSON with connection status, active connections, and history
+            JSON with:
+            - has_activity: Whether any MCP activity has been recorded
+            - last_seen: ISO timestamp of last activity
+            - last_seen_relative: Human-readable relative time
+            - ide: IDE metadata dict or null if not provided
         """
         try:
-            status = insights.store.get_ide_connection_status(agent_workflow_id=agent_workflow_id)
+            status = insights.store.get_workflow_ide_status(agent_workflow_id)
             return JSONResponse(status)
         except Exception as e:
-            logger.error(f"Error getting IDE connection status: {e}")
-            return JSONResponse({"error": str(e)}, status_code=500)
-
-    @app.get("/api/ide/connections")
-    async def api_ide_connections(
-        agent_workflow_id: Optional[str] = None,
-        ide_type: Optional[str] = None,
-        active_only: bool = True,
-        limit: int = 100,
-    ):
-        """Get IDE connections with filtering.
-
-        Args:
-            agent_workflow_id: Filter by agent workflow
-            ide_type: Filter by IDE type (cursor, claude-code, vscode)
-            active_only: Only return active connections
-            limit: Maximum number of connections
-
-        Returns:
-            JSON with list of connections
-        """
-        try:
-            connections = insights.store.get_ide_connections(
-                agent_workflow_id=agent_workflow_id,
-                ide_type=ide_type,
-                active_only=active_only,
-                limit=limit,
-            )
-            return JSONResponse({
-                "connections": connections,
-                "total_count": len(connections),
-            })
-        except Exception as e:
-            logger.error(f"Error getting IDE connections: {e}")
+            logger.error(f"Error getting IDE status: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/health")

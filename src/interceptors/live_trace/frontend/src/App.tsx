@@ -104,7 +104,7 @@ function AppLayout() {
 
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
-  
+
   // IDE connection state
   const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
@@ -148,13 +148,18 @@ function AppLayout() {
         console.error('Failed to fetch config:', error);
       });
   }, []);
-  
-  // Fetch IDE connection status
+
+  // Fetch IDE connection status - only if we have a workflow ID
   useEffect(() => {
+    // Skip if no workflow ID or if unassigned
+    if (!urlAgentWorkflowId || urlAgentWorkflowId === 'unassigned') {
+      setIDEConnectionStatus(null);
+      return;
+    }
+
     const fetchIDE = async () => {
       try {
-        const agentWorkflowIdForIDE = urlAgentWorkflowId === 'unassigned' ? undefined : urlAgentWorkflowId ?? undefined;
-        const status = await fetchIDEConnectionStatus(agentWorkflowIdForIDE);
+        const status = await fetchIDEConnectionStatus(urlAgentWorkflowId);
         setIDEConnectionStatus(status);
       } catch {
         // Silently fail - IDE connection is optional
@@ -191,13 +196,13 @@ function AppLayout() {
     const fetchRecs = async () => {
       try {
         const response = await fetchRecommendations(urlAgentWorkflowId, { limit: 500 });
-        const open = response.recommendations.filter((r: Recommendation) => 
+        const open = response.recommendations.filter((r: Recommendation) =>
           ['PENDING', 'FIXING'].includes(r.status)
         );
-        
+
         // Check if any are in FIXING state
         const hasFixing = response.recommendations.some((r: Recommendation) => r.status === 'FIXING');
-        
+
         // Determine highest severity
         let highestSeverity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | null = null;
         if (open.some((r: Recommendation) => r.severity === 'CRITICAL')) highestSeverity = 'CRITICAL';
@@ -282,14 +287,13 @@ function AppLayout() {
 
   // Dev connection status - from actual IDE connection
   // States:
-  // - 'running': Actively developing (pulsing green animation)
-  // - 'ok': Connected or was connected (solid green)
-  // - 'inactive': Never connected (gray)
+  // - 'running': Has activity with IDE metadata (pulsing green animation)
+  // - 'ok': Has activity (solid green)
+  // - 'inactive': No activity detected (gray)
   const devConnectionStatus: SecurityCheckStatus = (() => {
     if (!ideConnectionStatus) return 'inactive';
-    if (ideConnectionStatus.is_developing) return 'running'; // Actively developing shows as pulsing
-    if (ideConnectionStatus.is_connected) return 'ok'; // Currently connected shows as green
-    if (ideConnectionStatus.has_ever_connected) return 'ok'; // Was connected shows as green (idle)
+    if (ideConnectionStatus.has_activity && ideConnectionStatus.ide) return 'running'; // Has IDE metadata
+    if (ideConnectionStatus.has_activity) return 'ok'; // Has activity but no IDE info
     return 'inactive';
   })();
 
@@ -303,7 +307,7 @@ function AppLayout() {
         <Sidebar.Header>
           <Logo />
         </Sidebar.Header>
-        
+
         {/* Agent Workflow Selector - only show if there are agent workflows and NOT on root page */}
         {agentWorkflows.length > 0 && !isRootPage && (
           <AgentWorkflowSelector
@@ -313,7 +317,7 @@ function AppLayout() {
             collapsed={sidebarCollapsed}
           />
         )}
-        
+
         <Sidebar.Section>
           {/* Start Here - show on root page only if there's data */}
           {isRootPage && hasData && (
@@ -443,7 +447,7 @@ function AppLayout() {
             </NavGroup>
           )}
         </Sidebar.Section>
-        
+
         <Sidebar.Footer>
           <NavItem
             label="How to Connect"
