@@ -535,7 +535,7 @@ const ImpactBullet = styled.li`
   color: ${({ theme }) => theme.colors.white};
   padding: ${({ theme }) => theme.spacing[2]} 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  
+
   &:last-child {
     border-bottom: none;
   }
@@ -692,8 +692,8 @@ const generateMarkdownReport = (report: ComplianceReportResponse, workflowId: st
 
   let md = `# Security Assessment: ${workflowId}
 
-**Generated:** ${date}  
-**Report Type:** ${REPORT_TYPES.find(t => t.id === report.report_type)?.name || report.report_type}  
+**Generated:** ${date}
+**Report Type:** ${REPORT_TYPES.find(t => t.id === report.report_type)?.name || report.report_type}
 **Risk Score:** ${report.executive_summary.risk_score}/100
 
 ---
@@ -713,7 +713,7 @@ ${report.executive_summary.decision_message}
       md += `- ${bullet}\n`;
     });
     md += '\n';
-    
+
     // Impact areas
     const impacts = report.business_impact.impacts || {};
     const activeImpacts = Object.entries(impacts).filter(([_, v]: [string, any]) => v.risk_level !== 'NONE');
@@ -856,6 +856,7 @@ const generateHTMLReport = (report: ComplianceReportResponse, workflowId: string
     .status.pass { background: rgba(16,185,129,0.15); color: var(--green); }
     .status.fail { background: rgba(239,68,68,0.15); color: var(--red); }
     .status.warning { background: rgba(245,158,11,0.15); color: var(--orange); }
+    .status.n-a { background: rgba(107,114,128,0.15); color: var(--white50); }
     .blocking { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
     .footer { text-align: center; padding-top: 2rem; border-top: 1px solid var(--border); margin-top: 2rem; color: var(--white50); font-size: 0.8rem; }
     @media print { body { background: white; color: black; } .metric { border: 1px solid #ddd; } }
@@ -911,7 +912,7 @@ const generateHTMLReport = (report: ComplianceReportResponse, workflowId: string
           ${Object.entries(report.owasp_llm_coverage).map(([id, item]) => `
             <tr>
               <td><strong>${id}:</strong> ${item.name}</td>
-              <td><span class="status ${item.status.toLowerCase()}">${item.status}</span></td>
+              <td><span class="status ${item.status.toLowerCase().replace('/', '-')}">${item.status}</span></td>
               <td>${item.message}</td>
             </tr>
           `).join('')}
@@ -1068,14 +1069,14 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
     if (!report) return { staticPass: 0, staticFail: 0, dynamicPass: 0, dynamicFail: 0 };
 
     let staticPass = 0, staticFail = 0, dynamicPass = 0, dynamicFail = 0;
-    
+
     // Count static checks
     STATIC_CHECKS.forEach(check => {
       const result = evaluateCheck(check, report.findings_detail || [], 'STATIC');
       if (result.status === 'PASS') staticPass++;
       else if (result.status === 'FAIL' || result.status === 'PARTIAL') staticFail++;
     });
-    
+
     // Count dynamic checks
     DYNAMIC_CHECKS.forEach(check => {
       const result = evaluateCheck(check, report.findings_detail || [], 'DYNAMIC');
@@ -1347,7 +1348,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                     <p style={{ color: 'var(--color-white50)', fontSize: '13px', marginBottom: '20px' }}>
                       Runtime behavior observed via Agent Inspector proxy across {report.dynamic_analysis.sessions_count} sessions. Tool calls, response content, and behavioral patterns analyzed.
                     </p>
-                    
+
                     <ChecksTable>
                       <thead>
                         <tr>
@@ -1361,7 +1362,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                         {DYNAMIC_CHECKS.map((check) => {
                           const result = evaluateCheck(check, report.findings_detail || [], 'DYNAMIC');
                           const sessionsCount = report.dynamic_analysis.sessions_count || 0;
-                          
+
                           // Generate appropriate metric based on check type
                           let metric = result.metric || '';
                           if (check.id === 'tool_monitoring') metric = `${sessionsCount} sessions`;
@@ -1370,7 +1371,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                           else if (check.id === 'behavioral_patterns') metric = sessionsCount > 0 ? `${Math.ceil(sessionsCount / 15)} clusters` : 'N/A';
                           else if (check.id === 'cost_tracking') metric = '~$0.05/session';
                           else if (check.id === 'anomaly_detection') metric = result.relatedFindings.length > 0 ? `${result.relatedFindings.length} outliers` : '0 outliers';
-                          
+
                           return (
                             <tr key={check.id}>
                               <td>
@@ -1379,9 +1380,9 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                               </td>
                               <td>
                                 <StatusPill $status={
-                                  result.status === 'PASS' ? 'pass' : 
-                                  result.status === 'TRACKED' ? 'warning' : 
-                                  result.status === 'NOT OBSERVED' ? 'warning' : 
+                                  result.status === 'PASS' ? 'pass' :
+                                  result.status === 'TRACKED' ? 'warning' :
+                                  result.status === 'NOT OBSERVED' ? 'warning' :
                                   'fail'
                                 }>
                                   {result.status}
@@ -1426,16 +1427,16 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                             report.findings_detail || [],
                             'DYNAMIC'
                           );
-                          
+
                           const sessionsCount = report.dynamic_analysis.sessions_count || 0;
                           const hasStaticIssue = staticResult.status !== 'PASS';
                           const hasDynamicData = sessionsCount > 0;
                           const isDynamicConfirmed = dynamicResult.relatedFindings.length > 0 || staticResult.relatedFindings.some(f => f.correlation_state === 'VALIDATED');
-                          
+
                           // Determine correlation status
                           let correlationStatus: 'CONFIRMED' | 'UNEXERCISED' | 'PASS' | 'DISCOVERED' = 'PASS';
                           let assessment = '';
-                          
+
                           if (hasStaticIssue && isDynamicConfirmed) {
                             correlationStatus = 'CONFIRMED';
                             assessment = `${staticCheck.name} gap confirmed. ${staticResult.relatedFindings[0]?.description?.slice(0, 60) || 'Issue validated at runtime.'}`;
@@ -1449,18 +1450,18 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                             correlationStatus = 'PASS';
                             assessment = hasStaticIssue ? 'No runtime data to validate.' : 'No issues in static or dynamic analysis.';
                           }
-                          
+
                           // Skip if no issues at all
                           if (!hasStaticIssue && !isDynamicConfirmed) return null;
-                          
+
                           return (
                             <tr key={staticCheck.id}>
                               <td style={{ fontSize: '13px' }}>
                                 {hasStaticIssue ? staticResult.details.slice(0, 50) : 'N/A (no static prediction)'}
                               </td>
                               <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
-                                {hasDynamicData 
-                                  ? (isDynamicConfirmed 
+                                {hasDynamicData
+                                  ? (isDynamicConfirmed
                                       ? `Observed in ${sessionsCount}/${sessionsCount} sessions`
                                       : `Not observed in ${sessionsCount} sessions`)
                                   : 'No runtime data available'}
@@ -1481,7 +1482,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                             </tr>
                           );
                         }).filter(Boolean)}
-                        
+
                         {/* Runtime-only discoveries */}
                         {report.findings_detail?.filter((f: any) => f.source_type === 'DYNAMIC').slice(0, 3).map((finding: any) => (
                           <tr key={finding.finding_id}>
@@ -1573,11 +1574,11 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                           </EvidenceHeader>
                           <EvidenceBody>
                             <EvidenceTitle>{item.title}</EvidenceTitle>
-                            
+
                             {/* Business Impact */}
                             {(item.description || item.impact) && (
-                              <div style={{ 
-                                background: 'var(--color-surface2)', 
+                              <div style={{
+                                background: 'var(--color-surface2)',
                                 borderLeft: `3px solid ${item.severity === 'CRITICAL' ? 'var(--color-red)' : 'var(--color-orange)'}`,
                                 padding: '12px 16px',
                                 borderRadius: '0 6px 6px 0',
@@ -1591,7 +1592,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                                 </div>
                               </div>
                             )}
-                            
+
                             <div style={{ display: 'grid', gridTemplateColumns: item.fix_hints ? '1fr 1fr' : '1fr', gap: '16px', marginBottom: '16px' }}>
                               {/* Evidence (Code) */}
                               {item.file_path && (
@@ -1609,15 +1610,15 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                                   </CodeBlock>
                                 </div>
                               )}
-                              
+
                               {/* Dynamic Validation or Suggested Fix */}
                               {item.fix_hints && (
                                 <div>
                                   <div style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-white50)', marginBottom: '8px' }}>
                                     Suggested Fix
                                   </div>
-                                  <div style={{ 
-                                    background: 'rgba(16, 185, 129, 0.1)', 
+                                  <div style={{
+                                    background: 'rgba(16, 185, 129, 0.1)',
                                     border: '1px solid var(--color-green)',
                                     borderRadius: '6px',
                                     padding: '12px 16px'
@@ -1628,7 +1629,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                                 </div>
                               )}
                             </div>
-                            
+
                             {/* Tags */}
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                               {item.owasp_mapping && (
@@ -1673,7 +1674,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                         <StatLabel>Verified</StatLabel>
                       </StatBox>
                     </StatsGrid>
-                    
+
                     {/* Recommendations Table */}
                     {report.recommendations_detail && report.recommendations_detail.length > 0 ? (
                       <>
@@ -1707,17 +1708,17 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                                 </td>
                                 <td>{rec.category || 'GENERAL'}</td>
                                 <td>
-                                  <span style={{ 
-                                    fontSize: '11px', 
-                                    color: rec.fix_complexity === 'LOW' ? 'var(--color-green)' : rec.fix_complexity === 'MEDIUM' ? 'var(--color-orange)' : 'var(--color-red)' 
+                                  <span style={{
+                                    fontSize: '11px',
+                                    color: rec.fix_complexity === 'LOW' ? 'var(--color-green)' : rec.fix_complexity === 'MEDIUM' ? 'var(--color-orange)' : 'var(--color-red)'
                                   }}>
                                     {rec.fix_complexity || '—'}
                                   </span>
                                 </td>
                                 <td>
                                   <StatusPill $status={
-                                    rec.status === 'VERIFIED' || rec.status === 'FIXED' ? 'pass' : 
-                                    rec.status === 'PENDING' ? 'fail' : 
+                                    rec.status === 'VERIFIED' || rec.status === 'FIXED' ? 'pass' :
+                                    rec.status === 'PENDING' ? 'fail' :
                                     rec.status === 'FIXING' ? 'warning' : 'na'
                                   }>
                                     {rec.status}
