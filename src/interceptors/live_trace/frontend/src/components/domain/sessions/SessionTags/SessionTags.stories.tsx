@@ -90,7 +90,50 @@ export const LongValues: Story = {
   },
   play: async ({ canvas }) => {
     await expect(canvas.getByText('email')).toBeInTheDocument();
+    // Value is truncated but still in the DOM
     await expect(canvas.getByText('very.long.email.address@subdomain.example.com')).toBeInTheDocument();
+  },
+};
+
+export const WithBooleanTags: Story = {
+  args: {
+    tags: {
+      research: 'true',
+      debug: 'true',
+      feature: 'enabled',
+    },
+  },
+  play: async ({ canvas }) => {
+    // Boolean tags should show only the key
+    await expect(canvas.getByText('research')).toBeInTheDocument();
+    await expect(canvas.getByText('debug')).toBeInTheDocument();
+    // Non-boolean tag should show both key and value
+    await expect(canvas.getByText('feature')).toBeInTheDocument();
+    await expect(canvas.getByText('enabled')).toBeInTheDocument();
+    // "true" should NOT be visible as text for boolean tags
+    const trueElements = canvas.queryAllByText('true');
+    await expect(trueElements.length).toBe(0);
+  },
+};
+
+export const MixedBooleanAndValues: Story = {
+  args: {
+    tags: {
+      active: 'true',
+      user: 'alice@example.com',
+      session: 'sess_abc123',
+      enabled: 'true',
+    },
+  },
+  play: async ({ canvas }) => {
+    // Boolean tags show only key
+    await expect(canvas.getByText('active')).toBeInTheDocument();
+    await expect(canvas.getByText('enabled')).toBeInTheDocument();
+    // Regular tags show key and value
+    await expect(canvas.getByText('user')).toBeInTheDocument();
+    await expect(canvas.getByText('alice@example.com')).toBeInTheDocument();
+    await expect(canvas.getByText('session')).toBeInTheDocument();
+    await expect(canvas.getByText('sess_abc123')).toBeInTheDocument();
   },
 };
 

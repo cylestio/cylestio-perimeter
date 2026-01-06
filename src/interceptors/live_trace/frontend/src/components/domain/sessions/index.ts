@@ -6,3 +6,6 @@ export type { SystemPromptFilterProps, SystemPromptOption } from './SystemPrompt
 
 export { SessionTags } from './SessionTags';
 export type { SessionTagsProps } from './SessionTags';
+
+export { TagFilter } from './TagFilter';
+export type { TagFilterProps, TagSuggestion } from './TagFilter';

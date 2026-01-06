@@ -36,6 +36,14 @@ export const TagKey = styled.span`
 
 export const TagValue = styled.span`
   color: ${({ theme }) => theme.colors.white70};
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+export const TagKeyOnly = styled.span`
+  color: ${({ theme }) => theme.colors.cyan};
 `;
 
 export const EmptyTags = styled.div`

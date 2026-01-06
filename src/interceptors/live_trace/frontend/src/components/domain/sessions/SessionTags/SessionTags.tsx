@@ -3,8 +3,9 @@ import type { FC } from 'react';
 import { Tag } from 'lucide-react';
 
 import { Badge } from '@ui/core';
+import { Tooltip } from '@ui/overlays/Tooltip';
 
-import { TagsContainer, TagItem, TagKey, TagValue, EmptyTags } from './SessionTags.styles';
+import { TagsContainer, TagItem, TagKey, TagKeyOnly, TagValue, EmptyTags } from './SessionTags.styles';
 
 // Types
 export interface SessionTagsProps {
@@ -46,12 +47,26 @@ export const SessionTags: FC<SessionTagsProps> = ({
 
   return (
     <TagsContainer className={className}>
-      {displayedTags.map(([key, value]) => (
-        <TagItem key={key}>
-          <TagKey>{key}</TagKey>
-          <TagValue>{value}</TagValue>
-        </TagItem>
-      ))}
+      {displayedTags.map(([key, value]) => {
+        const isBooleanTag = value === 'true';
+
+        if (isBooleanTag) {
+          return (
+            <TagItem key={key}>
+              <TagKeyOnly>{key}</TagKeyOnly>
+            </TagItem>
+          );
+        }
+
+        return (
+          <TagItem key={key}>
+            <TagKey>{key}</TagKey>
+            <Tooltip content={value}>
+              <TagValue>{value}</TagValue>
+            </Tooltip>
+          </TagItem>
+        );
+      })}
       {hiddenCount > 0 && (
         <Badge variant="info" size="sm">
           +{hiddenCount} more

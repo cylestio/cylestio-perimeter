@@ -347,25 +347,14 @@ class SessionData:
         elif event_name.endswith(".error"):
             self.errors += 1
 
-    def merge_tags(self, new_tags: Dict[str, str]) -> bool:
+    def merge_tags(self, new_tags: Dict[str, str]) -> None:
         """Merge new tags into existing tags.
 
         Args:
             new_tags: Dictionary of tag key-value pairs to merge
-
-        Returns:
-            True if workflowId tag was found and agent_workflow_id should be updated
         """
-        workflow_id_updated = False
         for key, value in new_tags.items():
-            # Handle special workflowId tag
-            if key == "workflowId":
-                if self.agent_workflow_id != value:
-                    self.agent_workflow_id = value
-                    workflow_id_updated = True
-            else:
-                self.tags[key] = value
-        return workflow_id_updated
+            self.tags[key] = value
 
     @property
     def avg_response_time_ms(self) -> float:
@@ -956,21 +945,12 @@ class TraceStore:
             if not session:
                 # Create session if agent_id is provided
                 if agent_id:
-                    # Extract workflowId from tags for initial creation
-                    workflow_id = tags.get("workflowId")
-                    session = SessionData(session_id, agent_id, workflow_id)
+                    session = SessionData(session_id, agent_id)
                 else:
                     return False
 
             # Merge tags into session
-            workflow_updated = session.merge_tags(tags)
-
-            # If workflowId was updated, also update the agent's workflow
-            if workflow_updated:
-                agent = self.get_agent(session.agent_id)
-                if agent and not agent.agent_workflow_id:
-                    agent.agent_workflow_id = session.agent_workflow_id
-                    self._save_agent(agent)
+            session.merge_tags(tags)
 
             # Save session
             self._save_session(session)
@@ -1073,7 +1053,7 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
-        tag: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Tuple[str, List[Any]]:
         """Build WHERE clause for session filtering.
 
@@ -1082,7 +1062,8 @@ class TraceStore:
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
-            tag: Filter by tag in format "key:value" or just "key" for any value.
+            tags: List of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
 
         Returns:
             Tuple of (where_clause, params) - where_clause starts with " WHERE 1=1"
@@ -1114,19 +1095,21 @@ class TraceStore:
             where_clause += " AND cluster_id = ?"
             params.append(cluster_id)
 
-        if tag is not None:
-            # Parse tag filter - can be "key:value" or just "key"
-            if ":" in tag:
-                tag_key, tag_value = tag.split(":", 1)
-                # Use JSON extraction to filter by tag key and value
-                # SQLite JSON functions: json_extract for exact match
-                where_clause += " AND json_extract(tags_json, ?) = ?"
-                params.append(f"$.{tag_key}")
-                params.append(tag_value)
-            else:
-                # Filter by tag key existence (any value)
-                where_clause += " AND json_extract(tags_json, ?) IS NOT NULL"
-                params.append(f"$.{tag}")
+        if tags is not None:
+            # Process each tag - all must match (AND logic)
+            for tag in tags:
+                # Parse tag filter - can be "key:value" or just "key"
+                if ":" in tag:
+                    tag_key, tag_value = tag.split(":", 1)
+                    # Use JSON extraction to filter by tag key and value
+                    # SQLite JSON functions: json_extract for exact match
+                    where_clause += " AND json_extract(tags_json, ?) = ?"
+                    params.append(f"$.{tag_key}")
+                    params.append(tag_value)
+                else:
+                    # Filter by tag key existence (any value)
+                    where_clause += " AND json_extract(tags_json, ?) IS NOT NULL"
+                    params.append(f"$.{tag}")
 
         return where_clause, params
 
@@ -1136,7 +1119,7 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
-        tag: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> int:
         """Count sessions with optional filtering.
 
@@ -1147,7 +1130,8 @@ class TraceStore:
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
-            tag: Filter by tag in format "key:value" or just "key" for any value.
+            tags: List of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
 
         Returns:
             Count of matching sessions.
@@ -1158,7 +1142,7 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
                 cluster_id=cluster_id,
-                tag=tag,
+                tags=tags,
             )
             query = f"SELECT COUNT(*) FROM sessions{where_clause}"  # nosec B608 - parameterized
             cursor = self.db.execute(query, params)
@@ -1170,18 +1154,19 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
-        tag: Optional[str] = None,
+        tags: Optional[List[str]] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Get sessions with optional filtering by agent_workflow_id, agent_id, status, cluster_id, and tag.
+        """Get sessions with optional filtering by agent_workflow_id, agent_id, status, cluster_id, and tags.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
-            tag: Filter by tag in format "key:value" or just "key" for any value.
+            tags: List of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
             limit: Maximum number of sessions to return.
             offset: Number of sessions to skip (for pagination).
 
@@ -1194,7 +1179,7 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
                 cluster_id=cluster_id,
-                tag=tag,
+                tags=tags,
             )
             query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ? OFFSET ?"  # nosec B608 - parameterized
             params.append(limit)

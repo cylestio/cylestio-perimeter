@@ -64,35 +64,6 @@ class TestSessionDataTags:
             "team": "backend"
         }
 
-    def test_workflow_id_tag_sets_agent_workflow_id(self):
-        """Test that workflowId tag populates agent_workflow_id."""
-        session = SessionData("session-1", "agent-1")
-        assert session.agent_workflow_id is None
-
-        result = session.merge_tags({"workflowId": "my-workflow-123"})
-
-        assert result is True  # Indicates workflow was updated
-        assert session.agent_workflow_id == "my-workflow-123"
-        # workflowId should not be in tags dict
-        assert "workflowId" not in session.tags
-
-    def test_workflow_id_not_overwritten_with_same_value(self):
-        """Test workflowId doesn't trigger update if value is same."""
-        session = SessionData("session-1", "agent-1", "existing-workflow")
-
-        result = session.merge_tags({"workflowId": "existing-workflow"})
-
-        assert result is False  # No update needed
-
-    def test_workflow_id_updated_with_different_value(self):
-        """Test workflowId can be updated to new value."""
-        session = SessionData("session-1", "agent-1", "old-workflow")
-
-        result = session.merge_tags({"workflowId": "new-workflow"})
-
-        assert result is True
-        assert session.agent_workflow_id == "new-workflow"
-
     def test_merge_empty_tags(self):
         """Test merging empty dict is a no-op."""
         session = SessionData("session-1", "agent-1")
@@ -174,20 +145,6 @@ class TestTraceStoreTags:
             "env": "prod",
             "team": "backend"
         }
-
-    def test_update_session_tags_with_workflow_id(self):
-        """Test that workflowId tag updates agent_workflow_id."""
-        event = self._create_test_event("session-workflow")
-        self.store.add_event(event, "session-workflow", "agent-1")
-
-        self.store.update_session_tags(
-            "session-workflow",
-            {"workflowId": "my-workflow", "user": "alice"}
-        )
-
-        session = self.store.get_session("session-workflow")
-        assert session.agent_workflow_id == "my-workflow"
-        assert session.tags == {"user": "alice"}  # workflowId not in tags
 
     def test_update_session_tags_empty_returns_false(self):
         """Test updating with empty tags returns False."""

@@ -598,7 +598,7 @@ export const DevConnection: FC<DevConnectionProps> = ({ className }) => {
   const renderFeatureTable = (noMargin = false) => (
     <FeatureCardWrapper $noMargin={noMargin}>
       <Card>
-        <Card.Header title="Feature Comparison" />
+        {!noMargin && <Card.Header title="Feature Comparison" />}
         <Card.Content noPadding>
           <FeatureTable>
           <TableHead>

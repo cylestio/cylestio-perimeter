@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, type FC } from 'react';
 
-import { Layers } from 'lucide-react';
+import { Filter, Layers, Tag } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
@@ -19,13 +19,17 @@ import { Pagination } from '@ui/navigation/Pagination';
 import { ToggleGroup } from '@ui/navigation/ToggleGroup';
 import type { ToggleOption } from '@ui/navigation/ToggleGroup';
 
-import { SessionsTable, SystemPromptFilter } from '@domain/sessions';
-import type { SystemPromptOption } from '@domain/sessions';
+import { SessionsTable, TagFilter } from '@domain/sessions';
+import type { TagSuggestion } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
 import {
   LoadingContainer,
   FilterSection,
+  FilterCard,
+  FilterRow,
+  FilterLabel,
+  FilterContent,
   ClusterFilterBar,
   ClusterFilterLabel,
   ClusterDivider,
@@ -57,6 +61,12 @@ export const Sessions: FC = () => {
   // Read filters from URL query params
   const selectedAgent = searchParams.get('agent_id');
   const clusterId = searchParams.get('cluster_id');
+  // Tags are stored as comma-separated string in URL
+  const tagsParam = searchParams.get('tags');
+  const tagFilters = useMemo(() => {
+    if (!tagsParam) return [];
+    return tagsParam.split(',').map(t => t.trim()).filter(Boolean);
+  }, [tagsParam]);
 
   // Update URL params helper
   const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
@@ -102,6 +112,7 @@ export const Sessions: FC = () => {
         agent_workflow_id: agentWorkflowId,
         agent_id: selectedAgent || undefined,
         cluster_id: clusterId || undefined,
+        tags: tagFilters.length > 0 ? tagFilters : undefined,
         limit: PAGE_SIZE,
         offset,
       });
@@ -113,7 +124,7 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [agentWorkflowId, selectedAgent, clusterId, currentPage]);
+  }, [agentWorkflowId, selectedAgent, clusterId, tagFilters, currentPage]);
 
   // Initial load of agents
   useEffect(() => {
@@ -170,7 +181,7 @@ export const Sessions: FC = () => {
   };
 
   // Build agent options for filter
-  const agentOptions: SystemPromptOption[] = useMemo(() => {
+  const agentOptions = useMemo(() => {
     return agents.map((agent) => ({
       id: agent.id,
       id_short: agent.id_short,
@@ -210,6 +221,35 @@ export const Sessions: FC = () => {
     }
   };
 
+  // Handle tag filter change
+  const handleTagFilterChange = (filters: string[]) => {
+    // Store all tags as comma-separated string in URL
+    const tags = filters.length > 0 ? filters.join(',') : null;
+    updateSearchParams({ tags });
+    setCurrentPage(1);
+  };
+
+  // Extract tag suggestions from loaded sessions
+  const tagSuggestions: TagSuggestion[] = useMemo(() => {
+    const tagMap = new Map<string, Set<string>>();
+
+    sessions.forEach((session) => {
+      if (session.tags) {
+        Object.entries(session.tags).forEach(([key, value]) => {
+          if (!tagMap.has(key)) {
+            tagMap.set(key, new Set());
+          }
+          tagMap.get(key)!.add(value);
+        });
+      }
+    });
+
+    return Array.from(tagMap.entries()).map(([key, values]) => ({
+      key,
+      values: Array.from(values),
+    }));
+  }, [sessions]);
+
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -222,16 +262,24 @@ export const Sessions: FC = () => {
       parts.push(`in ${clusterId.replace('_', ' ')}`);
     }
 
+    if (tagFilters.length > 0) {
+      if (tagFilters.length === 1) {
+        parts.push(`with tag "${tagFilters[0]}"`);
+      } else {
+        parts.push(`with ${tagFilters.length} tags`);
+      }
+    }
+
     if (selectedAgent) {
       const selected = agents.find((a) => a.id === selectedAgent);
       const name = selected?.id_short || selectedAgent.substring(0, 12);
       parts.push(`from agent ${name}`);
-    } else if (!clusterId) {
+    } else if (!clusterId && tagFilters.length === 0) {
       parts.push('from all agents in this agent workflow');
     }
 
     return parts.join(' ');
-  }, [totalCount, selectedAgent, agents, clusterId]);
+  }, [totalCount, selectedAgent, agents, clusterId, tagFilters]);
 
   if (loading) {
     return (
@@ -263,12 +311,43 @@ export const Sessions: FC = () => {
       />
 
       <FilterSection>
-        {/* Agent filter */}
-        <SystemPromptFilter
-          systemPrompts={agentOptions}
-          selectedId={selectedAgent}
-          onSelect={handleAgentSelect}
-        />
+        {/* Main filter card with agent and tag filters */}
+        <FilterCard>
+          {/* System Prompt / Agent filter row - only show if multiple agents */}
+          {agentOptions.length > 1 && (
+            <FilterRow>
+              <FilterLabel>
+                <Filter />
+                Agent
+              </FilterLabel>
+              <FilterContent>
+                <ToggleGroup
+                  options={[
+                    { id: 'ALL', label: `All (${agentOptions.reduce((sum, a) => sum + a.sessionCount, 0)})`, active: selectedAgent === null },
+                    ...agentOptions.map(a => ({ id: a.id, label: `${a.id_short} (${a.sessionCount})`, active: selectedAgent === a.id })),
+                  ]}
+                  onChange={(id) => handleAgentSelect(id === 'ALL' ? null : id)}
+                />
+              </FilterContent>
+            </FilterRow>
+          )}
+
+          {/* Tag filter row */}
+          <FilterRow>
+            <FilterLabel>
+              <Tag />
+              Tags
+            </FilterLabel>
+            <FilterContent>
+              <TagFilter
+                value={tagFilters}
+                onChange={handleTagFilterChange}
+                suggestions={tagSuggestions}
+                placeholder="Filter by tag..."
+              />
+            </FilterContent>
+          </FilterRow>
+        </FilterCard>
 
         {/* Cluster filter - only show when agent is selected and has clusters */}
         {selectedAgent && clusterOptions.length > 0 && (

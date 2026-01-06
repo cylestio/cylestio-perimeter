@@ -18,10 +18,10 @@ logger = get_logger(__name__)
 
 class LLMMiddleware(BaseHTTPMiddleware):
     """Core middleware that handles LLM request/response detection and runs interceptors."""
-    
+
     def __init__(self, app, provider: BaseProvider, **kwargs):
         """Initialize LLM middleware with provider and interceptors.
-        
+
         Args:
             app: FastAPI application
             provider: The provider instance for this middleware
@@ -31,24 +31,24 @@ class LLMMiddleware(BaseHTTPMiddleware):
         self.provider = provider
         interceptors = kwargs.get('interceptors', [])
         self.interceptors = [i for i in interceptors if i.enabled]
-        
+
         # Initialize tool parser
         self.tool_parser = ToolParser()
-        
+
         # Initialize session detector with provider
         self.session_detector = SessionDetector(provider)
-        
+
         logger.info(f"LLM Middleware initialized with {len(self.interceptors)} interceptors")
         logger.info(f"  - Provider: {self.provider.name}")
         if self.session_detector:
             logger.info("  - Session detection: enabled")
         else:
             logger.info("  - Session detection: disabled")
-        
+
         for interceptor in self.interceptors:
             logger.info(f"  - {interceptor.name}: enabled")
-    
-    
+
+
     async def _process_response(
         self,
         request_data,
@@ -57,21 +57,21 @@ class LLMMiddleware(BaseHTTPMiddleware):
         duration_ms: float
     ) -> LLMResponseData:
         """Process response - extract events and run interceptors.
-        
+
         Unified method for both streaming and non-streaming responses.
-        
+
         Args:
             request_data: LLMRequestData object
             response_body: Parsed response body
             response_obj: Response object
             duration_ms: Request duration
-            
+
         Returns:
             LLMResponseData with events and interceptors applied
         """
         # Parse tool information from response
         tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
-        
+
         # Extract events from response using provider
         response_events = []
         if request_data.session_id and response_body:
@@ -82,7 +82,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown'),
                     'agent_workflow_id': getattr(request_data.request.state, 'agent_workflow_id', None)
                 }
-                
+
                 response_events = self.provider.extract_response_events(
                     response_body=response_body,
                     session_id=request_data.session_id,
@@ -92,7 +92,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 )
             except Exception as e:
                 logger.error(f"Error extracting response events: {e}", exc_info=True)
-        
+
         # Create response data
         response_data = LLMResponseData(
             response=response_obj,
@@ -103,7 +103,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
             tool_uses_request=tool_uses_request,
             events=response_events
         )
-        
+
         # Run after_response interceptors
         for interceptor in self.interceptors:
             try:
@@ -112,7 +112,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     response_data = modified_response
             except Exception as e:
                 logger.error(f"Error in {interceptor.name}.after_response: {e}", exc_info=True)
-        
+
         # Notify provider of response if we have session info
         if request_data.session_id and response_body:
             try:
@@ -123,12 +123,12 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 )
             except Exception as e:
                 logger.debug(f"Error notifying provider of response: {e}")
-        
+
         return response_data
-    
+
     async def _process_streaming_completion(self, request_data, start_time: float) -> None:
         """Process streaming response after it completes - run interceptors with buffered data.
-        
+
         Args:
             request_data: Original request data
             start_time: Request start time for duration calculation
@@ -138,47 +138,47 @@ class LLMMiddleware(BaseHTTPMiddleware):
             chunks = request_data.request.state.buffered_chunks
             body_bytes = b''.join(chunks)
             original_content_type = getattr(request_data.request.state, 'original_content_type', 'text/event-stream')
-            
+
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
-            
+
             # Parse the SSE response using provider-specific parser
             response_body = self.provider.parse_streaming_response(body_bytes)
             if not response_body:
                 logger.warning("Could not parse SSE response, skipping event extraction")
                 response_body = {'raw_sse': body_bytes.decode('utf-8', errors='replace')[:1000]}
-            
+
             # Create a Response object for interceptors (already sent to client, but needed for metadata)
             response_obj = Response(
                 content=body_bytes,
                 status_code=200,
                 media_type=original_content_type
             )
-            
+
             # Use unified response processing
             await self._process_response(request_data, response_body, response_obj, duration_ms)
-            
+
             logger.info(f"Processed streaming response through {len(self.interceptors)} interceptors")
-            
+
         except Exception as e:
             logger.error(f"Error processing streaming completion: {e}", exc_info=True)
-    
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request through interceptor chain.
-        
+
         Args:
             request: Incoming request
             call_next: Next middleware or endpoint
-            
+
         Returns:
             Response object
         """
         # Skip non-proxy requests (health, metrics, config)
         if request.url.path in ["/health", "/metrics", "/config"]:
             return await call_next(request)
-        
+
         start_time = time.time()
-        
+
         # Parse and analyze request
         logger.info(f"LLM Middleware processing request for path: {request.url.path}")
         request_data = await self._create_request_data(request)
@@ -188,13 +188,13 @@ class LLMMiddleware(BaseHTTPMiddleware):
             )
         else:
             logger.info("Request data could not be created; passing through.")
-        
+
         if not request_data:
             # Not an LLM request, pass through
             return await call_next(request)
-        
+
         logger.debug(f"Processing LLM request: {request.method} {request.url.path}")
-        
+
         try:
             # Run before_request interceptors
             for interceptor in self.interceptors:
@@ -204,32 +204,32 @@ class LLMMiddleware(BaseHTTPMiddleware):
                         request_data = modified_data
                 except Exception as e:
                     logger.error(f"Error in {interceptor.name}.before_request: {e}", exc_info=True)
-            
+
             # Process the request
             response = await call_next(request_data.request)
-            
+
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
-            
+
             # Check if this is a streaming response
             content_type = response.headers.get("content-type", "")
             is_streaming_response = content_type.startswith("text/event-stream")
-            
+
             # For streaming responses, wrap to process interceptors after completion
             if is_streaming_response:
                 logger.info("Streaming response detected - will process after streaming completes")
-                
+
                 async def stream_and_process_after():
                     """Pass through stream to client, then run interceptors on buffered data."""
                     # Pass through all chunks to client (ProxyHandler already buffered them)
                     async for chunk in response.body_iterator:
                         yield chunk
-                    
+
                     # After streaming completes, ProxyHandler has stored buffered data in request.state
                     # Now run interceptors with that buffered data
                     if hasattr(request_data.request.state, 'buffered_chunks'):
                         await self._process_streaming_completion(request_data, start_time)
-                
+
                 from fastapi.responses import StreamingResponse
                 return StreamingResponse(
                     stream_and_process_after(),
@@ -237,7 +237,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     headers=dict(response.headers),
                     media_type=content_type
                 )
-            
+
             # For JSON responses, capture the body before sending
             response_body = None
             if content_type.startswith("application/json"):
@@ -245,13 +245,13 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 body_bytes = b""
                 async for chunk in response.body_iterator:
                     body_bytes += chunk
-                
+
                 # Parse JSON
                 try:
                     response_body = json.loads(body_bytes.decode('utf-8'))
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     logger.debug("Failed to parse response body as JSON")
-                
+
                 # Create new response with the same body
                 response = Response(
                     content=body_bytes,
@@ -259,52 +259,52 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     headers=dict(response.headers),
                     media_type=response.media_type
                 )
-            
+
             # Store response_id for session continuity (before client can make next request)
-            if (request_data.session_id and response_body and 
-                hasattr(self.provider, 'response_sessions') and 
+            if (request_data.session_id and response_body and
+                hasattr(self.provider, 'response_sessions') and
                 request_data.request.url.path.endswith("/responses")):
                 response_id = response_body.get("id")
                 if response_id:
                     self.provider.response_sessions[response_id] = request_data.session_id
                     logger.info(f"Stored response_id mapping: {response_id} -> {request_data.session_id}")
-            
+
             # Use unified response processing
             response_data = await self._process_response(request_data, response_body, response, duration_ms)
-            
+
             return response_data.response
-            
+
         except Exception as e:
             logger.error(f"Error processing LLM request: {e}", exc_info=True)
-            
+
             # Run error interceptors
             for interceptor in self.interceptors:
                 try:
                     await interceptor.on_error(request_data, e)
                 except Exception as ie:
                     logger.error(f"Error in {interceptor.name}.on_error: {ie}", exc_info=True)
-            
+
             # Re-raise the original error
             raise
-    
+
     async def _evaluate_session_id(self, request: Request, body: Dict[str, Any]) -> Tuple[str, SessionInfo, bool]:
         """Evaluate and determine session ID using either external headers or auto-generation.
-        
+
         This function encapsulates all the complex logic for deciding how to handle session IDs:
         - Check for external session ID header
         - Fall back to normal session detection
         - Handle session creation/continuation logic
-        
+
         Args:
             request: FastAPI request object
             body: Parsed request body
-            
+
         Returns:
             Tuple of (session_id, session_info_obj, is_new_session)
         """
-        # Check for external session ID header
-        external_session_id = request.headers.get("x-cylestio-session-id")
-        
+        # Check for external conversation ID header (identifies the conversation/thread)
+        external_session_id = request.headers.get("x-cylestio-conversation-id")
+
         # If external session ID is provided, use it
         if external_session_id:
             session_info_obj = await self.provider.create_or_get_session(
@@ -313,7 +313,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 metadata={"external": True, "provider": self.provider.name}
             )
             return external_session_id, session_info_obj, session_info_obj.is_session_start
-        
+
         # Otherwise, use normal session detection flow
         if self.session_detector:
             logger.info(f"Using session detector for path: {request.url.path}")
@@ -328,7 +328,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     return session_id, session_info_obj, is_new_session
             except Exception as e:
                 logger.error(f"Failed to analyze session: {e}", exc_info=True)
-        
+
         # Fallback: no session detected
         return None, None, False
 
@@ -345,17 +345,20 @@ class LLMMiddleware(BaseHTTPMiddleware):
         Returns:
             The agent ID to use for this request
         """
-        # Check for external agent ID in headers
-        external_agent_id = request.headers.get("x-cylestio-agent-id")
+        # Check for external prompt ID in headers (identifies the prompt pattern)
+        external_agent_id = request.headers.get("x-cylestio-prompt-id")
 
         # Use provider's evaluation method which handles the fallback logic
         return self.provider.evaluate_agent_id(body, external_agent_id)
 
     def _parse_tags_header(self, request: Request) -> Dict[str, str]:
-        """Parse the x-cylestio-tags header into a dictionary.
+        """Parse the x-cylestio-tags and x-cylestio-session-id headers into a dictionary.
 
-        Header format: key1:value1,key2:value2,...
-        Example: user:someone@email.com,env:production,workflowId:my-workflow
+        Header format for tags: key1:value1,key2:value2,...
+        Example: user:someone@email.com,env:production,team:backend
+
+        The x-cylestio-session-id header is automatically injected as a 'session' tag
+        to group conversations from one workflow execution.
 
         Tag limits:
         - Max 50 tags per request
@@ -368,12 +371,18 @@ class LLMMiddleware(BaseHTTPMiddleware):
         Returns:
             Dictionary of tag key-value pairs
         """
+        tags: Dict[str, str] = {}
+
+        # Check for session grouping header and auto-inject as tag
+        session_group_id = request.headers.get("x-cylestio-session-id")
+        if session_group_id:
+            tags["session"] = session_group_id
+
         tags_header = request.headers.get("x-cylestio-tags")
         if not tags_header:
-            return {}
+            return tags
 
-        tags: Dict[str, str] = {}
-        tag_count = 0
+        tag_count = len(tags)  # Account for pre-populated session tag
         max_tags = 50
         max_key_len = 64
         max_value_len = 512
@@ -410,13 +419,13 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 tag_count += 1
 
         return tags
-    
+
     async def _create_request_data(self, request: Request) -> Optional[LLMRequestData]:
         """Parse request and create LLMRequestData.
-        
+
         Args:
             request: FastAPI request object
-            
+
         Returns:
             LLMRequestData or None if not an LLM request
         """
@@ -425,7 +434,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
             body_bytes = await request.body()
             body = None
             is_streaming = False
-            
+
             if body_bytes and request.headers.get("content-type", "").startswith("application/json"):
                 try:
                     body = json.loads(body_bytes)
@@ -433,15 +442,15 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 except json.JSONDecodeError:
                     logger.warning("Failed to parse request body as JSON")
                     return None
-            
+
             # Extract model from request body first, then use provider if needed
             model = None
             if body:
                 model = self.provider.extract_model_from_body(body)
-            
+
             # Use the dedicated session evaluation function
             session_id, session_info_obj, is_new_session = await self._evaluate_session_id(request, body)
-            
+
             # Update model and streaming info from session detection if available
             if session_info_obj and not model and session_info_obj.model:
                 model = session_info_obj.model
@@ -455,7 +464,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     # Evaluate agent_id BEFORE creating events
                     trace_id = self.provider.get_trace_id(session_id)
                     agent_id = self._evaluate_agent_id(request, body)
-                    
+
                     # Store trace ID and other metadata for response events
                     request.state.cylestio_trace_id = trace_id
                     request.state.agent_id = agent_id
@@ -466,7 +475,7 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     request.state.tags = tags
 
                     # Note: span_id will be set by individual events as needed
-                    
+
                     # Extract events from request with computed agent_id
                     events, new_processed_index = self.provider.extract_request_events(
                         body=body,
@@ -476,14 +485,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
                         last_processed_index=session_info_obj.last_processed_index,
                         computed_agent_id=agent_id
                     )
-                    
+
                     # Update session with new processed index using provider interface
                     if new_processed_index > session_info_obj.last_processed_index:
                         self.provider.update_session_processed_index(session_id, new_processed_index)
-                        
+
                 except Exception as e:
                     logger.error(f"Error extracting request events: {e}", exc_info=True)
-            
+
             # Create request data
             return LLMRequestData(
                 request=request,
@@ -496,25 +505,25 @@ class LLMMiddleware(BaseHTTPMiddleware):
                 tool_results=[],  # Tool results are now processed within extract_request_events
                 events=events
             )
-            
+
         except Exception as e:
             logger.error(f"Error creating request data: {e}", exc_info=True)
             return None
-    
-    
+
+
     def _is_llm_request(self, request: Request) -> bool:
         """Check if request is for LLM processing.
-        
+
         Args:
             request: Request object
-            
+
         Returns:
             True if this is an LLM request
         """
         # Skip health, metrics, and config endpoints
         if request.url.path in ["/health", "/metrics", "/config"]:
             return False
-        
+
         # For now, assume all other requests are LLM requests
         # You could add more sophisticated detection here
         return True

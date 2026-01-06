@@ -325,7 +325,7 @@ function AppLayout() {
 
           {/* ===== DEVELOPER SECTION ===== */}
           {urlAgentWorkflowId && !isRootPage && (
-            <NavGroup label={!sidebarCollapsed ? 'Developer' : undefined}>
+            <NavGroup label={!sidebarCollapsed ? 'Development' : undefined}>
               <NavItem
                 icon={<OverviewIcon size={18} />}
                 label="Overview"
@@ -334,7 +334,7 @@ function AppLayout() {
                 collapsed={sidebarCollapsed}
               />
               <NavItem
-                label="Agents"
+                label="Agent Prompts"
                 icon={<SystemPromptsIcon size={18} />}
                 badge={agents.length > 0 ? agents.length : undefined}
                 active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/agents` || location.pathname === `/agent-workflow/${urlAgentWorkflowId}`}
@@ -370,7 +370,7 @@ function AppLayout() {
 
           {/* ===== SECURITY CHECKS SECTION (with Timeline) ===== */}
           {urlAgentWorkflowId && !isRootPage && (
-            <NavGroup label={!sidebarCollapsed ? 'Security Checks' : undefined}>
+            <NavGroup label={!sidebarCollapsed ? 'Security Analysis' : undefined}>
               <SecurityCheckItem
                 label="Dev"
                 status={devConnectionStatus}

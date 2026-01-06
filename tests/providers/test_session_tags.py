@@ -1,4 +1,4 @@
-"""Tests for session tags functionality via x-cylestio-tags header."""
+"""Tests for session tags functionality via x-cylestio-tags and related headers."""
 import pytest
 from unittest.mock import Mock, AsyncMock
 from fastapi import Request
@@ -141,13 +141,45 @@ class TestTagsHeaderParsing:
             "query": "name=foo%20bar"
         }
 
-    def test_workflow_id_tag(self):
-        """Test the special workflowId tag format."""
-        request = self._create_mock_request("workflowId:my-workflow-123,user:alice")
+    def test_session_header_auto_injected_as_tag(self):
+        """Test that x-cylestio-session-id header is auto-injected as 'session' tag."""
+        request = Mock(spec=Request)
+        request.headers = Headers({
+            "content-type": "application/json",
+            "x-cylestio-session-id": "run-abc123",
+            "x-cylestio-tags": "user:alice"
+        })
         tags = self.middleware._parse_tags_header(request)
 
         assert tags == {
-            "workflowId": "my-workflow-123",
+            "session": "run-abc123",
+            "user": "alice"
+        }
+
+    def test_session_header_without_tags(self):
+        """Test that x-cylestio-session-id works without x-cylestio-tags."""
+        request = Mock(spec=Request)
+        request.headers = Headers({
+            "content-type": "application/json",
+            "x-cylestio-session-id": "run-xyz789"
+        })
+        tags = self.middleware._parse_tags_header(request)
+
+        assert tags == {"session": "run-xyz789"}
+
+    def test_tags_can_override_session_tag(self):
+        """Test that explicit session tag in x-cylestio-tags overrides header value."""
+        request = Mock(spec=Request)
+        request.headers = Headers({
+            "content-type": "application/json",
+            "x-cylestio-session-id": "from-header",
+            "x-cylestio-tags": "session:from-tags,user:alice"
+        })
+        tags = self.middleware._parse_tags_header(request)
+
+        # Tags header should override the session header
+        assert tags == {
+            "session": "from-tags",
             "user": "alice"
         }
 
@@ -185,11 +217,11 @@ class TestTagsIntegration:
         assert request.state.tags == {"user": "test@example.com", "env": "prod"}
 
     @pytest.mark.asyncio
-    async def test_tags_with_external_session_id(self):
-        """Test tags work alongside external session ID."""
+    async def test_tags_with_external_conversation_id(self):
+        """Test tags work alongside external conversation ID."""
         request = Mock(spec=Request)
         request.headers = Headers({
-            "x-cylestio-session-id": "my-session-123",
+            "x-cylestio-conversation-id": "my-conversation-123",
             "x-cylestio-tags": "user:alice,team:backend",
             "content-type": "application/json"
         })
@@ -202,7 +234,7 @@ class TestTagsIntegration:
 
         request_data = await self.middleware._create_request_data(request)
 
-        assert request_data.session_id == "my-session-123"
+        assert request_data.session_id == "my-conversation-123"
         assert request.state.tags == {"user": "alice", "team": "backend"}
 
 
@@ -233,8 +265,9 @@ class TestProxyHandlerTagsFiltering:
     def test_all_cylestio_headers_filtered(self):
         """Test that all x-cylestio-* headers are filtered."""
         original_headers = {
-            "x-cylestio-session-id": "session-123",
-            "x-cylestio-agent-id": "agent-456",
+            "x-cylestio-conversation-id": "conversation-123",
+            "x-cylestio-prompt-id": "prompt-456",
+            "x-cylestio-session-id": "session-789",
             "x-cylestio-tags": "user:test",
             "x-cylestio-custom": "should-filter",
             "user-agent": "test-client"

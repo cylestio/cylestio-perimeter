@@ -33,6 +33,7 @@ const getColumns = (agentWorkflowId: string, showAgentColumn: boolean): Column<S
     {
       key: 'id',
       header: 'Session ID',
+      width: '160px',
       render: (session) => (
         <Link
           to={`/agent-workflow/${agentWorkflowId}/session/${session.id}`}
