@@ -208,6 +208,29 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting filtered sessions: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/sessions/tags")
+    async def api_sessions_tags(
+        agent_workflow_id: Optional[str] = None,
+    ):
+        """Get all unique tag keys and values from sessions.
+
+        Args:
+            agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
+
+        Returns:
+            List of tag suggestions with key and values array.
+        """
+        try:
+            tags = insights.store.get_session_tags(
+                agent_workflow_id=agent_workflow_id,
+            )
+            return JSONResponse({
+                "tags": tags,
+            })
+        except Exception as e:
+            logger.error(f"Error getting session tags: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     @app.get("/api/agent/{agent_id}")
     async def api_agent(agent_id: str):
         """Get agent details as JSON."""

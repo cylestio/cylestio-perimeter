@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, type FC } from 'react';
 
-import { Filter, Layers, Tag } from 'lucide-react';
+import { Filter, Hash, Layers, Tag } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import { fetchDashboard } from '@api/endpoints/dashboard';
-import { fetchSessions } from '@api/endpoints/session';
+import { fetchSessions, fetchSessionTags } from '@api/endpoints/session';
 import type { BehavioralCluster } from '@api/types/agent';
 import type { APIAgent } from '@api/types/dashboard';
-import type { SessionListItem } from '@api/types/session';
+import type { SessionListItem, SessionTagSuggestion } from '@api/types/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
@@ -19,7 +19,7 @@ import { Pagination } from '@ui/navigation/Pagination';
 import { ToggleGroup } from '@ui/navigation/ToggleGroup';
 import type { ToggleOption } from '@ui/navigation/ToggleGroup';
 
-import { SessionsTable, TagFilter } from '@domain/sessions';
+import { SessionsTable, TagFilter, SessionFilter } from '@domain/sessions';
 import type { TagSuggestion } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
@@ -55,6 +55,9 @@ export const Sessions: FC = () => {
   const [clusters, setClusters] = useState<BehavioralCluster[]>([]);
   const [clustersLoading, setClustersLoading] = useState(false);
 
+  // Available tags (fetched from backend, not derived from paginated sessions)
+  const [availableTags, setAvailableTags] = useState<SessionTagSuggestion[]>([]);
+
   // Pagination state (filters are in URL)
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -67,6 +70,8 @@ export const Sessions: FC = () => {
     if (!tagsParam) return [];
     return tagsParam.split(',').map(t => t.trim()).filter(Boolean);
   }, [tagsParam]);
+  // Session filter (single select from 'session' tag)
+  const sessionFilter = searchParams.get('session');
 
   // Update URL params helper
   const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
@@ -101,6 +106,18 @@ export const Sessions: FC = () => {
     }
   }, [agentWorkflowId]);
 
+  // Fetch available tags from all sessions (not just current page)
+  const loadTags = useCallback(async () => {
+    if (!agentWorkflowId) return;
+
+    try {
+      const data = await fetchSessionTags({ agent_workflow_id: agentWorkflowId });
+      setAvailableTags(data.tags);
+    } catch (err) {
+      console.error('Failed to fetch session tags:', err);
+    }
+  }, [agentWorkflowId]);
+
   // Fetch sessions with current filters and pagination
   const loadSessions = useCallback(async () => {
     if (!agentWorkflowId) return;
@@ -108,11 +125,16 @@ export const Sessions: FC = () => {
     try {
       setError(null);
       const offset = (currentPage - 1) * PAGE_SIZE;
+      // Combine tag filters with session filter (if set)
+      const allTags = [...tagFilters];
+      if (sessionFilter) {
+        allTags.push(`session:${sessionFilter}`);
+      }
       const data = await fetchSessions({
         agent_workflow_id: agentWorkflowId,
         agent_id: selectedAgent || undefined,
         cluster_id: clusterId || undefined,
-        tags: tagFilters.length > 0 ? tagFilters : undefined,
+        tags: allTags.length > 0 ? allTags : undefined,
         limit: PAGE_SIZE,
         offset,
       });
@@ -124,12 +146,13 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [agentWorkflowId, selectedAgent, clusterId, tagFilters, currentPage]);
+  }, [agentWorkflowId, selectedAgent, clusterId, tagFilters, sessionFilter, currentPage]);
 
-  // Initial load of agents
+  // Initial load of agents and tags
   useEffect(() => {
     loadAgents();
-  }, [loadAgents]);
+    loadTags();
+  }, [loadAgents, loadTags]);
 
   // Initial load and reload when filters change
   useEffect(() => {
@@ -229,26 +252,25 @@ export const Sessions: FC = () => {
     setCurrentPage(1);
   };
 
-  // Extract tag suggestions from loaded sessions
-  const tagSuggestions: TagSuggestion[] = useMemo(() => {
-    const tagMap = new Map<string, Set<string>>();
+  // Extract session options from available tags (fetched from backend)
+  const sessionOptions = useMemo(() => {
+    const sessionSuggestion = availableTags.find((t) => t.key === 'session');
+    return sessionSuggestion?.values || [];
+  }, [availableTags]);
 
-    sessions.forEach((session) => {
-      if (session.tags) {
-        Object.entries(session.tags).forEach(([key, value]) => {
-          if (!tagMap.has(key)) {
-            tagMap.set(key, new Set());
-          }
-          tagMap.get(key)!.add(value);
-        });
-      }
-    });
+  // Filter out 'session' from tag suggestions for the TagFilter component
+  // Convert SessionTagSuggestion to TagSuggestion format (extract just the value strings)
+  const filteredTagSuggestions: TagSuggestion[] = useMemo(() => {
+    return availableTags
+      .filter((t) => t.key !== 'session')
+      .map((t) => ({ key: t.key, values: t.values.map((v) => v.value) }));
+  }, [availableTags]);
 
-    return Array.from(tagMap.entries()).map(([key, values]) => ({
-      key,
-      values: Array.from(values),
-    }));
-  }, [sessions]);
+  // Handle session filter change
+  const handleSessionSelect = (sessionValue: string | null) => {
+    updateSearchParams({ session: sessionValue });
+    setCurrentPage(1);
+  };
 
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -257,6 +279,10 @@ export const Sessions: FC = () => {
   const descriptionText = useMemo(() => {
     const parts: string[] = [];
     parts.push(`${totalCount} session${totalCount !== 1 ? 's' : ''}`);
+
+    if (sessionFilter) {
+      parts.push(`in "${sessionFilter}"`);
+    }
 
     if (clusterId) {
       parts.push(`in ${clusterId.replace('_', ' ')}`);
@@ -274,12 +300,12 @@ export const Sessions: FC = () => {
       const selected = agents.find((a) => a.id === selectedAgent);
       const name = selected?.id_short || selectedAgent.substring(0, 12);
       parts.push(`from agent ${name}`);
-    } else if (!clusterId && tagFilters.length === 0) {
+    } else if (!clusterId && tagFilters.length === 0 && !sessionFilter) {
       parts.push('from all agents in this agent workflow');
     }
 
     return parts.join(' ');
-  }, [totalCount, selectedAgent, agents, clusterId, tagFilters]);
+  }, [totalCount, selectedAgent, agents, clusterId, tagFilters, sessionFilter]);
 
   if (loading) {
     return (
@@ -311,14 +337,31 @@ export const Sessions: FC = () => {
       />
 
       <FilterSection>
-        {/* Main filter card with agent and tag filters */}
+        {/* Main filter card with session, prompt, and tag filters */}
         <FilterCard>
-          {/* System Prompt / Agent filter row - only show if multiple agents */}
+          {/* Session filter row - only show if session options exist */}
+          {sessionOptions.length > 0 && (
+            <FilterRow>
+              <FilterLabel>
+                <Hash />
+                Session
+              </FilterLabel>
+              <FilterContent>
+                <SessionFilter
+                  value={sessionFilter}
+                  onChange={handleSessionSelect}
+                  options={sessionOptions}
+                />
+              </FilterContent>
+            </FilterRow>
+          )}
+
+          {/* Prompt filter row - only show if multiple agents */}
           {agentOptions.length > 1 && (
             <FilterRow>
               <FilterLabel>
                 <Filter />
-                Agent
+                Prompt
               </FilterLabel>
               <FilterContent>
                 <ToggleGroup
@@ -342,7 +385,7 @@ export const Sessions: FC = () => {
               <TagFilter
                 value={tagFilters}
                 onChange={handleTagFilterChange}
-                suggestions={tagSuggestions}
+                suggestions={filteredTagSuggestions}
                 placeholder="Filter by tag..."
               />
             </FilterContent>

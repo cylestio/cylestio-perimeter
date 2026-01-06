@@ -1257,6 +1257,57 @@ class TraceStore:
 
             return sessions
 
+    def get_session_tags(
+        self,
+        agent_workflow_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get all unique tag keys and values with counts from sessions for a workflow.
+
+        Uses SQLite's json_each() for efficient SQL-level aggregation.
+
+        Args:
+            agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
+
+        Returns:
+            List of dicts with 'key' and 'values' (list of {value, count} dicts).
+        """
+        with self._lock:
+            # Build WHERE clause
+            where_parts = ["tags_json IS NOT NULL", "tags_json != '{}'"]
+            params: List[Any] = []
+
+            if agent_workflow_id is not None:
+                if agent_workflow_id == "unassigned":
+                    where_parts.append("agent_workflow_id IS NULL")
+                else:
+                    where_parts.append("agent_workflow_id = ?")
+                    params.append(agent_workflow_id)
+
+            where_clause = " WHERE " + " AND ".join(where_parts)
+
+            # Use json_each() for SQL-level aggregation - no Python JSON parsing loops
+            query = f"""
+                SELECT json_each.key, json_each.value, COUNT(*) as count
+                FROM sessions, json_each(sessions.tags_json)
+                {where_clause}
+                GROUP BY json_each.key, json_each.value
+                ORDER BY json_each.key, count DESC
+            """  # nosec B608 - parameterized
+            cursor = self.db.execute(query, params)
+
+            # Group results by key (single pass through aggregated results)
+            tag_data: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+            for row in cursor.fetchall():
+                tag_data[row["key"]].append({
+                    "value": row["value"],
+                    "count": row["count"],
+                })
+
+            return [
+                {"key": key, "values": values}
+                for key, values in sorted(tag_data.items())
+            ]
+
     def get_all_agents(self, agent_workflow_id: Optional[str] = None) -> List[AgentData]:
         """Get all agents from SQLite, optionally filtered by agent workflow.
 

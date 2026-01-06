@@ -200,8 +200,8 @@ export const SelectKeyShowsValues: Story = {
   },
 };
 
-export const AddFilterByEnter: Story = {
-  render: function AddFilterByEnterStory() {
+export const EnterOnlySelectsFromSuggestions: Story = {
+  render: function EnterOnlySelectsFromSuggestionsStory() {
     const [filters, setFilters] = useState<string[]>([]);
     return (
       <TagFilter
@@ -215,12 +215,45 @@ export const AddFilterByEnter: Story = {
     const canvas = within(canvasElement);
     const input = canvas.getByRole('combobox');
 
-    // Type custom filter and press Enter
+    // Type custom value and press Enter - should NOT add filter
     await userEvent.type(input, 'custom:value{enter}');
 
+    // No filter should be added (custom values not allowed)
+    const removeButtons = canvas.queryAllByRole('button', { name: /remove filter/i });
+    await expect(removeButtons).toHaveLength(0);
+
+    // Input should still have the value (not cleared)
+    await expect(input).toHaveValue('custom:value');
+  },
+};
+
+export const SelectSuggestionWithEnter: Story = {
+  render: function SelectSuggestionWithEnterStory() {
+    const [filters, setFilters] = useState<string[]>([]);
+    return (
+      <TagFilter
+        value={filters}
+        onChange={setFilters}
+        suggestions={mockSuggestions}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('combobox');
+
+    // Type to get to values, then select with keyboard
+    await userEvent.type(input, 'env:');
+
+    // Dropdown should show values
+    await expect(canvas.getByText('Values for env')).toBeInTheDocument();
+
+    // Navigate to first option and press Enter
+    await userEvent.keyboard('{ArrowDown}{Enter}');
+
     // Filter should be added
-    await expect(canvas.getByText('custom')).toBeInTheDocument();
-    await expect(canvas.getByText('value')).toBeInTheDocument();
+    await expect(canvas.getByText('env')).toBeInTheDocument();
+    await expect(canvas.getByText('production')).toBeInTheDocument();
 
     // Input should be cleared
     await expect(input).toHaveValue('');

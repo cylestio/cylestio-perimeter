@@ -9,3 +9,6 @@ export type { SessionTagsProps } from './SessionTags';
 
 export { TagFilter } from './TagFilter';
 export type { TagFilterProps, TagSuggestion } from './TagFilter';
+
+export { SessionFilter } from './SessionFilter';
+export type { SessionFilterProps, SessionOption } from './SessionFilter';

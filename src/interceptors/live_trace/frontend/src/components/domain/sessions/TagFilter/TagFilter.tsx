@@ -15,7 +15,6 @@ import {
   Container,
   Dropdown,
   DropdownSection,
-  HintText,
   Input,
   InputWrapper,
   NoOptions,
@@ -206,10 +205,8 @@ export const TagFilter: FC<TagFilterProps> = ({
           event.preventDefault();
           if (isOpen && focusedIndex >= 0 && filteredOptions[focusedIndex]) {
             handleOptionSelect(filteredOptions[focusedIndex]);
-          } else if (inputValue.trim()) {
-            // Add typed value as filter
-            addFilter(inputValue);
           }
+          // Note: No custom values allowed - only select from suggestions
           break;
 
         case 'Escape':
@@ -233,7 +230,6 @@ export const TagFilter: FC<TagFilterProps> = ({
       inputValue,
       value,
       handleOptionSelect,
-      addFilter,
       removeFilter,
     ]
   );
@@ -361,7 +357,6 @@ export const TagFilter: FC<TagFilterProps> = ({
             ) : (
               <NoOptions>Start typing to filter</NoOptions>
             )}
-            <HintText>Press Enter to add custom filter</HintText>
           </Dropdown>
         )}
       </InputWrapper>

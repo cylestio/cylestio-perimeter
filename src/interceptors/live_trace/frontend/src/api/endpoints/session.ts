@@ -1,4 +1,4 @@
-import type { SessionResponse, SessionsListResponse, LiveSessionStatus } from '../types/session';
+import type { SessionResponse, SessionsListResponse, SessionTagsResponse, LiveSessionStatus } from '../types/session';
 
 export const fetchSession = async (sessionId: string): Promise<SessionResponse> => {
   const response = await fetch(`/api/session/${sessionId}`);
@@ -55,6 +55,31 @@ export const fetchSessions = async (params?: FetchSessionsParams): Promise<Sessi
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch sessions: ${response.statusText}`);
+  }
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(data.error);
+  }
+  return data;
+};
+
+export interface FetchSessionTagsParams {
+  agent_workflow_id?: string;
+}
+
+export const fetchSessionTags = async (params?: FetchSessionTagsParams): Promise<SessionTagsResponse> => {
+  const searchParams = new URLSearchParams();
+
+  if (params?.agent_workflow_id) {
+    searchParams.set('agent_workflow_id', params.agent_workflow_id);
+  }
+
+  const queryString = searchParams.toString();
+  const url = queryString ? `/api/sessions/tags?${queryString}` : '/api/sessions/tags';
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch session tags: ${response.statusText}`);
   }
   const data = await response.json();
   if (data.error) {

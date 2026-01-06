@@ -90,3 +90,19 @@ export interface SessionsListResponse {
   total_count: number;
   filters: SessionsListFilters;
 }
+
+// Types for /api/sessions/tags endpoint
+
+export interface SessionTagValue {
+  value: string;
+  count: number;
+}
+
+export interface SessionTagSuggestion {
+  key: string;
+  values: SessionTagValue[];
+}
+
+export interface SessionTagsResponse {
+  tags: SessionTagSuggestion[];
+}
