@@ -603,28 +603,157 @@ class OpenAIProvider(BaseProvider):
         
         return events, new_last_processed_index
     
-    def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
-                              session_id: str, duration_ms: float, 
-                              tool_uses: List[Dict[str, Any]], 
-                              request_metadata: Dict[str, Any]) -> List[Any]:
-        """Extract and create events from response data using original interceptor logic."""
+    def is_error_response(self, status_code: int, response_body: Optional[Dict[str, Any]]) -> bool:
+        """Check if response indicates an error.
+
+        OpenAI errors are indicated by:
+        - HTTP 4xx/5xx status codes
+        - Response body containing "error" key
+
+        Args:
+            status_code: HTTP status code
+            response_body: Parsed response body (may be None)
+
+        Returns:
+            True if response is an error
+        """
+        if status_code >= 400:
+            return True
+        # Check for error in body (rare but possible with some proxies)
+        if response_body and "error" in response_body:
+            return True
+        return False
+
+    def extract_error_info(self, status_code: int, response_body: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract error details from OpenAI error response.
+
+        OpenAI error format:
+        {
+            "error": {
+                "message": "...",
+                "type": "insufficient_quota",
+                "code": "insufficient_quota"
+            }
+        }
+
+        Handles unexpected formats gracefully with fallback.
+
+        Args:
+            status_code: HTTP status code
+            response_body: Parsed response body (may be None)
+
+        Returns:
+            Dict with error_type, error_message, status_code
+        """
+        error_type = None
+        error_message = f"HTTP {status_code} error"
+
+        if response_body:
+            error_obj = response_body.get("error", {})
+            if isinstance(error_obj, dict):
+                # Prefer 'type', fallback to 'code'
+                error_type = error_obj.get("type") or error_obj.get("code")
+                error_message = error_obj.get("message", error_message)
+            elif isinstance(error_obj, str):
+                # Handle unexpected string error format
+                error_message = error_obj
+
+        # Fallback for completely unexpected formats
+        if not error_type:
+            error_type = self._infer_error_type_from_status(status_code)
+
+        return {
+            "status_code": status_code,
+            "error_type": error_type,
+            "error_message": error_message,
+        }
+
+    def _infer_error_type_from_status(self, status_code: int) -> str:
+        """Infer error type from HTTP status code when not provided in body.
+
+        Args:
+            status_code: HTTP status code
+
+        Returns:
+            Error type string
+        """
+        status_map = {
+            400: "bad_request",
+            401: "authentication_error",
+            403: "permission_denied",
+            404: "not_found",
+            429: "rate_limit_error",
+            500: "server_error",
+            502: "bad_gateway",
+            503: "service_unavailable",
+        }
+        return status_map.get(status_code, f"http_{status_code}")
+
+    def extract_response_events(self, response_body: Optional[Dict[str, Any]],
+                              session_id: str, duration_ms: float,
+                              tool_uses: List[Dict[str, Any]],
+                              request_metadata: Dict[str, Any],
+                              status_code: int = 200) -> List[Any]:
+        """Extract and create events from response data.
+
+        Creates LLMCallErrorEvent for error responses, LLMCallFinishEvent for success.
+
+        Args:
+            response_body: Response body
+            session_id: Session identifier
+            duration_ms: Response duration
+            tool_uses: Any tool uses from response
+            request_metadata: Metadata from request processing
+            status_code: HTTP status code (for error detection)
+
+        Returns:
+            List of event objects to be sent
+        """
         events = []
-        
+
         if not session_id:
             return events
-        
+
         # Get trace ID from request metadata
         trace_id = request_metadata.get("cylestio_trace_id")
-        
+
         if not trace_id:
             return events
-        
+
         # Get agent_id, model, and agent_workflow_id from metadata
         agent_id = request_metadata.get("agent_id", "unknown")
         model = request_metadata.get("model", "unknown")
         agent_workflow_id = request_metadata.get("agent_workflow_id")
-        
-        # Extract token usage and response content
+
+        # Check for error response first
+        if self.is_error_response(status_code, response_body):
+            error_info = self.extract_error_info(status_code, response_body)
+
+            span_id = self.get_session_span_id(session_id)
+            if not span_id:
+                span_id = self.generate_new_span_id()
+
+            error_event = LLMCallErrorEvent.create(
+                trace_id=trace_id,
+                span_id=span_id,
+                agent_id=agent_id,
+                vendor=self.name,
+                model=model,
+                error_message=error_info["error_message"],
+                error_type=error_info["error_type"],
+                session_id=session_id
+            )
+
+            # Add additional context
+            error_event.attributes["http.status_code"] = status_code
+            error_event.attributes["llm.response.duration_ms"] = duration_ms
+            if agent_workflow_id:
+                error_event.attributes["agent_workflow.id"] = agent_workflow_id
+
+            events.append(error_event)
+            return events  # Don't create finish event for errors
+
+        # Extract token usage and response content for successful responses
         input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(response_body)
         response_content = self._extract_response_content(response_body)
         
