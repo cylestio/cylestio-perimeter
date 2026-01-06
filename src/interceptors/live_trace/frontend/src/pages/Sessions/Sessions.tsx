@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useMemo, type FC } from 'react';
 
-import { Layers } from 'lucide-react';
+import { Filter, Hash, Layers, Tag } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import { fetchDashboard } from '@api/endpoints/dashboard';
-import { fetchSessions } from '@api/endpoints/session';
+import { fetchSessions, fetchSessionTags } from '@api/endpoints/session';
 import type { BehavioralCluster } from '@api/types/agent';
 import type { APIAgent } from '@api/types/dashboard';
-import type { SessionListItem } from '@api/types/session';
+import type { SessionListItem, SessionTagSuggestion } from '@api/types/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
 
 import { Card } from '@ui/core/Card';
@@ -19,13 +19,17 @@ import { Pagination } from '@ui/navigation/Pagination';
 import { ToggleGroup } from '@ui/navigation/ToggleGroup';
 import type { ToggleOption } from '@ui/navigation/ToggleGroup';
 
-import { SessionsTable, SystemPromptFilter } from '@domain/sessions';
-import type { SystemPromptOption } from '@domain/sessions';
+import { SessionsTable, TagFilter, SessionFilter } from '@domain/sessions';
+import type { TagSuggestion } from '@domain/sessions';
 
 import { usePageMeta } from '../../context';
 import {
   LoadingContainer,
   FilterSection,
+  FilterCard,
+  FilterRow,
+  FilterLabel,
+  FilterContent,
   ClusterFilterBar,
   ClusterFilterLabel,
   ClusterDivider,
@@ -51,12 +55,23 @@ export const Sessions: FC = () => {
   const [clusters, setClusters] = useState<BehavioralCluster[]>([]);
   const [clustersLoading, setClustersLoading] = useState(false);
 
+  // Available tags (fetched from backend, not derived from paginated sessions)
+  const [availableTags, setAvailableTags] = useState<SessionTagSuggestion[]>([]);
+
   // Pagination state (filters are in URL)
   const [currentPage, setCurrentPage] = useState(1);
 
   // Read filters from URL query params
   const selectedAgent = searchParams.get('agent_id');
   const clusterId = searchParams.get('cluster_id');
+  // Tags are stored as comma-separated string in URL
+  const tagsParam = searchParams.get('tags');
+  const tagFilters = useMemo(() => {
+    if (!tagsParam) return [];
+    return tagsParam.split(',').map(t => t.trim()).filter(Boolean);
+  }, [tagsParam]);
+  // Session filter (single select from 'session' tag)
+  const sessionFilter = searchParams.get('session');
 
   // Update URL params helper
   const updateSearchParams = useCallback((updates: Record<string, string | null>) => {
@@ -91,6 +106,18 @@ export const Sessions: FC = () => {
     }
   }, [agentWorkflowId]);
 
+  // Fetch available tags from all sessions (not just current page)
+  const loadTags = useCallback(async () => {
+    if (!agentWorkflowId) return;
+
+    try {
+      const data = await fetchSessionTags({ agent_workflow_id: agentWorkflowId });
+      setAvailableTags(data.tags);
+    } catch (err) {
+      console.error('Failed to fetch session tags:', err);
+    }
+  }, [agentWorkflowId]);
+
   // Fetch sessions with current filters and pagination
   const loadSessions = useCallback(async () => {
     if (!agentWorkflowId) return;
@@ -98,10 +125,16 @@ export const Sessions: FC = () => {
     try {
       setError(null);
       const offset = (currentPage - 1) * PAGE_SIZE;
+      // Combine tag filters with session filter (if set)
+      const allTags = [...tagFilters];
+      if (sessionFilter) {
+        allTags.push(`session:${sessionFilter}`);
+      }
       const data = await fetchSessions({
         agent_workflow_id: agentWorkflowId,
         agent_id: selectedAgent || undefined,
         cluster_id: clusterId || undefined,
+        tags: allTags.length > 0 ? allTags : undefined,
         limit: PAGE_SIZE,
         offset,
       });
@@ -113,12 +146,13 @@ export const Sessions: FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [agentWorkflowId, selectedAgent, clusterId, currentPage]);
+  }, [agentWorkflowId, selectedAgent, clusterId, tagFilters, sessionFilter, currentPage]);
 
-  // Initial load of agents
+  // Initial load of agents and tags
   useEffect(() => {
     loadAgents();
-  }, [loadAgents]);
+    loadTags();
+  }, [loadAgents, loadTags]);
 
   // Initial load and reload when filters change
   useEffect(() => {
@@ -170,7 +204,7 @@ export const Sessions: FC = () => {
   };
 
   // Build agent options for filter
-  const agentOptions: SystemPromptOption[] = useMemo(() => {
+  const agentOptions = useMemo(() => {
     return agents.map((agent) => ({
       id: agent.id,
       id_short: agent.id_short,
@@ -210,6 +244,34 @@ export const Sessions: FC = () => {
     }
   };
 
+  // Handle tag filter change
+  const handleTagFilterChange = (filters: string[]) => {
+    // Store all tags as comma-separated string in URL
+    const tags = filters.length > 0 ? filters.join(',') : null;
+    updateSearchParams({ tags });
+    setCurrentPage(1);
+  };
+
+  // Extract session options from available tags (fetched from backend)
+  const sessionOptions = useMemo(() => {
+    const sessionSuggestion = availableTags.find((t) => t.key === 'session');
+    return sessionSuggestion?.values || [];
+  }, [availableTags]);
+
+  // Filter out 'session' from tag suggestions for the TagFilter component
+  // Convert SessionTagSuggestion to TagSuggestion format (extract just the value strings)
+  const filteredTagSuggestions: TagSuggestion[] = useMemo(() => {
+    return availableTags
+      .filter((t) => t.key !== 'session')
+      .map((t) => ({ key: t.key, values: t.values.map((v) => v.value) }));
+  }, [availableTags]);
+
+  // Handle session filter change
+  const handleSessionSelect = (sessionValue: string | null) => {
+    updateSearchParams({ session: sessionValue });
+    setCurrentPage(1);
+  };
+
   // Calculate total pages
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -218,20 +280,32 @@ export const Sessions: FC = () => {
     const parts: string[] = [];
     parts.push(`${totalCount} session${totalCount !== 1 ? 's' : ''}`);
 
+    if (sessionFilter) {
+      parts.push(`in "${sessionFilter}"`);
+    }
+
     if (clusterId) {
       parts.push(`in ${clusterId.replace('_', ' ')}`);
+    }
+
+    if (tagFilters.length > 0) {
+      if (tagFilters.length === 1) {
+        parts.push(`with tag "${tagFilters[0]}"`);
+      } else {
+        parts.push(`with ${tagFilters.length} tags`);
+      }
     }
 
     if (selectedAgent) {
       const selected = agents.find((a) => a.id === selectedAgent);
       const name = selected?.id_short || selectedAgent.substring(0, 12);
       parts.push(`from agent ${name}`);
-    } else if (!clusterId) {
+    } else if (!clusterId && tagFilters.length === 0 && !sessionFilter) {
       parts.push('from all agents in this agent workflow');
     }
 
     return parts.join(' ');
-  }, [totalCount, selectedAgent, agents, clusterId]);
+  }, [totalCount, selectedAgent, agents, clusterId, tagFilters, sessionFilter]);
 
   if (loading) {
     return (
@@ -263,12 +337,60 @@ export const Sessions: FC = () => {
       />
 
       <FilterSection>
-        {/* Agent filter */}
-        <SystemPromptFilter
-          systemPrompts={agentOptions}
-          selectedId={selectedAgent}
-          onSelect={handleAgentSelect}
-        />
+        {/* Main filter card with session, prompt, and tag filters */}
+        <FilterCard>
+          {/* Session filter row - only show if session options exist */}
+          {sessionOptions.length > 0 && (
+            <FilterRow>
+              <FilterLabel>
+                <Hash />
+                Session
+              </FilterLabel>
+              <FilterContent>
+                <SessionFilter
+                  value={sessionFilter}
+                  onChange={handleSessionSelect}
+                  options={sessionOptions}
+                />
+              </FilterContent>
+            </FilterRow>
+          )}
+
+          {/* Prompt filter row - only show if multiple agents */}
+          {agentOptions.length > 1 && (
+            <FilterRow>
+              <FilterLabel>
+                <Filter />
+                Prompt
+              </FilterLabel>
+              <FilterContent>
+                <ToggleGroup
+                  options={[
+                    { id: 'ALL', label: `All (${agentOptions.reduce((sum, a) => sum + a.sessionCount, 0)})`, active: selectedAgent === null },
+                    ...agentOptions.map(a => ({ id: a.id, label: `${a.id_short} (${a.sessionCount})`, active: selectedAgent === a.id })),
+                  ]}
+                  onChange={(id) => handleAgentSelect(id === 'ALL' ? null : id)}
+                />
+              </FilterContent>
+            </FilterRow>
+          )}
+
+          {/* Tag filter row */}
+          <FilterRow>
+            <FilterLabel>
+              <Tag />
+              Tags
+            </FilterLabel>
+            <FilterContent>
+              <TagFilter
+                value={tagFilters}
+                onChange={handleTagFilterChange}
+                suggestions={filteredTagSuggestions}
+                placeholder="Filter by tag..."
+              />
+            </FilterContent>
+          </FilterRow>
+        </FilterCard>
 
         {/* Cluster filter - only show when agent is selected and has clusters */}
         {selectedAgent && clusterOptions.length > 0 && (

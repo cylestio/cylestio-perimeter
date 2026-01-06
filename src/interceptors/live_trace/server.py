@@ -151,16 +151,19 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
+        tags: Optional[str] = None,
         limit: int = 10,
         offset: int = 0,
     ):
-        """Get sessions with filtering by agent_workflow_id, agent_id, status, and/or cluster_id.
+        """Get sessions with filtering by agent_workflow_id, agent_id, status, cluster_id, and/or tags.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
+            tags: Comma-separated list of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
             limit: Maximum number of sessions to return (default 10).
             offset: Number of sessions to skip for pagination (default 0).
 
@@ -168,18 +171,23 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             JSON response with sessions list and metadata.
         """
         try:
+            # Parse comma-separated tags into list
+            tags_list = [t.strip() for t in tags.split(",")] if tags else None
+
             # Get total count for pagination (with same filters, but no limit/offset)
             total_count = insights.store.count_sessions_filtered(
                 agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
                 cluster_id=cluster_id,
+                tags=tags_list,
             )
             sessions = insights.store.get_sessions_filtered(
                 agent_workflow_id=agent_workflow_id,
                 agent_id=agent_id,
                 status=status,
                 cluster_id=cluster_id,
+                tags=tags_list,
                 limit=limit,
                 offset=offset,
             )
@@ -191,12 +199,36 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     "agent_id": agent_id,
                     "status": status,
                     "cluster_id": cluster_id,
+                    "tags": tags,
                     "limit": limit,
                     "offset": offset,
                 },
             })
         except Exception as e:
             logger.error(f"Error getting filtered sessions: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
+    @app.get("/api/sessions/tags")
+    async def api_sessions_tags(
+        agent_workflow_id: Optional[str] = None,
+    ):
+        """Get all unique tag keys and values from sessions.
+
+        Args:
+            agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
+
+        Returns:
+            List of tag suggestions with key and values array.
+        """
+        try:
+            tags = insights.store.get_session_tags(
+                agent_workflow_id=agent_workflow_id,
+            )
+            return JSONResponse({
+                "tags": tags,
+            })
+        except Exception as e:
+            logger.error(f"Error getting session tags: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
     @app.get("/api/agent/{agent_id}")

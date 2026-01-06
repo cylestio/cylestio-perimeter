@@ -29,7 +29,7 @@
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators |
 | `domain/workflows/` | WorkflowSelector |
 | `domain/analysis/` | AnalysisStatusItem, SecurityCheckItem |
-| `domain/sessions/` | SessionsTable, SystemPromptFilter |
+| `domain/sessions/` | SessionsTable, SystemPromptFilter, SessionTags, TagFilter |
 | `domain/metrics/` | StatCard, RiskScore, ComplianceGauge |
 | `domain/analytics/` | TokenUsageInsights, ModelUsageAnalytics, ToolUsageAnalytics |
 | `domain/charts/` | LineChart, BarChart, PieChart, DistributionBar |
@@ -1264,6 +1264,59 @@ interface SystemPromptFilterProps {
 - Returns `null` when there's 0 or 1 system prompt (no filtering needed)
 - Shows "All (N)" option plus one option per system prompt with session counts
 - Selecting "All" calls `onSelect(null)`
+
+### TagFilter
+
+Combobox-style filter for filtering sessions by tags. Supports multiple filters with autocomplete suggestions.
+
+```typescript
+interface TagSuggestion {
+  key: string;
+  values?: string[];  // Known values for this key
+}
+
+interface TagFilterProps {
+  value: string[];                 // Currently active filters (e.g., ["user:alice", "env:prod"])
+  onChange: (filters: string[]) => void;
+  suggestions?: TagSuggestion[];   // Available tag suggestions
+  placeholder?: string;            // Default: "Filter by tag..."
+  className?: string;
+}
+```
+
+**Features:**
+- Input field for typing `key:value` or just `key` filters
+- Dropdown shows tag key suggestions, then values when key is typed
+- Active filters displayed as removable chips
+- Full keyboard navigation (Arrow keys, Enter, Escape, Backspace)
+
+**Usage:**
+```tsx
+// With suggestions
+<TagFilter
+  value={filters}
+  onChange={setFilters}
+  suggestions={[
+    { key: 'user', values: ['alice@example.com', 'bob@example.com'] },
+    { key: 'env', values: ['production', 'staging'] },
+    { key: 'session' },  // No predefined values
+  ]}
+/>
+
+// Custom filter (typed by user)
+<TagFilter
+  value={['custom:value', 'debug']}
+  onChange={setFilters}
+  suggestions={[]}
+  placeholder="Type key:value..."
+/>
+```
+
+**Keyboard Navigation:**
+- `Arrow Down/Up` - Navigate suggestions
+- `Enter` - Add filter or select suggestion
+- `Escape` - Close dropdown
+- `Backspace` (empty input) - Remove last filter
 
 ---
 

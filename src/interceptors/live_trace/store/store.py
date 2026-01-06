@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     behavioral_signature TEXT,
     behavioral_features TEXT,
     cluster_id TEXT,
-    last_analysis_session_id TEXT
+    last_analysis_session_id TEXT,
+    tags_json TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_cluster_id ON sessions(cluster_id);
@@ -301,6 +302,11 @@ class SessionData:
         self.cluster_id = None  # Behavioral cluster ID (assigned after analysis)
         self.last_analysis_session_id = None  # ID of last analysis session that analyzed this session
 
+        # Session tags - key-value pairs for filtering and metadata
+        # Tags are accumulated over requests (new tags merged with existing)
+        # Special tag: "workflowId" populates agent_workflow_id
+        self.tags: Dict[str, str] = {}
+
     def add_event(self, event: BaseEvent):
         """Add an event to this session."""
         self.events.append(event)
@@ -340,6 +346,15 @@ class SessionData:
             self.tool_usage_details[tool_name] += 1
         elif event_name.endswith(".error"):
             self.errors += 1
+
+    def merge_tags(self, new_tags: Dict[str, str]) -> None:
+        """Merge new tags into existing tags.
+
+        Args:
+            new_tags: Dictionary of tag key-value pairs to merge
+        """
+        for key, value in new_tags.items():
+            self.tags[key] = value
 
     @property
     def avg_response_time_ms(self) -> float:
@@ -538,6 +553,16 @@ class TraceStore:
             self.db.commit()
             logger.info("Migration: Added cluster_id column to sessions table")
 
+        # Migration: add tags_json column to sessions if missing
+        cursor = self.db.execute("PRAGMA table_info(sessions)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if 'tags_json' not in columns:
+            self.db.execute(
+                "ALTER TABLE sessions ADD COLUMN tags_json TEXT"
+            )
+            self.db.commit()
+            logger.info("Migration: Added tags_json column to sessions table")
+
         # Migration: add new columns to findings table for Phase 1
         cursor = self.db.execute("PRAGMA table_info(findings)")
         columns = {row[1] for row in cursor.fetchall()}
@@ -679,6 +704,7 @@ class TraceStore:
             'behavioral_features': session.behavioral_features.model_dump_json() if session.behavioral_features else None,
             'cluster_id': session.cluster_id,
             'last_analysis_session_id': getattr(session, 'last_analysis_session_id', None),
+            'tags_json': json.dumps(session.tags) if session.tags else None,
         }
 
     def _deserialize_session(self, row: sqlite3.Row) -> SessionData:
@@ -709,6 +735,9 @@ class TraceStore:
         session.cluster_id = row['cluster_id'] if 'cluster_id' in row.keys() else None
         # Handle last_analysis_session_id (may not exist in older databases before migration)
         session.last_analysis_session_id = row['last_analysis_session_id'] if 'last_analysis_session_id' in row.keys() else None
+        # Handle tags_json (may not exist in older databases before migration)
+        if 'tags_json' in row.keys() and row['tags_json']:
+            session.tags = json.loads(row['tags_json'])
         return session
 
     def _serialize_agent(self, agent: AgentData) -> Dict[str, Any]:
@@ -772,7 +801,8 @@ class TraceStore:
                 :total_events, :message_count, :tool_uses, :errors,
                 :total_tokens, :total_response_time_ms, :response_count,
                 :tool_usage_details, :available_tools, :events_json,
-                :behavioral_signature, :behavioral_features, :cluster_id, :last_analysis_session_id
+                :behavioral_signature, :behavioral_features, :cluster_id, :last_analysis_session_id,
+                :tags_json
             )
         """, data)
         self.db.commit()
@@ -891,6 +921,41 @@ class TraceStore:
             if self.total_events % 100 == 0:
                 self._cleanup_old_data()
 
+    def update_session_tags(
+        self,
+        session_id: str,
+        tags: Dict[str, str],
+        agent_id: Optional[str] = None
+    ) -> bool:
+        """Update tags for a session, merging with existing tags.
+
+        Args:
+            session_id: Session ID to update
+            tags: Dictionary of tag key-value pairs to merge
+            agent_id: Optional agent ID (used if session doesn't exist yet)
+
+        Returns:
+            True if session was updated, False if session not found and couldn't create
+        """
+        if not tags:
+            return False
+
+        with self._lock:
+            session = self.get_session(session_id)
+            if not session:
+                # Create session if agent_id is provided
+                if agent_id:
+                    session = SessionData(session_id, agent_id)
+                else:
+                    return False
+
+            # Merge tags into session
+            session.merge_tags(tags)
+
+            # Save session
+            self._save_session(session)
+            return True
+
     def _cleanup_old_data(self):
         """Remove old INCOMPLETE sessions only from SQLite.
 
@@ -988,6 +1053,7 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Tuple[str, List[Any]]:
         """Build WHERE clause for session filtering.
 
@@ -996,6 +1062,8 @@ class TraceStore:
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
+            tags: List of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
 
         Returns:
             Tuple of (where_clause, params) - where_clause starts with " WHERE 1=1"
@@ -1027,6 +1095,22 @@ class TraceStore:
             where_clause += " AND cluster_id = ?"
             params.append(cluster_id)
 
+        if tags is not None:
+            # Process each tag - all must match (AND logic)
+            for tag in tags:
+                # Parse tag filter - can be "key:value" or just "key"
+                if ":" in tag:
+                    tag_key, tag_value = tag.split(":", 1)
+                    # Use JSON extraction to filter by tag key and value
+                    # SQLite JSON functions: json_extract for exact match
+                    where_clause += " AND json_extract(tags_json, ?) = ?"
+                    params.append(f"$.{tag_key}")
+                    params.append(tag_value)
+                else:
+                    # Filter by tag key existence (any value)
+                    where_clause += " AND json_extract(tags_json, ?) IS NOT NULL"
+                    params.append(f"$.{tag}")
+
         return where_clause, params
 
     def count_sessions_filtered(
@@ -1035,6 +1119,7 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> int:
         """Count sessions with optional filtering.
 
@@ -1045,6 +1130,8 @@ class TraceStore:
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
+            tags: List of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
 
         Returns:
             Count of matching sessions.
@@ -1055,6 +1142,7 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
                 cluster_id=cluster_id,
+                tags=tags,
             )
             query = f"SELECT COUNT(*) FROM sessions{where_clause}"  # nosec B608 - parameterized
             cursor = self.db.execute(query, params)
@@ -1066,16 +1154,19 @@ class TraceStore:
         agent_id: Optional[str] = None,
         status: Optional[str] = None,
         cluster_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Get sessions with optional filtering by agent_workflow_id, agent_id, status, and cluster_id.
+        """Get sessions with optional filtering by agent_workflow_id, agent_id, status, cluster_id, and tags.
 
         Args:
             agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
             agent_id: Filter by agent ID.
             status: Filter by status - "ACTIVE", "INACTIVE", or "COMPLETED".
             cluster_id: Filter by behavioral cluster ID (e.g., "cluster_1").
+            tags: List of tags to filter by. Each tag can be "key:value" or just "key".
+                  All tags must match (AND logic).
             limit: Maximum number of sessions to return.
             offset: Number of sessions to skip (for pagination).
 
@@ -1088,6 +1179,7 @@ class TraceStore:
                 agent_id=agent_id,
                 status=status,
                 cluster_id=cluster_id,
+                tags=tags,
             )
             query = f"SELECT * FROM sessions{where_clause} ORDER BY last_activity DESC LIMIT ? OFFSET ?"  # nosec B608 - parameterized
             params.append(limit)
@@ -1133,6 +1225,14 @@ class TraceStore:
                 errors = row['errors'] or 0
                 error_rate = (errors / message_count * 100) if message_count > 0 else 0.0
 
+                # Parse tags from JSON
+                tags = {}
+                if 'tags_json' in row.keys() and row['tags_json']:
+                    try:
+                        tags = json.loads(row['tags_json'])
+                    except json.JSONDecodeError:
+                        pass
+
                 sessions.append({
                     "id": row['session_id'],
                     "id_short": row['session_id'][:12],
@@ -1152,9 +1252,61 @@ class TraceStore:
                     "errors": errors,
                     "total_tokens": row['total_tokens'] or 0,
                     "error_rate": round(error_rate, 1),
+                    "tags": tags,
                 })
 
             return sessions
+
+    def get_session_tags(
+        self,
+        agent_workflow_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get all unique tag keys and values with counts from sessions for a workflow.
+
+        Uses SQLite's json_each() for efficient SQL-level aggregation.
+
+        Args:
+            agent_workflow_id: Filter by agent workflow ID. Use "unassigned" for sessions without agent workflow.
+
+        Returns:
+            List of dicts with 'key' and 'values' (list of {value, count} dicts).
+        """
+        with self._lock:
+            # Build WHERE clause
+            where_parts = ["tags_json IS NOT NULL", "tags_json != '{}'"]
+            params: List[Any] = []
+
+            if agent_workflow_id is not None:
+                if agent_workflow_id == "unassigned":
+                    where_parts.append("agent_workflow_id IS NULL")
+                else:
+                    where_parts.append("agent_workflow_id = ?")
+                    params.append(agent_workflow_id)
+
+            where_clause = " WHERE " + " AND ".join(where_parts)
+
+            # Use json_each() for SQL-level aggregation - no Python JSON parsing loops
+            query = f"""
+                SELECT json_each.key, json_each.value, COUNT(*) as count
+                FROM sessions, json_each(sessions.tags_json)
+                {where_clause}
+                GROUP BY json_each.key, json_each.value
+                ORDER BY json_each.key, count DESC
+            """  # nosec B608 - parameterized
+            cursor = self.db.execute(query, params)
+
+            # Group results by key (single pass through aggregated results)
+            tag_data: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+            for row in cursor.fetchall():
+                tag_data[row["key"]].append({
+                    "value": row["value"],
+                    "count": row["count"],
+                })
+
+            return [
+                {"key": key, "values": values}
+                for key, values in sorted(tag_data.items())
+            ]
 
     def get_all_agents(self, agent_workflow_id: Optional[str] = None) -> List[AgentData]:
         """Get all agents from SQLite, optionally filtered by agent workflow.

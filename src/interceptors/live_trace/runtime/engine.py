@@ -455,6 +455,7 @@ class AnalysisEngine:
             "session": {
                 "id": session_id,
                 "agent_id": session.agent_id,
+                "agent_workflow_id": session.agent_workflow_id,
                 "created_at": session.created_at.isoformat(),
                 "last_activity": session.last_activity.isoformat(),
                 "duration_minutes": session.duration_minutes,
@@ -471,7 +472,8 @@ class AnalysisEngine:
                 "error_rate": session.error_rate,
                 "tool_usage_details": dict(session.tool_usage_details),
                 "available_tools": list(session.available_tools),
-                "system_prompt": self._extract_system_prompt(session.events)
+                "system_prompt": self._extract_system_prompt(session.events),
+                "tags": session.tags,
             },
             "events": events,
             "timeline": self._create_session_timeline(events),

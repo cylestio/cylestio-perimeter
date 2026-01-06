@@ -155,6 +155,7 @@ export const SessionDetail: FC = () => {
           <SessionSidebarInfo
           sessionId={session.id}
           agentId={session.agent_id}
+          agentWorkflowId={agentWorkflowId}
           isActive={session.is_active}
           totalTokens={session.total_tokens}
           messageCount={session.message_count}
@@ -168,6 +169,7 @@ export const SessionDetail: FC = () => {
           availableTools={session.available_tools}
           toolUsageDetails={session.tool_usage_details}
           modelPricing={modelPricing}
+          tags={session.tags}
         />
 
         <SessionMain>
