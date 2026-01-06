@@ -1462,6 +1462,24 @@ class TestComplianceReportMethods:
         assert report['business_impact']['overall_risk'] == 'NONE'
         assert 'No critical security risks' in report['business_impact']['executive_bullets'][0]
 
+    def test_owasp_na_entries_have_names(self, store):
+        """N/A OWASP entries should include canonical control names."""
+        report = store.generate_compliance_report("report_workflow")
+
+        # Check N/A entries have name field with canonical OWASP names
+        assert report['owasp_llm_coverage']['LLM03']['name'] == "Training Data Poisoning"
+        assert report['owasp_llm_coverage']['LLM04']['name'] == "Model Denial of Service"
+        assert report['owasp_llm_coverage']['LLM10']['name'] == "Model Theft"
+
+    def test_report_includes_advisory_disclaimer(self, store):
+        """Report should include advisory disclaimer fields."""
+        report = store.generate_compliance_report("report_workflow")
+
+        assert 'is_advisory' in report['executive_summary']
+        assert report['executive_summary']['is_advisory'] is True
+        assert 'advisory_notice' in report['executive_summary']
+        assert 'advisory' in report['executive_summary']['advisory_notice'].lower()
+
 
 class TestGetAgentSystemPrompt:
     """Tests for get_agent_system_prompt store method."""

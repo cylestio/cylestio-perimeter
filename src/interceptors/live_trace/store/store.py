@@ -3983,14 +3983,14 @@ class TraceStore:
             "owasp_llm_coverage": {
                 "LLM01": self._owasp_status("LLM01", by_owasp.get("LLM01", [])),
                 "LLM02": self._owasp_status("LLM02", by_owasp.get("LLM02", [])),
-                "LLM03": {"status": "N/A", "message": "Training data out of scope", "findings": []},
-                "LLM04": {"status": "N/A", "message": "Model DoS out of scope", "findings": []},
+                "LLM03": {"status": "N/A", "name": "Training Data Poisoning", "message": "Not evaluated (out of scope)", "findings": []},
+                "LLM04": {"status": "N/A", "name": "Model Denial of Service", "message": "Not evaluated (out of scope)", "findings": []},
                 "LLM05": self._owasp_status("LLM05", by_owasp.get("LLM05", [])),
                 "LLM06": self._owasp_status("LLM06", by_owasp.get("LLM06", [])),
                 "LLM07": self._owasp_status("LLM07", by_owasp.get("LLM07", [])),
                 "LLM08": self._owasp_status("LLM08", by_owasp.get("LLM08", [])),
                 "LLM09": self._owasp_status("LLM09", by_owasp.get("LLM09", [])),
-                "LLM10": {"status": "N/A", "message": "Model theft out of scope", "findings": []},
+                "LLM10": {"status": "N/A", "name": "Model Theft", "message": "Not evaluated (out of scope)", "findings": []},
             },
 
             "soc2_compliance": {
