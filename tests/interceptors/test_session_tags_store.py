@@ -206,7 +206,7 @@ class TestSessionsFilteringByTag:
         self._create_session_with_tags("session-3", "agent-1", {"user": "alice"})
 
         # Filter by user:alice
-        sessions = self.store.get_sessions_filtered(tag="user:alice")
+        sessions = self.store.get_sessions_filtered(tags=["user:alice"])
 
         assert len(sessions) == 2
         session_ids = {s["id"] for s in sessions}
@@ -221,7 +221,7 @@ class TestSessionsFilteringByTag:
         self._create_session_with_tags("session-3", "agent-1", {"user": "bob", "env": "staging"})
 
         # Filter by env key (any value)
-        sessions = self.store.get_sessions_filtered(tag="env")
+        sessions = self.store.get_sessions_filtered(tags=["env"])
 
         assert len(sessions) == 2
         session_ids = {s["id"] for s in sessions}
@@ -234,7 +234,7 @@ class TestSessionsFilteringByTag:
         self._create_session_with_tags("session-1", "agent-1", {"user": "alice"})
         self._create_session_with_tags("session-2", "agent-1", {"env": "prod"})
 
-        sessions = self.store.get_sessions_filtered(tag="team:backend")
+        sessions = self.store.get_sessions_filtered(tags=["team:backend"])
 
         assert len(sessions) == 0
 
@@ -243,7 +243,7 @@ class TestSessionsFilteringByTag:
         self._create_session_with_tags("session-1", "agent-1", {"user": "alice"})
         self._create_session_with_tags("session-2", "agent-1", {})  # No tags
 
-        sessions = self.store.get_sessions_filtered(tag="user")
+        sessions = self.store.get_sessions_filtered(tags=["user"])
 
         assert len(sessions) == 1
         assert sessions[0]["id"] == "session-1"
@@ -256,7 +256,7 @@ class TestSessionsFilteringByTag:
 
         # Filter by user:alice AND agent_id=agent-1
         sessions = self.store.get_sessions_filtered(
-            tag="user:alice",
+            tags=["user:alice"],
             agent_id="agent-1"
         )
 
@@ -269,7 +269,7 @@ class TestSessionsFilteringByTag:
         self._create_session_with_tags("session-2", "agent-1", {"user": "bob"})
         self._create_session_with_tags("session-3", "agent-1", {"user": "alice"})
 
-        count = self.store.count_sessions_filtered(tag="user:alice")
+        count = self.store.count_sessions_filtered(tags=["user:alice"])
 
         assert count == 2
 
@@ -287,7 +287,7 @@ class TestSessionsFilteringByTag:
         self._create_session_with_tags("session-1", "agent-1", {"email": "alice@test.com"})
         self._create_session_with_tags("session-2", "agent-1", {"email": "bob@test.com"})
 
-        sessions = self.store.get_sessions_filtered(tag="email:alice@test.com")
+        sessions = self.store.get_sessions_filtered(tags=["email:alice@test.com"])
 
         assert len(sessions) == 1
         assert sessions[0]["id"] == "session-1"

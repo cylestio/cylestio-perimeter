@@ -1,4 +1,5 @@
 import { useState, useMemo, type FC } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Server,
   Wrench,
@@ -70,6 +71,8 @@ export interface SessionSidebarInfoProps {
   sessionId?: string;
   /** Agent/System Prompt ID */
   agentId?: string;
+  /** Agent workflow ID (for navigation links) */
+  agentWorkflowId?: string;
   /** Whether the session is currently active */
   isActive?: boolean;
   /** Total tokens used in the session */
@@ -255,6 +258,7 @@ const INITIAL_TOOLS_SHOWN = 3;
 export const SessionSidebarInfo: FC<SessionSidebarInfoProps> = ({
   sessionId,
   // agentId - reserved for future use (agent details link)
+  agentWorkflowId,
   isActive = false,
   totalTokens,
   messageCount,
@@ -271,14 +275,30 @@ export const SessionSidebarInfo: FC<SessionSidebarInfoProps> = ({
   tags,
   className,
 }) => {
+  const navigate = useNavigate();
   const [showAllTools, setShowAllTools] = useState(false);
+
+  // Extract session tag and filter it from other tags
+  const sessionTag = tags?.session;
+  const filteredTags = useMemo(() => {
+    if (!tags) return undefined;
+    const { session: _, ...rest } = tags;
+    return Object.keys(rest).length > 0 ? rest : undefined;
+  }, [tags]);
+
+  // Handle session tag click - navigate to sessions page with filter
+  const handleSessionTagClick = () => {
+    if (sessionTag && agentWorkflowId) {
+      navigate(`/agent-workflow/${agentWorkflowId}/sessions?session=${encodeURIComponent(sessionTag)}`);
+    }
+  };
 
   // Compute token breakdown from events
   const tokenBreakdown = useMemo(
     () => computeTokenBreakdown(events),
     [events]
   );
-  
+
   // Compute cost using pricing from /api/models
   const costEstimate = useMemo(
     () => computeCost(modelPricing, tokenBreakdown.inputTokens, tokenBreakdown.outputTokens),
@@ -320,6 +340,22 @@ export const SessionSidebarInfo: FC<SessionSidebarInfoProps> = ({
       value: sessionId ? truncateId(sessionId) : '—',
       mono: true,
     },
+    ...(sessionTag ? [{
+      key: 'Session',
+      value: (
+        <span
+          onClick={handleSessionTagClick}
+          style={{
+            color: 'var(--color-cyan)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--text-sm)',
+            cursor: 'pointer',
+          }}
+        >
+          {sessionTag}
+        </span>
+      ),
+    }] : []),
     {
       key: 'Model',
       value: model || 'Unknown',
@@ -372,13 +408,13 @@ export const SessionSidebarInfo: FC<SessionSidebarInfoProps> = ({
       </Section>
 
       {/* ====== SESSION TAGS ====== */}
-      {tags && Object.keys(tags).length > 0 && (
+      {filteredTags && Object.keys(filteredTags).length > 0 && (
         <Section>
           <Section.Header>
             <Section.Title icon={<Tag size={14} />}>Tags</Section.Title>
           </Section.Header>
           <Section.Content>
-            <SessionTags tags={tags} maxTags={10} />
+            <SessionTags tags={filteredTags} maxTags={10} />
           </Section.Content>
         </Section>
       )}

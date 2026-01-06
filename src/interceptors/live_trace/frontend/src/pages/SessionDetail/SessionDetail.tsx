@@ -155,6 +155,7 @@ export const SessionDetail: FC = () => {
           <SessionSidebarInfo
           sessionId={session.id}
           agentId={session.agent_id}
+          agentWorkflowId={agentWorkflowId}
           isActive={session.is_active}
           totalTokens={session.total_tokens}
           messageCount={session.message_count}
