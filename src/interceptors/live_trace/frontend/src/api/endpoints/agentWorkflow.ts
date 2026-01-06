@@ -434,6 +434,9 @@ export interface ComplianceReportResponse {
     risk_score: number;
     risk_breakdown?: RiskBreakdown;
     decision: 'GO' | 'NO-GO';
+    decision_label?: string;
+    is_advisory?: boolean;
+    advisory_notice?: string;
     decision_message: string;
     total_findings: number;
     open_findings: number;

@@ -698,7 +698,9 @@ const generateMarkdownReport = (report: ComplianceReportResponse, workflowId: st
 
 ---
 
-## ${decisionIcon} Decision: ${decision}
+## ${decisionIcon} ${report.executive_summary.decision_label || decision} (Advisory)
+
+> **Note:** ${report.executive_summary.advisory_notice || 'Advisory only - does not block deployments. This is a pre-production readiness assessment.'}
 
 ${report.executive_summary.decision_message}
 
@@ -857,6 +859,8 @@ const generateHTMLReport = (report: ComplianceReportResponse, workflowId: string
     .status.fail { background: rgba(239,68,68,0.15); color: var(--red); }
     .status.warning { background: rgba(245,158,11,0.15); color: var(--orange); }
     .status.n-a { background: rgba(107,114,128,0.15); color: var(--white50); }
+    .advisory-badge { font-size: 0.7rem; font-weight: 400; opacity: 0.7; margin-left: 0.5rem; }
+    .advisory-notice { font-size: 0.85rem; color: var(--white50); margin-top: 0.5rem; font-style: italic; }
     .blocking { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
     .footer { text-align: center; padding-top: 2rem; border-top: 1px solid var(--border); margin-top: 2rem; color: var(--white50); font-size: 0.8rem; }
     @media print { body { background: white; color: black; } .metric { border: 1px solid #ddd; } }
@@ -869,8 +873,10 @@ const generateHTMLReport = (report: ComplianceReportResponse, workflowId: string
       <h1>${workflowId}</h1>
       <p class="subtitle">Security Assessment Report • ${date}</p>
       <div class="decision ${report.executive_summary.is_blocked ? 'blocked' : 'open'}">
-        ${report.executive_summary.decision}: ${report.executive_summary.is_blocked ? 'Do Not Deploy' : 'Cleared for Production'}
+        ${report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Not Production-Ready' : 'Production-Ready')}
+        <span class="advisory-badge">(Advisory)</span>
       </div>
+      <p class="advisory-notice">${report.executive_summary.advisory_notice || 'Advisory only - does not block deployments.'}</p>
     </header>
 
     <div class="metrics">
@@ -1179,8 +1185,11 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                   </DecisionIcon>
                   <DecisionContent>
                     <DecisionTitle $isBlocked={report.executive_summary.is_blocked}>
-                      {report.executive_summary.decision}: {report.executive_summary.is_blocked ? 'Do Not Deploy' : 'Cleared'}
+                      {report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Not Production-Ready' : 'Production-Ready')} (Advisory)
                     </DecisionTitle>
+                    <DecisionText style={{ fontStyle: 'italic', opacity: 0.8, marginBottom: '8px' }}>
+                      {report.executive_summary.advisory_notice || 'Advisory only - does not block deployments.'}
+                    </DecisionText>
                     <DecisionText>{report.executive_summary.decision_message}</DecisionText>
                   </DecisionContent>
                 </DecisionBox>
