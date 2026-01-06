@@ -71,10 +71,11 @@ class LLMMiddleware(BaseHTTPMiddleware):
         """
         # Parse tool information from response
         tool_uses_request = self.tool_parser.parse_tool_requests(response_body, request_data.provider)
-        
+
         # Extract events from response using provider
+        # Note: We extract events even for error responses (4xx/5xx) to track LLMCallErrorEvent
         response_events = []
-        if request_data.session_id and response_body:
+        if request_data.session_id and (response_body or response_obj.status_code >= 400):
             try:
                 request_metadata = {
                     'cylestio_trace_id': getattr(request_data.request.state, 'cylestio_trace_id', None),
@@ -82,13 +83,14 @@ class LLMMiddleware(BaseHTTPMiddleware):
                     'model': getattr(request_data.request.state, 'model', request_data.model or 'unknown'),
                     'agent_workflow_id': getattr(request_data.request.state, 'agent_workflow_id', None)
                 }
-                
+
                 response_events = self.provider.extract_response_events(
                     response_body=response_body,
                     session_id=request_data.session_id,
                     duration_ms=duration_ms,
                     tool_uses=tool_uses_request,
-                    request_metadata=request_metadata
+                    request_metadata=request_metadata,
+                    status_code=response_obj.status_code
                 )
             except Exception as e:
                 logger.error(f"Error extracting response events: {e}", exc_info=True)

@@ -79,13 +79,15 @@ class AnthropicProvider(BaseProvider):
     
     def parse_streaming_response(self, body_bytes: bytes) -> Optional[Dict[str, Any]]:
         """Parse Anthropic SSE streaming response into structured data.
-        
+
         Extracts the message from message_start event, aggregates text from content_block_delta,
         tool_use blocks from content_block_start, and merges usage from message_delta event.
-        
+
+        Also detects error responses in streaming (can be 200 OK with error body).
+
         Args:
             body_bytes: Raw SSE response bytes
-            
+
         Returns:
             Parsed response dict matching Anthropic's non-streaming format, or None if parsing fails
         """
@@ -93,15 +95,30 @@ class AnthropicProvider(BaseProvider):
             import json
             text = body_bytes.decode('utf-8')
             lines = text.split('\n')
-            
+
+            # Check for error in early data events (streaming can return 200 with error)
+            for line in lines:
+                line = line.strip()
+                if line.startswith('data:'):
+                    data_str = line[5:].strip()
+                    try:
+                        parsed = json.loads(data_str)
+                        # Return error structure immediately if found
+                        if parsed.get("type") == "error":
+                            return parsed
+                    except json.JSONDecodeError:
+                        pass
+                    # Only check first few data lines for early error
+                    break
+
             # Parse all SSE events
             message_data = None
             usage_data = None
             content_blocks = {}  # Track content blocks by index
-            
+
             current_event = None
             current_data = []
-            
+
             def process_event(event_type: str, event_data: str):
                 """Process a single SSE event."""
                 nonlocal message_data, usage_data
@@ -416,28 +433,165 @@ class AnthropicProvider(BaseProvider):
         
         return events, new_last_processed_index
     
-    def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
-                              session_id: str, duration_ms: float, 
-                              tool_uses: List[Dict[str, Any]], 
-                              request_metadata: Dict[str, Any]) -> List[Any]:
-        """Extract and create events from response data using original interceptor logic."""
+    def is_error_response(self, status_code: int, response_body: Optional[Dict[str, Any]]) -> bool:
+        """Check if response indicates an error.
+
+        Anthropic errors are indicated by:
+        - HTTP 4xx/5xx status codes (including 529 for overloaded)
+        - Response body with type="error" (can occur with 200 OK in streaming)
+
+        Args:
+            status_code: HTTP status code
+            response_body: Parsed response body (may be None)
+
+        Returns:
+            True if response is an error
+        """
+        if status_code >= 400:
+            return True
+        # Special case: streaming 200 OK with error in body
+        if response_body and response_body.get("type") == "error":
+            return True
+        return False
+
+    def extract_error_info(self, status_code: int, response_body: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract error details from Anthropic error response.
+
+        Anthropic error format:
+        {
+            "type": "error",
+            "error": {
+                "type": "overloaded_error",
+                "message": "Overloaded"
+            }
+        }
+
+        Handles unexpected formats gracefully with fallback.
+
+        Args:
+            status_code: HTTP status code
+            response_body: Parsed response body (may be None)
+
+        Returns:
+            Dict with error_type, error_message, status_code
+        """
+        error_type = None
+        error_message = f"HTTP {status_code} error"
+
+        if response_body:
+            # Check for standard Anthropic error format
+            if response_body.get("type") == "error":
+                error_obj = response_body.get("error", {})
+                if isinstance(error_obj, dict):
+                    error_type = error_obj.get("type")
+                    error_message = error_obj.get("message", error_message)
+                elif isinstance(error_obj, str):
+                    # Handle unexpected string error format
+                    error_message = error_obj
+            # Check for alternative error formats
+            elif "error" in response_body:
+                error_obj = response_body.get("error", {})
+                if isinstance(error_obj, dict):
+                    error_type = error_obj.get("type")
+                    error_message = error_obj.get("message", error_message)
+                elif isinstance(error_obj, str):
+                    error_message = error_obj
+
+        # Fallback for completely unexpected formats
+        if not error_type:
+            error_type = self._infer_error_type_from_status(status_code)
+
+        return {
+            "status_code": status_code,
+            "error_type": error_type,
+            "error_message": error_message,
+        }
+
+    def _infer_error_type_from_status(self, status_code: int) -> str:
+        """Infer error type from HTTP status code when not provided in body.
+
+        Args:
+            status_code: HTTP status code
+
+        Returns:
+            Error type string
+        """
+        status_map = {
+            400: "invalid_request_error",
+            401: "authentication_error",
+            403: "permission_denied",
+            404: "not_found",
+            429: "rate_limit_error",
+            500: "api_error",
+            529: "overloaded_error",
+        }
+        return status_map.get(status_code, f"http_{status_code}")
+
+    def extract_response_events(self, response_body: Optional[Dict[str, Any]],
+                              session_id: str, duration_ms: float,
+                              tool_uses: List[Dict[str, Any]],
+                              request_metadata: Dict[str, Any],
+                              status_code: int = 200) -> List[Any]:
+        """Extract and create events from response data.
+
+        Creates LLMCallErrorEvent for error responses, LLMCallFinishEvent for success.
+
+        Args:
+            response_body: Response body
+            session_id: Session identifier
+            duration_ms: Response duration
+            tool_uses: Any tool uses from response
+            request_metadata: Metadata from request processing
+            status_code: HTTP status code (for error detection)
+
+        Returns:
+            List of event objects to be sent
+        """
         events = []
-        
+
         if not session_id:
             return events
-        
+
         # Get trace ID from request metadata
         trace_id = request_metadata.get("cylestio_trace_id")
-        
+
         if not trace_id:
             return events
-        
+
         # Get agent_id, model, and agent_workflow_id from metadata
         agent_id = request_metadata.get("agent_id", "unknown")
         model = request_metadata.get("model", "unknown")
         agent_workflow_id = request_metadata.get("agent_workflow_id")
-        
-        # Extract token usage and response content
+
+        # Check for error response first
+        if self.is_error_response(status_code, response_body):
+            error_info = self.extract_error_info(status_code, response_body)
+
+            span_id = self.get_session_span_id(session_id)
+            if not span_id:
+                span_id = self.generate_new_span_id()
+
+            error_event = LLMCallErrorEvent.create(
+                trace_id=trace_id,
+                span_id=span_id,
+                agent_id=agent_id,
+                vendor=self.name,
+                model=model,
+                error_message=error_info["error_message"],
+                error_type=error_info["error_type"],
+                session_id=session_id
+            )
+
+            # Add additional context
+            error_event.attributes["http.status_code"] = status_code
+            error_event.attributes["llm.response.duration_ms"] = duration_ms
+            if agent_workflow_id:
+                error_event.attributes["agent_workflow.id"] = agent_workflow_id
+
+            events.append(error_event)
+            return events  # Don't create finish event for errors
+
+        # Extract token usage and response content for successful responses
         input_tokens, output_tokens, total_tokens = self._extract_usage_tokens(response_body)
         response_content = self._extract_response_content(response_body)
         

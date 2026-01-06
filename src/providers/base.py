@@ -312,19 +312,79 @@ class BaseProvider(ABC):
             return external_agent_id
         return self._get_agent_id(body)
     
-    def extract_response_events(self, response_body: Optional[Dict[str, Any]], 
-                              session_id: str, duration_ms: float, 
-                              tool_uses: List[Dict[str, Any]], 
-                              request_metadata: Dict[str, Any]) -> List[Any]:
+    def is_error_response(self, status_code: int, response_body: Optional[Dict[str, Any]]) -> bool:
+        """Check if response indicates an error.
+
+        Default implementation checks for HTTP 4xx/5xx status codes.
+        Subclasses should override for provider-specific error detection.
+
+        Args:
+            status_code: HTTP status code
+            response_body: Parsed response body (may be None)
+
+        Returns:
+            True if response is an error
+        """
+        return status_code >= 400
+
+    def extract_error_info(self, status_code: int, response_body: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract error details from error response.
+
+        Default implementation provides fallback for unknown error formats.
+        Subclasses should override for provider-specific error extraction.
+
+        Args:
+            status_code: HTTP status code
+            response_body: Parsed response body (may be None)
+
+        Returns:
+            Dict with error_type, error_message, status_code
+        """
+        return {
+            "status_code": status_code,
+            "error_type": f"http_{status_code}",
+            "error_message": f"HTTP {status_code} error",
+        }
+
+    def _infer_error_type_from_status(self, status_code: int) -> str:
+        """Infer error type from HTTP status code when not provided in body.
+
+        Base implementation provides common HTTP status mappings.
+        Subclasses can override for provider-specific mappings.
+
+        Args:
+            status_code: HTTP status code
+
+        Returns:
+            Error type string
+        """
+        status_map = {
+            400: "bad_request",
+            401: "authentication_error",
+            403: "permission_denied",
+            404: "not_found",
+            429: "rate_limit_error",
+            500: "server_error",
+            502: "bad_gateway",
+            503: "service_unavailable",
+        }
+        return status_map.get(status_code, f"http_{status_code}")
+
+    def extract_response_events(self, response_body: Optional[Dict[str, Any]],
+                              session_id: str, duration_ms: float,
+                              tool_uses: List[Dict[str, Any]],
+                              request_metadata: Dict[str, Any],
+                              status_code: int = 200) -> List[Any]:
         """Extract and create events from response data.
-        
+
         Args:
             response_body: Response body
             session_id: Session identifier
             duration_ms: Response duration
             tool_uses: Any tool uses from response
             request_metadata: Metadata from request processing
-            
+            status_code: HTTP status code (for error detection)
+
         Returns:
             List of event objects to be sent
         """
