@@ -121,7 +121,7 @@ export const WithAgentColumn: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByText('Agent')).toBeInTheDocument();
+    await expect(canvas.getByText('Prompt')).toBeInTheDocument();
     // Multiple sessions can have the same agent, so use getAllByText
     // Component renders full agent_id, not agent_id_short
     const agentCells = canvas.getAllByText('agent_xyz789');
