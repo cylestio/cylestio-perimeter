@@ -528,6 +528,25 @@ def handle_update_agent_info(args: Dict[str, Any], store: Any) -> Dict[str, Any]
 
 # ==================== Workflow Query Tools ====================
 
+@register_handler("list_workflows")
+def handle_list_workflows(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
+    """List all agent workflows with comprehensive stats."""
+    workflows = store.get_agent_workflows()
+
+    # Calculate summary stats
+    total_workflows = len([w for w in workflows if w["id"] is not None])
+    blocked_count = sum(1 for w in workflows if w.get("is_blocked", False))
+    total_findings_open = sum(w.get("findings_open", 0) for w in workflows)
+
+    return {
+        "workflows": workflows,
+        "total_count": total_workflows,
+        "blocked_count": blocked_count,
+        "total_findings_open": total_findings_open,
+        "message": f"Found {total_workflows} workflows ({blocked_count} blocked, {total_findings_open} open findings)",
+    }
+
+
 @register_handler("get_workflow_agents")
 def handle_get_workflow_agents(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     """List all agents in a workflow with system prompts and session info."""

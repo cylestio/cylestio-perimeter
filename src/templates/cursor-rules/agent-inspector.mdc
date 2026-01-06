@@ -23,7 +23,7 @@ Slash commands are installed in `.cursor/commands/`. They invoke Agent Inspector
 | `/agent-report` | Generate compliance report |
 | `/agent-status` | Check dynamic analysis status |
 
-## Available MCP Tools (17 total)
+## Available MCP Tools (18 total)
 
 ### Analysis Tools
 | Tool | Description |
@@ -44,6 +44,7 @@ Slash commands are installed in `.cursor/commands/`. They invoke Agent Inspector
 ### Agent Workflow Lifecycle Tools
 | Tool | Description |
 |------|-------------|
+| `list_workflows` | List all workflows with stats (agents, sessions, findings, gate status) |
 | `get_agent_workflow_state` | Check what analysis exists (static/dynamic/both) |
 | `get_tool_usage_summary` | Get tool usage patterns from dynamic sessions |
 | `get_agent_workflow_correlation` | Correlate static findings with dynamic runtime |
