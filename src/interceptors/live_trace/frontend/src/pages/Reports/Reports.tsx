@@ -873,7 +873,7 @@ const generateHTMLReport = (report: ComplianceReportResponse, workflowId: string
       <h1>${workflowId}</h1>
       <p class="subtitle">Security Assessment Report • ${date}</p>
       <div class="decision ${report.executive_summary.is_blocked ? 'blocked' : 'open'}">
-        ${report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Not Production-Ready' : 'Production-Ready')}
+        ${report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Attention Required' : 'Production Ready')}
         <span class="advisory-badge">(Advisory)</span>
       </div>
       <p class="advisory-notice">${report.executive_summary.advisory_notice || 'Advisory only - does not block deployments.'}</p>
@@ -1185,7 +1185,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                   </DecisionIcon>
                   <DecisionContent>
                     <DecisionTitle $isBlocked={report.executive_summary.is_blocked}>
-                      {report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Not Production-Ready' : 'Production-Ready')} (Advisory)
+                      {report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Attention Required' : 'Production Ready')} (Advisory)
                     </DecisionTitle>
                     <DecisionText style={{ fontStyle: 'italic', opacity: 0.8, marginBottom: '8px' }}>
                       {report.executive_summary.advisory_notice || 'Advisory only - does not block deployments.'}
@@ -1803,7 +1803,7 @@ export const Reports: FC<ReportsProps> = ({ className }) => {
                       </span>
                       <span>
                         <Badge variant={item.gate_status === 'BLOCKED' ? 'high' : 'success'} size="sm">
-                          {item.gate_status}
+                          {item.gate_status === 'BLOCKED' ? 'Attention Required' : 'Production Ready'}
                         </Badge>
                       </span>
                       <span>Risk: {item.risk_score}</span>

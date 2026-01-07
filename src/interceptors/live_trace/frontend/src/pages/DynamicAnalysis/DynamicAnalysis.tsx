@@ -108,9 +108,9 @@ const AgentStatusBadge = styled.div<{ $hasNew?: boolean }>`
   gap: ${({ theme }) => theme.spacing[1]};
   padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
   border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ theme, $hasNew }) => 
+  background: ${({ theme, $hasNew }) =>
     $hasNew ? theme.colors.yellow + '20' : theme.colors.surface3};
-  border: 1px solid ${({ theme, $hasNew }) => 
+  border: 1px solid ${({ theme, $hasNew }) =>
     $hasNew ? theme.colors.yellow + '40' : theme.colors.borderSubtle};
   font-size: ${({ theme }) => theme.typography.textXs};
 `;
@@ -158,13 +158,13 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   // Get dynamic analysis session progress
   const sessionsProgress = securityAnalysis?.dynamic?.sessions_progress;
   const isGatheringSessions = sessionsProgress &&
-    securityAnalysis?.dynamic?.status === 'active' &&
+    securityAnalysis?.dynamic?.status === 'running' &&
     analysisSessions.length === 0;
 
   // Fetch dynamic analysis status
   const fetchAnalysisStatus = useCallback(async () => {
     if (!agentWorkflowId) return;
-    
+
     try {
       const response = await fetch(`/api/workflow/${agentWorkflowId}/dynamic-analysis-status`);
       if (response.ok) {
@@ -214,17 +214,17 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   // Trigger on-demand analysis
   const handleTriggerAnalysis = useCallback(async (force: boolean = false) => {
     if (!agentWorkflowId || triggerLoading) return;
-    
+
     setTriggerLoading(true);
     try {
-      const url = force 
+      const url = force
         ? `/api/workflow/${agentWorkflowId}/trigger-dynamic-analysis?force=true`
         : `/api/workflow/${agentWorkflowId}/trigger-dynamic-analysis`;
-      
+
       const response = await fetch(url, {
         method: 'POST',
       });
-      
+
       if (response.ok) {
         // Refresh all data after triggering
         await Promise.all([
@@ -269,11 +269,11 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   useEffect(() => {
     // Poll every 3s when running, 10s otherwise (to detect new sessions)
     const interval = analysisStatus?.is_running ? 3000 : 10000;
-    
+
     const pollInterval = setInterval(() => {
       fetchAnalysisStatus();
     }, interval);
-    
+
     return () => clearInterval(pollInterval);
   }, [analysisStatus?.is_running, fetchAnalysisStatus]);
 
@@ -295,7 +295,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   }
 
   const inProgressCount = analysisSessions.filter((s) => s.status === 'IN_PROGRESS').length;
-  
+
   // Determine status variant
   const getStatusVariant = (): 'ready' | 'running' | 'upToDate' | 'noData' => {
     if (!analysisStatus) return 'noData';
@@ -304,9 +304,9 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     if (analysisStatus.last_analysis) return 'upToDate';
     return 'noData';
   };
-  
+
   const statusVariant = getStatusVariant();
-  
+
   // Format last analysis time
   const formatLastAnalysis = (timestamp: number | null): string => {
     if (!timestamp) return 'Never';
@@ -408,7 +408,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
                   </>
                 )}
               </StatusDescription>
-              
+
               {/* Per-agent status badges */}
               {analysisStatus?.agents_status && analysisStatus.agents_status.length > 0 && (
                 <AgentsStatusList>
@@ -425,7 +425,7 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
                 </AgentsStatusList>
               )}
             </StatusInfo>
-            
+
             <Button
               variant={statusVariant === 'ready' ? 'primary' : 'secondary'}
               size="md"

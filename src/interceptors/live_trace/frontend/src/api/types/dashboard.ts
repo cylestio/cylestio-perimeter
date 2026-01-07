@@ -70,7 +70,7 @@ export interface StageFindingsSummary {
   by_status: Record<string, number>;
 }
 
-export type AnalysisStageStatus = 'pending' | 'active' | 'completed';
+export type AnalysisStageStatus = 'pending' | 'running' | 'completed';
 
 // Sessions progress for dynamic analysis
 export interface SessionsProgress {

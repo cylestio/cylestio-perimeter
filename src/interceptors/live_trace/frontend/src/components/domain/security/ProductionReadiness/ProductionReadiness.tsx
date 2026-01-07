@@ -147,7 +147,7 @@ export const ProductionReadiness: FC<ProductionReadinessProps> = ({
     }
     const totalBlocking = staticAnalysis.criticalCount + dynamicAnalysis.criticalCount;
     return {
-      title: 'Not Ready',
+      title: 'Attention Required',
       subtitle: totalBlocking > 0 ? `${totalBlocking} blocking issues` : 'Analysis incomplete',
     };
   };

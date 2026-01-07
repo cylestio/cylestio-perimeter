@@ -52,7 +52,7 @@ export const Blocked: Story = {
 
 export const Unblocked: Story = {
   args: {
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
     recommendations: [
       createRecommendation('REC-001', 'FIXED', 'CRITICAL'),
       createRecommendation('REC-002', 'FIXED', 'HIGH'),
@@ -137,7 +137,7 @@ export const SingleIssue: Story = {
 
 export const AllDismissed: Story = {
   args: {
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
     recommendations: [
       createRecommendation('REC-001', 'DISMISSED', 'MEDIUM'),
       createRecommendation('REC-002', 'IGNORED', 'MEDIUM'),
@@ -150,7 +150,7 @@ export const AllDismissed: Story = {
 
 export const Empty: Story = {
   args: {
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
     recommendations: [],
     blockingCritical: 0,
     blockingHigh: 0,

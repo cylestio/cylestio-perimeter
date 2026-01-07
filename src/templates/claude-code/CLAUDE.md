@@ -35,7 +35,7 @@ Every AI agent is evaluated against these 7 security check categories:
 
 ### Gate Status
 - 🔒 **BLOCKED**: Any CRITICAL or HIGH issues remain open → can't ship
-- ✅ **UNBLOCKED**: All blocking issues resolved → ready to ship
+- ✅ **OPEN**: All blocking issues resolved → ready to ship
 
 ## Recommendation Lifecycle
 

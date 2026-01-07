@@ -3968,7 +3968,7 @@ class TraceStore:
                 "risk_score": risk_score,
                 "risk_breakdown": risk_breakdown,
                 "decision": "NO-GO" if gate_status["is_blocked"] else "GO",
-                "decision_label": "Not Production-Ready" if gate_status["is_blocked"] else "Production-Ready",
+                "decision_label": "Attention Required" if gate_status["is_blocked"] else "Production Ready",
                 "is_advisory": True,
                 "advisory_notice": "Advisory only - does not block deployments. This is a pre-production readiness assessment.",
                 "decision_message": self._get_decision_message(gate_status),

@@ -4,7 +4,6 @@ import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, Navigat
 import { ThemeProvider } from 'styled-components';
 
 import {
-  AttackSurfaceIcon,
   ConnectIcon,
   DevConnectionIcon,
   HomeIcon,
@@ -430,13 +429,13 @@ function AppLayout() {
                 to={`/agent-workflow/${urlAgentWorkflowId}/reports`}
                 collapsed={sidebarCollapsed}
               />
-              <NavItem
+              {/* <NavItem
                 icon={<AttackSurfaceIcon size={18} />}
                 label="Attack Surface"
                 active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/attack-surface`}
                 to={`/agent-workflow/${urlAgentWorkflowId}/attack-surface`}
                 collapsed={sidebarCollapsed}
-              />
+              /> */}
             </NavGroup>
           )}
         </Sidebar.Section>
