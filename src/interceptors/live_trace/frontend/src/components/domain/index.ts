@@ -15,3 +15,4 @@ export * from './agent-workflows';
 export * from './security';
 export * from './correlation';
 export * from './recommendations';
+export * from './reports';

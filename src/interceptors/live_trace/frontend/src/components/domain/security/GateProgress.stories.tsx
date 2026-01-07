@@ -24,7 +24,7 @@ export const AllPassed: Story = {
       { status: 'PASS' },
       { status: 'PASS' },
     ],
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
   },
 };
 
@@ -54,7 +54,7 @@ export const MixedWithInfo: Story = {
       { status: 'PASS' },
       { status: 'PASS' },
     ],
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
   },
 };
 

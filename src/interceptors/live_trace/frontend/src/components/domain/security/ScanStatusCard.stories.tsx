@@ -81,7 +81,7 @@ export const GateOpen: Story = {
       passed: 7,
       failed: 0,
       info: 0,
-      gate_status: 'UNBLOCKED',
+      gate_status: 'OPEN',
     },
     severityCounts: {
       critical: 0,
@@ -120,7 +120,7 @@ export const WithInfoOnly: Story = {
       passed: 5,
       failed: 0,
       info: 2,
-      gate_status: 'UNBLOCKED',
+      gate_status: 'OPEN',
     },
     severityCounts: {
       critical: 0,
@@ -160,7 +160,7 @@ export const MinimalScanData: Story = {
       passed: 5,
       failed: 0,
       info: 0,
-      gate_status: 'UNBLOCKED',
+      gate_status: 'OPEN',
     },
     checkStatuses: [
       { status: 'PASS' },

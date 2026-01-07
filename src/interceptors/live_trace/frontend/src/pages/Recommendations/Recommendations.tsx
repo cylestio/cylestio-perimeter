@@ -11,8 +11,8 @@ import {
 } from '@api/endpoints/agentWorkflow';
 import { fetchProductionReadiness } from '@api/endpoints/dashboard';
 import type { ProductionReadinessResponse } from '@api/types/dashboard';
-import type { 
-  Recommendation, 
+import type {
+  Recommendation,
   SecurityCheckCategory,
   FindingSeverity,
 } from '@api/types/findings';
@@ -52,7 +52,7 @@ const ChartsGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: ${({ theme }) => theme.spacing[4]};
-  
+
   @media (max-width: 1024px) {
     grid-template-columns: 1fr;
   }
@@ -101,7 +101,7 @@ const ActiveFilter = styled.span`
   background: ${({ theme }) => theme.colors.cyanSoft};
   border-radius: ${({ theme }) => theme.radii.sm};
   cursor: pointer;
-  
+
   &:hover {
     opacity: 0.8;
   }
@@ -282,15 +282,15 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
   }, [fetchData]);
 
   // Computed data
-  const isResolved = (status: string) => 
+  const isResolved = (status: string) =>
     ['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(status);
 
-  const pendingRecommendations = useMemo(() => 
+  const pendingRecommendations = useMemo(() =>
     recommendations.filter(r => !isResolved(r.status)),
     [recommendations]
   );
 
-  const resolvedRecommendations = useMemo(() => 
+  const resolvedRecommendations = useMemo(() =>
     recommendations.filter(r => isResolved(r.status)),
     [recommendations]
   );
@@ -353,7 +353,7 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
 
   const handleDismissConfirm = async (type: DismissType, reason: string) => {
     if (!dismissingRecId) return;
-    
+
     try {
       await dismissRecommendation(dismissingRecId, {
         reason,
@@ -518,7 +518,7 @@ export const Recommendations: FC<RecommendationsProps> = ({ className }) => {
                 {/* Summary Stats */}
                 <SummaryStatsBar
                   recommendations={recommendations}
-                  gateStatus={productionReadiness.gate.state === 'BLOCKED' ? 'BLOCKED' : 'UNBLOCKED'}
+                  gateStatus={productionReadiness.gate.state === 'BLOCKED' ? 'BLOCKED' : 'OPEN'}
                   blockingCritical={blockingCritical}
                   blockingHigh={blockingHigh}
                 />

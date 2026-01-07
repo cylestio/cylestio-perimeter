@@ -41,7 +41,7 @@ export const Blocked: Story = {
     workflowId: 'test-workflow',
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('Not Ready')).toBeInTheDocument();
+    await expect(canvas.getByText('Attention Required')).toBeInTheDocument();
     await expect(canvas.getByText('5 blocking issues')).toBeInTheDocument();
     await expect(canvas.getByText('Fix Issues')).toBeInTheDocument();
     await expect(canvas.getByText('3')).toBeInTheDocument();
@@ -58,7 +58,7 @@ export const StaticBlocked: Story = {
     workflowId: 'test-workflow',
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('Not Ready')).toBeInTheDocument();
+    await expect(canvas.getByText('Attention Required')).toBeInTheDocument();
     await expect(canvas.getByText('4')).toBeInTheDocument();
   },
 };
@@ -137,7 +137,7 @@ export const DynamicBlocked: Story = {
     workflowId: 'test-workflow',
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('Not Ready')).toBeInTheDocument();
+    await expect(canvas.getByText('Attention Required')).toBeInTheDocument();
     await expect(canvas.getByText('2 blocking issues')).toBeInTheDocument();
     await expect(canvas.getByText('Fix Issues')).toBeInTheDocument();
     await expect(canvas.getByText('2')).toBeInTheDocument();

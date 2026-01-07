@@ -23,7 +23,7 @@ const GateCard = styled.div<{ $blocked: boolean }>`
   gap: ${({ theme }) => theme.spacing[3]};
   padding: ${({ theme }) => theme.spacing[4]};
   background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ $blocked, theme }) => 
+  border: 1px solid ${({ $blocked, theme }) =>
     $blocked ? theme.colors.severityCritical + '30' : theme.colors.green + '30'};
   border-radius: ${({ theme }) => theme.radii.lg};
 `;
@@ -35,9 +35,9 @@ const GateIcon = styled.div<{ $blocked: boolean }>`
   width: 40px;
   height: 40px;
   border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ $blocked, theme }) => 
+  background: ${({ $blocked, theme }) =>
     $blocked ? theme.colors.redSoft : theme.colors.greenSoft};
-  color: ${({ $blocked, theme }) => 
+  color: ${({ $blocked, theme }) =>
     $blocked ? theme.colors.severityCritical : theme.colors.green};
 `;
 
@@ -57,7 +57,7 @@ const GateTitle = styled.div`
 const GateStatus = styled.span<{ $blocked: boolean }>`
   font-size: ${({ theme }) => theme.typography.textMd};
   font-weight: ${({ theme }) => theme.typography.weightSemibold};
-  color: ${({ $blocked, theme }) => 
+  color: ${({ $blocked, theme }) =>
     $blocked ? theme.colors.severityCritical : theme.colors.green};
 `;
 
@@ -132,22 +132,22 @@ export const SummaryStatsBar: FC<SummaryStatsBarProps> = ({
   // Calculate gate statuses by source
   const staticRecs = recommendations.filter(r => r.source_type === 'STATIC');
   const dynamicRecs = recommendations.filter(r => r.source_type === 'DYNAMIC');
-  
-  const hasBlockingStatic = staticRecs.some(r => 
-    (r.severity === 'CRITICAL' || r.severity === 'HIGH') && 
+
+  const hasBlockingStatic = staticRecs.some(r =>
+    (r.severity === 'CRITICAL' || r.severity === 'HIGH') &&
     !['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(r.status)
   );
-  
-  const hasBlockingDynamic = dynamicRecs.some(r => 
-    (r.severity === 'CRITICAL' || r.severity === 'HIGH') && 
+
+  const hasBlockingDynamic = dynamicRecs.some(r =>
+    (r.severity === 'CRITICAL' || r.severity === 'HIGH') &&
     !['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(r.status)
   );
 
   // Count by severity (pending only)
-  const pending = recommendations.filter(r => 
+  const pending = recommendations.filter(r =>
     !['FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED'].includes(r.status)
   );
-  
+
   const counts = {
     total: pending.length,
     critical: pending.filter(r => r.severity === 'CRITICAL').length,
@@ -172,12 +172,12 @@ export const SummaryStatsBar: FC<SummaryStatsBarProps> = ({
               {hasBlockingStatic ? (
                 <>
                   <ShieldAlert size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  BLOCKED
+                  Action Needed
                 </>
               ) : (
                 <>
                   <ShieldCheck size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  PASSED
+                  Passed
                 </>
               )}
             </GateStatus>
@@ -196,12 +196,12 @@ export const SummaryStatsBar: FC<SummaryStatsBarProps> = ({
               {hasBlockingDynamic ? (
                 <>
                   <ShieldAlert size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  BLOCKED
+                  Action Needed
                 </>
               ) : (
                 <>
                   <ShieldCheck size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
-                  PASSED
+                  Passed
                 </>
               )}
             </GateStatus>

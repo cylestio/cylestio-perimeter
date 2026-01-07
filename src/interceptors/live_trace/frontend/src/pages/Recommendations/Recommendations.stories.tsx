@@ -139,9 +139,9 @@ export const WithCriticalRecommendations: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
-    // Should show the static analysis gate as blocked
+    // Should show the static analysis gate as needing action
     await expect(await canvas.findByText('Static Analysis Gate')).toBeInTheDocument();
-    await expect(await canvas.findByText('BLOCKED')).toBeInTheDocument();
+    await expect(await canvas.findByText('Action Needed')).toBeInTheDocument();
   },
 };
 
@@ -159,8 +159,8 @@ export const Empty: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
-    // Should show both gates as passed (2 PASSED texts)
-    const passedElements = await canvas.findAllByText('PASSED');
+    // Should show both gates as passed
+    const passedElements = await canvas.findAllByText('Passed');
     await expect(passedElements.length).toBe(2);
   },
 };
@@ -185,7 +185,7 @@ export const AllResolved: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Security Dashboard')).toBeInTheDocument();
     // Should show both gates as passed when all resolved
-    const passedElements = await canvas.findAllByText('PASSED');
+    const passedElements = await canvas.findAllByText('Passed');
     await expect(passedElements.length).toBe(2);
     // Check that the page loaded with tabs
     await expect(await canvas.findByText('Overview')).toBeInTheDocument();

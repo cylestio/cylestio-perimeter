@@ -967,9 +967,9 @@ def handle_get_gate_status(args: Dict[str, Any], store: Any) -> Dict[str, Any]:
     dynamic_critical = readiness['dynamic_analysis']['critical_count']
 
     if gate['is_blocked']:
-        message = f"🚫 Production BLOCKED: {gate['blocking_count']} blocking issues ({static_critical} static, {dynamic_critical} dynamic) must be addressed."
+        message = f"🚫 Attention Required: {gate['blocking_count']} blocking issues ({static_critical} static, {dynamic_critical} dynamic) must be addressed."
     else:
-        message = "✅ Production READY: No blocking security issues."
+        message = "✅ Production Ready: No blocking security issues."
 
     # Return in a backwards-compatible format with new structure nested
     return {

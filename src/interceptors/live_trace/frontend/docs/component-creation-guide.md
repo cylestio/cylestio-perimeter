@@ -116,7 +116,7 @@ export const StyledComponent = styled.div<StyledComponentProps>`
 
 **Key points:**
 - Use `$` prefix for transient props (prevents DOM warnings)
-- Always use theme tokens (see [THEME_REFERENCE.md](../THEME_REFERENCE.md))
+- Always use theme tokens (see [theme-design-tokens.md](./theme-design-tokens.md))
 - Use `css` helper for conditional styles
 
 **Never hardcode values:**
@@ -140,12 +140,10 @@ export type { ComponentNameProps, ComponentVariant } from './ComponentName';
 
 ---
 
-## Update COMPONENTS_INDEX.md
+## Update components-index.md
 
-After creating a component, update [COMPONENTS_INDEX.md](../COMPONENTS_INDEX.md) with:
-- Component location
-- Props interface
-- Usage example
+After creating a component, update [components-index.md](./components-index.md) with:
+- Component location in the appropriate category table
 
 ---
 
@@ -188,7 +186,7 @@ After creating a component, update [COMPONENTS_INDEX.md](../COMPONENTS_INDEX.md)
 
 ## Next Steps
 
-1. Create story file → See [STORY.md](./STORY.md)
+1. Create story file → See [storybook-best-practices.md](./storybook-best-practices.md)
 2. Test in Storybook
-3. Update COMPONENTS_INDEX.md
+3. Update components-index.md
 

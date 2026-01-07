@@ -97,7 +97,7 @@ export const ScanStatusCard: FC<ScanStatusCardProps> = ({
     );
   }
 
-  const gateStatus: GateStatus = summary?.gate_status || 'UNBLOCKED';
+  const gateStatus: GateStatus = summary?.gate_status || 'OPEN';
   const hasSeverityCounts = severityCounts && (
     severityCounts.critical > 0 ||
     severityCounts.high > 0 ||
@@ -105,21 +105,21 @@ export const ScanStatusCard: FC<ScanStatusCardProps> = ({
     severityCounts.low > 0
   );
   const totalScans = scanHistory?.length ?? 1;
-  
+
   // Helper to format findings count for a scan
   const formatScanFindings = (entry: ScanHistoryEntry): string => {
     const { severity_breakdown, findings_count } = entry;
     if (findings_count === 0) return 'No issues found';
-    
+
     const parts: string[] = [];
     if (severity_breakdown.critical > 0) parts.push(`${severity_breakdown.critical} critical`);
     if (severity_breakdown.high > 0) parts.push(`${severity_breakdown.high} high`);
     if (severity_breakdown.medium > 0) parts.push(`${severity_breakdown.medium} medium`);
     if (severity_breakdown.low > 0) parts.push(`${severity_breakdown.low} low`);
-    
+
     return parts.length > 0 ? parts.join(', ') : `${findings_count} issues`;
   };
-  
+
   // Determine badge variant based on findings
   const getScanBadgeVariant = (entry: ScanHistoryEntry): 'findings' | 'clean' | 'scan' | 'autofix' => {
     if (entry.session_type === 'AUTOFIX') return 'autofix';
@@ -162,7 +162,7 @@ export const ScanStatusCard: FC<ScanStatusCardProps> = ({
             </ScanMeta>
           )}
         </LastScanInfo>
-        
+
         {onRunScan && (
           <ScanActions>
             <ScanButton onClick={onRunScan}>
@@ -175,7 +175,7 @@ export const ScanStatusCard: FC<ScanStatusCardProps> = ({
 
       {/* Scan History Toggle */}
       {totalScans > 1 && (
-        <ScanHistoryToggle 
+        <ScanHistoryToggle
           onClick={() => setShowHistory(!showHistory)}
           $expanded={showHistory}
         >
@@ -212,7 +212,7 @@ export const ScanStatusCard: FC<ScanStatusCardProps> = ({
               </ScanHistoryItem>
             ))}
           </ScanHistoryList>
-          
+
           {/* Historical summary */}
           {historicalSummary && historicalSummary.total_resolved > 0 && (
             <HistoricalStatsSection>

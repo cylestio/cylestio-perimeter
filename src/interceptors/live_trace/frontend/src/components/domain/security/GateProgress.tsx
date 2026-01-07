@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { Lock, Unlock, Check, X, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, Check, X, AlertTriangle } from 'lucide-react';
 
 import type { CheckStatus, GateStatus } from '@api/types/findings';
 
@@ -51,13 +51,13 @@ export const GateProgress: FC<GateProgressProps> = ({
         <ProgressLabel $blocked={isBlocked}>
           {isBlocked ? (
             <>
-              <Lock size={14} />
-              Gate Blocked
+              <ShieldAlert size={14} />
+              Attention Required
             </>
           ) : (
             <>
-              <Unlock size={14} />
-              Gate Open
+              <ShieldCheck size={14} />
+              Production Ready
             </>
           )}
         </ProgressLabel>

@@ -53,6 +53,7 @@ export const TooltipContent = styled.div`
   font-size: 11px;
   color: ${({ theme }) => theme.colors.white90};
   max-width: 250px;
+  text-align: center;
   animation: ${scaleIn} 150ms ease-out;
 `;
 

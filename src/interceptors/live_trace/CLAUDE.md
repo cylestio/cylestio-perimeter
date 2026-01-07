@@ -6,9 +6,9 @@ This file provides guidance for working with the live_trace interceptor module.
 
 The live_trace interceptor provides real-time tracing, monitoring, and security analysis for LLM agent sessions. It captures events, runs behavioral and security analysis, and exposes results via REST API and MCP tools.
 
-**Frontend**: See `frontend/CLAUDE.md` for React dashboard guidance.
-
 ## Commands
+
+### Backend
 
 ```bash
 # Run all live_trace tests
@@ -23,29 +23,68 @@ pytest src/interceptors/live_trace/mcp/test_handlers.py -v
 ./venv/bin/python -m mypy src/interceptors/live_trace/
 ```
 
+### Frontend
+
+```bash
+npm run dev            # Start Vite dev server
+npm run build          # TypeScript check + Vite build
+npm run storybook      # Start Storybook dev server (port 6006)
+npm run test-storybook # Run Storybook interaction tests (Storybook must be on 6006)
+npm run lint           # Run ESLint
+npm run format         # Run Prettier
+```
+
+**Don't kill or restart Storybook without asking.**
+
 ## Architecture
 
 ```
 live_trace/
-├── interceptor.py          # Entry point - initializes components, handles events
-├── server.py               # FastAPI REST endpoints
-├── models.py               # Shared Pydantic models
+├── interceptor.py              # Entry point - initializes components, handles events
+├── server.py                   # FastAPI REST endpoints
+├── models.py                   # Shared Pydantic models
 ├── store/
-│   └── store.py           # TraceStore - SQLite persistence, all DB operations
+│   └── store.py                # TraceStore - SQLite persistence, all DB operations
 ├── runtime/
-│   ├── engine.py          # AnalysisEngine - computation (behavioral + security)
-│   ├── analysis_runner.py # Orchestrates when/how analysis runs
-│   ├── session_monitor.py # Background thread for session completion detection
-│   ├── behavioral.py      # Clustering, stability, outlier detection
-│   ├── security.py        # Security checks (the "Report Checks")
-│   ├── pii.py             # PII detection using Presidio
-│   ├── models.py          # Analysis result models
-│   └── model_pricing.py   # Token cost calculation
-└── mcp/
-    ├── tools.py           # MCP tool definitions (source of truth)
-    ├── handlers.py        # MCP tool implementations
-    └── router.py          # MCP FastAPI router
+│   ├── engine.py               # AnalysisEngine - computation (behavioral + security)
+│   ├── analysis_runner.py      # Orchestrates when/how analysis runs
+│   ├── session_monitor.py      # Background thread for session completion detection
+│   ├── behavioral.py           # Clustering, stability, outlier detection
+│   ├── security.py             # Security checks (the "Report Checks")
+│   ├── pii.py                  # PII detection using Presidio
+│   ├── models.py               # Analysis result models
+│   └── model_pricing.py        # Token cost calculation
+├── mcp/
+│   ├── tools.py                # MCP tool definitions (source of truth)
+│   ├── handlers.py             # MCP tool implementations
+│   └── router.py               # MCP FastAPI router
+└── frontend/                   # React dashboard (React 19, TypeScript, Vite, Styled Components, Storybook 10)
+    ├── docs/                   # Reference documentation (see table below)
+    └── src/
+        ├── components/
+        │   ├── ui/             # Generic primitives (Button, Card, Input)
+        │   ├── domain/         # AI/security-specific (AgentCard, RiskScore)
+        │   └── features/       # Page-specific components
+        ├── constants/          # App-wide constants (page icons, etc.)
+        ├── pages/              # Thin orchestrators
+        ├── theme/              # Design tokens
+        ├── api/                # Types, endpoints, mocks
+        ├── hooks/
+        └── utils/
 ```
+
+## Reference Documentation
+
+You must read these documents when working on those specific areas:
+
+| Document | When to Read |
+|----------|--------------|
+| [frontend/docs/component-creation-guide.md](./frontend/docs/component-creation-guide.md) | Creating or modifying React components (import order, placement, styled-components, accessibility) |
+| [frontend/docs/storybook-best-practices.md](./frontend/docs/storybook-best-practices.md) | Creating or modifying Storybook stories (patterns, required `play()` tests, router config) |
+| [frontend/docs/api-endpoint-patterns.md](./frontend/docs/api-endpoint-patterns.md) | Creating or modifying API endpoints (type definitions, fetch functions, error handling) |
+| [frontend/docs/theme-design-tokens.md](./frontend/docs/theme-design-tokens.md) | Using theme tokens (colors, spacing, typography, radii, shadows, transitions) |
+| [frontend/docs/components-index.md](./frontend/docs/components-index.md) | Before creating ANY component - check existing components first |
+| [frontend/docs/troubleshooting.md](./frontend/docs/troubleshooting.md) | Debugging common frontend issues |
 
 ## Component Responsibilities
 
@@ -195,3 +234,54 @@ interceptors:
 3. **Percentiles are frozen** - First calculation locks behavioral baselines forever
 4. **Session reactivation clears analysis** - A completed session receiving events loses signatures
 5. **MCP tools.py is source of truth** - Template files must be manually synced
+
+---
+
+## Frontend Guidelines
+
+### Component Placement
+
+| Location | Use Case |
+|----------|----------|
+| `@ui/*` | Generic design primitives (Button, Card, Input) |
+| `@domain/*` | AI/security-specific components (AgentCard, RiskScore) |
+| `@features/*` | Page-specific components |
+
+Before creating ANY component, check [components-index.md](./frontend/docs/components-index.md).
+
+### Page Icons
+
+Page and navigation icons are centralized in `@constants/pageIcons`. This ensures consistency between sidebar navigation (App.tsx) and page headers.
+
+**When adding a new page:**
+1. Add its icon to `src/constants/pageIcons.ts`
+2. Import from `@constants/pageIcons` in both App.tsx and the page component
+3. Do NOT import icons directly from `lucide-react` for page headers
+
+**Available page icons:**
+```typescript
+import {
+  HomeIcon,           // Start Here / Home
+  OverviewIcon,       // Overview (BarChart3)
+  SystemPromptsIcon,  // System Prompts (LayoutDashboard)
+  SessionsIcon,       // Sessions (History)
+  RecommendationsIcon,// Recommendations (Lightbulb)
+  DevConnectionIcon,  // Dev Connection (Monitor)
+  StaticAnalysisIcon, // Static Analysis (Shield)
+  DynamicAnalysisIcon,// Dynamic Analysis (Shield)
+  ProductionIcon,     // Production (Lock)
+  ReportsIcon,        // Reports (FileText)
+  AttackSurfaceIcon,  // Attack Surface (Target)
+  ConnectIcon,        // Connect (Plug)
+} from '@constants/pageIcons';
+```
+
+**Note:** Icons used within page content (not in headers/navigation) can still be imported directly from `lucide-react`.
+
+### Before Committing (Frontend)
+
+- [ ] `npm run build` passes
+- [ ] `npm run test-storybook` passes
+- [ ] `npm run lint` passes
+- [ ] components-index.md updated if components changed
+- [ ] Verify the code created complies with all guidelines in this file

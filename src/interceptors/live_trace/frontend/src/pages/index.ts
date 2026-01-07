@@ -9,6 +9,7 @@ export { Overview } from './Overview';
 export { Portfolio } from './Portfolio';
 export { Recommendations } from './Recommendations';
 export { Reports } from './Reports';
+export { ReportView } from './ReportView';
 export { SessionDetail } from './SessionDetail';
 export { Sessions } from './Sessions';
 export { StaticAnalysis } from './StaticAnalysis';

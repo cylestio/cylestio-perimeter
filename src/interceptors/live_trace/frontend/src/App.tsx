@@ -4,7 +4,6 @@ import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, Navigat
 import { ThemeProvider } from 'styled-components';
 
 import {
-  AttackSurfaceIcon,
   ConnectIcon,
   DevConnectionIcon,
   HomeIcon,
@@ -51,6 +50,7 @@ import {
   Portfolio,
   Recommendations,
   Reports,
+  ReportView,
   SessionDetail,
   Sessions,
   StaticAnalysis,
@@ -430,13 +430,13 @@ function AppLayout() {
                 to={`/agent-workflow/${urlAgentWorkflowId}/reports`}
                 collapsed={sidebarCollapsed}
               />
-              <NavItem
+              {/* <NavItem
                 icon={<AttackSurfaceIcon size={18} />}
                 label="Attack Surface"
                 active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/attack-surface`}
                 to={`/agent-workflow/${urlAgentWorkflowId}/attack-surface`}
                 collapsed={sidebarCollapsed}
-              />
+              /> */}
             </NavGroup>
           )}
         </Sidebar.Section>
@@ -503,6 +503,7 @@ function App() {
 
               {/* Reports section */}
               <Route path="/agent-workflow/:agentWorkflowId/reports" element={<Reports />} />
+              <Route path="/agent-workflow/:agentWorkflowId/report/:reportId" element={<ReportView />} />
               <Route path="/agent-workflow/:agentWorkflowId/attack-surface" element={<AttackSurface />} />
 
               {/* Detail pages */}

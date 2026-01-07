@@ -1268,17 +1268,16 @@ class TestComplianceReportMethods:
         report_data = store.generate_compliance_report("report_workflow")
 
         store.save_report("report_workflow", "security_assessment", report_data)
-        store.save_report("report_workflow", "executive_summary", report_data)
-        store.save_report("report_workflow", "customer_dd", report_data)
+        store.save_report("report_workflow", "security_assessment", report_data)
 
         # Get all reports
         reports = store.get_reports("report_workflow")
-        assert len(reports) == 3
+        assert len(reports) == 2
 
         # Filter by type
-        exec_reports = store.get_reports("report_workflow", report_type="executive_summary")
-        assert len(exec_reports) == 1
-        assert exec_reports[0]['report_type'] == "executive_summary"
+        sec_reports = store.get_reports("report_workflow", report_type="security_assessment")
+        assert len(sec_reports) == 2
+        assert sec_reports[0]['report_type'] == "security_assessment"
 
     def test_get_report_by_id(self, store):
         """Test retrieving a specific report with full data."""
@@ -1461,6 +1460,24 @@ class TestComplianceReportMethods:
         # Should have NONE overall risk
         assert report['business_impact']['overall_risk'] == 'NONE'
         assert 'No critical security risks' in report['business_impact']['executive_bullets'][0]
+
+    def test_owasp_na_entries_have_names(self, store):
+        """N/A OWASP entries should include canonical control names."""
+        report = store.generate_compliance_report("report_workflow")
+
+        # Check N/A entries have name field with canonical OWASP names
+        assert report['owasp_llm_coverage']['LLM03']['name'] == "Training Data Poisoning"
+        assert report['owasp_llm_coverage']['LLM04']['name'] == "Model Denial of Service"
+        assert report['owasp_llm_coverage']['LLM10']['name'] == "Model Theft"
+
+    def test_report_includes_advisory_disclaimer(self, store):
+        """Report should include advisory disclaimer fields."""
+        report = store.generate_compliance_report("report_workflow")
+
+        assert 'is_advisory' in report['executive_summary']
+        assert report['executive_summary']['is_advisory'] is True
+        assert 'advisory_notice' in report['executive_summary']
+        assert 'advisory' in report['executive_summary']['advisory_notice'].lower()
 
 
 class TestGetAgentSystemPrompt:

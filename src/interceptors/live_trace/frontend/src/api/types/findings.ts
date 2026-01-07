@@ -5,10 +5,10 @@ export type FindingStatus = 'OPEN' | 'FIXED' | 'IGNORED' | 'ADDRESSED' | 'DISMIS
 export type SessionType = 'STATIC' | 'DYNAMIC' | 'AUTOFIX';
 export type SessionStatus = 'IN_PROGRESS' | 'COMPLETED';
 export type CheckStatus = 'PASS' | 'FAIL' | 'INFO';
-export type GateStatus = 'BLOCKED' | 'UNBLOCKED';
+export type GateStatus = 'BLOCKED' | 'OPEN';
 
 // The 7 Security Check Categories
-export type SecurityCheckCategory = 
+export type SecurityCheckCategory =
   | 'PROMPT'    // Prompt Security (LLM01)
   | 'OUTPUT'    // Output Security (LLM02)
   | 'TOOL'      // Tool Security (LLM07, LLM08)
@@ -214,12 +214,12 @@ export interface StaticSummaryResponse {
 }
 
 // Recommendation types (from Phase 1)
-export type RecommendationStatus = 
-  | 'PENDING' 
-  | 'FIXING' 
-  | 'FIXED' 
-  | 'VERIFIED' 
-  | 'DISMISSED' 
+export type RecommendationStatus =
+  | 'PENDING'
+  | 'FIXING'
+  | 'FIXED'
+  | 'VERIFIED'
+  | 'DISMISSED'
   | 'IGNORED'
   | 'RESOLVED';
 

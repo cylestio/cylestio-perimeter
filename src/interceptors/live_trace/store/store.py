@@ -3968,6 +3968,9 @@ class TraceStore:
                 "risk_score": risk_score,
                 "risk_breakdown": risk_breakdown,
                 "decision": "NO-GO" if gate_status["is_blocked"] else "GO",
+                "decision_label": "Attention Required" if gate_status["is_blocked"] else "Production Ready",
+                "is_advisory": True,
+                "advisory_notice": "Advisory only - does not block deployments. This is a pre-production readiness assessment.",
                 "decision_message": self._get_decision_message(gate_status),
                 "total_findings": len(findings),
                 "open_findings": len(open_findings),
@@ -3983,14 +3986,14 @@ class TraceStore:
             "owasp_llm_coverage": {
                 "LLM01": self._owasp_status("LLM01", by_owasp.get("LLM01", [])),
                 "LLM02": self._owasp_status("LLM02", by_owasp.get("LLM02", [])),
-                "LLM03": {"status": "N/A", "message": "Training data out of scope", "findings": []},
-                "LLM04": {"status": "N/A", "message": "Model DoS out of scope", "findings": []},
+                "LLM03": {"status": "N/A", "name": "Training Data Poisoning", "message": "Not evaluated (out of scope)", "findings": []},
+                "LLM04": {"status": "N/A", "name": "Model Denial of Service", "message": "Not evaluated (out of scope)", "findings": []},
                 "LLM05": self._owasp_status("LLM05", by_owasp.get("LLM05", [])),
                 "LLM06": self._owasp_status("LLM06", by_owasp.get("LLM06", [])),
                 "LLM07": self._owasp_status("LLM07", by_owasp.get("LLM07", [])),
                 "LLM08": self._owasp_status("LLM08", by_owasp.get("LLM08", [])),
                 "LLM09": self._owasp_status("LLM09", by_owasp.get("LLM09", [])),
-                "LLM10": {"status": "N/A", "message": "Model theft out of scope", "findings": []},
+                "LLM10": {"status": "N/A", "name": "Model Theft", "message": "Not evaluated (out of scope)", "findings": []},
             },
 
             "soc2_compliance": {
@@ -4418,7 +4421,7 @@ class TraceStore:
 
         Args:
             workflow_id: The workflow ID
-            report_type: Type of report (security_assessment, executive_summary, customer_dd)
+            report_type: Type of report (security_assessment)
             report_data: The full report data as a dictionary
             report_name: Optional custom name for the report
             generated_by: Optional user/entity that generated the report
@@ -4443,8 +4446,6 @@ class TraceStore:
         if not report_name:
             type_names = {
                 "security_assessment": "Security Assessment",
-                "executive_summary": "Executive Summary",
-                "customer_dd": "Customer Due Diligence",
             }
             report_name = f"{type_names.get(report_type, report_type)} - {now.strftime('%B %d, %Y')}"
 
@@ -4495,7 +4496,7 @@ class TraceStore:
             query = """
                 SELECT report_id, agent_workflow_id, report_type, report_name,
                        generated_at, generated_by, risk_score, gate_status,
-                       findings_count, recommendations_count
+                       findings_count, recommendations_count, report_data
                 FROM generated_reports
                 WHERE agent_workflow_id = ?
             """
@@ -4513,6 +4514,24 @@ class TraceStore:
 
             reports = []
             for row in rows:
+                # Extract severity counts from report_data JSON
+                critical_count = 0
+                high_count = 0
+                medium_count = 0
+                if row[10]:
+                    try:
+                        report_data = json.loads(row[10])
+                        breakdown = report_data.get("executive_summary", {}).get("risk_breakdown", {}).get("breakdown", [])
+                        for item in breakdown:
+                            if item.get("severity") == "CRITICAL":
+                                critical_count = item.get("count", 0)
+                            elif item.get("severity") == "HIGH":
+                                high_count = item.get("count", 0)
+                            elif item.get("severity") == "MEDIUM":
+                                medium_count = item.get("count", 0)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
                 reports.append({
                     "report_id": row[0],
                     "agent_workflow_id": row[1],
@@ -4524,6 +4543,9 @@ class TraceStore:
                     "gate_status": row[7],
                     "findings_count": row[8],
                     "recommendations_count": row[9],
+                    "critical_count": critical_count,
+                    "high_count": high_count,
+                    "medium_count": medium_count,
                 })
             return reports
 

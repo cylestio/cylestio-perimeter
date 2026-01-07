@@ -59,7 +59,7 @@ export const AllGatesPassed: Story = {
       createRecommendation('LOW'),
       createRecommendation('LOW'),
     ],
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
     blockingCritical: 0,
     blockingHigh: 0,
   },
@@ -77,7 +77,7 @@ export const BothGatesBlocked: Story = {
 export const NoIssues: Story = {
   args: {
     recommendations: [],
-    gateStatus: 'UNBLOCKED',
+    gateStatus: 'OPEN',
     blockingCritical: 0,
     blockingHigh: 0,
   },

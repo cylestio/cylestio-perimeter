@@ -46,7 +46,7 @@ export const ProgressSummary: FC<ProgressSummaryProps> = ({
 }) => {
   const isBlocked = gateStatus === 'BLOCKED';
   const totalBlocking = blockingCritical + blockingHigh;
-  
+
   // Calculate stats by severity
   const severityStats: Record<FindingSeverity, SeverityStats> = {
     CRITICAL: { total: 0, resolved: 0, pending: 0 },
@@ -75,17 +75,17 @@ export const ProgressSummary: FC<ProgressSummaryProps> = ({
       <Header>
         <Title>
           {isBlocked ? <ShieldAlert size={20} /> : <ShieldCheck size={20} />}
-          {isBlocked ? 'PRODUCTION BLOCKED' : 'PRODUCTION READY'}
+          {isBlocked ? 'Attention Required' : 'Production Ready'}
         </Title>
         <GateBadge $status={gateStatus}>
           {isBlocked ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
-          {isBlocked ? 'Blocked' : 'Open'}
+          {isBlocked ? 'Action Needed' : 'Ready'}
         </GateBadge>
       </Header>
 
       <ProgressContainer>
-        <ProgressBar 
-          value={progressPercent} 
+        <ProgressBar
+          value={progressPercent}
           variant={isBlocked ? 'warning' : 'success'}
           size="md"
         />
@@ -100,15 +100,15 @@ export const ProgressSummary: FC<ProgressSummaryProps> = ({
           {SEVERITIES.map(severity => {
             const stats = severityStats[severity];
             const isBlocking = severity === 'CRITICAL' || severity === 'HIGH';
-            
+
             // Only show severities that have issues
             if (stats.total === 0) return null;
-            
+
             return (
               <SeverityCard key={severity} $isBlocking={isBlocking}>
                 <SeverityCardHeader>
-                  <SeverityDot 
-                    severity={severity.toLowerCase() as 'critical' | 'high' | 'medium' | 'low'} 
+                  <SeverityDot
+                    severity={severity.toLowerCase() as 'critical' | 'high' | 'medium' | 'low'}
                     glow={isBlocking && stats.pending > 0}
                     size="sm"
                   />

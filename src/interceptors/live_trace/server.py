@@ -1178,7 +1178,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
         """Generate a compliance report for the workflow.
 
         Query params:
-        - report_type: security_assessment, executive_summary, or customer_dd
+        - report_type: security_assessment (default)
         - save: if true, saves the report to history
 
         Returns a comprehensive report including:
