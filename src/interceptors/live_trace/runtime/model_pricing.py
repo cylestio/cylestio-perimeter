@@ -16,10 +16,14 @@ USAGE:
 """
 
 import json
+from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Auto-refresh interval (24 hours)
+PRICING_REFRESH_INTERVAL = timedelta(hours=24)
 
 # Try to import optional dependency for live pricing
 try:
@@ -34,7 +38,7 @@ except ImportError:
 from .default_pricing import DEFAULT_PRICING_DATA
 
 # URL to fetch live pricing data
-PRICING_JSON_URL = "https://raw.githubusercontent.com/cylestio/ai-model-pricing/main/latest.json"
+PRICING_JSON_URL = "https://static.cylestio.com/latest.json"
 
 
 def _fetch_live_pricing() -> Optional[Dict]:
@@ -121,11 +125,21 @@ def get_current_pricing() -> Tuple[Dict[str, Tuple[float, float]], str]:
     return flat_pricing, DEFAULT_PRICING_DATA.get("last_updated")
 
 
-# Global pricing data (loaded once per module import)
+# Global pricing data (loaded once per module import, auto-refreshes after 24h)
 # Always tries to fetch from GitHub first, falls back to in-memory defaults
 # All data kept in memory only (no disk caching)
 # Use force_refresh_pricing() to manually update after import
 _CURRENT_PRICING, _LAST_UPDATED = get_current_pricing()
+_LAST_FETCHED: datetime = datetime.now()  # Track when we last fetched
+
+
+def _maybe_refresh_pricing() -> None:
+    """Check if pricing data is stale and refresh if needed (24h timeout)."""
+    global _LAST_FETCHED
+
+    if datetime.now() - _LAST_FETCHED > PRICING_REFRESH_INTERVAL:
+        logger.info("Pricing data is stale (>24h), refreshing...")
+        force_refresh_pricing()
 
 
 def get_model_pricing(model_name: str) -> Tuple[float, float]:
@@ -139,6 +153,9 @@ def get_model_pricing(model_name: str) -> Tuple[float, float]:
         Tuple of (input_price_per_1m, output_price_per_1m)
         Returns (0, 0) if model pricing is not available
     """
+    # Auto-refresh if stale (>24h since last fetch)
+    _maybe_refresh_pricing()
+
     model_lower = model_name.lower().strip()
 
     # Direct match
@@ -173,10 +190,13 @@ def force_refresh_pricing() -> bool:
     This can be called manually or via an API endpoint to trigger
     an immediate pricing update. Pricing data is kept in memory only.
     """
-    global _CURRENT_PRICING, _LAST_UPDATED
+    global _CURRENT_PRICING, _LAST_UPDATED, _LAST_FETCHED
 
     logger.info("Force refreshing pricing data...")
     live_data = _fetch_live_pricing()
+
+    # Always update _LAST_FETCHED to avoid repeated failed attempts
+    _LAST_FETCHED = datetime.now()
 
     if live_data:
         _CURRENT_PRICING = _flatten_pricing_data(live_data)
