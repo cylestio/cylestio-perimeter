@@ -50,6 +50,7 @@ import {
   Portfolio,
   Recommendations,
   Reports,
+  ReportView,
   SessionDetail,
   Sessions,
   StaticAnalysis,
@@ -502,6 +503,7 @@ function App() {
 
               {/* Reports section */}
               <Route path="/agent-workflow/:agentWorkflowId/reports" element={<Reports />} />
+              <Route path="/agent-workflow/:agentWorkflowId/report/:reportId" element={<ReportView />} />
               <Route path="/agent-workflow/:agentWorkflowId/attack-surface" element={<AttackSurface />} />
 
               {/* Detail pages */}

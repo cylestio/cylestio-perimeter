@@ -40,6 +40,7 @@ AI security monitoring specific. These understand application concepts like agen
 | `domain/findings/` | FindingCard, FindingsTab | Security finding display |
 | `domain/recommendations/` | AuditTrail, DismissModal, ProgressSummary, RecommendationCard | Security recommendations UI |
 | `domain/recommendations/dashboard/` | CategoryDonut, DetectionTimeline, FileTreemap, IssueCard, SeverityProgressBar, SourceDistribution, SummaryStatsBar | Security dashboard visualizations |
+| `domain/reports/` | ReportDisplay | Full security report view with tabs |
 | `domain/metrics/` | ComplianceGauge, InfoCard, RiskScore, StatCard | Metrics display and gauges |
 | `domain/analytics/` | ModelUsageAnalytics, TokenUsageInsights, ToolUsageAnalytics | Usage analytics panels |
 | `domain/charts/` | BarChart, DistributionBar, LineChart, PieChart | Data visualization charts |
