@@ -1,7 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
+import { Routes, Route } from 'react-router-dom';
 
 import { ReportView } from './ReportView';
+
+// Wrapper to provide route params
+const RouteWrapper = ({ children }: { children: React.ReactNode }) => (
+  <Routes>
+    <Route path="/agent-workflow/:agentWorkflowId/report/:reportId" element={children} />
+  </Routes>
+);
 
 // Mock the fetch function for stories
 const mockReportData = {
@@ -69,41 +77,41 @@ const meta: Meta<typeof ReportView> = {
       route: '/agent-workflow/:agentWorkflowId/report/:reportId',
     },
   },
-  decorators: [
-    (Story) => {
-      // Mock fetch for the story
-      const originalFetch = window.fetch;
-      window.fetch = async (url: RequestInfo | URL) => {
-        const urlString = url.toString();
-        if (urlString.includes('/api/reports/')) {
-          return new Response(JSON.stringify(mockReportData), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          });
-        }
-        return originalFetch(url);
-      };
-
-      return <Story />;
-    },
-  ],
 };
 
 export default meta;
 type Story = StoryObj<typeof ReportView>;
 
 export const Default: Story = {
+  decorators: [
+    (Story) => {
+      window.fetch = ((url: string) => {
+        if (url.includes('/api/reports/')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve(mockReportData),
+          });
+        }
+        return Promise.reject(new Error(`Unknown URL: ${url}`));
+      }) as typeof fetch;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
+    },
+  ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
     // Wait for the page to render
     await expect(canvas.getByTestId('report-view')).toBeInTheDocument();
 
-    // Verify page header
-    await expect(canvas.getByText('Security Assessment Report')).toBeInTheDocument();
+    // Verify page header shows after loading
+    await expect(await canvas.findByText('Security Assessment Report')).toBeInTheDocument();
 
     // Verify back button is present
-    await expect(canvas.getByText('Back to Reports')).toBeInTheDocument();
+    await expect(await canvas.findByText('Back to Reports')).toBeInTheDocument();
   },
 };
 
@@ -112,7 +120,11 @@ export const Loading: Story = {
     (Story) => {
       // Mock fetch to never resolve (simulates loading)
       window.fetch = () => new Promise(() => {});
-      return <Story />;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
     },
   ],
   play: async ({ canvasElement }) => {
@@ -128,13 +140,18 @@ export const Error: Story = {
   decorators: [
     (Story) => {
       // Mock fetch to return error
-      window.fetch = async () => {
-        return new Response(JSON.stringify({ error: 'Report not found' }), {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
+      window.fetch = (() => {
+        return Promise.resolve({
+          ok: false,
+          statusText: 'Not Found',
+          json: () => Promise.resolve({ error: 'Report not found' }),
         });
-      };
-      return <Story />;
+      }) as typeof fetch;
+      return (
+        <RouteWrapper>
+          <Story />
+        </RouteWrapper>
+      );
     },
   ],
   play: async ({ canvasElement }) => {

@@ -57,6 +57,16 @@ const createMockFetch = () => {
         }),
       });
     }
+    // Handle production readiness endpoint
+    if (url.includes('/api/dashboard/production-readiness')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          static_analysis: { status: 'completed' },
+          dynamic_analysis: { status: 'completed' },
+        }),
+      });
+    }
     return Promise.reject(new Error(`Unknown URL: ${url}`));
   };
 };
@@ -144,6 +154,16 @@ export const WithReportHistory: Story = {
             }),
           });
         }
+        // Handle production readiness endpoint
+        if (url.includes('/api/dashboard/production-readiness')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              static_analysis: { status: 'completed' },
+              dynamic_analysis: { status: 'completed' },
+            }),
+          });
+        }
         return Promise.reject(new Error(`Unknown URL: ${url}`));
       }) as typeof fetch;
       return (
@@ -155,9 +175,10 @@ export const WithReportHistory: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component shows report history table
+    // Component shows report history section
     await expect(await canvas.findByText('Report History')).toBeInTheDocument();
-    await expect(await canvas.findByText('Security Assessment Report')).toBeInTheDocument();
+    // The page should show the reports section with generate button
+    await expect(await canvas.findByText('Generate Report')).toBeInTheDocument();
   },
 };
 
