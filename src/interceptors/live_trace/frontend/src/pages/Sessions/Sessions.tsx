@@ -1,16 +1,24 @@
 import { useState, useEffect, useCallback, useMemo, type FC } from 'react';
 
-import { Filter, Hash, Layers, Tag } from 'lucide-react';
+import { Download, FileJson, FileText, Filter, Hash, Layers, MessageSquare, Tag } from 'lucide-react';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 import { fetchAgent } from '@api/endpoints/agent';
 import { fetchDashboard } from '@api/endpoints/dashboard';
-import { fetchSessions, fetchSessionTags } from '@api/endpoints/session';
+import { fetchSession, fetchSessions, fetchSessionTags } from '@api/endpoints/session';
 import type { BehavioralCluster } from '@api/types/agent';
 import type { APIAgent } from '@api/types/dashboard';
 import type { SessionListItem, SessionTagSuggestion } from '@api/types/session';
 import { buildAgentWorkflowBreadcrumbs } from '@utils/breadcrumbs';
+import type { ExportedSession } from '@utils/export';
+import {
+  convertSessionsToCSV,
+  downloadCSV,
+  downloadJSON,
+  parseConversation,
+} from '@utils/export';
 
+import { Button } from '@ui/core/Button';
 import { Card } from '@ui/core/Card';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
 import { Page } from '@ui/layout/Page';
@@ -18,6 +26,7 @@ import { PageHeader } from '@ui/layout/PageHeader';
 import { Pagination } from '@ui/navigation/Pagination';
 import { ToggleGroup } from '@ui/navigation/ToggleGroup';
 import type { ToggleOption } from '@ui/navigation/ToggleGroup';
+import { Dropdown } from '@ui/overlays';
 
 import { SessionsTable, TagFilter, SessionFilter } from '@domain/sessions';
 import type { TagSuggestion } from '@domain/sessions';
@@ -60,6 +69,9 @@ export const Sessions: FC = () => {
 
   // Pagination state (filters are in URL)
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Export state
+  const [exporting, setExporting] = useState(false);
 
   // Read filters from URL query params
   const selectedAgent = searchParams.get('agent_id');
@@ -307,6 +319,192 @@ export const Sessions: FC = () => {
     return parts.join(' ');
   }, [totalCount, selectedAgent, agents, clusterId, tagFilters, sessionFilter]);
 
+  // Helper to fetch all sessions across all pages with current filters
+  const fetchAllSessions = useCallback(async (): Promise<SessionListItem[]> => {
+    const allSessions: SessionListItem[] = [];
+    const batchSize = 100;
+    let offset = 0;
+    let hasMore = true;
+
+    // Build tags array with current filters
+    const allTags = [...tagFilters];
+    if (sessionFilter) {
+      allTags.push(`session:${sessionFilter}`);
+    }
+
+    while (hasMore) {
+      const data = await fetchSessions({
+        agent_workflow_id: agentWorkflowId,
+        agent_id: selectedAgent || undefined,
+        cluster_id: clusterId || undefined,
+        tags: allTags.length > 0 ? allTags : undefined,
+        limit: batchSize,
+        offset,
+      });
+
+      allSessions.push(...data.sessions);
+      offset += batchSize;
+      hasMore = allSessions.length < data.total_count;
+    }
+
+    return allSessions;
+  }, [agentWorkflowId, selectedAgent, clusterId, tagFilters, sessionFilter]);
+
+  // Export handlers
+  const handleExportSessionsJSON = useCallback(async () => {
+    if (totalCount === 0) return;
+
+    setExporting(true);
+    try {
+      // Fetch all sessions across all pages
+      const allSessions = await fetchAllSessions();
+
+      // Sort by created_at ascending (oldest first)
+      allSessions.sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+      // Convert to export format with real timestamps
+      const exportData: ExportedSession[] = allSessions.map((s) => ({
+        id: s.id,
+        agent_id: s.agent_id,
+        agent_workflow_id: s.agent_workflow_id,
+        status: s.status,
+        created_at: s.created_at,
+        last_activity: s.last_activity,
+        duration_minutes: s.duration_minutes,
+        message_count: s.message_count,
+        tool_uses: s.tool_uses,
+        total_tokens: s.total_tokens,
+        errors: s.errors,
+        error_rate: s.error_rate,
+        tags: s.tags,
+      }));
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      downloadJSON(exportData, `sessions-${agentWorkflowId || 'all'}-${timestamp}.json`);
+    } catch (err) {
+      console.error('Failed to export sessions:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [totalCount, agentWorkflowId, fetchAllSessions]);
+
+  const handleExportSessionsCSV = useCallback(async () => {
+    if (totalCount === 0) return;
+
+    setExporting(true);
+    try {
+      // Fetch all sessions across all pages
+      const allSessions = await fetchAllSessions();
+
+      // Sort by created_at ascending (oldest first)
+      allSessions.sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+      // Convert to export format
+      const exportData: ExportedSession[] = allSessions.map((s) => ({
+        id: s.id,
+        agent_id: s.agent_id,
+        agent_workflow_id: s.agent_workflow_id,
+        status: s.status,
+        created_at: s.created_at,
+        last_activity: s.last_activity,
+        duration_minutes: s.duration_minutes,
+        message_count: s.message_count,
+        tool_uses: s.tool_uses,
+        total_tokens: s.total_tokens,
+        errors: s.errors,
+        error_rate: s.error_rate,
+        tags: s.tags,
+      }));
+
+      const csv = convertSessionsToCSV(exportData);
+      const timestamp = new Date().toISOString().split('T')[0];
+      downloadCSV(csv, `sessions-${agentWorkflowId || 'all'}-${timestamp}.csv`);
+    } catch (err) {
+      console.error('Failed to export sessions:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [totalCount, agentWorkflowId, fetchAllSessions]);
+
+  const handleExportConversations = useCallback(async () => {
+    if (totalCount === 0) return;
+
+    setExporting(true);
+    try {
+      // First fetch all sessions across all pages
+      const allSessions = await fetchAllSessions();
+
+      // Sort by created_at ascending (oldest first)
+      allSessions.sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+      // Then fetch all session timelines in parallel (with chunking for large datasets)
+      const chunkSize = 10;
+      const allConversations: Record<string, unknown> = {};
+
+      for (let i = 0; i < allSessions.length; i += chunkSize) {
+        const chunk = allSessions.slice(i, i + chunkSize);
+        const results = await Promise.all(
+          chunk.map(async (session) => {
+            try {
+              const data = await fetchSession(session.id);
+              return {
+                sessionId: session.id,
+                conversation: parseConversation(data.timeline),
+              };
+            } catch (err) {
+              console.error(`Failed to fetch session ${session.id}:`, err);
+              return {
+                sessionId: session.id,
+                conversation: [],
+                error: 'Failed to fetch',
+              };
+            }
+          })
+        );
+
+        results.forEach(({ sessionId, conversation, error }) => {
+          allConversations[sessionId] = error ? { error } : conversation;
+        });
+      }
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      downloadJSON(allConversations, `conversations-${agentWorkflowId || 'all'}-${timestamp}.json`);
+    } catch (err) {
+      console.error('Failed to export conversations:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [totalCount, agentWorkflowId, fetchAllSessions]);
+
+  const exportItems = [
+    {
+      id: 'sessions-json',
+      label: 'Export Table (JSON)',
+      icon: <FileJson size={14} />,
+      onClick: handleExportSessionsJSON,
+      disabled: totalCount === 0 || exporting,
+    },
+    {
+      id: 'sessions-csv',
+      label: 'Export Table (CSV)',
+      icon: <FileText size={14} />,
+      onClick: handleExportSessionsCSV,
+      disabled: totalCount === 0 || exporting,
+    },
+    {
+      id: 'divider',
+      label: '',
+      divider: true,
+    },
+    {
+      id: 'conversations',
+      label: exporting ? 'Exporting...' : 'Export Conversations',
+      icon: <MessageSquare size={14} />,
+      onClick: handleExportConversations,
+      disabled: totalCount === 0 || exporting,
+    },
+  ];
+
   if (loading) {
     return (
       <LoadingContainer>
@@ -334,6 +532,20 @@ export const Sessions: FC = () => {
       <PageHeader
         title="Sessions"
         description={descriptionText}
+        actions={
+          totalCount > 0 ? (
+            <Dropdown
+              trigger={
+                <Button variant="secondary" icon={<Download size={16} />}>
+                  {exporting ? 'Exporting...' : 'Export'}
+                </Button>
+              }
+              items={exportItems}
+              align="right"
+              width={220}
+            />
+          ) : undefined
+        }
       />
 
       <FilterSection>

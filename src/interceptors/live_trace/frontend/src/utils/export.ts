@@ -10,6 +10,26 @@ export interface ConversationMessage {
 }
 
 /**
+ * Session data formatted for export.
+ * Uses real timestamps instead of relative time.
+ */
+export interface ExportedSession {
+  id: string;
+  agent_id: string;
+  agent_workflow_id: string | null;
+  status: string;
+  created_at: string;
+  last_activity: string;
+  duration_minutes: number;
+  message_count: number;
+  tool_uses: number;
+  total_tokens: number;
+  errors: number;
+  error_rate: number;
+  tags: Record<string, string> | undefined;
+}
+
+/**
  * Extract text content from various message content formats.
  * Handles string, array of content blocks, and nested structures.
  */
@@ -128,6 +148,65 @@ export function parseConversation(events: TimelineEvent[]): ConversationMessage[
 export function downloadJSON(data: unknown, filename: string): void {
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Escape a value for CSV format.
+ * Wraps in quotes if contains comma, quote, or newline.
+ */
+function escapeCSVValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+
+  const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+  // If contains special chars, wrap in quotes and escape existing quotes
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/**
+ * Convert sessions list to CSV format.
+ */
+export function convertSessionsToCSV(sessions: ExportedSession[]): string {
+  const headers = [
+    'id',
+    'agent_id',
+    'agent_workflow_id',
+    'status',
+    'created_at',
+    'last_activity',
+    'duration_minutes',
+    'message_count',
+    'tool_uses',
+    'total_tokens',
+    'errors',
+    'error_rate',
+    'tags',
+  ];
+
+  const rows = sessions.map((session) =>
+    headers.map((header) => escapeCSVValue(session[header as keyof ExportedSession])).join(',')
+  );
+
+  return [headers.join(','), ...rows].join('\n');
+}
+
+/**
+ * Trigger a browser download of CSV data.
+ */
+export function downloadCSV(data: string, filename: string): void {
+  const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
