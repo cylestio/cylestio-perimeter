@@ -90,6 +90,12 @@ const getColumns = (agentWorkflowId: string, showAgentColumn: boolean): Column<S
       },
     },
     {
+      key: 'created_at',
+      header: 'Created',
+      render: (session) => <TimeAgo timestamp={session.created_at} />,
+      sortable: true,
+    },
+    {
       key: 'duration_minutes',
       header: 'Duration',
       render: (session) => `${session.duration_minutes.toFixed(1)}m`,
