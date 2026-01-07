@@ -2,6 +2,7 @@
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 
@@ -34,6 +35,14 @@ settings: Optional[Settings] = None
 app: Optional[FastAPI] = None
 proxy_handler: Optional[ProxyHandler] = None
 logger = get_logger(__name__)
+
+
+def get_package_version() -> str:
+    """Get the package version from setuptools_scm."""
+    try:
+        return version("cylestio-perimeter")
+    except PackageNotFoundError:
+        return "dev"
 
 
 def create_app(config: Settings) -> FastAPI:
@@ -147,7 +156,7 @@ def create_app(config: Settings) -> FastAPI:
     @fast_app.get("/health")
     async def health_check():
         """Health check endpoint."""
-        return {"status": "healthy", "service": "llm-proxy"}
+        return {"status": "healthy", "service": "llm-proxy", "version": get_package_version()}
 
     # Metrics endpoint
     @fast_app.get("/metrics")

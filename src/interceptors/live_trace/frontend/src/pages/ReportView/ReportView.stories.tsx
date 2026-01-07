@@ -67,6 +67,35 @@ const mockReportData = {
   },
 };
 
+// Create mock fetch functions - cast at usage site like Reports.stories.tsx
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createSuccessFetch = (): ((url: string) => Promise<any>) => {
+  return (url: string) => {
+    if (url.includes('/api/reports/')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockReportData),
+      });
+    }
+    return Promise.reject(new Error(`Unknown URL: ${url}`));
+  };
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createLoadingFetch = (): (() => Promise<any>) => {
+  return () => new Promise(() => {});
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const createErrorFetch = (): (() => Promise<any>) => {
+  return () =>
+    Promise.resolve({
+      ok: false,
+      statusText: 'Not Found',
+      json: () => Promise.resolve({ error: 'Report not found' }),
+    });
+};
+
 const meta: Meta<typeof ReportView> = {
   title: 'Pages/ReportView',
   component: ReportView,
@@ -85,15 +114,7 @@ type Story = StoryObj<typeof ReportView>;
 export const Default: Story = {
   decorators: [
     (Story) => {
-      window.fetch = ((url: string) => {
-        if (url.includes('/api/reports/')) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(mockReportData),
-          });
-        }
-        return Promise.reject(new Error(`Unknown URL: ${url}`));
-      }) as typeof fetch;
+      window.fetch = createSuccessFetch() as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -118,8 +139,7 @@ export const Default: Story = {
 export const Loading: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch to never resolve (simulates loading)
-      window.fetch = () => new Promise(() => {});
+      window.fetch = createLoadingFetch() as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -136,17 +156,10 @@ export const Loading: Story = {
   },
 };
 
-export const Error: Story = {
+export const ErrorState: Story = {
   decorators: [
     (Story) => {
-      // Mock fetch to return error
-      window.fetch = (() => {
-        return Promise.resolve({
-          ok: false,
-          statusText: 'Not Found',
-          json: () => Promise.resolve({ error: 'Report not found' }),
-        });
-      }) as typeof fetch;
+      window.fetch = createErrorFetch() as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
