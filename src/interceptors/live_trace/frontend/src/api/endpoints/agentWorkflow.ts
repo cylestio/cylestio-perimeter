@@ -500,6 +500,9 @@ export interface ReportListItem {
   gate_status: 'OPEN' | 'BLOCKED';
   findings_count: number;
   recommendations_count: number;
+  critical_count: number;
+  high_count: number;
+  medium_count: number;
 }
 
 export interface StoredReport extends ReportListItem {

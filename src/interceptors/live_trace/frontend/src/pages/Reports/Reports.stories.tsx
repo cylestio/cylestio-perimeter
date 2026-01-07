@@ -102,10 +102,50 @@ export const Default: Story = {
   },
 };
 
-export const WithTemplates: Story = {
+export const WithReportHistory: Story = {
   decorators: [
     (Story) => {
-      window.fetch = createMockFetch() as typeof fetch;
+      window.fetch = ((url: string) => {
+        // Handle report history endpoint with data
+        if (url.includes('/api/workflow/') && url.includes('/reports')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+              reports: [
+                {
+                  report_id: 'report-1',
+                  agent_workflow_id: 'test-agent-workflow',
+                  report_type: 'security_assessment',
+                  report_name: 'Security Assessment Report',
+                  generated_at: new Date(Date.now() - 3600000).toISOString(),
+                  risk_score: 35,
+                  gate_status: 'OPEN',
+                  findings_count: 5,
+                  recommendations_count: 3,
+                  critical_count: 0,
+                  high_count: 1,
+                  medium_count: 2,
+                },
+                {
+                  report_id: 'report-2',
+                  agent_workflow_id: 'test-agent-workflow',
+                  report_type: 'security_assessment',
+                  report_name: 'Security Assessment Report',
+                  generated_at: new Date(Date.now() - 86400000).toISOString(),
+                  risk_score: 72,
+                  gate_status: 'BLOCKED',
+                  findings_count: 12,
+                  recommendations_count: 8,
+                  critical_count: 2,
+                  high_count: 3,
+                  medium_count: 4,
+                },
+              ],
+            }),
+          });
+        }
+        return Promise.reject(new Error(`Unknown URL: ${url}`));
+      }) as typeof fetch;
       return (
         <RouteWrapper>
           <Story />
@@ -115,10 +155,9 @@ export const WithTemplates: Story = {
   ],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Component shows 3 report templates
-    await expect(await canvas.findByText('Security Assessment')).toBeInTheDocument();
-    await expect(await canvas.findByText('Executive Summary')).toBeInTheDocument();
-    await expect(await canvas.findByText('Customer Due Diligence')).toBeInTheDocument();
+    // Component shows report history table
+    await expect(await canvas.findByText('Report History')).toBeInTheDocument();
+    await expect(await canvas.findByText('Security Assessment Report')).toBeInTheDocument();
   },
 };
 

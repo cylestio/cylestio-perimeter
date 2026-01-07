@@ -4496,7 +4496,7 @@ class TraceStore:
             query = """
                 SELECT report_id, agent_workflow_id, report_type, report_name,
                        generated_at, generated_by, risk_score, gate_status,
-                       findings_count, recommendations_count
+                       findings_count, recommendations_count, report_data
                 FROM generated_reports
                 WHERE agent_workflow_id = ?
             """
@@ -4514,6 +4514,24 @@ class TraceStore:
 
             reports = []
             for row in rows:
+                # Extract severity counts from report_data JSON
+                critical_count = 0
+                high_count = 0
+                medium_count = 0
+                if row[10]:
+                    try:
+                        report_data = json.loads(row[10])
+                        breakdown = report_data.get("executive_summary", {}).get("risk_breakdown", {}).get("breakdown", [])
+                        for item in breakdown:
+                            if item.get("severity") == "CRITICAL":
+                                critical_count = item.get("count", 0)
+                            elif item.get("severity") == "HIGH":
+                                high_count = item.get("count", 0)
+                            elif item.get("severity") == "MEDIUM":
+                                medium_count = item.get("count", 0)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
                 reports.append({
                     "report_id": row[0],
                     "agent_workflow_id": row[1],
@@ -4525,6 +4543,9 @@ class TraceStore:
                     "gate_status": row[7],
                     "findings_count": row[8],
                     "recommendations_count": row[9],
+                    "critical_count": critical_count,
+                    "high_count": high_count,
+                    "medium_count": medium_count,
                 })
             return reports
 
