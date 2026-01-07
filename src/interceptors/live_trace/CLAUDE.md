@@ -75,7 +75,7 @@ live_trace/
 
 ## Reference Documentation
 
-Read these documents when working on specific areas:
+You must read these documents when working on those specific areas:
 
 | Document | When to Read |
 |----------|--------------|
