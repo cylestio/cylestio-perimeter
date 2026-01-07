@@ -4,7 +4,6 @@ import {
   Download,
   Calendar,
   Shield,
-  Briefcase,
   FileText,
   RefreshCw,
   CheckCircle,
@@ -12,7 +11,6 @@ import {
   AlertTriangle,
   Loader2,
   Clock,
-  Users,
   Trash2,
   Eye,
   FileDown,
@@ -61,20 +59,6 @@ const REPORT_TYPES: { id: ReportType; name: string; description: string; icon: t
     description: 'Comprehensive CISO report with static/dynamic analysis, compliance mapping, code evidences',
     icon: Shield,
     audience: 'CISO / Security Team',
-  },
-  {
-    id: 'executive_summary',
-    name: 'Executive Summary',
-    description: 'High-level GO/NO-GO decision with key metrics and blockers for leadership',
-    icon: Briefcase,
-    audience: 'C-Suite / Leadership',
-  },
-  {
-    id: 'customer_dd',
-    name: 'Customer Due Diligence',
-    description: 'Third-party vendor assessment with security checklist and compliance status',
-    icon: Users,
-    audience: 'Customers / Partners',
   },
 ];
 

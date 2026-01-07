@@ -1268,17 +1268,16 @@ class TestComplianceReportMethods:
         report_data = store.generate_compliance_report("report_workflow")
 
         store.save_report("report_workflow", "security_assessment", report_data)
-        store.save_report("report_workflow", "executive_summary", report_data)
-        store.save_report("report_workflow", "customer_dd", report_data)
+        store.save_report("report_workflow", "security_assessment", report_data)
 
         # Get all reports
         reports = store.get_reports("report_workflow")
-        assert len(reports) == 3
+        assert len(reports) == 2
 
         # Filter by type
-        exec_reports = store.get_reports("report_workflow", report_type="executive_summary")
-        assert len(exec_reports) == 1
-        assert exec_reports[0]['report_type'] == "executive_summary"
+        sec_reports = store.get_reports("report_workflow", report_type="security_assessment")
+        assert len(sec_reports) == 2
+        assert sec_reports[0]['report_type'] == "security_assessment"
 
     def test_get_report_by_id(self, store):
         """Test retrieving a specific report with full data."""

@@ -4421,7 +4421,7 @@ class TraceStore:
 
         Args:
             workflow_id: The workflow ID
-            report_type: Type of report (security_assessment, executive_summary, customer_dd)
+            report_type: Type of report (security_assessment)
             report_data: The full report data as a dictionary
             report_name: Optional custom name for the report
             generated_by: Optional user/entity that generated the report
@@ -4446,8 +4446,6 @@ class TraceStore:
         if not report_name:
             type_names = {
                 "security_assessment": "Security Assessment",
-                "executive_summary": "Executive Summary",
-                "customer_dd": "Customer Due Diligence",
             }
             report_name = f"{type_names.get(report_type, report_type)} - {now.strftime('%B %d, %Y')}"
 
