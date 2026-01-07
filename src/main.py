@@ -2,6 +2,7 @@
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
+from importlib.metadata import version as get_package_version, PackageNotFoundError
 from pathlib import Path
 from typing import AsyncGenerator, Optional
 
@@ -34,6 +35,34 @@ settings: Optional[Settings] = None
 app: Optional[FastAPI] = None
 proxy_handler: Optional[ProxyHandler] = None
 logger = get_logger(__name__)
+
+
+def get_version() -> str:
+    """Get package version from installed metadata."""
+    try:
+        return get_package_version("cylestio-perimeter")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def version_callback(value: bool):
+    """Handle --version flag."""
+    if value:
+        typer.echo(f"cylestio-perimeter {get_version()}")
+        raise typer.Exit()
+
+
+@cli.callback()
+def main_callback(
+    version: bool = typer.Option(
+        False, "--version", "-v",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit"
+    )
+):
+    """LLM Proxy Server - Route requests to LLM providers with middleware support."""
+    pass
 
 
 def create_app(config: Settings) -> FastAPI:
@@ -86,7 +115,7 @@ def create_app(config: Settings) -> FastAPI:
     fast_app = FastAPI(
         title="LLM Proxy Server",
         description="Proxy server for LLM API requests with middleware support",
-        version="1.0.0",
+        version=get_version(),
         lifespan=lifespan
     )
 

@@ -1,6 +1,7 @@
 """FastAPI server for the live trace dashboard."""
 import os
 import time
+from importlib.metadata import version as get_package_version, PackageNotFoundError
 from pathlib import Path
 from typing import Optional
 
@@ -12,6 +13,14 @@ from fastapi.staticfiles import StaticFiles
 
 from src.kb.loader import get_kb_loader
 from src.utils.logger import get_logger
+
+
+def _get_version() -> str:
+    """Get package version from installed metadata."""
+    try:
+        return get_package_version("cylestio-perimeter")
+    except PackageNotFoundError:
+        return "unknown"
 
 from .runtime.engine import InsightsEngine
 from .mcp import create_mcp_router
@@ -45,7 +54,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     app = FastAPI(
         title="Live Trace Dashboard",
         description="Real-time tracing and debugging dashboard",
-        version="1.0.0"
+        version=_get_version()
     )
 
     # Add CORS middleware for local development security
