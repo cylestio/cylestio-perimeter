@@ -176,7 +176,7 @@ def create_app(config: Settings) -> FastAPI:
     @fast_app.get("/health")
     async def health_check():
         """Health check endpoint."""
-        return {"status": "healthy", "service": "llm-proxy", "version": get_package_version()}
+        return {"status": "healthy", "service": "llm-proxy", "version": get_version()}
 
     # Metrics endpoint
     @fast_app.get("/metrics")
