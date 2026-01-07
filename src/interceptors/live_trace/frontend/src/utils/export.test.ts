@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { parseConversation } from './export';
+import { parseConversation, convertSessionsToCSV } from './export';
 import type { TimelineEvent } from '@api/types/session';
+import type { ExportedSession } from './export';
 
 describe('parseConversation', () => {
   it('should return empty array for empty events', () => {
@@ -291,5 +292,140 @@ describe('parseConversation', () => {
     const result = parseConversation(events);
 
     expect(result).toEqual([]);
+  });
+});
+
+describe('convertSessionsToCSV', () => {
+  it('should return header row for empty array', () => {
+    const result = convertSessionsToCSV([]);
+    expect(result).toBe(
+      'id,agent_id,agent_workflow_id,status,created_at,last_activity,duration_minutes,message_count,tool_uses,total_tokens,errors,error_rate,tags'
+    );
+  });
+
+  it('should convert single session to CSV', () => {
+    const sessions: ExportedSession[] = [
+      {
+        id: 'session-123',
+        agent_id: 'agent-456',
+        agent_workflow_id: 'workflow-789',
+        status: 'COMPLETED',
+        created_at: '2024-01-01T00:00:00Z',
+        last_activity: '2024-01-01T01:00:00Z',
+        duration_minutes: 60,
+        message_count: 10,
+        tool_uses: 5,
+        total_tokens: 1000,
+        errors: 0,
+        error_rate: 0,
+        tags: undefined,
+      },
+    ];
+
+    const result = convertSessionsToCSV(sessions);
+    const lines = result.split('\n');
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe(
+      'id,agent_id,agent_workflow_id,status,created_at,last_activity,duration_minutes,message_count,tool_uses,total_tokens,errors,error_rate,tags'
+    );
+    expect(lines[1]).toBe(
+      'session-123,agent-456,workflow-789,COMPLETED,2024-01-01T00:00:00Z,2024-01-01T01:00:00Z,60,10,5,1000,0,0,'
+    );
+  });
+
+  it('should escape values containing commas', () => {
+    const sessions: ExportedSession[] = [
+      {
+        id: 'session,with,commas',
+        agent_id: 'agent-456',
+        agent_workflow_id: null,
+        status: 'COMPLETED',
+        created_at: '2024-01-01T00:00:00Z',
+        last_activity: '2024-01-01T01:00:00Z',
+        duration_minutes: 60,
+        message_count: 10,
+        tool_uses: 5,
+        total_tokens: 1000,
+        errors: 0,
+        error_rate: 0,
+        tags: undefined,
+      },
+    ];
+
+    const result = convertSessionsToCSV(sessions);
+    expect(result).toContain('"session,with,commas"');
+  });
+
+  it('should escape values containing quotes', () => {
+    const sessions: ExportedSession[] = [
+      {
+        id: 'session"with"quotes',
+        agent_id: 'agent-456',
+        agent_workflow_id: null,
+        status: 'COMPLETED',
+        created_at: '2024-01-01T00:00:00Z',
+        last_activity: '2024-01-01T01:00:00Z',
+        duration_minutes: 60,
+        message_count: 10,
+        tool_uses: 5,
+        total_tokens: 1000,
+        errors: 0,
+        error_rate: 0,
+        tags: undefined,
+      },
+    ];
+
+    const result = convertSessionsToCSV(sessions);
+    expect(result).toContain('"session""with""quotes"');
+  });
+
+  it('should handle tags object', () => {
+    const sessions: ExportedSession[] = [
+      {
+        id: 'session-123',
+        agent_id: 'agent-456',
+        agent_workflow_id: 'workflow-789',
+        status: 'COMPLETED',
+        created_at: '2024-01-01T00:00:00Z',
+        last_activity: '2024-01-01T01:00:00Z',
+        duration_minutes: 60,
+        message_count: 10,
+        tool_uses: 5,
+        total_tokens: 1000,
+        errors: 0,
+        error_rate: 0,
+        tags: { env: 'prod', user: 'alice' },
+      },
+    ];
+
+    const result = convertSessionsToCSV(sessions);
+    // Tags should be JSON stringified and escaped since it contains quotes
+    expect(result).toContain('"{""env"":""prod"",""user"":""alice""}"');
+  });
+
+  it('should handle null agent_workflow_id', () => {
+    const sessions: ExportedSession[] = [
+      {
+        id: 'session-123',
+        agent_id: 'agent-456',
+        agent_workflow_id: null,
+        status: 'ACTIVE',
+        created_at: '2024-01-01T00:00:00Z',
+        last_activity: '2024-01-01T00:30:00Z',
+        duration_minutes: 30,
+        message_count: 5,
+        tool_uses: 2,
+        total_tokens: 500,
+        errors: 1,
+        error_rate: 20,
+        tags: undefined,
+      },
+    ];
+
+    const result = convertSessionsToCSV(sessions);
+    const lines = result.split('\n');
+    // null should become empty string
+    expect(lines[1]).toContain('agent-456,,ACTIVE');
   });
 });
