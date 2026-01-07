@@ -150,7 +150,7 @@ Extract when exceeding ~50 lines. Split into:
 
 1. Create `ComponentName/` folder with 3 files (.tsx, .styles.ts, .stories.tsx)
 2. Add export to category's `index.ts`
-3. Update `COMPONENTS_INDEX.md`
+3. Update `components-index.md`
 
 ---
 
