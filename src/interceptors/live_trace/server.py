@@ -1933,7 +1933,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
     @app.get("/health")
     async def health():
         """Health check endpoint."""
-        return {"status": "ok", "service": "live_trace"}
+        return {"status": "ok", "service": "live_trace", "version": _get_version()}
 
     # Serve React app for all other routes (SPA fallback)
     @app.get("/{full_path:path}")
