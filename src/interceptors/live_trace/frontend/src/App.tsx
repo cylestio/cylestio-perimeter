@@ -20,6 +20,7 @@ import type { IDEConnectionStatus } from '@api/types/ide';
 import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchAgentWorkflows, fetchProductionReadiness } from '@api/endpoints/dashboard';
+import { fetchHealth } from '@api/endpoints/health';
 import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
 import { fetchRecommendations } from '@api/endpoints/agentWorkflow';
 import type { Recommendation } from '@api/types/findings';
@@ -105,6 +106,9 @@ function AppLayout() {
   // Config state (for storage mode indicator)
   const [config, setConfig] = useState<ConfigResponse | null>(null);
 
+  // Version state (from health endpoint)
+  const [version, setVersion] = useState<string | null>(null);
+
   // IDE connection state
   const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
@@ -146,6 +150,15 @@ function AppLayout() {
       .then(setConfig)
       .catch((error) => {
         console.error('Failed to fetch config:', error);
+      });
+  }, []);
+
+  // Fetch version on mount (from health endpoint)
+  useEffect(() => {
+    fetchHealth()
+      .then((health) => setVersion(health.version))
+      .catch((error) => {
+        console.error('Failed to fetch health:', error);
       });
   }, []);
 
@@ -357,8 +370,8 @@ function AppLayout() {
                   openRecommendations.highestSeverity === 'CRITICAL' || openRecommendations.highestSeverity === 'HIGH'
                     ? 'red'
                     : openRecommendations.highestSeverity === 'MEDIUM'
-                    ? 'orange'
-                    : 'cyan'
+                      ? 'orange'
+                      : 'cyan'
                 }
                 iconPulsing={openRecommendations.hasFixing}
                 active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/recommendations`}
@@ -441,6 +454,12 @@ function AppLayout() {
           )}
         </Sidebar.Section>
 
+        {version && !sidebarCollapsed && (
+          <div style={{ textAlign: 'center', fontSize: '11px', color: '#6b7280', padding: '4px 0' }}>
+            v{version}
+          </div>
+        )}
+
         <Sidebar.Footer>
           <NavItem
             label="How to Connect"
@@ -460,11 +479,11 @@ function AppLayout() {
 
         {!hideTopBar && <TopBar
           breadcrumb={breadcrumbs}
-          // search={{
-          //   onSearch: (query: string) => { console.log(query); },
-          //   placeholder: 'Search sessions...',
-          //   shortcut: '⌘K'
-          // }}
+        // search={{
+        //   onSearch: (query: string) => { console.log(query); },
+        //   placeholder: 'Search sessions...',
+        //   shortcut: '⌘K'
+        // }}
         />}
 
         <Content>

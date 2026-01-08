@@ -2,6 +2,7 @@ export * from './agent';
 export * from './agentWorkflow';
 export * from './config';
 export * from './dashboard';
+export * from './health';
 export * from './ide';
 export * from './replay';
 export * from './security';

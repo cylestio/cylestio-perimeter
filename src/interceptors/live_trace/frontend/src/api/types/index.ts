@@ -22,6 +22,7 @@ export {
 export * from './config';
 export * from './dashboard';
 export * from './findings';
+export * from './health';
 export * from './ide';
 export * from './replay';
 export * from './session';
