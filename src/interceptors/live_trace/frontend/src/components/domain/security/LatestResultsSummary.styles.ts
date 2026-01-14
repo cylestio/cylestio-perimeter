@@ -1,3 +1,4 @@
+// Latest analysis summary styles
 import styled, { css } from 'styled-components';
 
 export const SummaryBar = styled.div<{ $status?: 'critical' | 'warning' | 'success' }>`
