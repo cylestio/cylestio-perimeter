@@ -1,4 +1,4 @@
-import styled, { keyframes } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
 const spin = keyframes`
   from { transform: rotate(0deg); }
@@ -24,11 +24,11 @@ export const StatusIcon = styled.span<{ $status: 'in_progress' | 'completed' | '
 
   ${({ $status }) =>
     $status === 'in_progress' &&
-    `
-    svg {
-      animation: ${spin} 1s linear infinite;
-    }
-  `}
+    css`
+      svg {
+        animation: ${spin} 1s linear infinite;
+      }
+    `}
 `;
 
 export const TypeBadge = styled.span<{ $type: 'STATIC' | 'AUTOFIX' | 'DYNAMIC' }>`
