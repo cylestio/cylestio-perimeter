@@ -128,8 +128,8 @@ export const LatestResultsSummary: FC<LatestResultsSummaryProps> = ({
       </StatsSection>
 
       {/* CTA */}
-      <ViewButton onClick={handleViewDetails}>
-        View Details
+      <ViewButton onClick={handleViewDetails} $status={overallStatus}>
+        View Analysis Results
         <ArrowRight size={14} />
       </ViewButton>
     </SummaryBar>

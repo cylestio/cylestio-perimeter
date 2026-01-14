@@ -5,7 +5,6 @@ export const SummaryBar = styled.div<{ $status?: 'critical' | 'warning' | 'succe
   align-items: center;
   gap: ${({ theme }) => theme.spacing[4]};
   padding: ${({ theme }) => theme.spacing[4]} ${({ theme }) => theme.spacing[5]};
-  background: ${({ theme }) => theme.colors.surface2};
   border-radius: ${({ theme }) => theme.radii.lg};
   transition: border-color 150ms ease, background 150ms ease;
 
@@ -13,22 +12,23 @@ export const SummaryBar = styled.div<{ $status?: 'critical' | 'warning' | 'succe
     switch ($status) {
       case 'critical':
         return css`
-          border: 1px solid ${theme.colors.red}50;
-          background: linear-gradient(135deg, ${theme.colors.red}08 0%, ${theme.colors.surface2} 100%);
+          border: 1px solid ${theme.colors.red}60;
+          background: linear-gradient(135deg, ${theme.colors.red}15 0%, ${theme.colors.red}08 50%, ${theme.colors.surface2} 100%);
         `;
       case 'warning':
         return css`
-          border: 1px solid ${theme.colors.yellow}50;
-          background: linear-gradient(135deg, ${theme.colors.yellow}08 0%, ${theme.colors.surface2} 100%);
+          border: 1px solid ${theme.colors.yellow}60;
+          background: linear-gradient(135deg, ${theme.colors.yellow}15 0%, ${theme.colors.yellow}08 50%, ${theme.colors.surface2} 100%);
         `;
       case 'success':
         return css`
-          border: 1px solid ${theme.colors.green}50;
-          background: linear-gradient(135deg, ${theme.colors.green}08 0%, ${theme.colors.surface2} 100%);
+          border: 1px solid ${theme.colors.green}60;
+          background: linear-gradient(135deg, ${theme.colors.green}15 0%, ${theme.colors.green}08 50%, ${theme.colors.surface2} 100%);
         `;
       default:
         return css`
           border: 1px solid ${theme.colors.borderMedium};
+          background: ${theme.colors.surface2};
         `;
     }
   }}
@@ -197,32 +197,69 @@ export const FindingDot = styled.span<{ $variant: 'critical' | 'warning' | 'pass
   }}
 `;
 
-export const ViewButton = styled.button`
+export const ViewButton = styled.button<{ $status?: 'critical' | 'warning' | 'success' }>`
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: ${({ theme }) => theme.spacing[2]} ${({ theme }) => theme.spacing[3]};
-  background: transparent;
-  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  gap: 8px;
+  padding: ${({ theme }) => theme.spacing[3]} ${({ theme }) => theme.spacing[4]};
+  border: none;
   border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.cyan};
   font-size: 13px;
-  font-weight: ${({ theme }) => theme.typography.weightMedium};
+  font-weight: ${({ theme }) => theme.typography.weightSemibold};
   cursor: pointer;
   transition: all 150ms ease;
   white-space: nowrap;
 
-  &:hover {
-    background: ${({ theme }) => theme.colors.white04};
-    border-color: ${({ theme }) => theme.colors.cyan};
-  }
+  ${({ $status, theme }) => {
+    switch ($status) {
+      case 'critical':
+        return css`
+          background: ${theme.colors.red};
+          color: ${theme.colors.white};
+
+          &:hover {
+            background: ${theme.colors.red}dd;
+            box-shadow: 0 4px 12px ${theme.colors.red}40;
+          }
+        `;
+      case 'warning':
+        return css`
+          background: ${theme.colors.yellow};
+          color: ${theme.colors.void};
+
+          &:hover {
+            background: ${theme.colors.yellow}dd;
+            box-shadow: 0 4px 12px ${theme.colors.yellow}40;
+          }
+        `;
+      case 'success':
+        return css`
+          background: ${theme.colors.green};
+          color: ${theme.colors.white};
+
+          &:hover {
+            background: ${theme.colors.green}dd;
+            box-shadow: 0 4px 12px ${theme.colors.green}40;
+          }
+        `;
+      default:
+        return css`
+          background: ${theme.colors.cyan};
+          color: ${theme.colors.white};
+
+          &:hover {
+            background: ${theme.colors.cyan}dd;
+          }
+        `;
+    }
+  }}
 
   svg {
     transition: transform 150ms ease;
   }
 
   &:hover svg {
-    transform: translateX(2px);
+    transform: translateX(3px);
   }
 `;
 
