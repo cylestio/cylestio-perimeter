@@ -1602,6 +1602,14 @@ class TraceStore:
             'sessions_analyzed': row['sessions_analyzed'],  # Number of runtime sessions in this scan
         }
 
+    def _deserialize_analysis_session_with_counts(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert SQLite row to analysis session dict with severity counts."""
+        base = self._deserialize_analysis_session(row)
+        base['critical'] = row['critical'] if 'critical' in row.keys() else 0
+        base['warnings'] = row['warnings'] if 'warnings' in row.keys() else 0
+        base['passed'] = row['passed'] if 'passed' in row.keys() else 0
+        return base
+
     def _deserialize_finding(self, row: sqlite3.Row) -> Dict[str, Any]:
         """Convert SQLite row to finding dict."""
         row_keys = row.keys()
@@ -1813,22 +1821,40 @@ class TraceStore:
     ) -> List[Dict[str, Any]]:
         """Get analysis sessions with optional filtering."""
         with self._lock:
-            query = "SELECT * FROM analysis_sessions WHERE 1=1"
+            # Query with LEFT JOIN to get severity counts
+            query = """
+                SELECT
+                    a.*,
+                    COALESCE(sc.critical, 0) as critical,
+                    COALESCE(sc.warnings, 0) as warnings,
+                    COALESCE(sc.passed, 0) as passed
+                FROM analysis_sessions a
+                LEFT JOIN (
+                    SELECT
+                        analysis_session_id,
+                        SUM(CASE WHEN status = 'critical' THEN 1 ELSE 0 END) as critical,
+                        SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warnings,
+                        SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed
+                    FROM security_checks
+                    GROUP BY analysis_session_id
+                ) sc ON a.session_id = sc.analysis_session_id
+                WHERE 1=1
+            """
             params = []
 
             if agent_workflow_id:
-                query += " AND agent_workflow_id = ?"
+                query += " AND a.agent_workflow_id = ?"
                 params.append(agent_workflow_id)
 
             if status:
-                query += " AND status = ?"
+                query += " AND a.status = ?"
                 params.append(status)
 
-            query += " ORDER BY created_at DESC LIMIT ?"
+            query += " ORDER BY a.created_at DESC LIMIT ?"
             params.append(limit)
 
             cursor = self.db.execute(query, params)
-            return [self._deserialize_analysis_session(row) for row in cursor.fetchall()]
+            return [self._deserialize_analysis_session_with_counts(row) for row in cursor.fetchall()]
 
     def store_finding(
         self,
@@ -2520,13 +2546,42 @@ class TraceStore:
             is_running = False
             if last_analysis_row:
                 is_running = last_analysis_row['status'] == 'IN_PROGRESS'
+                session_id = last_analysis_row['session_id']
+
+                # Get summary of security checks for this specific analysis session
+                summary_cursor = self.db.execute("""
+                    SELECT
+                        COUNT(DISTINCT agent_id) as agents_analyzed,
+                        SUM(CASE WHEN status = 'critical' THEN 1 ELSE 0 END) as critical,
+                        SUM(CASE WHEN status = 'warning' THEN 1 ELSE 0 END) as warnings,
+                        SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed
+                    FROM security_checks
+                    WHERE analysis_session_id = ?
+                """, (session_id,))
+                summary_row = summary_cursor.fetchone()
+
+                # Get count of agents with findings (critical or warning)
+                agents_findings_cursor = self.db.execute("""
+                    SELECT COUNT(DISTINCT agent_id) as agents_with_findings
+                    FROM security_checks
+                    WHERE analysis_session_id = ?
+                    AND status IN ('critical', 'warning')
+                """, (session_id,))
+                agents_findings_row = agents_findings_cursor.fetchone()
+
                 last_analysis = {
-                    'session_id': last_analysis_row['session_id'],
+                    'session_id': session_id,
                     'status': last_analysis_row['status'],
                     'created_at': last_analysis_row['created_at'],
                     'completed_at': last_analysis_row['completed_at'],
                     'sessions_analyzed': last_analysis_row['sessions_analyzed'],
                     'findings_count': last_analysis_row['findings_count'],
+                    # Summary specific to this analysis session
+                    'agents_analyzed': summary_row['agents_analyzed'] if summary_row else 0,
+                    'agents_with_findings': agents_findings_row['agents_with_findings'] if agents_findings_row else 0,
+                    'critical': summary_row['critical'] if summary_row else 0,
+                    'warnings': summary_row['warnings'] if summary_row else 0,
+                    'passed': summary_row['passed'] if summary_row else 0,
                 }
 
             # Determine if we can trigger analysis
@@ -2748,7 +2803,7 @@ class TraceStore:
                 recommendations = _get_attr(check, 'recommendations')
 
                 self.store_security_check(
-                    check_id=f"{analysis_session_id}_{check_id}",
+                    check_id=f"{analysis_session_id}_{agent_id}_{check_id}",
                     agent_id=agent_id,
                     analysis_session_id=analysis_session_id,
                     category_id=category_id,

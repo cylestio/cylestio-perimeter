@@ -89,3 +89,41 @@ export const TabCount = styled.span`
   font-weight: 600;
   opacity: 0.7;
 `;
+
+export type TabBadgeVariant = 'critical' | 'warning' | 'success';
+
+interface TabBadgeProps {
+  $variant: TabBadgeVariant;
+}
+
+export const TabBadge = styled.span<TabBadgeProps>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: ${({ theme }) => theme.radii.full};
+
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'critical':
+        return css`
+          background: ${theme.colors.redSoft};
+          color: ${theme.colors.red};
+        `;
+      case 'warning':
+        return css`
+          background: ${theme.colors.yellowSoft};
+          color: ${theme.colors.yellow};
+        `;
+      case 'success':
+        return css`
+          background: ${theme.colors.greenSoft};
+          color: ${theme.colors.green};
+        `;
+    }
+  }}
+`;

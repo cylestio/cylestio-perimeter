@@ -52,6 +52,8 @@ export interface SecurityCheckItemProps {
   isLast?: boolean;
   /** Whether item is locked (enterprise only) */
   isLocked?: boolean;
+  /** Show a tier badge (pro/enterprise) without locking the item */
+  tier?: 'pro' | 'enterprise';
   /** Custom icon override */
   icon?: ReactNode;
   /** Tooltip content when locked */
@@ -159,6 +161,7 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
   isFirst = false,
   isLast = false,
   isLocked = false,
+  tier,
   icon,
   lockedTooltip = 'Available for Enterprise customers',
   className,
@@ -202,7 +205,12 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
               Enterprise
             </EnterpriseBadge>
           )}
-          {count !== undefined && count > 0 && !isLocked && (
+          {!isLocked && tier && (
+            <EnterpriseBadge>
+              {tier === 'pro' ? 'Pro' : 'Enterprise'}
+            </EnterpriseBadge>
+          )}
+          {count !== undefined && count > 0 && !isLocked && !tier && (
             <ItemBadge $status={status} $badgeColor={badgeColor}>
               {count}
             </ItemBadge>
@@ -242,6 +250,7 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
         $clickable={isClickable}
         $disabled={disabled}
         $isLocked={isLocked}
+        $isPro={!!tier}
         $status={effectiveStatus}
         className={className}
       >
@@ -258,6 +267,7 @@ export const SecurityCheckItem: FC<SecurityCheckItemProps> = ({
       $clickable={isClickable}
       $disabled={disabled || isLocked}
       $isLocked={isLocked}
+      $isPro={!!tier}
       $status={effectiveStatus}
       onClick={disabled || isLocked ? undefined : onClick}
       className={className}

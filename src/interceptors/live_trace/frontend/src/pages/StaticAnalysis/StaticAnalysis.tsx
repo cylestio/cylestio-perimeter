@@ -1,49 +1,29 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
-import { Shield, FileSearch, AlertTriangle } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Clock } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
 
-import { 
-  fetchStaticSummary, 
-  fetchAnalysisSessions, 
-  fetchCorrelationSummary,
+import {
+  fetchStaticSummary,
+  fetchAnalysisSessions,
   type AnalysisSession,
-  type CorrelationSummaryResponse,
 } from '@api/endpoints/agentWorkflow';
-import type { 
-  StaticSummaryResponse, 
-  SecurityCheck,
-  CheckStatus,
-} from '@api/types/findings';
+import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
+import { fetchConfig } from '@api/endpoints/config';
+import type { IDEConnectionStatus } from '@api/types/ide';
+import type { ConfigResponse } from '@api/types/config';
+import type { StaticSummaryResponse } from '@api/types/findings';
+import { StaticAnalysisIcon } from '@constants/pageIcons';
 
-import { Badge } from '@ui/core/Badge';
 import { OrbLoader } from '@ui/feedback/OrbLoader';
-import { EmptyState } from '@ui/feedback/EmptyState';
 import { Page } from '@ui/layout/Page';
 import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 
-import { 
-  ScanStatusCard, 
-  SecurityCheckCard, 
-  GateProgress,
-} from '@domain/security';
-
-import { CorrelationSummary } from '@domain/correlation';
+import { IDEConnectionBanner, IDESetupSection } from '@domain/ide';
+import { ScanOverviewCard, ScanHistoryTable } from '@domain/security';
 
 import { usePageMeta } from '../../context';
-import {
-  PageStats,
-  StatBadge,
-  StatValue,
-  SecurityChecksGrid,
-  ChecksSectionHeader,
-  ChecksSectionTitle,
-  ChecksSectionSubtitle,
-  EmptyContent,
-  ErrorContent,
-  RetryButton,
-} from './StaticAnalysis.styles';
 
 export interface StaticAnalysisProps {
   className?: string;
@@ -51,31 +31,69 @@ export interface StaticAnalysisProps {
 
 export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
+  const navigate = useNavigate();
 
-  // State
+  // IDE Connection state
+  const [connectionStatus, setConnectionStatus] = useState<IDEConnectionStatus | null>(null);
+  const [serverConfig, setServerConfig] = useState<ConfigResponse | null>(null);
+  const [connectionLoading, setConnectionLoading] = useState(true);
+
+  // Static analysis state
   const [staticSummary, setStaticSummary] = useState<StaticSummaryResponse | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
-  const [correlationData, setCorrelationData] = useState<CorrelationSummaryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  // Fetch static summary (which includes security check categories)
+  // Fetch IDE connection status
+  const fetchConnectionStatus = useCallback(async () => {
+    if (!agentWorkflowId || agentWorkflowId === 'unassigned') {
+      setConnectionStatus({
+        has_activity: false,
+        last_seen: null,
+        ide: null,
+      });
+      setConnectionLoading(false);
+      return;
+    }
+
+    try {
+      const status = await fetchIDEConnectionStatus(agentWorkflowId);
+      setConnectionStatus(status);
+    } catch {
+      setConnectionStatus({
+        has_activity: false,
+        last_seen: null,
+        ide: null,
+      });
+    } finally {
+      setConnectionLoading(false);
+    }
+  }, [agentWorkflowId]);
+
+  // Fetch server config for MCP URL
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const config = await fetchConfig();
+        setServerConfig(config);
+      } catch {
+        setServerConfig(null);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  // Fetch static analysis data
   const fetchData = useCallback(async () => {
     if (!agentWorkflowId) return;
 
-    setLoading(true);
-    setError(null);
-
     try {
-      const [summaryData, sessionsData, correlationSummary] = await Promise.all([
-        fetchStaticSummary(agentWorkflowId),
+      const [summaryData, sessionsData] = await Promise.all([
+        fetchStaticSummary(agentWorkflowId).catch(() => null),
         fetchAnalysisSessions(agentWorkflowId),
-        fetchCorrelationSummary(agentWorkflowId).catch(() => null), // Graceful fallback
       ]);
 
       setStaticSummary(summaryData);
-      setCorrelationData(correlationSummary);
-      
+
       // Filter to only STATIC and AUTOFIX sessions
       const filteredSessions = (sessionsData.sessions || []).filter(
         (session) => session.session_type === 'STATIC' || session.session_type === 'AUTOFIX'
@@ -83,16 +101,31 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
       setAnalysisSessions(filteredSessions);
     } catch (err) {
       console.error('Failed to fetch static analysis data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
   }, [agentWorkflowId]);
+
+  // Poll connection status every 5s
+  useEffect(() => {
+    fetchConnectionStatus();
+    const interval = setInterval(fetchConnectionStatus, 5000);
+    return () => clearInterval(interval);
+  }, [fetchConnectionStatus]);
 
   // Fetch data on mount
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Poll for in-progress scans every 3s
+  useEffect(() => {
+    const hasInProgress = analysisSessions.some((s) => s.status === 'IN_PROGRESS');
+    if (hasInProgress) {
+      const interval = setInterval(fetchData, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [analysisSessions, fetchData]);
 
   // Set breadcrumbs
   usePageMeta({
@@ -103,13 +136,32 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     ],
   });
 
+  // Handlers
+  const handleViewSession = (sessionId: string) => {
+    navigate(`/agent-workflow/${agentWorkflowId}/static-analysis/${sessionId}`);
+  };
+
+  const handleViewLatestResults = () => {
+    const latestCompleted = analysisSessions.find((s) => s.status === 'COMPLETED');
+    if (latestCompleted) {
+      handleViewSession(latestCompleted.session_id);
+    }
+  };
+
+  // Derived state
+  const hasScans = analysisSessions.length > 0;
+  const isScanning = analysisSessions.some((s) => s.status === 'IN_PROGRESS');
+  const latestCompletedScan = analysisSessions.find((s) => s.status === 'COMPLETED');
+  const hasConnection = connectionStatus?.has_activity ?? false;
+
   // Loading state
-  if (loading) {
+  if (connectionLoading || dataLoading) {
     return (
       <Page className={className} data-testid="static-analysis">
         <PageHeader
+          icon={<StaticAnalysisIcon size={24} />}
           title="Static Analysis"
-          description={`Agent Workflow: ${agentWorkflowId}`}
+          description="AI-powered security scanning for your agent code"
         />
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
           <OrbLoader size="lg" />
@@ -118,132 +170,75 @@ export const StaticAnalysis: FC<StaticAnalysisProps> = ({ className }) => {
     );
   }
 
-  // Error state
-  if (error) {
-    return (
-      <Page className={className} data-testid="static-analysis">
-        <PageHeader
-          title="Static Analysis"
-          description={`Agent Workflow: ${agentWorkflowId}`}
-        />
-        <ErrorContent>
-          <AlertTriangle size={48} />
-          <p>Failed to load static analysis data</p>
-          <p style={{ fontSize: '12px', color: 'var(--color-white50)' }}>{error}</p>
-          <RetryButton onClick={fetchData}>Retry</RetryButton>
-        </ErrorContent>
-      </Page>
-    );
-  }
-
-  // Calculate totals
-  const totalFindings = staticSummary?.checks.reduce((acc, c) => acc + c.findings_count, 0) || 0;
-  const totalScans = analysisSessions.length;
-  const checkStatuses = staticSummary?.checks.map(c => ({ status: c.status as CheckStatus })) || [];
-  const failedChecks = staticSummary?.summary.failed || 0;
-  const categoriesCount = staticSummary?.checks.length || 0;
-
   return (
     <Page className={className} data-testid="static-analysis">
-      {/* Header */}
       <PageHeader
+        icon={<StaticAnalysisIcon size={24} />}
         title="Static Analysis"
-        description={`Agent Workflow: ${agentWorkflowId}`}
-        actions={
-          <PageStats>
-            <StatBadge>
-              <FileSearch size={14} />
-              <StatValue>{totalScans}</StatValue> scans
-            </StatBadge>
-            <StatBadge>
-              <Shield size={14} />
-              <StatValue>{totalFindings}</StatValue> findings
-            </StatBadge>
-            {failedChecks > 0 && (
-              <Badge variant="critical">
-                {failedChecks} {failedChecks === 1 ? 'check' : 'checks'} failing
-              </Badge>
-            )}
-          </PageStats>
-        }
+        description="AI-powered security scanning for your agent code"
       />
 
-      {/* Scan Status Card */}
-      <Section>
-        <ScanStatusCard
-          lastScan={staticSummary?.last_scan || null}
-          summary={staticSummary?.summary || null}
-          severityCounts={staticSummary?.severity_counts}
-          checkStatuses={checkStatuses}
-          scanHistory={staticSummary?.scan_history}
-          historicalSummary={staticSummary?.historical_summary}
-        />
-      </Section>
-
-      {/* Phase 5: Correlation Summary Card - Show when correlation data exists */}
-      {correlationData && (correlationData.is_correlated || correlationData.uncorrelated > 0) && (
-        <Section>
-          <CorrelationSummary
-            validated={correlationData.validated}
-            unexercised={correlationData.unexercised}
-            theoretical={correlationData.theoretical}
-            uncorrelated={correlationData.uncorrelated}
-            sessionsCount={correlationData.sessions_count}
+      {/* Main Content - depends on state */}
+      {!hasScans ? (
+        // Empty state: Explanation first, then connection status, then setup instructions
+        <>
+          <ScanOverviewCard
+            isScanning={false}
+            className=""
           />
-        </Section>
-      )}
+          <IDEConnectionBanner
+            connectionStatus={connectionStatus}
+            isLoading={connectionLoading}
+          />
+          <IDESetupSection
+            connectionStatus={connectionStatus}
+            serverConfig={serverConfig}
+          />
+        </>
+      ) : (
+        // Has scans: Show overview card + connection status + collapsible instructions + history
+        <>
+          <ScanOverviewCard
+            isScanning={isScanning}
+            gateStatus={staticSummary?.summary?.gate_status}
+            lastScanTime={latestCompletedScan?.created_at}
+            totalFindings={staticSummary?.checks?.reduce((acc, c) => acc + c.findings_count, 0) || 0}
+            severityCounts={staticSummary?.severity_counts}
+            checksPassed={staticSummary?.summary?.passed || 0}
+            checksTotal={(staticSummary?.summary?.passed || 0) + (staticSummary?.summary?.failed || 0) + (staticSummary?.summary?.info || 0)}
+            onViewDetails={latestCompletedScan ? handleViewLatestResults : undefined}
+            latestScanId={latestCompletedScan?.session_id}
+          />
 
-      {/* Security Checks - Security check categories */}
-      <Section>
-        <Section.Header>
-          <ChecksSectionHeader>
-            <ChecksSectionTitle>
-              <Shield size={18} />
-              Security Checks
-            </ChecksSectionTitle>
-            <ChecksSectionSubtitle>
-              {categoriesCount} {categoriesCount === 1 ? 'category' : 'categories'} evaluated for AI agent security
-            </ChecksSectionSubtitle>
-          </ChecksSectionHeader>
-          {staticSummary?.summary && (
-            <GateProgress
-              checks={checkStatuses}
-              gateStatus={staticSummary.summary.gate_status}
-              showStats={false}
-            />
-          )}
-        </Section.Header>
-        <Section.Content>
-          {staticSummary?.checks && staticSummary.checks.length > 0 ? (
-            <SecurityChecksGrid>
-              {staticSummary.checks.map((check) => (
-                <SecurityCheckCard
-                  key={check.category_id}
-                  check={check as SecurityCheck}
-                  defaultExpanded={check.status === 'FAIL'}
-                />
-              ))}
-            </SecurityChecksGrid>
-          ) : (
-            <EmptyState
-              title="No scans yet"
-              description="Run a security scan to see security check categories evaluated."
-            />
-          )}
-        </Section.Content>
-      </Section>
+          {/* IDE Connection Status Banner */}
+          <IDEConnectionBanner
+            connectionStatus={connectionStatus}
+            isLoading={connectionLoading}
+          />
 
-      {/* Empty state when no findings */}
-      {totalFindings === 0 && staticSummary?.last_scan && (
-        <Section>
-          <EmptyContent>
-            <Shield size={48} />
-            <h3>No Security Issues Found</h3>
-            <p>
-              All {categoriesCount} security checks passed. Your agent is ready for production.
-            </p>
-          </EmptyContent>
-        </Section>
+          {/* Collapsible Setup Instructions */}
+          <IDESetupSection
+            connectionStatus={connectionStatus}
+            serverConfig={serverConfig}
+            collapsible
+            defaultExpanded={!hasConnection}
+          />
+
+          {/* Scan History Table */}
+          <Section>
+            <Section.Header>
+              <Section.Title icon={<Clock size={16} />}>Scan History</Section.Title>
+            </Section.Header>
+            <Section.Content noPadding>
+              <ScanHistoryTable
+                sessions={analysisSessions}
+                onViewSession={handleViewSession}
+                emptyMessage="No scans yet"
+                emptyDescription="Connect your IDE and run a security scan to see results here."
+              />
+            </Section.Content>
+          </Section>
+        </>
       )}
     </Page>
   );

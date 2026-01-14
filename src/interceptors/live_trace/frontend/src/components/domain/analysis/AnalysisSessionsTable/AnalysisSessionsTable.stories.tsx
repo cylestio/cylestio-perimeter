@@ -16,6 +16,9 @@ const mockSessions: AnalysisSession[] = [
     created_at: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
     completed_at: new Date(Date.now() - 3540000).toISOString(), // 59 min ago (1min duration)
     findings_count: 13,
+    critical: 2,
+    warnings: 5,
+    passed: 6,
   },
   {
     session_id: 'analysis_ant-assistant-v2_20251211_085500',
@@ -26,6 +29,9 @@ const mockSessions: AnalysisSession[] = [
     status: 'IN_PROGRESS',
     created_at: new Date(Date.now() - 300000).toISOString(), // 5 min ago
     findings_count: 5,
+    critical: 0,
+    warnings: 3,
+    passed: 2,
   },
   {
     session_id: 'analysis_ant-code-agent_20251211_080000',
@@ -36,6 +42,9 @@ const mockSessions: AnalysisSession[] = [
     created_at: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
     completed_at: new Date(Date.now() - 7140000).toISOString(), // 1min duration
     findings_count: 8,
+    critical: 1,
+    warnings: 2,
+    passed: 5,
   },
   {
     session_id: 'analysis_ant-longname-agent-with-extra-chars_20251210_120000',
@@ -45,6 +54,9 @@ const mockSessions: AnalysisSession[] = [
     created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
     completed_at: new Date(Date.now() - 86100000).toISOString(), // 5min duration
     findings_count: 22,
+    critical: 3,
+    warnings: 8,
+    passed: 11,
   },
   {
     session_id: 'analysis_no-agent-field_20251209_100000',
@@ -54,6 +66,9 @@ const mockSessions: AnalysisSession[] = [
     created_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
     completed_at: new Date(Date.now() - 172680000).toISOString(), // 2min duration
     findings_count: 10,
+    critical: 0,
+    warnings: 0,
+    passed: 10,
   },
   {
     session_id: 'analysis_ant-fifth-agent_20251208_090000',
@@ -63,6 +78,9 @@ const mockSessions: AnalysisSession[] = [
     created_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
     completed_at: new Date(Date.now() - 259080000).toISOString(),
     findings_count: 7,
+    critical: 0,
+    warnings: 4,
+    passed: 3,
   },
 ];
 
@@ -148,8 +166,10 @@ export const SingleSession: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Completed')).toBeInTheDocument();
-    // Agent extracted from session_id: ant-math-agent-v8
-    await expect(canvas.getByText('ant-math-agent-v8')).toBeInTheDocument();
+    // Check severity columns are present
+    await expect(canvas.getByText('Critical')).toBeInTheDocument();
+    await expect(canvas.getByText('Warning')).toBeInTheDocument();
+    await expect(canvas.getByText('Passed')).toBeInTheDocument();
   },
 };
 
@@ -164,15 +184,17 @@ export const InProgressSession: Story = {
   },
 };
 
-export const AgentExtractedFromSessionId: Story = {
+export const WithSeverityCounts: Story = {
   args: {
-    sessions: [mockSessions[0]], // Session without explicit agent_id, but has session_id
+    sessions: [mockSessions[0]], // Session with severity counts: 2 critical, 5 warning, 6 passed
     agentWorkflowId: 'agent-workflow-001',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    // Agent should be extracted from session_id: analysis_ant-math-agent-v8_20251211_085832 -> ant-math-agent-v8
-    await expect(canvas.getByText('ant-math-agent-v8')).toBeInTheDocument();
+    // Check that severity columns show correct headers
+    await expect(canvas.getByText('Critical')).toBeInTheDocument();
+    await expect(canvas.getByText('Warning')).toBeInTheDocument();
+    await expect(canvas.getByText('Passed')).toBeInTheDocument();
   },
 };
 

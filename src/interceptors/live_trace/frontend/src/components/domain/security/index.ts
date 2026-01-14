@@ -11,6 +11,12 @@ export type { SecurityCheckCardProps } from './SecurityCheckCard';
 export { ScanStatusCard } from './ScanStatusCard';
 export type { ScanStatusCardProps } from './ScanStatusCard';
 
+export { ScanOverviewCard } from './ScanOverviewCard';
+export type { ScanOverviewCardProps } from './ScanOverviewCard';
+
+export { ScanHistoryTable } from './ScanHistoryTable';
+export type { ScanHistoryTableProps } from './ScanHistoryTable';
+
 export { FixActionCard, FixActionInline } from './FixActionCard';
 export type { FixActionCardProps, FixActionInlineProps, ConnectedIde } from './FixActionCard';
 
@@ -18,6 +24,9 @@ export { ProductionReadiness } from './ProductionReadiness';
 export type { ProductionReadinessProps, AnalysisStageProps } from './ProductionReadiness';
 
 // Security components for Dynamic Analysis
+export { DynamicOverviewCard } from './DynamicOverviewCard';
+export type { DynamicOverviewCardProps, AgentStatus as DynamicAgentStatus } from './DynamicOverviewCard';
+
 export { DynamicCheckItem } from './DynamicCheckItem/DynamicCheckItem';
 export type { DynamicCheckItemProps } from './DynamicCheckItem/DynamicCheckItem';
 
@@ -26,3 +35,6 @@ export type { DynamicCheckDrawerProps } from './DynamicCheckDrawer/DynamicCheckD
 
 export { DynamicChecksGrid } from './DynamicChecksGrid/DynamicChecksGrid';
 export type { DynamicChecksGridProps, GroupBy, LayoutVariant } from './DynamicChecksGrid/DynamicChecksGrid';
+
+export { LatestResultsSummary } from './LatestResultsSummary';
+export type { LatestResultsSummaryProps } from './LatestResultsSummary';

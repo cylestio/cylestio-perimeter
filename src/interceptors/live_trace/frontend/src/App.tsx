@@ -4,11 +4,12 @@ import { BrowserRouter, Routes, Route, Outlet, useLocation, useNavigate, Navigat
 import { ThemeProvider } from 'styled-components';
 
 import {
+  AdaptiveAutonomyIcon,
+  BehaviorAnalysisIcon,
   ConnectIcon,
-  DevConnectionIcon,
+  // DevConnectionIcon, // Hidden from sidebar
   HomeIcon,
   OverviewIcon,
-  ProductionIcon,
   RecommendationsIcon,
   ReportsIcon,
   SessionsIcon,
@@ -16,12 +17,12 @@ import {
 } from '@constants/pageIcons';
 import type { ConfigResponse } from '@api/types/config';
 import type { DashboardResponse, ProductionReadinessResponse, ProductionReadinessStatus } from '@api/types/dashboard';
-import type { IDEConnectionStatus } from '@api/types/ide';
+// import type { IDEConnectionStatus } from '@api/types/ide'; // Hidden from sidebar
 import type { APIAgentWorkflow } from '@api/types/agentWorkflows';
 import { fetchConfig } from '@api/endpoints/config';
 import { fetchDashboard, fetchAgentWorkflows, fetchProductionReadiness } from '@api/endpoints/dashboard';
 import { fetchHealth } from '@api/endpoints/health';
-import { fetchIDEConnectionStatus } from '@api/endpoints/ide';
+// import { fetchIDEConnectionStatus } from '@api/endpoints/ide'; // Hidden from sidebar
 import { fetchRecommendations } from '@api/endpoints/agentWorkflow';
 import type { Recommendation } from '@api/types/findings';
 import { usePolling } from '@hooks/index';
@@ -41,12 +42,15 @@ import { SecurityCheckItem, type SecurityCheckStatus } from '@domain/analysis';
 
 import { PageMetaProvider, usePageMetaValue } from './context';
 import {
+  AdaptiveGuardrails,
   AgentDetail,
   AgentReport,
   AttackSurface,
+  BehaviorAnalysis,
   Connect,
   DevConnection,
   DynamicAnalysis,
+  DynamicAnalysisDetail,
   Overview,
   Portfolio,
   Recommendations,
@@ -55,6 +59,7 @@ import {
   SessionDetail,
   Sessions,
   StaticAnalysis,
+  StaticAnalysisDetail,
   AgentWorkflowsHome
 } from '@pages/index';
 
@@ -109,8 +114,8 @@ function AppLayout() {
   // Version state (from health endpoint)
   const [version, setVersion] = useState<string | null>(null);
 
-  // IDE connection state
-  const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
+  // IDE connection state - hidden from sidebar but kept for reference
+  // const [ideConnectionStatus, setIDEConnectionStatus] = useState<IDEConnectionStatus | null>(null);
 
   // Open recommendations state (for sidebar badge)
   const [openRecommendations, setOpenRecommendations] = useState<{
@@ -162,28 +167,24 @@ function AppLayout() {
       });
   }, []);
 
-  // Fetch IDE connection status - only if we have a workflow ID
-  useEffect(() => {
-    // Skip if no workflow ID or if unassigned
-    if (!urlAgentWorkflowId || urlAgentWorkflowId === 'unassigned') {
-      setIDEConnectionStatus(null);
-      return;
-    }
-
-    const fetchIDE = async () => {
-      try {
-        const status = await fetchIDEConnectionStatus(urlAgentWorkflowId);
-        setIDEConnectionStatus(status);
-      } catch {
-        // Silently fail - IDE connection is optional
-      }
-    };
-
-    fetchIDE();
-    // Poll IDE status every 5 seconds
-    const interval = setInterval(fetchIDE, 5000);
-    return () => clearInterval(interval);
-  }, [urlAgentWorkflowId]);
+  // Fetch IDE connection status - hidden from sidebar but kept for reference
+  // useEffect(() => {
+  //   if (!urlAgentWorkflowId || urlAgentWorkflowId === 'unassigned') {
+  //     setIDEConnectionStatus(null);
+  //     return;
+  //   }
+  //   const fetchIDE = async () => {
+  //     try {
+  //       const status = await fetchIDEConnectionStatus(urlAgentWorkflowId);
+  //       setIDEConnectionStatus(status);
+  //     } catch {
+  //       // Silently fail
+  //     }
+  //   };
+  //   fetchIDE();
+  //   const interval = setInterval(fetchIDE, 5000);
+  //   return () => clearInterval(interval);
+  // }, [urlAgentWorkflowId]);
 
   // Refresh agent workflows periodically (every 30 seconds)
   useEffect(() => {
@@ -294,14 +295,10 @@ function AppLayout() {
   const dynamicStatus = readinessData
     ? readinessToSecurityStatus(readinessData.dynamic_analysis.status, readinessData.dynamic_analysis.critical_count)
     : 'inactive';
-  const allChecksGreen = readinessData
-    ? !readinessData.gate.is_blocked && staticStatus === 'ok' && dynamicStatus === 'ok'
-    : false;
 
-  // Dev connection status - from actual IDE connection
-  // States: 'ok' (green) when has activity, 'inactive' (gray) otherwise
-  const devConnectionStatus: SecurityCheckStatus =
-    ideConnectionStatus?.has_activity ? 'ok' : 'inactive';
+  // Dev connection status - hidden from sidebar but kept for reference
+  // const devConnectionStatus: SecurityCheckStatus =
+  //   ideConnectionStatus?.has_activity ? 'ok' : 'inactive';
 
   return (
     <Shell>
@@ -381,9 +378,10 @@ function AppLayout() {
             </NavGroup>
           )}
 
-          {/* ===== SECURITY CHECKS SECTION (with Timeline) ===== */}
+          {/* ===== PRODUCTION READINESS SECTION (with Timeline) ===== */}
           {urlAgentWorkflowId && !isRootPage && (
-            <NavGroup label={!sidebarCollapsed ? 'Security Analysis' : undefined}>
+            <NavGroup label={!sidebarCollapsed ? 'Production Readiness' : undefined}>
+              {/* Dev Connection hidden from sidebar but route still available
               <SecurityCheckItem
                 label="Dev"
                 status={devConnectionStatus}
@@ -395,6 +393,7 @@ function AppLayout() {
                 isFirst
                 icon={<DevConnectionIcon size={10} />}
               />
+              */}
               <SecurityCheckItem
                 label="Static Analysis"
                 status={staticStatus}
@@ -403,8 +402,8 @@ function AppLayout() {
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/static-analysis`}
-                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/static-analysis`}
-                showConnectorAbove
+                active={location.pathname.startsWith(`/agent-workflow/${urlAgentWorkflowId}/static-analysis`)}
+                isFirst
                 showConnectorBelow
               />
               <SecurityCheckItem
@@ -415,20 +414,33 @@ function AppLayout() {
                 collapsed={sidebarCollapsed}
                 disabled={isUnassignedContext}
                 to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/dynamic-analysis`}
-                active={location.pathname === `/agent-workflow/${urlAgentWorkflowId}/dynamic-analysis`}
+                active={location.pathname.startsWith(`/agent-workflow/${urlAgentWorkflowId}/dynamic-analysis`)}
                 showConnectorAbove
                 showConnectorBelow
               />
               <SecurityCheckItem
-                label="Production"
-                status={allChecksGreen ? 'premium' : 'locked'}
+                label="Behavior Analysis"
+                status="inactive"
                 collapsed={sidebarCollapsed}
-                disabled={!allChecksGreen}
-                isLocked={!allChecksGreen}
-                isLast
+                disabled={isUnassignedContext}
+                to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/behavior-analysis`}
+                active={location.pathname.startsWith(`/agent-workflow/${urlAgentWorkflowId}/behavior-analysis`)}
                 showConnectorAbove
-                icon={<ProductionIcon size={10} />}
-                lockedTooltip="Enterprise Edition • Production monitoring, alerting & compliance. Complete all security checks to unlock."
+                showConnectorBelow
+                icon={<BehaviorAnalysisIcon size={10} />}
+                tier="pro"
+              />
+              <SecurityCheckItem
+                label="Adaptive Autonomy"
+                status="inactive"
+                collapsed={sidebarCollapsed}
+                disabled={isUnassignedContext}
+                isLast
+                to={isUnassignedContext ? undefined : `/agent-workflow/${urlAgentWorkflowId}/adaptive-autonomy`}
+                active={location.pathname.startsWith(`/agent-workflow/${urlAgentWorkflowId}/adaptive-autonomy`)}
+                showConnectorAbove
+                icon={<AdaptiveAutonomyIcon size={10} />}
+                tier="pro"
               />
             </NavGroup>
           )}
@@ -515,10 +527,14 @@ function App() {
               <Route path="/agent-workflow/:agentWorkflowId/sessions" element={<Sessions />} />
               <Route path="/agent-workflow/:agentWorkflowId/recommendations" element={<Recommendations />} />
 
-              {/* Security Checks section */}
+              {/* Production Readiness section */}
               <Route path="/agent-workflow/:agentWorkflowId/dev-connection" element={<DevConnection />} />
               <Route path="/agent-workflow/:agentWorkflowId/static-analysis" element={<StaticAnalysis />} />
+              <Route path="/agent-workflow/:agentWorkflowId/static-analysis/:scanId" element={<StaticAnalysisDetail />} />
               <Route path="/agent-workflow/:agentWorkflowId/dynamic-analysis" element={<DynamicAnalysis />} />
+              <Route path="/agent-workflow/:agentWorkflowId/dynamic-analysis/:sessionId" element={<DynamicAnalysisDetail />} />
+              <Route path="/agent-workflow/:agentWorkflowId/behavior-analysis" element={<BehaviorAnalysis />} />
+              <Route path="/agent-workflow/:agentWorkflowId/adaptive-autonomy" element={<AdaptiveGuardrails />} />
 
               {/* Reports section */}
               <Route path="/agent-workflow/:agentWorkflowId/reports" element={<Reports />} />

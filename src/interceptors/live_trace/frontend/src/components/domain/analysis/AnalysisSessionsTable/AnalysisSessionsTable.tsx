@@ -1,7 +1,6 @@
 import type { FC, ReactNode } from 'react';
 
-import { Clock, ExternalLink, Shield, Activity } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Clock, Activity, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 
 import type { AnalysisSession } from '@api/types/findings';
 
@@ -11,13 +10,12 @@ import { Table, type Column } from '@ui/data-display/Table';
 import {
   formatDuration,
   getDurationMinutes,
-  extractAgentFromSessionId,
 } from '@utils/formatting';
 
 import {
-  AgentLink,
   SessionIdCell,
   MetaCell,
+  SeverityCell,
   EmptyStateWrapper,
 } from './AnalysisSessionsTable.styles';
 
@@ -28,32 +26,17 @@ export interface AnalysisSessionsTableProps {
   emptyMessage?: string;
   emptyDescription?: string;
   maxRows?: number;
+  /** Callback when a row is clicked */
+  onRowClick?: (session: AnalysisSession) => void;
 }
-
-// Get agent name - prefer agent_id, fallback to extracting from session_id
-const getAgentName = (session: AnalysisSession): string | null => {
-  if (session.agent_id) {
-    return session.agent_id.length > 20 ? session.agent_id.slice(0, 20) : session.agent_id;
-  }
-  const extracted = extractAgentFromSessionId(session.session_id);
-  if (extracted) {
-    return extracted.length > 20 ? extracted.slice(0, 20) : extracted;
-  }
-  return null;
-};
-
-// Get agent ID for linking - prefer agent_id, fallback to extracted
-const getAgentId = (session: AnalysisSession): string | null => {
-  return session.agent_id || extractAgentFromSessionId(session.session_id);
-};
 
 export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
   sessions,
-  agentWorkflowId,
   loading = false,
   emptyMessage = 'No analysis sessions yet.',
   emptyDescription = 'Analysis sessions will appear here after running.',
   maxRows,
+  onRowClick,
 }) => {
   const displayedSessions = maxRows ? sessions.slice(0, maxRows) : sessions;
 
@@ -72,22 +55,6 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       render: (session) => (
         <SessionIdCell>{session.session_id}</SessionIdCell>
       ),
-    },
-    {
-      key: 'agent_id',
-      header: 'Agent',
-      width: '180px',
-      render: (session) => {
-        const agentName = getAgentName(session);
-        const agentIdValue = getAgentId(session);
-        if (!agentName || !agentIdValue) return <MetaCell>-</MetaCell>;
-        return (
-          <AgentLink as={Link} to={`/agent-workflow/${agentWorkflowId}/agent/${agentIdValue}`}>
-            {agentName}
-            <ExternalLink size={10} />
-          </AgentLink>
-        );
-      },
     },
     {
       key: 'created_at',
@@ -131,17 +98,52 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       },
     },
     {
-      key: 'findings_count',
-      header: 'Findings',
+      key: 'critical',
+      header: 'Critical',
       width: '80px',
       align: 'center',
       sortable: true,
-      render: (session) => (
-        <MetaCell>
-          <Shield size={12} />
-          {session.findings_count}
-        </MetaCell>
-      ),
+      render: (session) => {
+        const count = session.critical ?? 0;
+        return (
+          <SeverityCell $variant={count > 0 ? 'critical' : 'muted'}>
+            <XCircle size={12} />
+            {count}
+          </SeverityCell>
+        );
+      },
+    },
+    {
+      key: 'warnings',
+      header: 'Warning',
+      width: '80px',
+      align: 'center',
+      sortable: true,
+      render: (session) => {
+        const count = session.warnings ?? 0;
+        return (
+          <SeverityCell $variant={count > 0 ? 'warning' : 'muted'}>
+            <AlertTriangle size={12} />
+            {count}
+          </SeverityCell>
+        );
+      },
+    },
+    {
+      key: 'passed',
+      header: 'Passed',
+      width: '80px',
+      align: 'center',
+      sortable: true,
+      render: (session) => {
+        const count = session.passed ?? 0;
+        return (
+          <SeverityCell $variant={count > 0 ? 'passed' : 'muted'}>
+            <CheckCircle size={12} />
+            {count}
+          </SeverityCell>
+        );
+      },
     },
     {
       key: 'status',
@@ -170,6 +172,7 @@ export const AnalysisSessionsTable: FC<AnalysisSessionsTableProps> = ({
       loading={loading}
       emptyState={emptyState}
       keyExtractor={(session) => session.session_id}
+      onRowClick={onRowClick}
     />
   );
 };

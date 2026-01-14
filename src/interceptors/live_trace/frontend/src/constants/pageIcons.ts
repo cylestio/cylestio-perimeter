@@ -11,6 +11,7 @@
  * Do NOT import lucide-react icons directly for page/section headers.
  */
 import {
+  Activity,
   BarChart3,
   FileText,
   History,
@@ -21,6 +22,7 @@ import {
   Monitor,
   Plug,
   Shield,
+  ShieldCheck,
   Target,
 } from 'lucide-react';
 
@@ -58,6 +60,12 @@ export const DynamicAnalysisIcon = Shield;
 
 /** Production (locked) */
 export const ProductionIcon = Lock;
+
+/** Behavior Analysis page */
+export const BehaviorAnalysisIcon = Activity;
+
+/** Adaptive Autonomy page */
+export const AdaptiveAutonomyIcon = ShieldCheck;
 
 // ============================================================================
 // Reports Section Icons

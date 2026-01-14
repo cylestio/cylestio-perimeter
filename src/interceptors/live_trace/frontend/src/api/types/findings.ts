@@ -132,6 +132,10 @@ export interface AnalysisSession {
   findings_count: number;
   risk_score?: number | null;
   sessions_analyzed?: number | null; // Number of runtime sessions analyzed in this scan
+  // Severity breakdown
+  critical?: number;
+  warnings?: number;
+  passed?: number;
 }
 
 export interface FindingsSummary {

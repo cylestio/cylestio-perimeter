@@ -26,10 +26,10 @@ const getStatusColor = (status: SecurityCheckStatus, isLocked?: boolean): string
 
 // Premium gold-purple gradient glow animation
 const premiumGlow = keyframes`
-  0%, 100% { 
+  0%, 100% {
     box-shadow: 0 0 8px rgba(251, 191, 36, 0.4), 0 0 16px rgba(168, 85, 247, 0.2);
   }
-  50% { 
+  50% {
     box-shadow: 0 0 12px rgba(251, 191, 36, 0.6), 0 0 24px rgba(168, 85, 247, 0.4);
   }
 `;
@@ -58,6 +58,7 @@ interface StyledItemProps {
   $active?: boolean;
   $disabled?: boolean;
   $isLocked?: boolean;
+  $isPro?: boolean;
   $status: SecurityCheckStatus;
 }
 
@@ -96,8 +97,23 @@ export const StyledSecurityCheckItem = styled.div<StyledItemProps>`
       cursor: ${$isLocked ? 'not-allowed' : 'default'};
     `}
 
+  ${({ $isPro, $disabled, $isLocked }) =>
+    $isPro &&
+    !$disabled &&
+    !$isLocked &&
+    css`
+      opacity: 0.6;
+    `}
+
   ${({ $active, $status, theme }) => {
     if ($active) {
+      // Use white15 for inactive status (same as NavItem), status color for others
+      if ($status === 'inactive') {
+        return css`
+          background: ${theme.colors.white15};
+          color: ${theme.colors.white};
+        `;
+      }
       const color = getStatusColor($status);
       return css`
         background: ${theme.colors[color as keyof typeof theme.colors]}15;
@@ -149,7 +165,7 @@ export const StatusIndicatorContainer = styled.span<StatusIndicatorProps>`
     $status === 'premium' &&
     css`
       animation: ${premiumGlow} 2s ease-in-out infinite;
-      
+
       /* Gold-purple gradient effect on the SVG ring */
       .ring-svg circle {
         stroke: url(#premiumGradient);
@@ -210,8 +226,8 @@ export const TimelineConnector = styled.div<TimelineConnectorProps>`
     switch ($status) {
       case 'complete':
         return `linear-gradient(
-          ${$position === 'top' ? 'to bottom' : 'to top'}, 
-          ${theme.colors.green}60, 
+          ${$position === 'top' ? 'to bottom' : 'to top'},
+          ${theme.colors.green}60,
           ${theme.colors.green}
         )`;
       case 'active':
@@ -335,7 +351,7 @@ export const EnterpriseBadge = styled.span`
   padding: 2px 6px;
   border-radius: 3px;
   position: relative;
-  
+
   /* Gradient text effect */
   background: linear-gradient(
     90deg,
@@ -348,7 +364,7 @@ export const EnterpriseBadge = styled.span`
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: ${shimmer} 3s linear infinite;
-  
+
   /* Badge border with gradient */
   &::before {
     content: '';
@@ -361,14 +377,14 @@ export const EnterpriseBadge = styled.span`
       ${({ theme }) => theme.colors.gold}80,
       ${({ theme }) => theme.colors.purple}80
     );
-    -webkit-mask: 
-      linear-gradient(#fff 0 0) content-box, 
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
   }
-  
+
   /* Badge background fill */
   &::after {
     content: '';

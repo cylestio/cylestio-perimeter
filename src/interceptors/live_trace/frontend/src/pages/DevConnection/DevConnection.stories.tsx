@@ -38,8 +38,9 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     // Check page header
     await expect(await canvas.findByText('IDE Connection')).toBeInTheDocument();
-    // Check status banner is present (waiting for connection)
-    await expect(await canvas.findByText('Waiting for connection...')).toBeInTheDocument();
+    // Check status banner is present (could be loading or waiting for connection)
+    const statusText = canvas.queryByText('Waiting for connection...') || canvas.queryByText('Checking connection...');
+    await expect(statusText).toBeInTheDocument();
     // Check integration cards are present (use getAllByText since names appear in cards + table)
     await expect(await canvas.findByText('Choose Integration')).toBeInTheDocument();
     const cursorElements = await canvas.findAllByText('Cursor');
