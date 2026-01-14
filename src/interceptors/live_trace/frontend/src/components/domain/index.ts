@@ -2,6 +2,7 @@
 // These are specific to the Cylestio product domain
 
 export * from './layout';
+export * from './agent';
 export * from './agents';
 export * from './analytics';
 export * from './charts';
@@ -16,3 +17,4 @@ export * from './security';
 export * from './correlation';
 export * from './recommendations';
 export * from './reports';
+export * from './ide';

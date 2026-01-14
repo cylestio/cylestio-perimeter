@@ -1,0 +1,1 @@
+export { BehaviorAnalysis } from './BehaviorAnalysis';

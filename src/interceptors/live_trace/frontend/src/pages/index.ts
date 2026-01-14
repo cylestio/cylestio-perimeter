@@ -1,7 +1,9 @@
+export { AdaptiveGuardrails } from './AdaptiveGuardrails';
 export { AgentDetail } from './AgentDetail';
 export { AgentReport } from './AgentReport';
 export { AgentWorkflowsHome } from './AgentWorkflowsHome';
 export { AttackSurface } from './AttackSurface';
+export { BehaviorAnalysis } from './BehaviorAnalysis';
 export { Connect } from './Connect';
 export { DevConnection } from './DevConnection';
 export { DynamicAnalysis } from './DynamicAnalysis';
@@ -12,4 +14,4 @@ export { Reports } from './Reports';
 export { ReportView } from './ReportView';
 export { SessionDetail } from './SessionDetail';
 export { Sessions } from './Sessions';
-export { StaticAnalysis } from './StaticAnalysis';
+export { StaticAnalysis, StaticAnalysisDetail } from './StaticAnalysis';

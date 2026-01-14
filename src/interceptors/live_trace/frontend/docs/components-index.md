@@ -30,13 +30,15 @@ AI security monitoring specific. These understand application concepts like agen
 | Category | Components | Description |
 |----------|------------|-------------|
 | `domain/layout/` | LocalModeIndicator, Logo, Shell, Sidebar, TopBar, UserMenu | App shell, navigation, user controls |
+| `domain/agent/` | AgentSetupSection | Agent connection setup with proxy URL config |
 | `domain/agents/` | AgentCard, AgentListItem, AgentSelector, ModeIndicators | Agent display and selection |
 | `domain/agent-workflows/` | AgentWorkflowCard, AgentWorkflowSelector | Workflow grouping and selection |
 | `domain/sessions/` | SessionFilter, SessionsTable, SessionTags, SystemPromptFilter, TagFilter | Session listing and filtering |
 | `domain/activity/` | ActivityFeed, SessionItem, ToolChain | Activity timeline and tool usage |
 | `domain/analysis/` | AnalysisSessionsTable, AnalysisStatusItem, SecurityCheckItem | Analysis status indicators |
 | `domain/correlation/` | CorrelateHintCard, CorrelationBadge, CorrelationSummary | Static/dynamic correlation UI |
-| `domain/security/` | DynamicCheckDrawer, DynamicCheckItem, DynamicChecksGrid, FixActionCard, FrameworkBadges, GateProgress, ProductionReadiness, ScanStatusCard, SecurityCheckCard | Security scan results and gates |
+| `domain/ide/` | IDEConnectionBanner, IDESetupSection | IDE connection status and setup instructions |
+| `domain/security/` | DynamicCheckDrawer, DynamicCheckItem, DynamicChecksGrid, DynamicOverviewCard, FixActionCard, FrameworkBadges, GateProgress, ProductionReadiness, ScanHistoryTable, ScanOverviewCard, ScanStatusCard, SecurityCheckCard | Security scan results and gates |
 | `domain/findings/` | FindingCard, FindingsTab | Security finding display |
 | `domain/recommendations/` | AuditTrail, DismissModal, ProgressSummary, RecommendationCard | Security recommendations UI |
 | `domain/recommendations/dashboard/` | CategoryDonut, DetectionTimeline, FileTreemap, IssueCard, SeverityProgressBar, SourceDistribution, SummaryStatsBar | Security dashboard visualizations |

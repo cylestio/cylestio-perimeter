@@ -2748,7 +2748,7 @@ class TraceStore:
                 recommendations = _get_attr(check, 'recommendations')
 
                 self.store_security_check(
-                    check_id=f"{analysis_session_id}_{check_id}",
+                    check_id=f"{analysis_session_id}_{agent_id}_{check_id}",
                     agent_id=agent_id,
                     analysis_session_id=analysis_session_id,
                     category_id=category_id,

@@ -20,6 +20,20 @@ export const TitleContent = styled.span`
   gap: ${({ theme }) => theme.spacing[2]};
 `;
 
+export const TitleBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.typography.weightBold};
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: ${({ theme }) => theme.colors.void};
+  background: linear-gradient(135deg, ${({ theme }) => theme.colors.cyan}, ${({ theme }) => theme.colors.purple});
+  border-radius: ${({ theme }) => theme.radii.sm};
+  margin-left: ${({ theme }) => theme.spacing[2]};
+`;
+
 export const TitleIcon = styled.span`
   display: flex;
   align-items: center;
