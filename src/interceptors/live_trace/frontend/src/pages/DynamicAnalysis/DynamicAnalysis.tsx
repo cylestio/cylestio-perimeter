@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState, type FC } from 'react';
 
 import { AlertTriangle, FileSearch, Shield, X, Clock } from 'lucide-react';
-import { useOutletContext, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import {
   fetchAnalysisSessions,
   fetchAgentWorkflowSecurityChecks,
   fetchStaticSummary,
   type AnalysisSession,
-  type AgentSecurityData,
   type AgentWorkflowSecurityChecksSummary,
 } from '@api/endpoints/agentWorkflow';
 import { fetchConfig } from '@api/endpoints/config';
@@ -25,10 +24,9 @@ import { Section } from '@ui/layout/Section';
 import { AnalysisSessionsTable } from '@domain/analysis';
 import { CorrelateHintCard } from '@domain/correlation';
 import { AgentSetupSection } from '@domain/agent';
-import { DynamicOverviewCard, type DynamicAgentStatus } from '@domain/security';
+import { DynamicOverviewCard, LatestResultsSummary, type DynamicAgentStatus } from '@domain/security';
 
 import { GatheringData } from '@features/GatheringData';
-import { SecurityChecksExplorer } from '@features/SecurityChecksExplorer';
 
 import { usePageMeta } from '../../context';
 import {
@@ -67,6 +65,12 @@ interface DynamicAnalysisStatus {
     completed_at: number | null;
     sessions_analyzed: number;
     findings_count: number;
+    // Summary specific to this analysis session
+    agents_analyzed: number;
+    agents_with_findings: number;
+    critical: number;
+    warnings: number;
+    passed: number;
   } | null;
 }
 
@@ -75,16 +79,15 @@ const MAX_SESSIONS_DISPLAYED = 5;
 export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   const { agentWorkflowId } = useParams<{ agentWorkflowId: string }>();
   const { securityAnalysis } = useOutletContext<DynamicAnalysisContext>() || {};
+  const navigate = useNavigate();
 
   // State
-  const [agentsData, setAgentsData] = useState<AgentSecurityData[]>([]);
   const [checksSummary, setChecksSummary] = useState<AgentWorkflowSecurityChecksSummary | null>(null);
   const [analysisSessions, setAnalysisSessions] = useState<AnalysisSession[]>([]);
   const [analysisStatus, setAnalysisStatus] = useState<DynamicAnalysisStatus | null>(null);
   const [staticFindingsCount, setStaticFindingsCount] = useState<number>(0);
   const [serverConfig, setServerConfig] = useState<ConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checksLoading, setChecksLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [triggerLoading, setTriggerLoading] = useState(false);
 
@@ -122,19 +125,15 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
     }
   }, [agentWorkflowId]);
 
-  // Fetch security checks for this agent workflow (grouped by agent)
+  // Fetch security checks summary for this agent workflow
   const fetchChecksData = useCallback(async () => {
     if (!agentWorkflowId) return;
 
-    setChecksLoading(true);
     try {
       const data = await fetchAgentWorkflowSecurityChecks(agentWorkflowId);
-      setAgentsData(data.agents);
       setChecksSummary(data.total_summary);
     } catch (err) {
       console.error('Failed to fetch security checks:', err);
-    } finally {
-      setChecksLoading(false);
     }
   }, [agentWorkflowId]);
 
@@ -255,6 +254,11 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
   // Calculate total sessions
   const totalSessions = analysisStatus?.agents_status?.reduce((acc, a) => acc + a.total_sessions, 0) || 0;
 
+  // Navigate to analysis detail page
+  const handleSessionClick = (session: AnalysisSession) => {
+    navigate(`/agent-workflow/${agentWorkflowId}/dynamic-analysis/${session.session_id}`);
+  };
+
   if (loading) {
     return (
       <LoaderContainer $size="lg">
@@ -310,6 +314,23 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
         collapsible={hasRuntimeData}
         defaultExpanded={!hasRuntimeData}
       />
+
+      {/* Latest Analysis Summary - Shows data for the most recent analysis */}
+      {analysisStatus?.last_analysis && analysisStatus.last_analysis.status === 'COMPLETED' && (
+        <LatestResultsSummary
+          analysisSessionId={analysisStatus.last_analysis.session_id}
+          completedAt={analysisStatus.last_analysis.completed_at}
+          sessionsAnalyzed={analysisStatus.last_analysis.sessions_analyzed}
+          agentsTotal={analysisStatus.last_analysis.agents_analyzed}
+          agentsWithResults={analysisStatus.last_analysis.agents_with_findings}
+          summary={{
+            critical: analysisStatus.last_analysis.critical,
+            warnings: analysisStatus.last_analysis.warnings,
+            passed: analysisStatus.last_analysis.passed,
+          }}
+          agentWorkflowId={agentWorkflowId || ''}
+        />
+      )}
 
       {/* Dynamic Overview Card */}
       <DynamicOverviewCard
@@ -373,29 +394,8 @@ export const DynamicAnalysis: FC<DynamicAnalysisProps> = ({ className }) => {
                 maxRows={MAX_SESSIONS_DISPLAYED}
                 emptyMessage="No dynamic analysis sessions yet."
                 emptyDescription="Click 'Run Analysis' above to analyze runtime behavior."
+                onRowClick={handleSessionClick}
               />
-            </Section.Content>
-          </Section>
-
-          {/* Security Checks - Explorer with Agent Navigation */}
-          <Section>
-            <Section.Header>
-              <Section.Title icon={<Shield size={16} />}>Latest Security Checks</Section.Title>
-              {checksSummary && checksSummary.agents_analyzed > 0 && (
-                <Badge variant="medium">{checksSummary.agents_analyzed} agents</Badge>
-              )}
-            </Section.Header>
-            <Section.Content>
-              {checksLoading ? (
-                <LoaderContainer $size="md">
-                  <OrbLoader size="md" />
-                </LoaderContainer>
-              ) : (
-                <SecurityChecksExplorer
-                  agents={agentsData}
-                  agentWorkflowId={agentWorkflowId || ''}
-                />
-              )}
             </Section.Content>
           </Section>
         </>

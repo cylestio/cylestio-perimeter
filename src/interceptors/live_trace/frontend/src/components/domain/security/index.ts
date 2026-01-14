@@ -35,3 +35,6 @@ export type { DynamicCheckDrawerProps } from './DynamicCheckDrawer/DynamicCheckD
 
 export { DynamicChecksGrid } from './DynamicChecksGrid/DynamicChecksGrid';
 export type { DynamicChecksGridProps, GroupBy, LayoutVariant } from './DynamicChecksGrid/DynamicChecksGrid';
+
+export { LatestResultsSummary } from './LatestResultsSummary';
+export type { LatestResultsSummaryProps } from './LatestResultsSummary';

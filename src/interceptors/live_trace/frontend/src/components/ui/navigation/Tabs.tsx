@@ -1,11 +1,17 @@
 import type { FC } from 'react';
-import { TabsContainer, TabButton, TabCount } from './Tabs.styles';
+import { TabsContainer, TabButton, TabCount, TabBadge, type TabBadgeVariant } from './Tabs.styles';
 
 // Types
+export interface TabBadgeConfig {
+  variant: TabBadgeVariant;
+  count: number;
+}
+
 export interface Tab {
   id: string;
   label: string;
   count?: number;
+  badge?: TabBadgeConfig;
   disabled?: boolean;
 }
 
@@ -40,6 +46,7 @@ export const Tabs: FC<TabsProps> = ({
         >
           {tab.label}
           {tab.count !== undefined && <TabCount>{tab.count}</TabCount>}
+          {tab.badge && <TabBadge $variant={tab.badge.variant}>{tab.badge.count}</TabBadge>}
         </TabButton>
       ))}
     </TabsContainer>

@@ -959,6 +959,75 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
             logger.error(f"Error getting analysis session: {e}")
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    @app.get("/api/analysis-session/{session_id}/details")
+    async def api_get_analysis_session_details(session_id: str):
+        """Get analysis session details with security checks grouped by agent.
+
+        Returns:
+        - session: Analysis session metadata
+        - agents: List of agents with their security checks and summaries
+        - total_summary: Aggregate summary across all agents
+        """
+        try:
+            # Get the analysis session
+            session = insights.store.get_analysis_session(session_id)
+            if not session:
+                return JSONResponse({"error": "Analysis session not found"}, status_code=404)
+
+            # Get all security checks for this analysis session
+            checks = insights.store.get_security_checks(analysis_session_id=session_id, limit=1000)
+
+            # Group checks by agent_id
+            agents_map: Dict[str, Dict] = {}
+            for check in checks:
+                agent_id = check.get('agent_id', 'unknown')
+                if agent_id not in agents_map:
+                    agents_map[agent_id] = {
+                        'agent_id': agent_id,
+                        'agent_name': agent_id,  # Could be enhanced with agent display name
+                        'checks': [],
+                        'summary': {'critical': 0, 'warnings': 0, 'passed': 0, 'total': 0}
+                    }
+
+                agents_map[agent_id]['checks'].append(check)
+                agents_map[agent_id]['summary']['total'] += 1
+
+                status = check.get('status', 'passed')
+                if status == 'critical':
+                    agents_map[agent_id]['summary']['critical'] += 1
+                elif status == 'warning':
+                    agents_map[agent_id]['summary']['warnings'] += 1
+                else:
+                    agents_map[agent_id]['summary']['passed'] += 1
+
+            # Try to get agent display names
+            for agent_id in agents_map:
+                agent = insights.store.get_agent(agent_id)
+                if agent and agent.display_name:
+                    agents_map[agent_id]['agent_name'] = agent.display_name
+
+            # Build total summary
+            total_summary = {
+                'critical': sum(a['summary']['critical'] for a in agents_map.values()),
+                'warnings': sum(a['summary']['warnings'] for a in agents_map.values()),
+                'passed': sum(a['summary']['passed'] for a in agents_map.values()),
+                'agents_analyzed': len(agents_map),
+                'agents_with_findings': sum(
+                    1 for a in agents_map.values()
+                    if a['summary']['critical'] > 0 or a['summary']['warnings'] > 0
+                ),
+            }
+
+            return JSONResponse({
+                'session': session,
+                'agents': list(agents_map.values()),
+                'total_summary': total_summary,
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting analysis session details: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)
+
     # Note: api_get_session_findings is defined later in the file with additional
     # severity_breakdown field. That definition handles all use cases.
 

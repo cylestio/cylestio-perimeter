@@ -1,23 +1,4 @@
-import styled from 'styled-components';
-
-export const AgentLink = styled.a`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing[1]};
-  font-family: ${({ theme }) => theme.typography.fontMono};
-  font-size: 11px;
-  color: ${({ theme }) => theme.colors.cyan};
-  text-decoration: none;
-  padding: ${({ theme }) => `2px ${theme.spacing[2]}`};
-  background: ${({ theme }) => `${theme.colors.cyan}10`};
-  border-radius: ${({ theme }) => theme.radii.sm};
-  transition: all ${({ theme }) => theme.transitions.base};
-
-  &:hover {
-    background: ${({ theme }) => `${theme.colors.cyan}20`};
-    color: ${({ theme }) => theme.colors.white};
-  }
-`;
+import styled, { css } from 'styled-components';
 
 export const SessionIdCell = styled.span`
   font-family: ${({ theme }) => theme.typography.fontMono};
@@ -31,6 +12,35 @@ export const MetaCell = styled.span`
   gap: ${({ theme }) => theme.spacing[1]};
   font-size: 12px;
   color: ${({ theme }) => theme.colors.white50};
+`;
+
+export const SeverityCell = styled.span<{ $variant: 'critical' | 'warning' | 'passed' | 'muted' }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[1]};
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.typography.weightMedium};
+
+  ${({ $variant, theme }) => {
+    switch ($variant) {
+      case 'critical':
+        return css`
+          color: ${theme.colors.red};
+        `;
+      case 'warning':
+        return css`
+          color: ${theme.colors.yellow};
+        `;
+      case 'passed':
+        return css`
+          color: ${theme.colors.green};
+        `;
+      case 'muted':
+        return css`
+          color: ${theme.colors.white30};
+        `;
+    }
+  }}
 `;
 
 export const EmptyStateWrapper = styled.div`

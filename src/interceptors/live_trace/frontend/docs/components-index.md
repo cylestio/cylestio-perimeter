@@ -38,7 +38,7 @@ AI security monitoring specific. These understand application concepts like agen
 | `domain/analysis/` | AnalysisSessionsTable, AnalysisStatusItem, SecurityCheckItem | Analysis status indicators |
 | `domain/correlation/` | CorrelateHintCard, CorrelationBadge, CorrelationSummary | Static/dynamic correlation UI |
 | `domain/ide/` | IDEConnectionBanner, IDESetupSection | IDE connection status and setup instructions |
-| `domain/security/` | DynamicCheckDrawer, DynamicCheckItem, DynamicChecksGrid, DynamicOverviewCard, FixActionCard, FrameworkBadges, GateProgress, ProductionReadiness, ScanHistoryTable, ScanOverviewCard, ScanStatusCard, SecurityCheckCard | Security scan results and gates |
+| `domain/security/` | DynamicCheckDrawer, DynamicCheckItem, DynamicChecksGrid, DynamicOverviewCard, FixActionCard, FrameworkBadges, GateProgress, LatestResultsSummary, ProductionReadiness, ScanHistoryTable, ScanOverviewCard, ScanStatusCard, SecurityCheckCard | Security scan results and gates |
 | `domain/findings/` | FindingCard, FindingsTab | Security finding display |
 | `domain/recommendations/` | AuditTrail, DismissModal, ProgressSummary, RecommendationCard | Security recommendations UI |
 | `domain/recommendations/dashboard/` | CategoryDonut, DetectionTimeline, FileTreemap, IssueCard, SeverityProgressBar, SourceDistribution, SummaryStatsBar | Security dashboard visualizations |

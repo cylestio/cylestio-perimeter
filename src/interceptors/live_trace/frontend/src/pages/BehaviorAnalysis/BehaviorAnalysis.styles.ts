@@ -43,7 +43,7 @@ export const SectionTitle = styled.h3`
 
 export const SectionDescription = styled.p`
   font-size: 12px;
-  color: ${({ theme }) => theme.colors.white60};
+  color: ${({ theme }) => theme.colors.white50};
   line-height: 1.5;
   margin: 0 0 ${({ theme }) => theme.spacing[4]} 0;
   max-width: 600px;

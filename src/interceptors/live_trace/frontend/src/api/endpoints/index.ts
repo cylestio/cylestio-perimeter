@@ -1,5 +1,6 @@
 export * from './agent';
 export * from './agentWorkflow';
+export * from './analysisSession';
 export * from './config';
 export * from './dashboard';
 export * from './health';

@@ -50,6 +50,7 @@ import {
   Connect,
   DevConnection,
   DynamicAnalysis,
+  DynamicAnalysisDetail,
   Overview,
   Portfolio,
   Recommendations,
@@ -531,6 +532,7 @@ function App() {
               <Route path="/agent-workflow/:agentWorkflowId/static-analysis" element={<StaticAnalysis />} />
               <Route path="/agent-workflow/:agentWorkflowId/static-analysis/:scanId" element={<StaticAnalysisDetail />} />
               <Route path="/agent-workflow/:agentWorkflowId/dynamic-analysis" element={<DynamicAnalysis />} />
+              <Route path="/agent-workflow/:agentWorkflowId/dynamic-analysis/:sessionId" element={<DynamicAnalysisDetail />} />
               <Route path="/agent-workflow/:agentWorkflowId/behavior-analysis" element={<BehaviorAnalysis />} />
               <Route path="/agent-workflow/:agentWorkflowId/adaptive-autonomy" element={<AdaptiveGuardrails />} />
 

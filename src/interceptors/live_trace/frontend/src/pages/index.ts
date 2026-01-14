@@ -6,7 +6,7 @@ export { AttackSurface } from './AttackSurface';
 export { BehaviorAnalysis } from './BehaviorAnalysis';
 export { Connect } from './Connect';
 export { DevConnection } from './DevConnection';
-export { DynamicAnalysis } from './DynamicAnalysis';
+export { DynamicAnalysis, DynamicAnalysisDetail } from './DynamicAnalysis';
 export { Overview } from './Overview';
 export { Portfolio } from './Portfolio';
 export { Recommendations } from './Recommendations';
