@@ -9,6 +9,9 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
+  Shield,
+  Activity,
+  GitCompare,
 } from 'lucide-react';
 
 // 3. Internal
@@ -27,20 +30,34 @@ import {
   TabBadge,
   ReportContainer,
   ReportHeader,
-  HeaderTop,
-  ReportTypeLabel,
-  ReportTitle,
-  ReportSubtitle,
-  DecisionBox,
+  HeaderRow,
+  HeaderLeft,
+  HeaderRight,
   DecisionIcon,
-  DecisionContent,
+  DecisionInfo,
   DecisionTitle,
-  DecisionText,
+  ReportMeta,
+  SeverityCounts,
+  // Risk box components - hidden for now
+  // RiskLevelBox,
+  // RiskLevelText,
+  // RiskLevelLabel,
+  // RiskScoreBox,
+  // RiskScoreValue,
+  // RiskScoreLabel,
+  // RiskTooltip,
+  // TooltipTitle,
+  // TooltipFormula,
+  // TooltipRow,
+  // TooltipRowLabel,
+  SectionDivider,
   StatsGrid,
   StatBox,
   StatValue,
   StatLabel,
   TabContent,
+  TabSectionHeader,
+  TabSectionDescription,
   ChecksTable,
   StatusPill,
   ComplianceGrid,
@@ -62,17 +79,12 @@ import {
   SectionTitle,
   ImpactBullets,
   ImpactBullet,
+  ImpactBulletText,
   ImpactGrid,
   ImpactCard,
   ImpactLabel,
   ImpactLevel,
   ImpactDescription,
-  RiskBreakdown,
-  RiskBreakdownTitle,
-  RiskFormula,
-  RiskBreakdownGrid,
-  RiskBreakdownItem,
-  RiskBreakdownTotal,
   RecommendationsTable,
   EmptyEvidence,
 } from './ReportDisplay.styles';
@@ -103,7 +115,7 @@ const generateMarkdownReport = (report: ComplianceReportResponse, workflowId: st
   });
 
   const decision = report.executive_summary.is_blocked ? 'NO-GO' : 'GO';
-  const decisionIcon = report.executive_summary.is_blocked ? 'X' : 'V';
+  const decisionIcon = report.executive_summary.is_blocked ? '[X]' : '[OK]';
 
   let md = `# Security Assessment: ${workflowId}
 
@@ -375,6 +387,9 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
   className,
 }) => {
   const [activeTab, setActiveTab] = useState<ReportTab>('static');
+  // Risk box state - hidden for now
+  // const [showRiskTooltip, setShowRiskTooltip] = useState(false);
+  // const showNumericRiskScore = false;
 
   const handleExportMarkdown = () => {
     const md = generateMarkdownReport(report, workflowId);
@@ -411,62 +426,175 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
 
   // Calculate tab counts based on predefined checks
   const getTabCounts = () => {
+    const staticNotTested = report.static_analysis.last_scan === null;
+    const dynamicNotTested = report.dynamic_analysis.last_analysis === null;
     let staticPass = 0, staticFail = 0, dynamicPass = 0, dynamicFail = 0;
 
-    // Count static checks
-    STATIC_CHECKS.forEach(check => {
-      const result = evaluateCheck(check, report.findings_detail || [], 'STATIC');
-      if (result.status === 'PASS') staticPass++;
-      else if (result.status === 'FAIL' || result.status === 'PARTIAL') staticFail++;
-    });
+    // Count static checks (only if analysis was run)
+    if (!staticNotTested) {
+      STATIC_CHECKS.forEach(check => {
+        const result = evaluateCheck(check, report.findings_detail || [], 'STATIC');
+        if (result.status === 'PASS') staticPass++;
+        else if (result.status === 'FAIL' || result.status === 'PARTIAL') staticFail++;
+      });
+    }
 
-    // Count dynamic checks
-    DYNAMIC_CHECKS.forEach(check => {
-      const result = evaluateCheck(check, report.findings_detail || [], 'DYNAMIC');
-      if (result.status === 'PASS' || result.status === 'TRACKED') dynamicPass++;
-      else if (result.status === 'FAIL' || result.status === 'NOT OBSERVED') dynamicFail++;
-    });
+    // Count dynamic checks (only if analysis was run)
+    if (!dynamicNotTested) {
+      DYNAMIC_CHECKS.forEach(check => {
+        const result = evaluateCheck(check, report.findings_detail || [], 'DYNAMIC');
+        if (result.status === 'PASS' || result.status === 'TRACKED') dynamicPass++;
+        else if (result.status === 'FAIL' || result.status === 'NOT OBSERVED') dynamicFail++;
+      });
+    }
 
-    return { staticPass, staticFail, dynamicPass, dynamicFail };
+    return { staticPass, staticFail, staticNotTested, dynamicPass, dynamicFail, dynamicNotTested };
   };
 
   const tabCounts = getTabCounts();
   const reportTypeName = REPORT_TYPES.find(t => t.id === reportType)?.name || reportType;
 
+  // Count severity levels from findings
+  const getSeverityCounts = () => {
+    const findings = (report.findings_detail || []) as Array<{ severity?: string }>;
+    let critical = 0, high = 0, medium = 0;
+    findings.forEach((f) => {
+      if (f.severity === 'CRITICAL') critical++;
+      else if (f.severity === 'HIGH') high++;
+      else if (f.severity === 'MEDIUM') medium++;
+    });
+    return { critical, high, medium };
+  };
+  const severityCounts = getSeverityCounts();
+
+  // Format date and time
+  const reportDateTime = new Date(report.generated_at);
+  const formattedDate = reportDateTime.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const formattedTime = reportDateTime.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // Risk level calculations - hidden for now
+  // const isHighRisk = report.executive_summary.risk_score > 50;
+  // const getRiskLevel = (score: number): 'low' | 'medium' | 'high' => {
+  //   if (score >= 67) return 'high';
+  //   if (score >= 34) return 'medium';
+  //   return 'low';
+  // };
+  // const riskLevel = getRiskLevel(report.executive_summary.risk_score);
+
+  // Parse executive bullet to extract severity and clean text
+  const parseBullet = (bullet: string): { severity: 'critical' | 'high' | 'medium' | 'low' | null; text: string } => {
+    // Remove common emoji prefixes first
+    const cleanText = bullet
+      .replace(/^🔴\s*/, '')
+      .replace(/^🟠\s*/, '')
+      .replace(/^🟡\s*/, '')
+      .replace(/^⚠️\s*/, '')
+      .replace(/^\[CRITICAL\]\s*/i, '')
+      .replace(/^\[HIGH\]\s*/i, '')
+      .replace(/^\[MEDIUM\]\s*/i, '');
+
+    // Determine severity based on original content
+    if (bullet.startsWith('🔴') || bullet.toLowerCase().includes('critical')) {
+      return { severity: 'critical', text: cleanText };
+    }
+    if (bullet.startsWith('🟠') || bullet.toLowerCase().includes('high severity')) {
+      return { severity: 'high', text: cleanText };
+    }
+    if (bullet.startsWith('⚠️') || bullet.startsWith('🟡') || bullet.toLowerCase().includes('risk:')) {
+      return { severity: 'medium', text: cleanText };
+    }
+    return { severity: null, text: cleanText };
+  };
+
   return (
     <ReportContainer className={className} data-testid="report-display">
-      {/* Report Header */}
+      {/* Report Header - Full Width Layout */}
       <ReportHeader $isBlocked={report.executive_summary.is_blocked}>
-        <HeaderTop>
-          <div>
-            <ReportTypeLabel $color={report.executive_summary.is_blocked ? 'var(--color-red)' : 'var(--color-green)'}>
-              {reportTypeName}
-            </ReportTypeLabel>
-            <ReportTitle>{workflowId}</ReportTitle>
-            <ReportSubtitle>
-              {new Date(report.generated_at).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </ReportSubtitle>
-          </div>
-        </HeaderTop>
+        <HeaderRow>
+          {/* Left: Decision Icon + Status + Meta */}
+          <HeaderLeft>
+            <DecisionIcon $isBlocked={report.executive_summary.is_blocked}>
+              {report.executive_summary.is_blocked ? <XCircle size={28} /> : <CheckCircle size={28} />}
+            </DecisionIcon>
+            <DecisionInfo>
+              <DecisionTitle $isBlocked={report.executive_summary.is_blocked}>
+                {report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Attention Required' : 'Production Ready')}
+              </DecisionTitle>
+              <ReportMeta>
+                {reportTypeName} · {workflowId} · {formattedDate} {formattedTime}
+              </ReportMeta>
+            </DecisionInfo>
+          </HeaderLeft>
 
-        <DecisionBox $isBlocked={report.executive_summary.is_blocked}>
-          <DecisionIcon $isBlocked={report.executive_summary.is_blocked}>
-            {report.executive_summary.is_blocked ? 'X' : '\u2713'}
-          </DecisionIcon>
-          <DecisionContent>
-            <DecisionTitle $isBlocked={report.executive_summary.is_blocked}>
-              {report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Attention Required' : 'Production Ready')} (Advisory)
-            </DecisionTitle>
-            <DecisionText style={{ fontStyle: 'italic', opacity: 0.8, marginBottom: '8px' }}>
-              {report.executive_summary.advisory_notice || 'Advisory only - does not block deployments.'}
-            </DecisionText>
-            <DecisionText>{report.executive_summary.decision_message}</DecisionText>
-          </DecisionContent>
-        </DecisionBox>
+          {/* Right: Severity Counts */}
+          <HeaderRight>
+            <SeverityCounts>
+              {severityCounts.critical > 0 && (
+                <Badge variant="critical" size="md">
+                  {severityCounts.critical} Critical
+                </Badge>
+              )}
+              {severityCounts.high > 0 && (
+                <Badge variant="high" size="md">
+                  {severityCounts.high} High
+                </Badge>
+              )}
+              {severityCounts.medium > 0 && (
+                <Badge variant="medium" size="md">
+                  {severityCounts.medium} Medium
+                </Badge>
+              )}
+            </SeverityCounts>
+
+            {/* Risk Level Display - Hidden for now, set showRiskBox to true to enable */}
+            {/* {showNumericRiskScore ? (
+              <RiskScoreBox
+                $isHigh={isHighRisk}
+                onMouseEnter={() => setShowRiskTooltip(true)}
+                onMouseLeave={() => setShowRiskTooltip(false)}
+              >
+                <RiskScoreValue $isHigh={isHighRisk}>
+                  {report.executive_summary.risk_score}
+                </RiskScoreValue>
+                <RiskScoreLabel>Risk Score</RiskScoreLabel>
+                {showRiskTooltip && report.executive_summary.risk_breakdown && (
+                  <RiskTooltip>
+                    <TooltipTitle>Risk Score Calculation</TooltipTitle>
+                    <TooltipFormula>{report.executive_summary.risk_breakdown.formula}</TooltipFormula>
+                    {report.executive_summary.risk_breakdown.breakdown.map((item) => (
+                      item.count > 0 && (
+                        <TooltipRow key={item.severity}>
+                          <TooltipRowLabel>{item.count}x {item.severity} (x{item.weight})</TooltipRowLabel>
+                          <span>= {item.subtotal}</span>
+                        </TooltipRow>
+                      )
+                    ))}
+                    <TooltipRow>
+                      <span>Total (capped at 100)</span>
+                      <span style={{ color: isHighRisk ? 'var(--color-red)' : 'var(--color-green)' }}>
+                        {report.executive_summary.risk_score}
+                      </span>
+                    </TooltipRow>
+                  </RiskTooltip>
+                )}
+              </RiskScoreBox>
+            ) : (
+              <RiskLevelBox $level={riskLevel}>
+                <RiskLevelText $level={riskLevel}>
+                  {riskLevel === 'high' ? 'High' : riskLevel === 'medium' ? 'Medium' : 'Low'}
+                </RiskLevelText>
+                <RiskLevelLabel>Risk</RiskLevelLabel>
+              </RiskLevelBox>
+            )} */}
+          </HeaderRight>
+        </HeaderRow>
       </ReportHeader>
 
       {/* Business Impact Section */}
@@ -477,9 +605,15 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
             Key Security Risks
           </SectionTitle>
           <ImpactBullets>
-            {report.business_impact.executive_bullets?.map((bullet: string, idx: number) => (
-              <ImpactBullet key={idx}>{bullet}</ImpactBullet>
-            ))}
+            {report.business_impact.executive_bullets?.map((bullet: string, idx: number) => {
+              const { severity, text } = parseBullet(bullet);
+              return (
+                <ImpactBullet key={idx}>
+                  {severity && <Badge variant={severity} size="sm">{severity.toUpperCase()}</Badge>}
+                  <ImpactBulletText>{text}</ImpactBulletText>
+                </ImpactBullet>
+              );
+            })}
           </ImpactBullets>
           <ImpactGrid>
             {Object.entries(report.business_impact.impacts || {}).map(([key, impact]: [string, unknown]) => {
@@ -496,66 +630,43 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
         </BusinessImpactSection>
       )}
 
-      {/* Stats Grid */}
+      {/* Quick Stats Strip */}
       <StatsGrid>
-        <StatBox>
+        <StatBox $accentColor={report.executive_summary.risk_score > 50 ? 'var(--color-red)' : 'var(--color-green)'}>
           <StatValue $color={report.executive_summary.risk_score > 50 ? 'var(--color-red)' : 'var(--color-green)'}>
             {report.executive_summary.risk_score}
           </StatValue>
           <StatLabel>Risk Score</StatLabel>
         </StatBox>
-        <StatBox>
+        <StatBox $accentColor="var(--color-white50)">
           <StatValue>{report.executive_summary.total_findings}</StatValue>
           <StatLabel>Total Findings</StatLabel>
         </StatBox>
-        <StatBox>
-          <StatValue $color={report.executive_summary.open_findings > 0 ? 'var(--color-red)' : undefined}>
+        <StatBox $accentColor={report.executive_summary.open_findings > 0 ? 'var(--color-red)' : 'var(--color-green)'}>
+          <StatValue $color={report.executive_summary.open_findings > 0 ? 'var(--color-red)' : 'var(--color-green)'}>
             {report.executive_summary.open_findings}
           </StatValue>
           <StatLabel>Open Issues</StatLabel>
         </StatBox>
-        <StatBox>
+        <StatBox $accentColor="var(--color-green)">
           <StatValue $color="var(--color-green)">{report.executive_summary.fixed_findings}</StatValue>
           <StatLabel>Fixed</StatLabel>
         </StatBox>
       </StatsGrid>
 
-      {/* Risk Score Breakdown */}
-      {report.executive_summary.risk_breakdown && (
-        <RiskBreakdown>
-          <RiskBreakdownTitle>Risk Score Calculation</RiskBreakdownTitle>
-          <RiskFormula>{report.executive_summary.risk_breakdown.formula}</RiskFormula>
-          <RiskBreakdownGrid>
-            {report.executive_summary.risk_breakdown.breakdown.map((item) => (
-              item.count > 0 && (
-                <RiskBreakdownItem key={item.severity}>
-                  <span>{item.count}x {item.severity}</span>
-                  <span style={{ color: 'var(--color-white50)' }}>x{item.weight}</span>
-                  <span style={{ fontWeight: 600 }}>= {item.subtotal}</span>
-                </RiskBreakdownItem>
-              )
-            ))}
-            <RiskBreakdownTotal>
-              <span>Total (capped at 100)</span>
-              <span style={{ fontWeight: 700, color: report.executive_summary.risk_score > 50 ? 'var(--color-red)' : 'var(--color-green)' }}>
-                {report.executive_summary.risk_score}
-              </span>
-            </RiskBreakdownTotal>
-          </RiskBreakdownGrid>
-        </RiskBreakdown>
-      )}
+      <SectionDivider />
 
       {/* Tab Navigation */}
       <TabNav>
         <Tab $active={activeTab === 'static'} onClick={() => setActiveTab('static')}>
           Static Analysis
-          {tabCounts.staticPass > 0 && <TabBadge $type="pass">{tabCounts.staticPass}</TabBadge>}
-          {tabCounts.staticFail > 0 && <TabBadge $type="fail">{tabCounts.staticFail}</TabBadge>}
+          {!tabCounts.staticNotTested && tabCounts.staticPass > 0 && <TabBadge $type="pass">{tabCounts.staticPass}</TabBadge>}
+          {!tabCounts.staticNotTested && tabCounts.staticFail > 0 && <TabBadge $type="fail">{tabCounts.staticFail}</TabBadge>}
         </Tab>
         <Tab $active={activeTab === 'dynamic'} onClick={() => setActiveTab('dynamic')}>
           Dynamic Analysis
-          {tabCounts.dynamicPass > 0 && <TabBadge $type="pass">{tabCounts.dynamicPass}</TabBadge>}
-          {tabCounts.dynamicFail > 0 && <TabBadge $type="fail">{tabCounts.dynamicFail}</TabBadge>}
+          {!tabCounts.dynamicNotTested && tabCounts.dynamicPass > 0 && <TabBadge $type="pass">{tabCounts.dynamicPass}</TabBadge>}
+          {!tabCounts.dynamicNotTested && tabCounts.dynamicFail > 0 && <TabBadge $type="fail">{tabCounts.dynamicFail}</TabBadge>}
         </Tab>
         <Tab $active={activeTab === 'combined'} onClick={() => setActiveTab('combined')}>
           Combined Insights
@@ -576,134 +687,172 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
       <TabContent>
         {activeTab === 'static' && (
           <div>
-            <h3 style={{ marginBottom: '8px', fontSize: '16px', fontWeight: 600 }}>Static Analysis Results</h3>
-            <p style={{ color: 'var(--color-white50)', fontSize: '13px', marginBottom: '20px' }}>
+            <TabSectionHeader>Static Analysis Results</TabSectionHeader>
+            <TabSectionDescription>
               Code pattern analysis via AST parsing. Checks for security controls, dangerous patterns, and compliance requirements.
-            </p>
+            </TabSectionDescription>
 
-            <ChecksTable>
-              <thead>
-                <tr>
-                  <th style={{ width: '28%' }}>Check</th>
-                  <th style={{ width: '10%' }}>Status</th>
-                  <th style={{ width: '40%' }}>Details</th>
-                  <th style={{ width: '22%' }}>Evidence</th>
-                </tr>
-              </thead>
-              <tbody>
-                {STATIC_CHECKS.map((check) => {
-                  const result = evaluateCheck(check, report.findings_detail || [], 'STATIC');
-                  return (
-                    <tr key={check.id}>
-                      <td>
-                        <div style={{ fontWeight: 600, color: 'var(--color-white)' }}>{check.name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '2px' }}>{check.description}</div>
-                      </td>
-                      <td>
-                        <StatusPill $status={result.status === 'PASS' ? 'pass' : result.status === 'PARTIAL' ? 'warning' : 'fail'}>
-                          {result.status}
-                        </StatusPill>
-                      </td>
-                      <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
-                        {result.details}
-                      </td>
-                      <td>
-                        {result.evidence ? (
-                          <code style={{ fontSize: '12px', color: 'var(--color-cyan)', fontFamily: "'JetBrains Mono', monospace" }}>
-                            {result.evidence}
-                          </code>
-                        ) : result.relatedFindings.length > 0 && result.relatedFindings[0]?.file_path ? (
-                          <code style={{ fontSize: '12px', color: 'var(--color-cyan)', fontFamily: "'JetBrains Mono', monospace" }}>
-                            {result.relatedFindings[0].file_path.split('/').pop()}
-                          </code>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </ChecksTable>
+            {report.static_analysis.last_scan === null ? (
+              <EmptyEvidence>
+                <Shield size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <p>Static Analysis Not Run</p>
+                <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                  Run static code analysis to check for security patterns, vulnerabilities, and compliance issues.
+                </p>
+              </EmptyEvidence>
+            ) : (
+              <ChecksTable>
+                <thead>
+                  <tr>
+                    <th style={{ width: '28%' }}>Check</th>
+                    <th style={{ width: '10%' }}>Status</th>
+                    <th style={{ width: '40%' }}>Details</th>
+                    <th style={{ width: '22%' }}>Evidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STATIC_CHECKS.map((check) => {
+                    const result = evaluateCheck(check, report.findings_detail || [], 'STATIC');
+                    return (
+                      <tr key={check.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: 'var(--color-white)' }}>{check.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '2px' }}>{check.description}</div>
+                        </td>
+                        <td>
+                          <StatusPill $status={result.status === 'PASS' ? 'pass' : result.status === 'PARTIAL' ? 'warning' : 'fail'}>
+                            {result.status}
+                          </StatusPill>
+                        </td>
+                        <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
+                          {result.details}
+                        </td>
+                        <td>
+                          {result.evidence ? (
+                            <code style={{ fontSize: '12px', color: 'var(--color-cyan)', fontFamily: "'JetBrains Mono', monospace" }}>
+                              {result.evidence}
+                            </code>
+                          ) : result.relatedFindings.length > 0 && result.relatedFindings[0]?.file_path ? (
+                            <code style={{ fontSize: '12px', color: 'var(--color-cyan)', fontFamily: "'JetBrains Mono', monospace" }}>
+                              {result.relatedFindings[0].file_path.split('/').pop()}
+                            </code>
+                          ) : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </ChecksTable>
+            )}
           </div>
         )}
 
         {activeTab === 'dynamic' && (
           <div>
-            <h3 style={{ marginBottom: '8px', fontSize: '16px', fontWeight: 600 }}>Dynamic Analysis Results</h3>
-            <p style={{ color: 'var(--color-white50)', fontSize: '13px', marginBottom: '20px' }}>
+            <TabSectionHeader>Dynamic Analysis Results</TabSectionHeader>
+            <TabSectionDescription>
               Runtime behavior observed via Agent Inspector proxy across {report.dynamic_analysis.sessions_count} sessions. Tool calls, response content, and behavioral patterns analyzed.
-            </p>
+            </TabSectionDescription>
 
-            <ChecksTable>
-              <thead>
-                <tr>
-                  <th style={{ width: '28%' }}>Capability</th>
-                  <th style={{ width: '10%' }}>Status</th>
-                  <th style={{ width: '40%' }}>Observation</th>
-                  <th style={{ width: '22%' }}>Metric</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DYNAMIC_CHECKS.map((check) => {
-                  const result = evaluateCheck(check, report.findings_detail || [], 'DYNAMIC');
-                  const sessionsCount = report.dynamic_analysis.sessions_count || 0;
+            {report.dynamic_analysis.last_analysis === null ? (
+              <EmptyEvidence>
+                <Activity size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <p>Dynamic Analysis Not Run</p>
+                <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                  Run dynamic analysis by monitoring agent sessions to observe runtime behavior.
+                </p>
+              </EmptyEvidence>
+            ) : (
+              <ChecksTable>
+                <thead>
+                  <tr>
+                    <th style={{ width: '28%' }}>Capability</th>
+                    <th style={{ width: '10%' }}>Status</th>
+                    <th style={{ width: '40%' }}>Observation</th>
+                    <th style={{ width: '22%' }}>Metric</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DYNAMIC_CHECKS.map((check) => {
+                    const result = evaluateCheck(check, report.findings_detail || [], 'DYNAMIC');
+                    const sessionsCount = report.dynamic_analysis.sessions_count || 0;
 
-                  // Generate appropriate metric based on check type
-                  let metric = result.metric || '';
-                  if (check.id === 'tool_monitoring') metric = `${sessionsCount} sessions`;
-                  else if (check.id === 'throttling') metric = result.status === 'NOT OBSERVED' ? '0 throttled' : 'Active';
-                  else if (check.id === 'data_leakage') metric = result.relatedFindings.length > 0 ? `${result.relatedFindings.length} events` : '0 leakage events';
-                  else if (check.id === 'behavioral_patterns') metric = sessionsCount > 0 ? `${Math.ceil(sessionsCount / 15)} clusters` : 'N/A';
-                  else if (check.id === 'cost_tracking') metric = '~$0.05/session';
-                  else if (check.id === 'anomaly_detection') metric = result.relatedFindings.length > 0 ? `${result.relatedFindings.length} outliers` : '0 outliers';
+                    // Generate appropriate metric based on check type
+                    let metric = result.metric || '';
+                    if (check.id === 'tool_monitoring') metric = `${sessionsCount} sessions`;
+                    else if (check.id === 'throttling') metric = result.status === 'NOT OBSERVED' ? '0 throttled' : 'Active';
+                    else if (check.id === 'data_leakage') metric = result.relatedFindings.length > 0 ? `${result.relatedFindings.length} events` : '0 leakage events';
+                    else if (check.id === 'behavioral_patterns') metric = sessionsCount > 0 ? `${Math.ceil(sessionsCount / 15)} clusters` : 'N/A';
+                    else if (check.id === 'cost_tracking') metric = '~$0.05/session';
+                    else if (check.id === 'anomaly_detection') metric = result.relatedFindings.length > 0 ? `${result.relatedFindings.length} outliers` : '0 outliers';
 
-                  return (
-                    <tr key={check.id}>
-                      <td>
-                        <div style={{ fontWeight: 600, color: 'var(--color-white)' }}>{check.name}</div>
-                        <div style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '2px' }}>{check.description}</div>
-                      </td>
-                      <td>
-                        <StatusPill $status={
-                          result.status === 'PASS' ? 'pass' :
-                          result.status === 'TRACKED' ? 'warning' :
-                          result.status === 'NOT OBSERVED' ? 'warning' :
-                          'fail'
-                        }>
-                          {result.status}
-                        </StatusPill>
-                      </td>
-                      <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
-                        {result.details}
-                      </td>
-                      <td>
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{metric}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </ChecksTable>
+                    return (
+                      <tr key={check.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: 'var(--color-white)' }}>{check.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--color-white50)', marginTop: '2px' }}>{check.description}</div>
+                        </td>
+                        <td>
+                          <StatusPill $status={
+                            result.status === 'PASS' ? 'pass' :
+                            result.status === 'TRACKED' ? 'warning' :
+                            result.status === 'NOT OBSERVED' ? 'warning' :
+                            'fail'
+                          }>
+                            {result.status}
+                          </StatusPill>
+                        </td>
+                        <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
+                          {result.details}
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{metric}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </ChecksTable>
+            )}
           </div>
         )}
 
         {activeTab === 'combined' && (
           <div>
-            <h3 style={{ marginBottom: '8px', fontSize: '16px', fontWeight: 600 }}>Combined Analysis Insights</h3>
-            <p style={{ color: 'var(--color-white50)', fontSize: '13px', marginBottom: '20px' }}>
+            <TabSectionHeader>Combined Analysis Insights</TabSectionHeader>
+            <TabSectionDescription>
               Static code analysis validated by dynamic runtime observation provides higher confidence findings.
-            </p>
+            </TabSectionDescription>
 
-            <ChecksTable>
-              <thead>
-                <tr>
-                  <th style={{ width: '25%' }}>Static Finding</th>
-                  <th style={{ width: '30%' }}>Dynamic Validation</th>
-                  <th style={{ width: '12%' }}>Status</th>
-                  <th style={{ width: '33%' }}>Assessment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {STATIC_CHECKS.map((staticCheck) => {
+            {/* Check if both analyses are missing */}
+            {report.static_analysis.last_scan === null && report.dynamic_analysis.last_analysis === null ? (
+              <EmptyEvidence>
+                <GitCompare size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <p>No Analysis Data Available</p>
+                <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                  Run both static and dynamic analysis to see correlated security insights.
+                </p>
+              </EmptyEvidence>
+            ) : report.static_analysis.last_scan === null ? (
+              <EmptyEvidence>
+                <Shield size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <p>Static Analysis Required</p>
+                <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                  Run static code analysis to correlate with dynamic runtime observations.
+                </p>
+              </EmptyEvidence>
+            ) : report.dynamic_analysis.last_analysis === null ? (
+              <EmptyEvidence>
+                <Activity size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                <p>Dynamic Analysis Required</p>
+                <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                  Run dynamic analysis to validate static code findings with runtime behavior.
+                </p>
+              </EmptyEvidence>
+            ) : (
+              // Both analyses run - render table or "no findings" state
+              (() => {
+                const correlatedRows = STATIC_CHECKS.map((staticCheck) => {
                   const staticResult = evaluateCheck(staticCheck, report.findings_detail || [], 'STATIC');
                   const dynamicResult = evaluateCheck(
                     DYNAMIC_CHECKS.find(d => d.categories.some(c => staticCheck.categories.includes(c))) || staticCheck,
@@ -713,80 +862,112 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
 
                   const sessionsCount = report.dynamic_analysis.sessions_count || 0;
                   const hasStaticIssue = staticResult.status !== 'PASS';
-                  const hasDynamicData = sessionsCount > 0;
                   const isDynamicConfirmed = dynamicResult.relatedFindings.length > 0 || staticResult.relatedFindings.some(f => f.correlation_state === 'VALIDATED');
-
-                  // Determine correlation status
-                  let correlationStatus: 'CONFIRMED' | 'UNEXERCISED' | 'PASS' | 'DISCOVERED' = 'PASS';
-                  let assessment = '';
-
-                  if (hasStaticIssue && isDynamicConfirmed) {
-                    correlationStatus = 'CONFIRMED';
-                    assessment = `${staticCheck.name} gap confirmed. ${staticResult.relatedFindings[0]?.description?.slice(0, 60) || 'Issue validated at runtime.'}`;
-                  } else if (hasStaticIssue && hasDynamicData && !isDynamicConfirmed) {
-                    correlationStatus = 'UNEXERCISED';
-                    assessment = `Code pattern present but not triggered in ${sessionsCount} sessions.`;
-                  } else if (!hasStaticIssue && isDynamicConfirmed) {
-                    correlationStatus = 'DISCOVERED';
-                    assessment = 'Runtime-only discovery. No static prediction.';
-                  } else {
-                    correlationStatus = 'PASS';
-                    assessment = hasStaticIssue ? 'No runtime data to validate.' : 'No issues in static or dynamic analysis.';
-                  }
 
                   // Skip if no issues at all
                   if (!hasStaticIssue && !isDynamicConfirmed) return null;
 
-                  return (
-                    <tr key={staticCheck.id}>
-                      <td style={{ fontSize: '13px' }}>
-                        {hasStaticIssue ? staticResult.details.slice(0, 50) : 'N/A (no static prediction)'}
-                      </td>
-                      <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
-                        {hasDynamicData
-                          ? (isDynamicConfirmed
-                              ? `Observed in ${sessionsCount}/${sessionsCount} sessions`
-                              : `Not observed in ${sessionsCount} sessions`)
-                          : 'No runtime data available'}
-                      </td>
-                      <td>
-                        <StatusPill $status={
-                          correlationStatus === 'CONFIRMED' ? 'fail' :
-                          correlationStatus === 'DISCOVERED' ? 'warning' :
-                          correlationStatus === 'UNEXERCISED' ? 'warning' :
-                          'pass'
-                        }>
-                          {correlationStatus}
-                        </StatusPill>
-                      </td>
-                      <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
-                        {assessment}
-                      </td>
-                    </tr>
-                  );
-                }).filter(Boolean)}
+                  return { staticCheck, staticResult, sessionsCount, hasStaticIssue, isDynamicConfirmed };
+                }).filter(Boolean);
 
-                {/* Runtime-only discoveries */}
-                {(report.findings_detail as { finding_id: string; title?: string; source_type?: string }[] || []).filter((f) => f.source_type === 'DYNAMIC').slice(0, 3).map((finding) => (
-                  <tr key={finding.finding_id}>
-                    <td style={{ fontSize: '13px', color: 'var(--color-white50)' }}>N/A (no static prediction)</td>
-                    <td style={{ fontSize: '13px' }}>{finding.title?.slice(0, 50)}</td>
-                    <td>
-                      <StatusPill $status="warning">DISCOVERED</StatusPill>
-                    </td>
-                    <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
-                      Runtime-only discovery. Recommend investigation.
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ChecksTable>
+                const dynamicFindings = (report.findings_detail as { finding_id: string; title?: string; source_type?: string }[] || []).filter(f => f.source_type === 'DYNAMIC');
+                const hasCorrelatedData = correlatedRows.length > 0 || dynamicFindings.length > 0;
+
+                return hasCorrelatedData ? (
+                  <ChecksTable>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '25%' }}>Static Finding</th>
+                        <th style={{ width: '30%' }}>Dynamic Validation</th>
+                        <th style={{ width: '12%' }}>Status</th>
+                        <th style={{ width: '33%' }}>Assessment</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {correlatedRows.map((row) => {
+                        if (!row) return null;
+                        const { staticCheck, staticResult, sessionsCount, hasStaticIssue, isDynamicConfirmed } = row;
+                        const hasDynamicData = sessionsCount > 0;
+
+                        // Determine correlation status
+                        let correlationStatus: 'CONFIRMED' | 'UNEXERCISED' | 'PASS' | 'DISCOVERED' = 'PASS';
+                        let assessment = '';
+
+                        if (hasStaticIssue && isDynamicConfirmed) {
+                          correlationStatus = 'CONFIRMED';
+                          assessment = `${staticCheck.name} gap confirmed. ${staticResult.relatedFindings[0]?.description?.slice(0, 60) || 'Issue validated at runtime.'}`;
+                        } else if (hasStaticIssue && hasDynamicData && !isDynamicConfirmed) {
+                          correlationStatus = 'UNEXERCISED';
+                          assessment = `Code pattern present but not triggered in ${sessionsCount} sessions.`;
+                        } else if (!hasStaticIssue && isDynamicConfirmed) {
+                          correlationStatus = 'DISCOVERED';
+                          assessment = 'Runtime-only discovery. No static prediction.';
+                        } else {
+                          correlationStatus = 'PASS';
+                          assessment = hasStaticIssue ? 'No runtime data to validate.' : 'No issues in static or dynamic analysis.';
+                        }
+
+                        return (
+                          <tr key={staticCheck.id}>
+                            <td style={{ fontSize: '13px' }}>
+                              {hasStaticIssue ? staticResult.details.slice(0, 50) : 'N/A (no static prediction)'}
+                            </td>
+                            <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
+                              {hasDynamicData
+                                ? (isDynamicConfirmed
+                                    ? `Observed in ${sessionsCount}/${sessionsCount} sessions`
+                                    : `Not observed in ${sessionsCount} sessions`)
+                                : 'No runtime data available'}
+                            </td>
+                            <td>
+                              <StatusPill $status={
+                                correlationStatus === 'CONFIRMED' ? 'fail' :
+                                correlationStatus === 'DISCOVERED' ? 'warning' :
+                                correlationStatus === 'UNEXERCISED' ? 'warning' :
+                                'pass'
+                              }>
+                                {correlationStatus}
+                              </StatusPill>
+                            </td>
+                            <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
+                              {assessment}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {/* Runtime-only discoveries */}
+                      {dynamicFindings.slice(0, 3).map((finding) => (
+                        <tr key={finding.finding_id}>
+                          <td style={{ fontSize: '13px', color: 'var(--color-white50)' }}>N/A (no static prediction)</td>
+                          <td style={{ fontSize: '13px' }}>{finding.title?.slice(0, 50)}</td>
+                          <td>
+                            <StatusPill $status="warning">DISCOVERED</StatusPill>
+                          </td>
+                          <td style={{ fontSize: '13px', color: 'var(--color-white70)' }}>
+                            Runtime-only discovery. Recommend investigation.
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </ChecksTable>
+                ) : (
+                  <EmptyEvidence>
+                    <CheckCircle size={32} style={{ marginBottom: '12px', color: 'var(--color-green)' }} />
+                    <p>No Correlated Findings</p>
+                    <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                      No security issues found across static and dynamic analysis correlation.
+                    </p>
+                  </EmptyEvidence>
+                );
+              })()
+            )}
           </div>
         )}
 
         {activeTab === 'compliance' && (
           <div>
-            <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>Compliance Posture</h3>
+            <TabSectionHeader>Compliance Posture</TabSectionHeader>
             <ComplianceGrid>
               <ComplianceCard>
                 <ComplianceHeader>
@@ -830,9 +1011,9 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
 
         {activeTab === 'evidences' && (
           <div>
-            <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>
+            <TabSectionHeader>
               Security Evidences ({report.blocking_items.length} blocking)
-            </h3>
+            </TabSectionHeader>
             {report.blocking_items.length === 0 ? (
               <EmptyEvidence>
                 <CheckCircle size={32} style={{ marginBottom: '12px', color: 'var(--color-green)' }} />
@@ -938,7 +1119,7 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
 
         {activeTab === 'remediation' && (
           <div>
-            <h3 style={{ marginBottom: '16px', fontSize: '16px', fontWeight: 600 }}>Remediation Plan</h3>
+            <TabSectionHeader>Remediation Plan</TabSectionHeader>
             <StatsGrid style={{ padding: 0, marginBottom: '24px' }}>
               <StatBox>
                 <StatValue $color="var(--color-orange)">{report.remediation_summary.pending}</StatValue>
@@ -961,7 +1142,9 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
             {/* Recommendations Table */}
             {report.recommendations_detail && report.recommendations_detail.length > 0 ? (
               <>
-                <h4 style={{ marginBottom: '12px', fontSize: '14px', fontWeight: 600 }}>Recommended Actions</h4>
+                <TabSectionDescription style={{ marginTop: '16px', marginBottom: '12px', fontWeight: 600, color: 'var(--color-white70)' }}>
+                  Recommended Actions
+                </TabSectionDescription>
                 <RecommendationsTable>
                   <thead>
                     <tr>

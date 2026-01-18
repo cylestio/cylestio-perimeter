@@ -11,9 +11,9 @@ export const TabNav = styled.div`
 
 export const Tab = styled.button<{ $active?: boolean }>`
   padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
-  background: none;
+  background: ${({ $active, theme }) => ($active ? theme.colors.surface2 + '80' : 'none')};
   border: none;
-  border-bottom: 2px solid ${({ $active, theme }) => ($active ? theme.colors.cyan : 'transparent')};
+  border-bottom: 3px solid ${({ $active, theme }) => ($active ? theme.colors.cyan : 'transparent')};
   color: ${({ $active, theme }) => ($active ? theme.colors.cyan : theme.colors.white50)};
   font-size: 13px;
   font-weight: 500;
@@ -47,7 +47,7 @@ export const ReportContainer = styled.div`
 `;
 
 export const ReportHeader = styled.div<{ $isBlocked: boolean }>`
-  padding: ${({ theme }) => theme.spacing[6]};
+  padding: ${({ theme }) => theme.spacing[5]} ${({ theme }) => theme.spacing[6]};
   background: ${({ $isBlocked, theme }) =>
     $isBlocked
       ? `linear-gradient(135deg, ${theme.colors.redSoft}, transparent)`
@@ -55,77 +55,212 @@ export const ReportHeader = styled.div<{ $isBlocked: boolean }>`
   border-bottom: 2px solid ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.red : theme.colors.green)};
 `;
 
-export const HeaderTop = styled.div`
+// Full-width header layout
+export const HeaderRow = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: ${({ theme }) => theme.spacing[4]};
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 `;
 
-export const ReportTypeLabel = styled.div<{ $color?: string }>`
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: ${({ $color, theme }) => $color || theme.colors.cyan};
-  margin-bottom: ${({ theme }) => theme.spacing[2]};
-`;
-
-export const ReportTitle = styled.h2`
-  font-size: 24px;
-  font-weight: 800;
-  color: ${({ theme }) => theme.colors.white};
-  margin: 0 0 ${({ theme }) => theme.spacing[1]} 0;
-`;
-
-export const ReportSubtitle = styled.p`
-  font-size: 14px;
-  color: ${({ theme }) => theme.colors.white70};
-  margin: 0;
-`;
-
-// Decision Box
-export const DecisionBox = styled.div<{ $isBlocked: boolean }>`
+export const HeaderLeft = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing[3]};
-  padding: ${({ theme }) => theme.spacing[4]};
-  background: ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.redSoft : theme.colors.greenSoft)};
-  border: 2px solid ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.red : theme.colors.green)};
-  border-radius: ${({ theme }) => theme.radii.md};
-  margin-top: ${({ theme }) => theme.spacing[4]};
+  gap: ${({ theme }) => theme.spacing[4]};
+`;
+
+export const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[4]};
+
+  @media (max-width: 768px) {
+    flex-wrap: wrap;
+  }
 `;
 
 export const DecisionIcon = styled.div<{ $isBlocked: boolean }>`
-  width: 40px;
-  height: 40px;
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.red : theme.colors.green)};
+  width: 48px;
+  height: 48px;
+  border-radius: ${({ theme }) => theme.radii.lg};
+  background: ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.redSoft : theme.colors.greenSoft)};
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-weight: 700;
-  font-size: 18px;
+  color: ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.red : theme.colors.green)};
+  flex-shrink: 0;
 `;
 
-export const DecisionContent = styled.div`
-  flex: 1;
+export const DecisionInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
 `;
 
 export const DecisionTitle = styled.div<{ $isBlocked: boolean }>`
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 700;
   color: ${({ $isBlocked, theme }) => ($isBlocked ? theme.colors.red : theme.colors.green)};
 `;
 
-export const DecisionText = styled.p`
+export const ReportMeta = styled.div`
   font-size: 13px;
   color: ${({ theme }) => theme.colors.white70};
-  margin: ${({ theme }) => theme.spacing[1]} 0 0 0;
 `;
 
-// Stats Grid
+// Severity counts in header (uses Badge component for individual badges)
+export const SeverityCounts = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+// Risk level display
+export const RiskLevelBox = styled.div<{ $level: 'low' | 'medium' | 'high' }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing[3]} ${({ theme }) => theme.spacing[4]};
+  background: ${({ $level, theme }) => {
+    if ($level === 'high') return theme.colors.redSoft;
+    if ($level === 'medium') return theme.colors.orangeSoft;
+    return theme.colors.greenSoft;
+  }};
+  border: 1px solid ${({ $level, theme }) => {
+    if ($level === 'high') return theme.colors.red;
+    if ($level === 'medium') return theme.colors.orange;
+    return theme.colors.green;
+  }};
+  border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+export const RiskLevelText = styled.div<{ $level: 'low' | 'medium' | 'high' }>`
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ $level, theme }) => {
+    if ($level === 'high') return theme.colors.red;
+    if ($level === 'medium') return theme.colors.orange;
+    return theme.colors.green;
+  }};
+  line-height: 1;
+`;
+
+export const RiskLevelLabel = styled.div`
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white50};
+  margin-top: ${({ theme }) => theme.spacing[1]};
+`;
+
+// Risk score with tooltip (when showNumericRiskScore is true)
+export const RiskScoreBox = styled.div<{ $isHigh: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing[3]} ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.void};
+  border: 1px solid ${({ $isHigh, theme }) => ($isHigh ? theme.colors.red : theme.colors.green)};
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: help;
+  position: relative;
+`;
+
+export const RiskScoreValue = styled.div<{ $isHigh: boolean }>`
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: ${({ $isHigh, theme }) => ($isHigh ? theme.colors.red : theme.colors.green)};
+  line-height: 1;
+`;
+
+export const RiskScoreLabel = styled.div`
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white50};
+  margin-top: ${({ theme }) => theme.spacing[1]};
+`;
+
+// Tooltip for risk breakdown
+export const RiskTooltip = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: ${({ theme }) => theme.spacing[2]};
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 100;
+  min-width: 280px;
+  white-space: nowrap;
+`;
+
+export const TooltipTitle = styled.div`
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white50};
+  margin-bottom: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const TooltipFormula = styled.div`
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: ${({ theme }) => theme.colors.cyan};
+  margin-bottom: ${({ theme }) => theme.spacing[3]};
+  padding: ${({ theme }) => theme.spacing[2]};
+  background: ${({ theme }) => theme.colors.void};
+  border-radius: ${({ theme }) => theme.radii.sm};
+`;
+
+export const TooltipRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${({ theme }) => theme.spacing[1]} 0;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: ${({ theme }) => theme.colors.white};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+
+  &:last-child {
+    border-bottom: none;
+    font-weight: 700;
+    padding-top: ${({ theme }) => theme.spacing[2]};
+  }
+`;
+
+export const TooltipRowLabel = styled.span`
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+// Section Divider
+export const SectionDivider = styled.hr`
+  height: 1px;
+  border: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    ${({ theme }) => theme.colors.white08} 50%,
+    transparent 100%
+  );
+  margin: ${({ theme }) => theme.spacing[6]} 0;
+`;
+
+// Stats Grid (Quick Stats Strip)
 export const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -137,16 +272,17 @@ export const StatsGrid = styled.div`
   }
 `;
 
-export const StatBox = styled.div`
+export const StatBox = styled.div<{ $accentColor?: string }>`
   padding: ${({ theme }) => theme.spacing[4]};
   background: ${({ theme }) => theme.colors.void};
   border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-left: 3px solid ${({ $accentColor }) => $accentColor || 'transparent'};
   border-radius: ${({ theme }) => theme.radii.md};
   text-align: center;
 `;
 
 export const StatValue = styled.div<{ $color?: string }>`
-  font-size: 28px;
+  font-size: 36px;
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
   color: ${({ $color, theme }) => $color || theme.colors.white};
@@ -164,6 +300,20 @@ export const StatLabel = styled.div`
 // Tab Content
 export const TabContent = styled.div`
   padding: ${({ theme }) => theme.spacing[5]};
+`;
+
+// Tab Section Headers (moved from inline styles)
+export const TabSectionHeader = styled.h3`
+  font-size: 18px;
+  font-weight: 700;
+  color: ${({ theme }) => theme.colors.white};
+  margin: 0 0 ${({ theme }) => theme.spacing[2]} 0;
+`;
+
+export const TabSectionDescription = styled.p`
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.white50};
+  margin: 0 0 ${({ theme }) => theme.spacing[5]} 0;
 `;
 
 // Checks Table
@@ -189,13 +339,18 @@ export const ChecksTable = styled.table`
 
   td {
     padding: ${({ theme }) => theme.spacing[3]};
-    font-size: 13px;
+    font-size: 14px;
     border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
     vertical-align: top;
   }
 
   tr:last-child td {
     border-bottom: none;
+  }
+
+  /* Zebra striping */
+  tbody tr:nth-child(even) {
+    background: ${({ theme }) => theme.colors.surface2}30;
   }
 
   tr:hover {
@@ -380,8 +535,10 @@ export const BusinessImpactSection = styled.div`
 `;
 
 export const SectionTitle = styled.h3`
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: ${({ theme }) => theme.colors.white};
   margin: 0 0 ${({ theme }) => theme.spacing[3]} 0;
   display: flex;
@@ -396,14 +553,21 @@ export const ImpactBullets = styled.ul`
 `;
 
 export const ImpactBullet = styled.li`
+  display: flex;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.spacing[3]};
   font-size: 14px;
   color: ${({ theme }) => theme.colors.white};
-  padding: ${({ theme }) => theme.spacing[2]} 0;
+  padding: ${({ theme }) => theme.spacing[3]} 0;
   border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
 
   &:last-child {
     border-bottom: none;
   }
+`;
+
+export const ImpactBulletText = styled.span`
+  flex: 1;
 `;
 
 export const ImpactGrid = styled.div`
@@ -530,13 +694,18 @@ export const RecommendationsTable = styled.table`
 
   td {
     padding: ${({ theme }) => theme.spacing[3]};
-    font-size: 13px;
+    font-size: 14px;
     border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
     vertical-align: top;
   }
 
   tr:last-child td {
     border-bottom: none;
+  }
+
+  /* Zebra striping */
+  tbody tr:nth-child(even) {
+    background: ${({ theme }) => theme.colors.surface2}30;
   }
 
   tr:hover {
@@ -546,6 +715,10 @@ export const RecommendationsTable = styled.table`
 
 // Empty State for Evidences
 export const EmptyEvidence = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: ${({ theme }) => theme.spacing[6]};
   text-align: center;
   color: ${({ theme }) => theme.colors.white50};

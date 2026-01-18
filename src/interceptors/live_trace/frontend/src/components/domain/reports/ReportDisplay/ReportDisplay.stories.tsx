@@ -114,6 +114,19 @@ const blockedReport: ComplianceReportResponse = {
     blocking_critical: 1,
     blocking_high: 1,
   },
+  static_analysis: {
+    sessions_count: 3,
+    last_scan: new Date().toISOString(),
+    findings_count: 2,
+  },
+  dynamic_analysis: {
+    sessions_count: 10,
+    last_analysis: new Date().toISOString(),
+    sessions_analyzed: 10,
+    checks_total: 6,
+    checks_passed: 5,
+    behavioral_stability: 0.85,
+  },
   blocking_items: [
     {
       recommendation_id: 'REC-CRIT-001',
@@ -176,8 +189,8 @@ export const Default: Story = {
     await expect(canvas.getByTestId('report-display')).toBeInTheDocument();
 
     // Verify header content
-    await expect(canvas.getByText('my-agent-workflow')).toBeInTheDocument();
-    await expect(canvas.getByText('Production Ready (Advisory)')).toBeInTheDocument();
+    await expect(canvas.getByText(/my-agent-workflow/)).toBeInTheDocument();
+    await expect(canvas.getByText('Production Ready')).toBeInTheDocument();
 
     // Verify tabs are present
     await expect(canvas.getByText('Static Analysis')).toBeInTheDocument();
@@ -187,6 +200,21 @@ export const Default: Story = {
     // Verify stats are displayed
     await expect(canvas.getByText('Risk Score')).toBeInTheDocument();
     await expect(canvas.getByText('25')).toBeInTheDocument();
+
+    // Click Static Analysis tab and verify "Not Tested" state (mockReport has last_scan: null)
+    const staticTab = canvas.getByText('Static Analysis');
+    await userEvent.click(staticTab);
+    await expect(canvas.getByText('Static Analysis Not Run')).toBeInTheDocument();
+
+    // Click Dynamic Analysis tab and verify "Not Tested" state (mockReport has last_analysis: null)
+    const dynamicTab = canvas.getByText('Dynamic Analysis');
+    await userEvent.click(dynamicTab);
+    await expect(canvas.getByText('Dynamic Analysis Not Run')).toBeInTheDocument();
+
+    // Click Combined Insights tab and verify empty state (both analyses not run)
+    const combinedTab = canvas.getByText('Combined Insights');
+    await userEvent.click(combinedTab);
+    await expect(canvas.getByText('No Analysis Data Available')).toBeInTheDocument();
   },
 };
 
@@ -203,7 +231,7 @@ export const Blocked: Story = {
     await expect(canvas.getByTestId('report-display')).toBeInTheDocument();
 
     // Verify blocked status
-    await expect(canvas.getByText('Attention Required (Advisory)')).toBeInTheDocument();
+    await expect(canvas.getByText('Attention Required')).toBeInTheDocument();
     await expect(canvas.getByText('75')).toBeInTheDocument();
 
     // Verify blocking items badge on Evidences tab
@@ -259,5 +287,139 @@ export const WithRefreshCallback: Story = {
     // Verify export buttons are present
     await expect(canvas.getByText('Export Markdown')).toBeInTheDocument();
     await expect(canvas.getByText('Export HTML')).toBeInTheDocument();
+  },
+};
+
+// Mock report with static analysis run (for testing "tested" state)
+const reportWithStaticAnalysis: ComplianceReportResponse = {
+  ...mockReport,
+  static_analysis: {
+    sessions_count: 3,
+    last_scan: new Date().toISOString(),
+    findings_count: 1,
+  },
+  findings_detail: [
+    {
+      finding_id: 'F-001',
+      source_type: 'STATIC',
+      category: 'PROMPT',
+      title: 'Input sanitization missing',
+      description: 'User input passed directly to LLM',
+      severity: 'MEDIUM',
+      status: 'OPEN',
+      file_path: 'src/chat.py',
+      line_start: 10,
+    },
+  ],
+};
+
+export const WithStaticAnalysis: Story = {
+  args: {
+    report: reportWithStaticAnalysis,
+    workflowId: 'static-analysis-workflow',
+    reportType: 'security_assessment',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Verify component renders
+    await expect(canvas.getByTestId('report-display')).toBeInTheDocument();
+
+    // Static Analysis tab should be selected by default, verify table is shown (not "Not Tested")
+    await expect(canvas.getByText('Static Analysis Results')).toBeInTheDocument();
+    await expect(canvas.queryByText('Static Analysis Not Run')).not.toBeInTheDocument();
+
+    // Verify the checks table is present
+    await expect(canvas.getByText('Check')).toBeInTheDocument();
+    await expect(canvas.getByText('Status')).toBeInTheDocument();
+
+    // Click Combined Insights tab - should show "Dynamic Analysis Required" since only static is run
+    const combinedTab = canvas.getByText('Combined Insights');
+    await userEvent.click(combinedTab);
+    await expect(canvas.getByText('Dynamic Analysis Required')).toBeInTheDocument();
+  },
+};
+
+// Mock report with only dynamic analysis run (for testing "Static Analysis Required" state)
+const reportWithDynamicOnly: ComplianceReportResponse = {
+  ...mockReport,
+  static_analysis: {
+    sessions_count: 0,
+    last_scan: null,
+    findings_count: 0,
+  },
+  dynamic_analysis: {
+    sessions_count: 10,
+    last_analysis: new Date().toISOString(),
+    sessions_analyzed: 10,
+    checks_total: 6,
+    checks_passed: 6,
+    behavioral_stability: 0.95,
+  },
+};
+
+export const WithDynamicOnly: Story = {
+  args: {
+    report: reportWithDynamicOnly,
+    workflowId: 'dynamic-only-workflow',
+    reportType: 'security_assessment',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Verify component renders
+    await expect(canvas.getByTestId('report-display')).toBeInTheDocument();
+
+    // Static Analysis tab should show "Not Run"
+    await expect(canvas.getByText('Static Analysis Not Run')).toBeInTheDocument();
+
+    // Click Dynamic Analysis tab - should show table (not "Not Tested")
+    const dynamicTab = canvas.getByText('Dynamic Analysis');
+    await userEvent.click(dynamicTab);
+    await expect(canvas.getByText('Dynamic Analysis Results')).toBeInTheDocument();
+    await expect(canvas.queryByText('Dynamic Analysis Not Run')).not.toBeInTheDocument();
+
+    // Click Combined Insights tab - should show "Static Analysis Required"
+    const combinedTab = canvas.getByText('Combined Insights');
+    await userEvent.click(combinedTab);
+    await expect(canvas.getByText('Static Analysis Required')).toBeInTheDocument();
+  },
+};
+
+// Mock report with both analyses run but no findings (for "No Correlated Findings" state)
+const reportWithNoFindings: ComplianceReportResponse = {
+  ...mockReport,
+  static_analysis: {
+    sessions_count: 3,
+    last_scan: new Date().toISOString(),
+    findings_count: 0,
+  },
+  dynamic_analysis: {
+    sessions_count: 10,
+    last_analysis: new Date().toISOString(),
+    sessions_analyzed: 10,
+    checks_total: 6,
+    checks_passed: 6,
+    behavioral_stability: 0.95,
+  },
+  findings_detail: [], // No findings means no correlated issues
+};
+
+export const WithNoCorrelatedFindings: Story = {
+  args: {
+    report: reportWithNoFindings,
+    workflowId: 'no-findings-workflow',
+    reportType: 'security_assessment',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Verify component renders
+    await expect(canvas.getByTestId('report-display')).toBeInTheDocument();
+
+    // Click Combined Insights tab - should show "No Correlated Findings" (success state)
+    const combinedTab = canvas.getByText('Combined Insights');
+    await userEvent.click(combinedTab);
+    await expect(canvas.getByText('No Correlated Findings')).toBeInTheDocument();
   },
 };
