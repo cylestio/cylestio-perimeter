@@ -36,5 +36,14 @@ export type { DynamicCheckDrawerProps } from './DynamicCheckDrawer/DynamicCheckD
 export { DynamicChecksGrid } from './DynamicChecksGrid/DynamicChecksGrid';
 export type { DynamicChecksGridProps, GroupBy, LayoutVariant } from './DynamicChecksGrid/DynamicChecksGrid';
 
+export { AggregatedCheckItem } from './AggregatedCheckItem';
+export type { AggregatedCheckItemProps } from './AggregatedCheckItem';
+
+export { AgentStatusList } from './AgentStatusList';
+export type { AgentStatusListProps } from './AgentStatusList';
+
+export { AllAgentsChecksView } from './AllAgentsChecksView';
+export type { AllAgentsChecksViewProps } from './AllAgentsChecksView';
+
 export { LatestResultsSummary } from './LatestResultsSummary';
 export type { LatestResultsSummaryProps } from './LatestResultsSummary';
