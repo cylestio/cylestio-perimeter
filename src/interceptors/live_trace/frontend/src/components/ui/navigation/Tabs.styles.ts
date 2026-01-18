@@ -8,6 +8,16 @@ interface TabsContainerProps {
 export const TabsContainer = styled.div<TabsContainerProps>`
   display: flex;
   gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+
+  /* Hide scrollbar but keep functionality */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   ${({ $variant, theme }) =>
     $variant === 'default' &&
@@ -33,6 +43,8 @@ export const TabButton = styled.button<TabButtonProps>`
   background: transparent;
   cursor: pointer;
   transition: all 150ms ease;
+  flex-shrink: 0;
+  white-space: nowrap;
   border-radius: ${({ $variant, theme }) =>
     $variant === 'pills'
       ? theme.radii.md
