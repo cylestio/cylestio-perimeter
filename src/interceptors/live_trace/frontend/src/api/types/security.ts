@@ -263,3 +263,127 @@ export function getHighestSeverity(
   if (checks.some((c) => c.status === 'analyzing')) return 'analyzing';
   return 'passed';
 }
+
+// ============================================================================
+// Aggregation Types (for "All Agents" view)
+// ============================================================================
+
+/**
+ * Status of a check for a specific agent.
+ */
+export interface AgentCheckStatus {
+  agent_id: string;
+  agent_name: string;
+  status: DynamicCheckStatus;
+  check: DynamicSecurityCheck;
+}
+
+/**
+ * Summary of agent statuses for an aggregated check.
+ */
+export interface AggregatedCheckSummary {
+  total: number;
+  issues: number;
+  critical: number;
+  warning: number;
+  passed: number;
+}
+
+/**
+ * A check aggregated across all agents.
+ */
+export interface AggregatedCheck {
+  check_type: string;
+  category_id: DynamicCategoryId;
+  title: string;
+  description?: string;
+  agents: AgentCheckStatus[];
+  summary: AggregatedCheckSummary;
+  worst_status: DynamicCheckStatus;
+}
+
+/**
+ * Agent data structure for aggregation (matches AnalysisSessionAgentData).
+ */
+export interface AgentDataForAggregation {
+  agent_id: string;
+  agent_name: string;
+  checks: DynamicSecurityCheck[];
+}
+
+/**
+ * Aggregate checks by check_type across all agents.
+ * Groups checks from multiple agents into aggregated entries.
+ */
+export function aggregateChecksByType(
+  agents: AgentDataForAggregation[]
+): AggregatedCheck[] {
+  // Map: check_type -> AggregatedCheck
+  const checkTypeMap = new Map<string, AggregatedCheck>();
+
+  for (const agent of agents) {
+    for (const check of agent.checks) {
+      const existing = checkTypeMap.get(check.check_type);
+
+      const agentStatus: AgentCheckStatus = {
+        agent_id: agent.agent_id,
+        agent_name: agent.agent_name,
+        status: check.status,
+        check,
+      };
+
+      if (existing) {
+        existing.agents.push(agentStatus);
+      } else {
+        checkTypeMap.set(check.check_type, {
+          check_type: check.check_type,
+          category_id: check.category_id,
+          title: check.title,
+          description: check.description,
+          agents: [agentStatus],
+          summary: { total: 0, issues: 0, critical: 0, warning: 0, passed: 0 },
+          worst_status: 'passed',
+        });
+      }
+    }
+  }
+
+  // Calculate summaries and worst status
+  const aggregated = Array.from(checkTypeMap.values());
+  for (const agg of aggregated) {
+    agg.summary = {
+      total: agg.agents.length,
+      issues: agg.agents.filter(
+        (a) => a.status === 'critical' || a.status === 'warning'
+      ).length,
+      critical: agg.agents.filter((a) => a.status === 'critical').length,
+      warning: agg.agents.filter((a) => a.status === 'warning').length,
+      passed: agg.agents.filter((a) => a.status === 'passed').length,
+    };
+    agg.worst_status = getHighestSeverity(agg.agents.map((a) => a.check));
+  }
+
+  return aggregated;
+}
+
+/**
+ * Group aggregated checks by category.
+ */
+export function groupAggregatedByCategory(
+  checks: AggregatedCheck[]
+): Record<DynamicCategoryId, AggregatedCheck[]> {
+  const grouped: Record<DynamicCategoryId, AggregatedCheck[]> = {
+    RESOURCE_MANAGEMENT: [],
+    ENVIRONMENT: [],
+    BEHAVIORAL: [],
+    PRIVACY_COMPLIANCE: [],
+  };
+
+  for (const check of checks) {
+    if (check.category_id in grouped) {
+      grouped[check.category_id].push(check);
+    }
+  }
+
+  return grouped;
+}

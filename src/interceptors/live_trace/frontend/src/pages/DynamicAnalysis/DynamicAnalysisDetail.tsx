@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FC } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FC } from 'react';
 
 import { Activity, ArrowLeft, Calendar, Shield, Users } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -18,7 +18,7 @@ import { PageHeader } from '@ui/layout/PageHeader';
 import { Section } from '@ui/layout/Section';
 import { Tabs, type Tab } from '@ui/navigation/Tabs';
 
-import { DynamicChecksGrid } from '@domain/security';
+import { DynamicChecksGrid, AllAgentsChecksView } from '@domain/security';
 
 import { usePageMeta } from '../../context';
 
@@ -52,7 +52,7 @@ export const DynamicAnalysisDetail: FC<DynamicAnalysisDetailProps> = ({ classNam
   const [data, setData] = useState<AnalysisSessionDetailsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeAgentId, setActiveAgentId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<string>('all');
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -64,17 +64,12 @@ export const DynamicAnalysisDetail: FC<DynamicAnalysisDetailProps> = ({ classNam
     try {
       const response = await fetchAnalysisSessionDetails(sessionId);
       setData(response);
-
-      // Set first agent as active if not already set
-      if (response.agents.length > 0 && !activeAgentId) {
-        setActiveAgentId(response.agents[0].agent_id);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analysis details');
     } finally {
       setLoading(false);
     }
-  }, [sessionId, activeAgentId]);
+  }, [sessionId]);
 
   useEffect(() => {
     fetchData();
@@ -90,21 +85,43 @@ export const DynamicAnalysisDetail: FC<DynamicAnalysisDetailProps> = ({ classNam
     ],
   });
 
-  // Build tabs from agents
-  const tabs: Tab[] = (data?.agents || []).map((agent) => ({
-    id: agent.agent_id,
-    label: agent.agent_name || agent.agent_id.slice(0, 16),
-    badge: agent.summary.critical > 0
-      ? { variant: 'critical' as const, count: agent.summary.critical }
-      : agent.summary.warnings > 0
-        ? { variant: 'warning' as const, count: agent.summary.warnings }
-        : undefined,
-  }));
+  // Calculate combined issues count for "All" tab badge
+  const combinedIssues = useMemo(() => {
+    if (!data) return 0;
+    return data.total_summary.critical + data.total_summary.warnings;
+  }, [data]);
 
-  // Get current agent data
-  const currentAgent: AnalysisSessionAgentData | undefined = data?.agents.find(
-    (a) => a.agent_id === activeAgentId
-  );
+  // Build tabs from agents with "All" as first tab
+  const tabs: Tab[] = useMemo(() => {
+    const allTab: Tab = {
+      id: 'all',
+      label: 'All',
+      badge:
+        combinedIssues > 0
+          ? {
+              variant: (data?.total_summary.critical ?? 0) > 0 ? 'critical' : 'warning',
+              count: combinedIssues,
+            }
+          : undefined,
+    };
+
+    const agentTabs: Tab[] = (data?.agents || []).map((agent) => ({
+      id: agent.agent_id,
+      label: agent.agent_name || agent.agent_id.slice(0, 16),
+      badge:
+        agent.summary.critical > 0
+          ? { variant: 'critical' as const, count: agent.summary.critical }
+          : agent.summary.warnings > 0
+            ? { variant: 'warning' as const, count: agent.summary.warnings }
+            : undefined,
+    }));
+
+    return [allTab, ...agentTabs];
+  }, [data, combinedIssues]);
+
+  // Get current agent data (when not on "All" tab)
+  const currentAgent: AnalysisSessionAgentData | undefined =
+    activeTab !== 'all' ? data?.agents.find((a) => a.agent_id === activeTab) : undefined;
 
   // Navigate back
   const handleBack = () => {
@@ -219,26 +236,32 @@ export const DynamicAnalysisDetail: FC<DynamicAnalysisDetailProps> = ({ classNam
       </Section>
 
       {/* Agent Tabs */}
-      {tabs.length > 1 && (
-        <TabsWrapper>
-          <Tabs tabs={tabs} activeTab={activeAgentId} onChange={setActiveAgentId} variant="pills" />
-        </TabsWrapper>
-      )}
+      <TabsWrapper>
+        <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} variant="pills" />
+      </TabsWrapper>
 
-      {/* Active Agent's Security Checks */}
+      {/* Security Checks */}
       <Section>
         <Section.Header>
           <Section.Title icon={<Shield size={16} />}>
             Security Checks
-            {currentAgent && ` - ${currentAgent.agent_name || currentAgent.agent_id.slice(0, 16)}`}
+            {activeTab === 'all'
+              ? ' - All Agents'
+              : currentAgent && ` - ${currentAgent.agent_name || currentAgent.agent_id.slice(0, 16)}`}
           </Section.Title>
         </Section.Header>
         <Section.Content>
-          {currentAgent && currentAgent.checks.length > 0 ? (
+          {activeTab === 'all' ? (
+            <AllAgentsChecksView
+              agents={data?.agents || []}
+              agentWorkflowId={agentWorkflowId}
+            />
+          ) : currentAgent && currentAgent.checks.length > 0 ? (
             <DynamicChecksGrid
               checks={currentAgent.checks}
               groupBy="category"
               showSummary={true}
+              agentWorkflowId={agentWorkflowId}
             />
           ) : (
             <EmptyAgentState>
