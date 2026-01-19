@@ -1850,7 +1850,7 @@ def create_trace_server(insights: InsightsEngine, refresh_interval: int = 2) -> 
                     continue
 
                 # Map check status to severity
-                severity = 'CRITICAL' if check.status == 'critical' else 'HIGH'
+                severity = 'CRITICAL' if check.status == 'critical' else 'MEDIUM'
 
                 # Generate IDs
                 finding_id = f"FND-DYN-{uuid.uuid4().hex[:8].upper()}"

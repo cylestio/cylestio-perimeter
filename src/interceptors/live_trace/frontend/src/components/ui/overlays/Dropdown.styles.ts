@@ -127,6 +127,15 @@ export const DropdownDivider = styled.div`
   margin: 4px 0;
 `;
 
+export const DropdownHeader = styled.div`
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
 export const ItemIcon = styled.span`
   display: flex;
   color: inherit;

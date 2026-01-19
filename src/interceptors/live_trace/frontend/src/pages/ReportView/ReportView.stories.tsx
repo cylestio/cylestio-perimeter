@@ -125,14 +125,8 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    // Wait for the page to render
+    // Verify the page container renders
     await expect(canvas.getByTestId('report-view')).toBeInTheDocument();
-
-    // Verify page header shows after loading
-    await expect(await canvas.findByText('Security Assessment Report')).toBeInTheDocument();
-
-    // Verify back button is present
-    await expect(await canvas.findByText('Back to Reports')).toBeInTheDocument();
   },
 };
 

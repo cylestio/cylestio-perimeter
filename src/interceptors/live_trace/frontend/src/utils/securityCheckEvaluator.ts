@@ -17,8 +17,9 @@ export function evaluateCheck(
   findings: any[],
   sourceType?: 'STATIC' | 'DYNAMIC'
 ): SecurityCheckResult {
-  // Filter findings relevant to this check
+  // Filter findings relevant to this check (exclude SUPERSEDED - they've been replaced by newer findings)
   const relevant = findings.filter((f) => {
+    if (f.status === 'SUPERSEDED') return false; // Skip superseded findings
     const matchesSource = !sourceType || f.source_type === sourceType || (!f.source_type && sourceType === 'STATIC');
     const matchesCategory = check.categories.some((cat) =>
       f.category?.toUpperCase().includes(cat) || cat.includes(f.category?.toUpperCase() || '')
