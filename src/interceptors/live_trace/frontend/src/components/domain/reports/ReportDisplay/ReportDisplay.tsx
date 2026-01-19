@@ -3,15 +3,13 @@ import { useState, type FC } from 'react';
 
 // 2. External
 import {
-  Download,
-  FileDown,
-  RefreshCw,
   CheckCircle,
   XCircle,
   AlertTriangle,
   Shield,
   Activity,
   GitCompare,
+  Lightbulb,
 } from 'lucide-react';
 
 // 3. Internal
@@ -21,7 +19,6 @@ import type { ComplianceReportResponse, ReportType } from '@api/endpoints/agentW
 
 // 4. UI
 import { Badge } from '@ui/core/Badge';
-import { Button } from '@ui/core/Button';
 
 // 7. Relative
 import {
@@ -74,19 +71,37 @@ import {
   CodeBlock,
   CodeHeader,
   CodeContent,
-  ExportActions,
   BusinessImpactSection,
-  SectionTitle,
-  ImpactBullets,
-  ImpactBullet,
-  ImpactBulletText,
-  ImpactGrid,
-  ImpactCard,
-  ImpactLabel,
-  ImpactLevel,
-  ImpactDescription,
+  ImpactList,
+  ImpactRow,
+  ImpactRowHeader,
+  ImpactRowLabel,
+  ImpactRowSeparator,
+  ImpactRowLevel,
+  ImpactRowCount,
+  ImpactRowDescription,
   RecommendationsTable,
   EmptyEvidence,
+  SummaryGrid,
+  SummaryColumn,
+  SummarySubheading,
+  SummaryStatsRow,
+  SummaryStatsLabel,
+  SummaryStatsDots,
+  SummaryStatsValue,
+  FindingCard,
+  FindingHeader,
+  FindingMetadata,
+  FindingTag,
+  FindingTitle,
+  FindingTitleText,
+  FindingBody,
+  FindingSection,
+  FindingSectionLabel,
+  FindingImpact,
+  FixSection,
+  FixContent,
+  FixedByBadge,
 } from './ReportDisplay.styles';
 
 // Report type configuration
@@ -96,7 +111,7 @@ const REPORT_TYPES: { id: ReportType; name: string }[] = [
   { id: 'customer_dd', name: 'Customer Due Diligence' },
 ];
 
-export type ReportTab = 'static' | 'dynamic' | 'combined' | 'compliance' | 'evidences' | 'remediation';
+export type ReportTab = 'static' | 'dynamic' | 'combined' | 'findings' | 'compliance' | 'evidences' | 'remediation';
 
 export interface ReportDisplayProps {
   report: ComplianceReportResponse;
@@ -106,316 +121,13 @@ export interface ReportDisplayProps {
   className?: string;
 }
 
-// Markdown export function
-const generateMarkdownReport = (report: ComplianceReportResponse, workflowId: string): string => {
-  const date = new Date(report.generated_at).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  const decision = report.executive_summary.is_blocked ? 'NO-GO' : 'GO';
-  const decisionIcon = report.executive_summary.is_blocked ? '[X]' : '[OK]';
-
-  let md = `# Security Assessment: ${workflowId}
-
-**Generated:** ${date}
-**Report Type:** ${REPORT_TYPES.find(t => t.id === report.report_type)?.name || report.report_type}
-**Risk Score:** ${report.executive_summary.risk_score}/100
-
----
-
-## ${decisionIcon} ${report.executive_summary.decision_label || decision} (Advisory)
-
-> **Note:** ${report.executive_summary.advisory_notice || 'Advisory only - does not block deployments. This is a pre-production readiness assessment.'}
-
-${report.executive_summary.decision_message}
-
-`;
-
-  // Business Impact (Executive Summary)
-  if (report.business_impact && report.business_impact.executive_bullets && report.business_impact.executive_bullets.length > 0) {
-    md += `## Key Security Risks
-
-`;
-    report.business_impact.executive_bullets.forEach((bullet: string) => {
-      md += `- ${bullet}\n`;
-    });
-    md += '\n';
-
-    // Impact areas
-    const impacts = report.business_impact?.impacts || {};
-    const activeImpacts = Object.entries(impacts).filter(([, v]: [string, unknown]) => (v as { risk_level: string }).risk_level !== 'NONE');
-    if (activeImpacts.length > 0) {
-      md += `### Impact Assessment
-
-| Risk Area | Level | Description |
-|-----------|-------|-------------|
-`;
-      activeImpacts.forEach(([key, impact]: [string, unknown]) => {
-        const impactData = impact as { risk_level: string; description: string };
-        const name = key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        md += `| ${name} | ${impactData.risk_level} | ${impactData.description} |\n`;
-      });
-      md += '\n';
-    }
-  }
-
-  // Key Metrics
-  md += `## Key Metrics
-
-| Metric | Value |
-|--------|-------|
-| Risk Score | ${report.executive_summary.risk_score}/100 |
-| Total Findings | ${report.executive_summary.total_findings} |
-| Open Issues | ${report.executive_summary.open_findings} |
-| Fixed | ${report.executive_summary.fixed_findings} |
-| Blocking Issues | ${report.executive_summary.blocking_count} |
-
-`;
-
-  // Risk Score Breakdown
-  if (report.executive_summary.risk_breakdown) {
-    const rb = report.executive_summary.risk_breakdown;
-    md += `### Risk Score Calculation
-
-**Formula:** \`${rb.formula}\`
-
-| Severity | Count | Weight | Subtotal |
-|----------|-------|--------|----------|
-`;
-    rb.breakdown.forEach((item) => {
-      if (item.count > 0) {
-        md += `| ${item.severity} | ${item.count} | x${item.weight} | ${item.subtotal} |\n`;
-      }
-    });
-    md += `| **Total** | | | **${rb.final_score}** |\n\n`;
-  }
-
-  // Blocking Items
-  if (report.blocking_items.length > 0) {
-    md += `## Blocking Issues (${report.blocking_items.length})
-
-| ID | Severity | Title | Category |
-|----|----------|-------|----------|
-`;
-    report.blocking_items.forEach(item => {
-      md += `| ${item.recommendation_id} | ${item.severity} | ${item.title} | ${item.category} |\n`;
-    });
-    md += '\n';
-  }
-
-  // OWASP LLM Coverage
-  md += `## OWASP LLM Top 10 Coverage
-
-| Control | Status | Details |
-|---------|--------|---------|
-`;
-  Object.entries(report.owasp_llm_coverage).forEach(([id, item]) => {
-    const icon = item.status === 'PASS' ? 'PASS' : item.status === 'FAIL' ? 'FAIL' : item.status === 'WARNING' ? 'WARN' : 'N/A';
-    md += `| ${id}: ${item.name} | ${icon} | ${item.message} |\n`;
-  });
-
-  // SOC2 Compliance
-  md += `
-## SOC2 Compliance
-
-| Control | Status | Details |
-|---------|--------|---------|
-`;
-  Object.entries(report.soc2_compliance).forEach(([id, item]) => {
-    const icon = item.status === 'COMPLIANT' ? 'PASS' : 'FAIL';
-    md += `| ${id}: ${item.name} | ${icon} | ${item.message} |\n`;
-  });
-
-  // Remediation Summary
-  md += `
-## Remediation Summary
-
-- **Total Recommendations:** ${report.remediation_summary.total_recommendations}
-- **Pending:** ${report.remediation_summary.pending}
-- **In Progress:** ${report.remediation_summary.fixing}
-- **Fixed:** ${report.remediation_summary.fixed}
-- **Verified:** ${report.remediation_summary.verified}
-- **Dismissed:** ${report.remediation_summary.dismissed}
-
----
-
-*Generated by Cylestio Agent Inspector*
-`;
-
-  return md;
-};
-
-// HTML export function
-const generateHTMLReport = (report: ComplianceReportResponse, workflowId: string): string => {
-  const date = new Date(report.generated_at).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Security Assessment: ${workflowId} | Cylestio Agent Inspector</title>
-  <style>
-    :root { --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a24; --border: rgba(255,255,255,0.08); --white: #f3f4f6; --white70: #9ca3af; --white50: #6b7280; --green: #10b981; --red: #ef4444; --orange: #f59e0b; --cyan: #3b82f6; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--white); line-height: 1.6; }
-    .container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
-    .header { text-align: center; margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
-    .brand { font-size: 0.8rem; color: var(--white50); margin-bottom: 1rem; }
-    h1 { font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem; }
-    .subtitle { color: var(--white70); }
-    .decision { display: inline-block; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 700; margin: 1.5rem 0; }
-    .decision.blocked { background: var(--red); color: white; }
-    .decision.open { background: var(--green); color: white; }
-    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 2rem 0; }
-    .metric { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; text-align: center; }
-    .metric-value { font-size: 1.75rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-    .metric-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--white50); margin-top: 0.25rem; }
-    .section { margin: 2.5rem 0; }
-    .section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
-    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-    th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
-    th { background: var(--surface2); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--white50); }
-    .status { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    .status.pass { background: rgba(16,185,129,0.15); color: var(--green); }
-    .status.fail { background: rgba(239,68,68,0.15); color: var(--red); }
-    .status.warning { background: rgba(245,158,11,0.15); color: var(--orange); }
-    .status.n-a { background: rgba(107,114,128,0.15); color: var(--white50); }
-    .advisory-badge { font-size: 0.7rem; font-weight: 400; opacity: 0.7; margin-left: 0.5rem; }
-    .advisory-notice { font-size: 0.85rem; color: var(--white50); margin-top: 0.5rem; font-style: italic; }
-    .blocking { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 1rem; margin: 0.5rem 0; }
-    .footer { text-align: center; padding-top: 2rem; border-top: 1px solid var(--border); margin-top: 2rem; color: var(--white50); font-size: 0.8rem; }
-    @media print { body { background: white; color: black; } .metric { border: 1px solid #ddd; } }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <header class="header">
-      <div class="brand">Cylestio Agent Inspector</div>
-      <h1>${workflowId}</h1>
-      <p class="subtitle">Security Assessment Report - ${date}</p>
-      <div class="decision ${report.executive_summary.is_blocked ? 'blocked' : 'open'}">
-        ${report.executive_summary.decision_label || (report.executive_summary.is_blocked ? 'Attention Required' : 'Production Ready')}
-        <span class="advisory-badge">(Advisory)</span>
-      </div>
-      <p class="advisory-notice">${report.executive_summary.advisory_notice || 'Advisory only - does not block deployments.'}</p>
-    </header>
-
-    <div class="metrics">
-      <div class="metric">
-        <div class="metric-value" style="color: ${report.executive_summary.risk_score > 50 ? 'var(--red)' : 'var(--green)'};">${report.executive_summary.risk_score}</div>
-        <div class="metric-label">Risk Score</div>
-      </div>
-      <div class="metric">
-        <div class="metric-value">${report.executive_summary.total_findings}</div>
-        <div class="metric-label">Total Findings</div>
-      </div>
-      <div class="metric">
-        <div class="metric-value" style="color: var(--green);">${report.executive_summary.fixed_findings}</div>
-        <div class="metric-label">Fixed</div>
-      </div>
-      <div class="metric">
-        <div class="metric-value" style="color: ${report.executive_summary.open_findings > 0 ? 'var(--red)' : 'var(--green)'};">${report.executive_summary.open_findings}</div>
-        <div class="metric-label">Open</div>
-      </div>
-    </div>
-
-    ${report.blocking_items.length > 0 ? `
-    <section class="section">
-      <h2>Blocking Issues (${report.blocking_items.length})</h2>
-      ${report.blocking_items.map(item => `
-        <div class="blocking">
-          <strong>${item.recommendation_id}</strong> [${item.severity}] ${item.title}
-          ${item.file_path ? `<br><small>${item.file_path}</small>` : ''}
-        </div>
-      `).join('')}
-    </section>
-    ` : ''}
-
-    <section class="section">
-      <h2>OWASP LLM Top 10 Coverage</h2>
-      <table>
-        <thead><tr><th>Control</th><th>Status</th><th>Details</th></tr></thead>
-        <tbody>
-          ${Object.entries(report.owasp_llm_coverage).map(([id, item]) => `
-            <tr>
-              <td><strong>${id}:</strong> ${item.name}</td>
-              <td><span class="status ${item.status.toLowerCase().replace('/', '-')}">${item.status}</span></td>
-              <td>${item.message}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </section>
-
-    <section class="section">
-      <h2>SOC2 Compliance</h2>
-      <table>
-        <thead><tr><th>Control</th><th>Status</th><th>Details</th></tr></thead>
-        <tbody>
-          ${Object.entries(report.soc2_compliance).map(([id, item]) => `
-            <tr>
-              <td><strong>${id}:</strong> ${item.name}</td>
-              <td><span class="status ${item.status === 'COMPLIANT' ? 'pass' : 'fail'}">${item.status}</span></td>
-              <td>${item.message}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </section>
-
-    <footer class="footer">
-      <p>Generated by Cylestio Agent Inspector</p>
-      <p>${date} - ${workflowId}</p>
-    </footer>
-  </div>
-</body>
-</html>`;
-};
-
 export const ReportDisplay: FC<ReportDisplayProps> = ({
   report,
   workflowId,
   reportType,
-  onRefresh,
   className,
 }) => {
-  const [activeTab, setActiveTab] = useState<ReportTab>('static');
-  // Risk box state - hidden for now
-  // const [showRiskTooltip, setShowRiskTooltip] = useState(false);
-  // const showNumericRiskScore = false;
-
-  const handleExportMarkdown = () => {
-    const md = generateMarkdownReport(report, workflowId);
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `security-report-${workflowId}-${new Date().toISOString().split('T')[0]}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportHTML = () => {
-    const html = generateHTMLReport(report, workflowId);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `security-report-${workflowId}-${new Date().toISOString().split('T')[0]}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+  const [activeTab, setActiveTab] = useState<ReportTab>('findings');
 
   const getStatusIcon = (status: string) => {
     if (status === 'PASS' || status === 'COMPLIANT') return <CheckCircle size={12} />;
@@ -454,11 +166,12 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
   const tabCounts = getTabCounts();
   const reportTypeName = REPORT_TYPES.find(t => t.id === reportType)?.name || reportType;
 
-  // Count severity levels from findings
+  // Count severity levels from OPEN findings only (exclude SUPERSEDED, FIXED, etc.)
   const getSeverityCounts = () => {
-    const findings = (report.findings_detail || []) as Array<{ severity?: string }>;
+    const findings = (report.findings_detail || []) as Array<{ severity?: string; status?: string }>;
     let critical = 0, high = 0, medium = 0;
     findings.forEach((f) => {
+      if (f.status !== 'OPEN') return; // Only count OPEN findings
       if (f.severity === 'CRITICAL') critical++;
       else if (f.severity === 'HIGH') high++;
       else if (f.severity === 'MEDIUM') medium++;
@@ -487,31 +200,6 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
   //   return 'low';
   // };
   // const riskLevel = getRiskLevel(report.executive_summary.risk_score);
-
-  // Parse executive bullet to extract severity and clean text
-  const parseBullet = (bullet: string): { severity: 'critical' | 'high' | 'medium' | 'low' | null; text: string } => {
-    // Remove common emoji prefixes first
-    const cleanText = bullet
-      .replace(/^🔴\s*/, '')
-      .replace(/^🟠\s*/, '')
-      .replace(/^🟡\s*/, '')
-      .replace(/^⚠️\s*/, '')
-      .replace(/^\[CRITICAL\]\s*/i, '')
-      .replace(/^\[HIGH\]\s*/i, '')
-      .replace(/^\[MEDIUM\]\s*/i, '');
-
-    // Determine severity based on original content
-    if (bullet.startsWith('🔴') || bullet.toLowerCase().includes('critical')) {
-      return { severity: 'critical', text: cleanText };
-    }
-    if (bullet.startsWith('🟠') || bullet.toLowerCase().includes('high severity')) {
-      return { severity: 'high', text: cleanText };
-    }
-    if (bullet.startsWith('⚠️') || bullet.startsWith('🟡') || bullet.toLowerCase().includes('risk:')) {
-      return { severity: 'medium', text: cleanText };
-    }
-    return { severity: null, text: cleanText };
-  };
 
   return (
     <ReportContainer className={className} data-testid="report-display">
@@ -597,67 +285,91 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
         </HeaderRow>
       </ReportHeader>
 
-      {/* Business Impact Section */}
-      {report.business_impact && (
-        <BusinessImpactSection>
-          <SectionTitle>
-            <AlertTriangle size={18} />
-            Key Security Risks
-          </SectionTitle>
-          <ImpactBullets>
-            {report.business_impact.executive_bullets?.map((bullet: string, idx: number) => {
-              const { severity, text } = parseBullet(bullet);
-              return (
-                <ImpactBullet key={idx}>
-                  {severity && <Badge variant={severity} size="sm">{severity.toUpperCase()}</Badge>}
-                  <ImpactBulletText>{text}</ImpactBulletText>
-                </ImpactBullet>
-              );
-            })}
-          </ImpactBullets>
-          <ImpactGrid>
-            {Object.entries(report.business_impact.impacts || {}).map(([key, impact]: [string, unknown]) => {
-              const impactData = impact as { risk_level: string; description: string };
-              return impactData.risk_level !== 'NONE' && (
-                <ImpactCard key={key} $level={impactData.risk_level}>
-                  <ImpactLabel>{key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</ImpactLabel>
-                  <ImpactLevel $level={impactData.risk_level}>{impactData.risk_level}</ImpactLevel>
-                  <ImpactDescription>{impactData.description}</ImpactDescription>
-                </ImpactCard>
-              );
-            })}
-          </ImpactGrid>
-        </BusinessImpactSection>
-      )}
+      {/* Summary Section - Two columns: Findings | Compliance */}
+      <BusinessImpactSection>
+        <SummaryGrid>
+          {/* Left: Findings Summary */}
+          <SummaryColumn>
+            <SummarySubheading>Findings Summary</SummarySubheading>
+            <ImpactList>
+              <SummaryStatsRow>
+                <SummaryStatsLabel>Total Findings</SummaryStatsLabel>
+                <SummaryStatsDots />
+                <SummaryStatsValue>{report.executive_summary.total_findings}</SummaryStatsValue>
+              </SummaryStatsRow>
+              <SummaryStatsRow>
+                <SummaryStatsLabel>Open Issues</SummaryStatsLabel>
+                <SummaryStatsDots />
+                <SummaryStatsValue $color={report.executive_summary.open_findings > 0 ? 'var(--color-red)' : 'var(--color-green)'}>
+                  {report.executive_summary.open_findings}
+                </SummaryStatsValue>
+              </SummaryStatsRow>
+              {severityCounts.critical > 0 && (
+                <SummaryStatsRow style={{ paddingLeft: '16px' }}>
+                  <SummaryStatsLabel>Critical</SummaryStatsLabel>
+                  <SummaryStatsDots />
+                  <SummaryStatsValue $color="var(--color-red)">{severityCounts.critical}</SummaryStatsValue>
+                </SummaryStatsRow>
+              )}
+              {severityCounts.high > 0 && (
+                <SummaryStatsRow style={{ paddingLeft: '16px' }}>
+                  <SummaryStatsLabel>High</SummaryStatsLabel>
+                  <SummaryStatsDots />
+                  <SummaryStatsValue $color="var(--color-orange)">{severityCounts.high}</SummaryStatsValue>
+                </SummaryStatsRow>
+              )}
+              <SummaryStatsRow>
+                <SummaryStatsLabel>Fixed</SummaryStatsLabel>
+                <SummaryStatsDots />
+                <SummaryStatsValue $color="var(--color-green)">{report.executive_summary.fixed_findings}</SummaryStatsValue>
+              </SummaryStatsRow>
+            </ImpactList>
+          </SummaryColumn>
 
-      {/* Quick Stats Strip */}
-      <StatsGrid>
-        <StatBox $accentColor={report.executive_summary.risk_score > 50 ? 'var(--color-red)' : 'var(--color-green)'}>
-          <StatValue $color={report.executive_summary.risk_score > 50 ? 'var(--color-red)' : 'var(--color-green)'}>
-            {report.executive_summary.risk_score}
-          </StatValue>
-          <StatLabel>Risk Score</StatLabel>
-        </StatBox>
-        <StatBox $accentColor="var(--color-white50)">
-          <StatValue>{report.executive_summary.total_findings}</StatValue>
-          <StatLabel>Total Findings</StatLabel>
-        </StatBox>
-        <StatBox $accentColor={report.executive_summary.open_findings > 0 ? 'var(--color-red)' : 'var(--color-green)'}>
-          <StatValue $color={report.executive_summary.open_findings > 0 ? 'var(--color-red)' : 'var(--color-green)'}>
-            {report.executive_summary.open_findings}
-          </StatValue>
-          <StatLabel>Open Issues</StatLabel>
-        </StatBox>
-        <StatBox $accentColor="var(--color-green)">
-          <StatValue $color="var(--color-green)">{report.executive_summary.fixed_findings}</StatValue>
-          <StatLabel>Fixed</StatLabel>
-        </StatBox>
-      </StatsGrid>
+          {/* Right: Key Compliance Issues */}
+          <SummaryColumn>
+            <SummarySubheading>Key Compliance Issues</SummarySubheading>
+            {report.business_impact && Object.entries(report.business_impact.impacts || {}).some(([, impact]) => (impact as { risk_level: string }).risk_level !== 'NONE') ? (
+              <ImpactList>
+                {Object.entries(report.business_impact.impacts || {}).map(([key, impact]: [string, unknown]) => {
+                  const impactData = impact as { risk_level: string; description: string; finding_count?: number };
+                  return impactData.risk_level !== 'NONE' && (
+                    <ImpactRow key={key}>
+                      <ImpactRowHeader>
+                        <ImpactRowLabel>{key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}</ImpactRowLabel>
+                        <ImpactRowSeparator />
+                        <ImpactRowLevel $level={impactData.risk_level}>{impactData.risk_level}</ImpactRowLevel>
+                        {impactData.finding_count !== undefined && impactData.finding_count > 0 && (
+                          <>
+                            <ImpactRowSeparator />
+                            <ImpactRowCount>{impactData.finding_count} finding{impactData.finding_count !== 1 ? 's' : ''}</ImpactRowCount>
+                          </>
+                        )}
+                      </ImpactRowHeader>
+                      <ImpactRowDescription>{impactData.description}</ImpactRowDescription>
+                    </ImpactRow>
+                  );
+                })}
+              </ImpactList>
+            ) : (
+              <span style={{ fontSize: '13px', color: 'var(--color-white50)' }}>No compliance issues found</span>
+            )}
+          </SummaryColumn>
+        </SummaryGrid>
+      </BusinessImpactSection>
 
       <SectionDivider />
 
       {/* Tab Navigation */}
       <TabNav>
+        <Tab $active={activeTab === 'findings'} onClick={() => setActiveTab('findings')}>
+          Key Findings
+          {report.recommendations_detail && (report.recommendations_detail as Array<{ status?: string }>).filter(r => r.status === 'OPEN' || r.status === 'PENDING' || r.status === 'FIXING').length > 0 && (
+            <TabBadge $type="fail">
+              {(report.recommendations_detail as Array<{ status?: string }>).filter(r => r.status === 'OPEN' || r.status === 'PENDING' || r.status === 'FIXING').length}
+            </TabBadge>
+          )}
+        </Tab>
         <Tab $active={activeTab === 'static'} onClick={() => setActiveTab('static')}>
           Static Analysis
           {!tabCounts.staticNotTested && tabCounts.staticPass > 0 && <TabBadge $type="pass">{tabCounts.staticPass}</TabBadge>}
@@ -674,6 +386,7 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
         <Tab $active={activeTab === 'compliance'} onClick={() => setActiveTab('compliance')}>
           Compliance
         </Tab>
+        {/* Hidden tabs - uncomment to restore
         <Tab $active={activeTab === 'evidences'} onClick={() => setActiveTab('evidences')}>
           Evidences
           {report.blocking_items.length > 0 && <TabBadge $type="fail">{report.blocking_items.length}</TabBadge>}
@@ -681,6 +394,7 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
         <Tab $active={activeTab === 'remediation'} onClick={() => setActiveTab('remediation')}>
           Remediation Plan
         </Tab>
+        */}
       </TabNav>
 
       {/* Tab Content */}
@@ -965,6 +679,204 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
           </div>
         )}
 
+        {activeTab === 'findings' && (
+          <div>
+            <TabSectionHeader>Key Findings</TabSectionHeader>
+            <TabSectionDescription>
+              Unified view of security issues with evidence, impact assessment, and remediation guidance.
+            </TabSectionDescription>
+
+            {(() => {
+              // Define types for recommendations and blocking items
+              interface Recommendation {
+                recommendation_id: string;
+                title: string;
+                description?: string;
+                severity: string;
+                category?: string;
+                status?: string;
+                fix_hints?: string;
+                fix_complexity?: string;
+                owasp_mapping?: string | string[];
+                owasp_llm?: string;
+                source_type?: string;
+                fixed_by?: string;
+                fixed_at?: string;
+                fix_notes?: string;
+                files_modified?: string[];
+              }
+
+              // Helper to check if status is resolved (FIXED or VERIFIED)
+              const isResolved = (status?: string): boolean =>
+                status === 'FIXED' || status === 'VERIFIED';
+
+              // Helper to detect if fix was done by AI
+              const isAutoFix = (fixedBy?: string): boolean => {
+                if (!fixedBy) return false;
+                const aiPatterns = ['claude', 'gpt', 'anthropic', 'openai', 'agent-inspector', 'auto'];
+                return aiPatterns.some(p => fixedBy.toLowerCase().includes(p));
+              };
+
+              interface BlockingItem {
+                recommendation_id: string;
+                file_path?: string;
+                code_snippet?: string;
+                cvss_score?: number;
+                line_start?: number;
+                line_end?: number;
+                impact?: string;
+              }
+
+              // Create lookup map from blocking_items for evidence enrichment
+              const blockingMap = new Map<string, BlockingItem>(
+                report.blocking_items.map((item: BlockingItem) => [item.recommendation_id, item])
+              );
+
+              // Merge recommendations with blocking item evidence
+              // Include actionable findings AND resolved ones (FIXED, VERIFIED)
+              const findings = ((report.recommendations_detail || []) as Recommendation[])
+                .filter(
+                  rec =>
+                    rec.status === 'OPEN' ||
+                    rec.status === 'PENDING' ||
+                    rec.status === 'FIXING' ||
+                    rec.status === 'FIXED' ||
+                    rec.status === 'VERIFIED'
+                )
+                .map(rec => ({
+                  ...rec,
+                  ...blockingMap.get(rec.recommendation_id),
+                }))
+                .sort((a, b) => {
+                  // First: sort by resolved status (open items first, resolved last)
+                  const aResolved = isResolved(a.status);
+                  const bResolved = isResolved(b.status);
+                  if (aResolved !== bResolved) return aResolved ? 1 : -1;
+
+                  // Then: sort by severity within each group
+                  const severityOrder: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+                  return (severityOrder[a.severity] ?? 4) - (severityOrder[b.severity] ?? 4);
+                });
+
+              if (findings.length === 0) {
+                return (
+                  <EmptyEvidence>
+                    <Lightbulb size={32} style={{ marginBottom: '12px', opacity: 0.5 }} />
+                    <p>No Open Findings</p>
+                    <p style={{ fontSize: '12px', marginTop: '8px', color: 'var(--color-white50)' }}>
+                      All security issues have been addressed or verified.
+                    </p>
+                  </EmptyEvidence>
+                );
+              }
+
+              return findings.map((finding) => {
+                // Get OWASP mappings with full names (handle both owasp_mapping array and owasp_llm string)
+                const owaspIds = finding.owasp_mapping
+                  ? (Array.isArray(finding.owasp_mapping) ? finding.owasp_mapping : [finding.owasp_mapping])
+                  : finding.owasp_llm
+                    ? [finding.owasp_llm]
+                    : [];
+                const owaspMappings = owaspIds.map(id => {
+                  const coverage = report.owasp_llm_coverage[id];
+                  return coverage ? `${id}: ${coverage.name}` : id;
+                });
+
+                const resolved = isResolved(finding.status);
+
+                return (
+                  <FindingCard key={finding.recommendation_id} $resolved={resolved}>
+                    <FindingHeader>
+                      <FindingTitle>
+                        <Badge variant={finding.severity === 'CRITICAL' ? 'critical' : finding.severity === 'HIGH' ? 'high' : 'medium'}>
+                          {finding.severity}
+                        </Badge>
+                        <FindingTitleText>{finding.title}</FindingTitleText>
+                      </FindingTitle>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {resolved && finding.fixed_by && (
+                          <FixedByBadge $isAuto={isAutoFix(finding.fixed_by)}>
+                            {isAutoFix(finding.fixed_by) ? 'Auto-fixed' : `Fixed by ${finding.fixed_by}`}
+                          </FixedByBadge>
+                        )}
+                        <StatusPill $status={
+                          resolved ? 'pass' :
+                          finding.status === 'FIXING' ? 'warning' :
+                          finding.status === 'OPEN' || finding.status === 'PENDING' ? 'fail' : 'na'
+                        }>
+                          {resolved ? 'Resolved' : finding.status}
+                        </StatusPill>
+                      </div>
+                    </FindingHeader>
+
+                    {/* Metadata row */}
+                    <FindingMetadata>
+                      {owaspMappings.map((tag, idx) => (
+                        <FindingTag key={idx}>{tag}</FindingTag>
+                      ))}
+                      {finding.cvss_score && <FindingTag>CVSS {finding.cvss_score}</FindingTag>}
+                      {finding.source_type && <FindingTag>{finding.source_type === 'STATIC' ? 'Static Analysis' : 'Dynamic Analysis'}</FindingTag>}
+                      {finding.category && <FindingTag>{finding.category}</FindingTag>}
+                    </FindingMetadata>
+
+                    {/* Body sections - Show evidence always, hide other sections for resolved items */}
+                    <FindingBody>
+                      {/* Description - HIDE for resolved items */}
+                      {!resolved && finding.description && (
+                        <FindingSection>
+                          <FindingSectionLabel>Description</FindingSectionLabel>
+                          <FindingImpact>
+                            {finding.description}
+                          </FindingImpact>
+                        </FindingSection>
+                      )}
+
+                      {/* Business Impact - HIDE for resolved items */}
+                      {!resolved && finding.impact && (
+                        <FindingSection>
+                          <FindingSectionLabel>Business Impact</FindingSectionLabel>
+                          <FindingImpact>
+                            {finding.impact}
+                          </FindingImpact>
+                        </FindingSection>
+                      )}
+
+                      {/* Evidence (Code) - Always shown */}
+                      {finding.file_path && (
+                        <FindingSection>
+                          <FindingSectionLabel>Evidence</FindingSectionLabel>
+                          <CodeBlock>
+                            <CodeHeader>
+                              {finding.file_path.split('/').pop()}{finding.line_start ? `:${finding.line_start}${finding.line_end ? `-${finding.line_end}` : ''}` : ''}
+                            </CodeHeader>
+                            <CodeContent>
+                              {finding.code_snippet || `// ${finding.source_type === 'DYNAMIC' ? 'Runtime observation' : 'Code pattern detected'}\n// File: ${finding.file_path}${finding.line_start ? `\n// Lines: ${finding.line_start}${finding.line_end ? `-${finding.line_end}` : ''}` : ''}`}
+                            </CodeContent>
+                          </CodeBlock>
+                        </FindingSection>
+                      )}
+
+                      {/* Suggested Fix - HIDE for resolved items */}
+                      {!resolved && finding.fix_hints && (
+                        <FindingSection>
+                          <FindingSectionLabel>
+                            Suggested Fix{finding.fix_complexity && ` (${finding.fix_complexity.toLowerCase()} complexity)`}
+                          </FindingSectionLabel>
+                          <FixSection>
+                            <FixContent>
+                              {finding.fix_hints}
+                            </FixContent>
+                          </FixSection>
+                        </FindingSection>
+                      )}
+                    </FindingBody>
+                  </FindingCard>
+                );
+              });
+            })()}
+          </div>
+        )}
+
         {activeTab === 'compliance' && (
           <div>
             <TabSectionHeader>Compliance Posture</TabSectionHeader>
@@ -1211,23 +1123,6 @@ export const ReportDisplay: FC<ReportDisplayProps> = ({
         )}
       </TabContent>
 
-      {/* Export Actions */}
-      <ExportActions>
-        <Button variant="primary" onClick={handleExportMarkdown}>
-          <FileDown size={14} />
-          Export Markdown
-        </Button>
-        <Button variant="secondary" onClick={handleExportHTML}>
-          <Download size={14} />
-          Export HTML
-        </Button>
-        {onRefresh && (
-          <Button variant="ghost" onClick={onRefresh}>
-            <RefreshCw size={14} />
-            Refresh
-          </Button>
-        )}
-      </ExportActions>
     </ReportContainer>
   );
 };

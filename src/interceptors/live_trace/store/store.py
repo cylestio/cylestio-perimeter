@@ -3763,29 +3763,37 @@ class TraceStore:
             terminal_states = ('FIXED', 'VERIFIED', 'DISMISSED', 'IGNORED', 'RESOLVED', 'SUPERSEDED')
 
             cursor = self.db.execute("""
-                SELECT source_type, COUNT(*) as count
+                SELECT source_type, severity, COUNT(*) as count
                 FROM recommendations
                 WHERE workflow_id = ?
                   AND severity IN ('CRITICAL', 'HIGH')
                   AND status NOT IN (?, ?, ?, ?, ?, ?)
-                GROUP BY source_type
+                GROUP BY source_type, severity
             """, (workflow_id, *terminal_states))
 
-            blocking_by_source = {row['source_type']: row['count'] for row in cursor.fetchall()}
-            static_critical_count = blocking_by_source.get('STATIC', 0)
-            dynamic_critical_count = blocking_by_source.get('DYNAMIC', 0)
-            total_blocking = static_critical_count + dynamic_critical_count
+            blocking_counts = {}
+            for row in cursor.fetchall():
+                key = (row['source_type'], row['severity'])
+                blocking_counts[key] = row['count']
+
+            static_critical_count = blocking_counts.get(('STATIC', 'CRITICAL'), 0)
+            static_high_count = blocking_counts.get(('STATIC', 'HIGH'), 0)
+            dynamic_critical_count = blocking_counts.get(('DYNAMIC', 'CRITICAL'), 0)
+            dynamic_high_count = blocking_counts.get(('DYNAMIC', 'HIGH'), 0)
+            total_blocking = static_critical_count + static_high_count + dynamic_critical_count + dynamic_high_count
 
             return {
                 'workflow_id': workflow_id,
                 'static_analysis': {
                     'status': static_status,
                     'critical_count': static_critical_count,
+                    'high_count': static_high_count,
                     'session_id': latest_static_session_id,
                 },
                 'dynamic_analysis': {
                     'status': dynamic_status,
                     'critical_count': dynamic_critical_count,
+                    'high_count': dynamic_high_count,
                     'session_id': latest_dynamic_session_id,
                 },
                 'gate': {
@@ -3974,13 +3982,15 @@ class TraceStore:
         readiness = self.get_production_readiness(workflow_id)
         # Build backwards-compatible gate_status from new format
         static_critical = readiness['static_analysis']['critical_count']
+        static_high = readiness['static_analysis']['high_count']
         dynamic_critical = readiness['dynamic_analysis']['critical_count']
+        dynamic_high = readiness['dynamic_analysis']['high_count']
         gate_status = {
             "gate_state": readiness['gate']['state'],
             "is_blocked": readiness['gate']['is_blocked'],
             "blocking_count": readiness['gate']['blocking_count'],
             "blocking_critical": static_critical + dynamic_critical,
-            "blocking_high": 0,  # Not tracked separately in new format
+            "blocking_high": static_high + dynamic_high,
         }
 
         # Group findings by OWASP LLM category
@@ -4184,26 +4194,31 @@ class TraceStore:
                 "risk_level": "NONE",
                 "description": "No RCE risk detected",
                 "affected_components": [],
+                "finding_count": 0,
             },
             "data_exfiltration": {
                 "risk_level": "NONE",
                 "description": "No data exfiltration risk detected",
                 "affected_components": [],
+                "finding_count": 0,
             },
             "privilege_escalation": {
                 "risk_level": "NONE",
                 "description": "No privilege escalation risk detected",
                 "affected_components": [],
+                "finding_count": 0,
             },
             "supply_chain": {
                 "risk_level": "NONE",
                 "description": "No supply chain risk detected",
                 "affected_components": [],
+                "finding_count": 0,
             },
             "compliance_violation": {
                 "risk_level": "NONE",
                 "description": "No compliance violations detected",
                 "affected_components": [],
+                "finding_count": 0,
             },
         }
 
@@ -4223,6 +4238,7 @@ class TraceStore:
                     impacts["remote_code_execution"]["risk_level"] = higher_risk(impacts["remote_code_execution"]["risk_level"], new_level)
                     impacts["remote_code_execution"]["affected_components"].append(file_path or title)
                     impacts["remote_code_execution"]["description"] = "Agent tools may allow uncontrolled system access or code execution"
+                    impacts["remote_code_execution"]["finding_count"] += 1
 
             # Data Exfiltration risk (DATA issues, sensitive info disclosure)
             if category == 'DATA' or 'LLM06' in owasp_str or 'secret' in title_lower or 'credential' in title_lower or 'pii' in title_lower:
@@ -4231,6 +4247,7 @@ class TraceStore:
                     impacts["data_exfiltration"]["risk_level"] = higher_risk(impacts["data_exfiltration"]["risk_level"], new_level)
                     impacts["data_exfiltration"]["affected_components"].append(file_path or title)
                     impacts["data_exfiltration"]["description"] = "Sensitive data (credentials, PII) may be exposed through agent responses"
+                    impacts["data_exfiltration"]["finding_count"] += 1
 
             # Privilege Escalation (PROMPT injection, insecure output)
             if category == 'PROMPT' or 'LLM01' in owasp_str or 'injection' in title_lower:
@@ -4239,6 +4256,7 @@ class TraceStore:
                     impacts["privilege_escalation"]["risk_level"] = higher_risk(impacts["privilege_escalation"]["risk_level"], new_level)
                     impacts["privilege_escalation"]["affected_components"].append(file_path or title)
                     impacts["privilege_escalation"]["description"] = "Prompt injection may allow attackers to bypass security controls"
+                    impacts["privilege_escalation"]["finding_count"] += 1
 
             # Supply Chain risk
             if category == 'SUPPLY' or 'LLM05' in owasp_str:
@@ -4247,11 +4265,13 @@ class TraceStore:
                     impacts["supply_chain"]["risk_level"] = higher_risk(impacts["supply_chain"]["risk_level"], new_level)
                     impacts["supply_chain"]["affected_components"].append(file_path or title)
                     impacts["supply_chain"]["description"] = "Third-party dependencies may introduce vulnerabilities"
+                    impacts["supply_chain"]["finding_count"] += 1
 
             # Compliance risk (any critical/high finding)
             if severity in ['CRITICAL', 'HIGH']:
                 impacts["compliance_violation"]["risk_level"] = "HIGH"
                 impacts["compliance_violation"]["description"] = "Unresolved critical/high issues may violate compliance requirements (SOC2, GDPR)"
+                impacts["compliance_violation"]["finding_count"] += 1
 
         # Dedupe affected components
         for key in impacts:

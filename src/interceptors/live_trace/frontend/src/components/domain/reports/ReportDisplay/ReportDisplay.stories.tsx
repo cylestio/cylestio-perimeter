@@ -31,16 +31,13 @@ const mockReport: ComplianceReportResponse = {
     overall_risk: 'LOW',
     overall_description: 'Low risk to business operations.',
     impacts: {
-      remote_code_execution: { risk_level: 'NONE', description: 'No RCE vulnerabilities detected.' },
-      data_exfiltration: { risk_level: 'LOW', description: 'Minor data handling concerns.' },
-      privilege_escalation: { risk_level: 'NONE', description: 'No privilege escalation risks.' },
-      supply_chain: { risk_level: 'NONE', description: 'Dependencies are secure.' },
-      compliance_violation: { risk_level: 'NONE', description: 'Compliant with standards.' },
+      remote_code_execution: { risk_level: 'NONE', description: 'No RCE vulnerabilities detected.', finding_count: 0 },
+      data_exfiltration: { risk_level: 'LOW', description: 'Minor data handling concerns.', finding_count: 1 },
+      privilege_escalation: { risk_level: 'NONE', description: 'No privilege escalation risks.', finding_count: 0 },
+      supply_chain: { risk_level: 'NONE', description: 'Dependencies are secure.', finding_count: 0 },
+      compliance_violation: { risk_level: 'NONE', description: 'Compliant with standards.', finding_count: 0 },
     },
-    executive_bullets: [
-      'No critical security vulnerabilities detected',
-      'Minor improvements recommended for logging',
-    ],
+    executive_bullets: [],
   },
   owasp_llm_coverage: {
     'LLM01': { status: 'PASS', name: 'Prompt Injection', message: 'Protected against prompt injection.', findings_count: 0 },
@@ -87,6 +84,9 @@ const mockReport: ComplianceReportResponse = {
       status: 'PENDING',
       fix_complexity: 'LOW',
       fix_hints: 'Use a validation library to sanitize inputs.',
+      owasp_mapping: ['LLM01'],
+      source_type: 'STATIC',
+      cvss_score: 6.5,
     },
     {
       recommendation_id: 'REC-002',
@@ -96,6 +96,8 @@ const mockReport: ComplianceReportResponse = {
       category: 'LOGGING',
       status: 'FIXED',
       fix_complexity: 'LOW',
+      owasp_mapping: ['LLM02', 'LLM03'],
+      source_type: 'DYNAMIC',
     },
   ],
 };
@@ -197,10 +199,6 @@ export const Default: Story = {
     await expect(canvas.getByText('Dynamic Analysis')).toBeInTheDocument();
     await expect(canvas.getByText('Compliance')).toBeInTheDocument();
 
-    // Verify stats are displayed
-    await expect(canvas.getByText('Risk Score')).toBeInTheDocument();
-    await expect(canvas.getByText('25')).toBeInTheDocument();
-
     // Click Static Analysis tab and verify "Not Tested" state (mockReport has last_scan: null)
     const staticTab = canvas.getByText('Static Analysis');
     await userEvent.click(staticTab);
@@ -232,7 +230,6 @@ export const Blocked: Story = {
 
     // Verify blocked status
     await expect(canvas.getByText('Attention Required')).toBeInTheDocument();
-    await expect(canvas.getByText('75')).toBeInTheDocument();
 
     // Verify blocking items badge on Evidences tab
     const evidencesTab = canvas.getByText('Evidences');
@@ -421,5 +418,120 @@ export const WithNoCorrelatedFindings: Story = {
     const combinedTab = canvas.getByText('Combined Insights');
     await userEvent.click(combinedTab);
     await expect(canvas.getByText('No Correlated Findings')).toBeInTheDocument();
+  },
+};
+
+// Mock report with multiple severity levels to showcase severity-based styling
+const reportWithMultipleSeverities: ComplianceReportResponse = {
+  ...blockedReport,
+  recommendations_detail: [
+    {
+      recommendation_id: 'REC-CRIT-001',
+      title: 'Prompt injection vulnerability detected',
+      description: 'User input is passed directly to LLM without sanitization.',
+      severity: 'CRITICAL',
+      category: 'INJECTION',
+      status: 'OPEN',
+      fix_complexity: 'HIGH',
+      fix_hints: 'Use template-based prompts with proper escaping.',
+      owasp_mapping: 'LLM01',
+    },
+    {
+      recommendation_id: 'REC-HIGH-001',
+      title: 'Sensitive data in logs',
+      description: 'API keys are being logged in debug output.',
+      severity: 'HIGH',
+      category: 'DATA_EXPOSURE',
+      status: 'PENDING',
+      fix_complexity: 'MEDIUM',
+      fix_hints: 'Mask sensitive data before logging.',
+      owasp_mapping: 'LLM06',
+    },
+    {
+      recommendation_id: 'REC-MED-001',
+      title: 'Missing rate limiting',
+      description: 'No rate limiting on API endpoints could lead to resource exhaustion.',
+      severity: 'MEDIUM',
+      category: 'AVAILABILITY',
+      status: 'FIXING',
+      fix_complexity: 'LOW',
+      fix_hints: 'Implement rate limiting middleware.',
+    },
+    {
+      recommendation_id: 'REC-LOW-001',
+      title: 'Verbose error messages',
+      description: 'Error messages expose internal implementation details.',
+      severity: 'LOW',
+      category: 'INFORMATION_DISCLOSURE',
+      status: 'OPEN',
+      fix_complexity: 'LOW',
+      fix_hints: 'Use generic error messages in production.',
+    },
+  ],
+  blocking_items: [
+    {
+      recommendation_id: 'REC-CRIT-001',
+      title: 'Prompt injection vulnerability detected',
+      description: 'User input is passed directly to LLM without sanitization.',
+      severity: 'CRITICAL',
+      category: 'INJECTION',
+      file_path: 'src/handlers/chat.py',
+      line_start: 45,
+      line_end: 52,
+      code_snippet: 'prompt = f"User said: {user_input}"',
+      fix_hints: 'Use template-based prompts with proper escaping.',
+      impact: 'Attackers could manipulate the LLM to bypass security controls.',
+      owasp_mapping: 'LLM01',
+      cvss_score: 9.1,
+    },
+    {
+      recommendation_id: 'REC-HIGH-001',
+      title: 'Sensitive data in logs',
+      description: 'API keys are being logged in debug output.',
+      severity: 'HIGH',
+      category: 'DATA_EXPOSURE',
+      file_path: 'src/utils/logger.py',
+      line_start: 23,
+      fix_hints: 'Mask sensitive data before logging.',
+      impact: 'API keys could be exposed in log aggregation systems.',
+      owasp_mapping: 'LLM06',
+      cvss_score: 7.5,
+    },
+    {
+      recommendation_id: 'REC-MED-001',
+      title: 'Missing rate limiting',
+      description: 'No rate limiting on API endpoints could lead to resource exhaustion.',
+      severity: 'MEDIUM',
+      category: 'AVAILABILITY',
+      file_path: 'src/api/routes.py',
+      line_start: 10,
+      fix_hints: 'Implement rate limiting middleware.',
+      impact: 'Service could be overwhelmed by excessive requests.',
+      cvss_score: 5.3,
+    },
+  ],
+};
+
+export const MultipleSeverities: Story = {
+  args: {
+    report: reportWithMultipleSeverities,
+    workflowId: 'multiple-severities-workflow',
+    reportType: 'security_assessment',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Verify component renders
+    await expect(canvas.getByTestId('report-display')).toBeInTheDocument();
+
+    // Click on Key Findings tab (styled button, not role="tab")
+    const findingsTab = canvas.getByText('Key Findings');
+    await userEvent.click(findingsTab);
+
+    // Verify Key Findings header is shown
+    await expect(await canvas.findByText('Key Findings', { selector: 'h3' })).toBeInTheDocument();
+
+    // Verify CVSS scores are displayed (indicates findings are rendering)
+    await expect(canvas.getByText('CVSS: 9.1')).toBeInTheDocument();
   },
 };

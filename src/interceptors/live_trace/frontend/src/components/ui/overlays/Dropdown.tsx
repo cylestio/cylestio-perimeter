@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownItem,
   DropdownDivider,
+  DropdownHeader,
   ItemIcon,
 } from './Dropdown.styles';
 
@@ -18,6 +19,7 @@ export interface DropdownItemData {
   disabled?: boolean;
   danger?: boolean;
   divider?: boolean;
+  header?: boolean;
 }
 
 export interface DropdownProps {
@@ -39,7 +41,7 @@ export const Dropdown: FC<DropdownProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
 
-  const actionableItems = items.filter((item) => !item.divider && !item.disabled);
+  const actionableItems = items.filter((item) => !item.divider && !item.header && !item.disabled);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -137,6 +139,10 @@ export const Dropdown: FC<DropdownProps> = ({
           {items.map((item) => {
             if (item.divider) {
               return <DropdownDivider key={item.id} />;
+            }
+
+            if (item.header) {
+              return <DropdownHeader key={item.id}>{item.label}</DropdownHeader>;
             }
 
             const actionIndex = actionableItems.indexOf(item);

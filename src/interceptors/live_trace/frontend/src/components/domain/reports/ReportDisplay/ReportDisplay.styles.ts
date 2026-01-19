@@ -493,10 +493,9 @@ export const EvidenceTitle = styled.h4`
 // Code Block
 export const CodeBlock = styled.div`
   background: ${({ theme }) => theme.colors.void};
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
   border-radius: ${({ theme }) => theme.radii.md};
   overflow: hidden;
-  margin: ${({ theme }) => theme.spacing[3]} 0;
 `;
 
 export const CodeHeader = styled.div`
@@ -516,6 +515,7 @@ export const CodeContent = styled.pre`
   line-height: 1.6;
   overflow-x: auto;
   color: ${({ theme }) => theme.colors.white};
+  background: ${({ theme }) => theme.colors.void};
 `;
 
 // Export Actions
@@ -570,48 +570,112 @@ export const ImpactBulletText = styled.span`
   flex: 1;
 `;
 
-export const ImpactGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: ${({ theme }) => theme.spacing[3]};
+export const ImpactList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[2]};
 `;
 
-export const ImpactCard = styled.div<{ $level: string }>`
-  background: ${({ theme }) => theme.colors.surface};
-  border: 1px solid ${({ $level, theme }) => {
-    if ($level === 'HIGH') return theme.colors.red;
-    if ($level === 'MEDIUM') return theme.colors.orange;
-    return theme.colors.borderSubtle;
-  }};
-  border-radius: ${({ theme }) => theme.radii.md};
-  padding: ${({ theme }) => theme.spacing[3]};
+export const ImpactRow = styled.li`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing[1]};
 `;
 
-export const ImpactLabel = styled.div`
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+export const ImpactRowHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[2]};
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const ImpactRowLabel = styled.span`
+  font-weight: 500;
+`;
+
+export const ImpactRowDescription = styled.span`
+  font-size: 13px;
   color: ${({ theme }) => theme.colors.white50};
-  margin-bottom: ${({ theme }) => theme.spacing[1]};
+  padding-left: ${({ theme }) => theme.spacing[1]};
 `;
 
-export const ImpactLevel = styled.div<{ $level: string }>`
-  font-size: 16px;
-  font-weight: 700;
+export const ImpactRowSeparator = styled.span`
+  color: ${({ theme }) => theme.colors.white30};
+  &::before {
+    content: '•';
+  }
+`;
+
+export const ImpactRowLevel = styled.span<{ $level: string }>`
+  font-weight: 600;
   color: ${({ $level, theme }) => {
     if ($level === 'HIGH') return theme.colors.red;
     if ($level === 'MEDIUM') return theme.colors.orange;
     if ($level === 'LOW') return theme.colors.yellow;
     return theme.colors.green;
   }};
-  margin-bottom: ${({ theme }) => theme.spacing[1]};
 `;
 
-export const ImpactDescription = styled.div`
-  font-size: 12px;
+export const ImpactRowCount = styled.span`
+  color: ${({ theme }) => theme.colors.white50};
+`;
+
+// Summary Section - Two column layout
+export const SummaryGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.spacing[6]};
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: ${({ theme }) => theme.spacing[4]};
+  }
+`;
+
+export const SummaryColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+export const SummarySubheading = styled.h4`
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white50};
+  margin: 0 0 ${({ theme }) => theme.spacing[3]} 0;
+`;
+
+// Summary Stats Row (unified list style - compact)
+export const SummaryStatsRow = styled.li`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${({ theme }) => theme.spacing[1]} 0;
+`;
+
+export const SummaryStatsLabel = styled.span`
+  font-size: 13px;
+  font-weight: 500;
   color: ${({ theme }) => theme.colors.white70};
-  line-height: 1.4;
+`;
+
+export const SummaryStatsDots = styled.span`
+  flex: 1;
+  border-bottom: 1px dotted ${({ theme }) => theme.colors.white20};
+  margin: 0 ${({ theme }) => theme.spacing[2]};
+  min-width: 20px;
+`;
+
+export const SummaryStatsValue = styled.span<{ $color?: string }>`
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  color: ${({ $color, theme }) => $color || theme.colors.white};
 `;
 
 // Risk Breakdown
@@ -724,4 +788,118 @@ export const EmptyEvidence = styled.div`
   color: ${({ theme }) => theme.colors.white50};
   background: ${({ theme }) => theme.colors.surface};
   border-radius: ${({ theme }) => theme.radii.md};
+`;
+
+// Key Findings Components
+export const FindingCard = styled.div<{ $resolved?: boolean }>`
+  background: ${({ theme }) => theme.colors.surface};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: 2px;
+  margin-bottom: ${({ theme }) => theme.spacing[6]};
+  overflow: hidden;
+  ${({ $resolved }) =>
+    $resolved &&
+    `
+    opacity: 0.7;
+  `}
+`;
+
+export const FixedByBadge = styled.span<{ $isAuto: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: ${({ $isAuto }) =>
+    $isAuto ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)'};
+  color: ${({ $isAuto, theme }) => ($isAuto ? theme.colors.green : theme.colors.cyan)};
+`;
+
+export const FindingHeader = styled.div`
+  padding: ${({ theme }) => theme.spacing[4]};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  background: #1c1c28;
+`;
+
+export const FindingMetadata = styled.div`
+  padding: ${({ theme }) => `${theme.spacing[2]} ${theme.spacing[4]}`};
+  background: ${({ theme }) => theme.colors.surface};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const FindingTag = styled.span`
+  padding: ${({ theme }) => `${theme.spacing[1]} ${theme.spacing[2]}`};
+  background: ${({ theme }) => theme.colors.surface2};
+  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
+  border-radius: 2px;
+  font-size: 11px;
+  color: ${({ theme }) => theme.colors.white70};
+`;
+
+export const FindingTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing[3]};
+  flex: 1;
+  min-width: 0;
+`;
+
+export const FindingTitleText = styled.span`
+  font-size: 15px;
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.white};
+`;
+
+export const FindingBody = styled.div`
+  padding: ${({ theme }) => theme.spacing[4]};
+  background: ${({ theme }) => theme.colors.surface};
+`;
+
+export const FindingSection = styled.div`
+  margin-bottom: ${({ theme }) => theme.spacing[5]};
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+export const FindingSectionLabel = styled.div`
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${({ theme }) => theme.colors.white50};
+  margin-bottom: ${({ theme }) => theme.spacing[2]};
+`;
+
+export const FindingImpact = styled.div`
+  background: ${({ theme }) => theme.colors.void};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
+  border-radius: ${({ theme }) => theme.radii.md};
+  font-size: 14px;
+  color: ${({ theme }) => theme.colors.white};
+  line-height: 1.6;
+`;
+
+export const FixSection = styled.div`
+  background: ${({ theme }) => theme.colors.void};
+  border: 1px solid ${({ theme }) => theme.colors.borderMedium};
+  border-radius: ${({ theme }) => theme.radii.md};
+  padding: ${({ theme }) => `${theme.spacing[3]} ${theme.spacing[4]}`};
+`;
+
+export const FixContent = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.colors.white};
+  line-height: 1.6;
 `;

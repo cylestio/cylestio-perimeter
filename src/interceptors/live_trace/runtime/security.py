@@ -31,8 +31,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["CC6.1", "CC6.8"],
         "cwe": "CWE-770",
         "mitre": "T1499",
-        "cvss_critical": 7.5,
-        "cvss_warning": 4.5,
+        "cvss_critical": 9.0,
+        "cvss_warning": 5.0,
     },
     "RESOURCE_002_TOOL_CALL_BOUNDS": {
         "owasp_llm": "LLM08",
@@ -40,8 +40,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["CC6.1", "CC6.8"],
         "cwe": "CWE-770",
         "mitre": "T1499",
-        "cvss_critical": 7.5,
-        "cvss_warning": 4.5,
+        "cvss_critical": 9.0,
+        "cvss_warning": 5.0,
     },
     "RESOURCE_004_TOKEN_VARIANCE": {
         "owasp_llm": None,
@@ -50,7 +50,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 3.0,
+        "cvss_warning": 4.0,
     },
     "RESOURCE_005_TOOL_VARIANCE": {
         "owasp_llm": None,
@@ -59,7 +59,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 3.0,
+        "cvss_warning": 4.0,
     },
     "RESOURCE_006_DURATION_VARIANCE": {
         "owasp_llm": None,
@@ -68,7 +68,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 3.0,
+        "cvss_warning": 4.0,
     },
     # Environment & Supply Chain checks
     "ENV_001_CONSISTENT_MODEL": {
@@ -77,8 +77,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["CC6.7"],
         "cwe": "CWE-1104",
         "mitre": "T1195",
-        "cvss_critical": 6.5,
-        "cvss_warning": 4.0,
+        "cvss_critical": 9.0,
+        "cvss_warning": 5.0,
     },
     "ENV_002_AVG_TOOLS_COVERAGE": {
         "owasp_llm": None,
@@ -87,7 +87,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 2.5,
+        "cvss_warning": 4.0,
     },
     "ENV_003_UNUSED_TOOLS": {
         "owasp_llm": "LLM08",
@@ -96,7 +96,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 3.5,
+        "cvss_warning": 4.5,
     },
     # Behavioral Stability checks
     "BEHAV_001_STABILITY_SCORE": {
@@ -105,8 +105,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["CC7.2"],
         "cwe": None,
         "mitre": None,
-        "cvss_critical": 6.0,
-        "cvss_warning": 4.0,
+        "cvss_critical": 9.0,
+        "cvss_warning": 5.0,
     },
     "BEHAV_002_OUTLIER_RATE": {
         "owasp_llm": "LLM08",
@@ -114,8 +114,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["CC7.2"],
         "cwe": None,
         "mitre": None,
-        "cvss_critical": 6.0,
-        "cvss_warning": 4.0,
+        "cvss_critical": 9.0,
+        "cvss_warning": 5.0,
     },
     "BEHAV_003_CLUSTER_FORMATION": {
         "owasp_llm": None,
@@ -123,8 +123,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["CC7.2"],
         "cwe": None,
         "mitre": None,
-        "cvss_critical": 5.0,
-        "cvss_warning": 3.0,
+        "cvss_critical": 9.0,
+        "cvss_warning": 4.0,
     },
     "BEHAV_004_PREDICTABILITY": {
         "owasp_llm": None,
@@ -133,7 +133,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 3.5,
+        "cvss_warning": 4.5,
     },
     "BEHAV_005_UNCERTAINTY_THRESHOLD": {
         "owasp_llm": None,
@@ -142,7 +142,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": None,
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 3.5,
+        "cvss_warning": 4.5,
     },
     # Privacy & PII Compliance checks
     "PII_001_DETECTION": {
@@ -151,8 +151,8 @@ FRAMEWORK_MAPPINGS = {
         "soc2_controls": ["PI1.1"],
         "cwe": "CWE-359",
         "mitre": "T1530",
-        "cvss_critical": 8.0,
-        "cvss_warning": 5.0,
+        "cvss_critical": 9.5,
+        "cvss_warning": 6.0,
     },
     "PII_002_SYSTEM_PROMPT": {
         "owasp_llm": "LLM06",
@@ -161,7 +161,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": "CWE-359",
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 5.5,
+        "cvss_warning": 6.0,
     },
     "PII_003_EXPOSURE_RATE": {
         "owasp_llm": "LLM06",
@@ -170,7 +170,7 @@ FRAMEWORK_MAPPINGS = {
         "cwe": "CWE-359",
         "mitre": None,
         "cvss_critical": None,
-        "cvss_warning": 5.0,
+        "cvss_warning": 5.5,
     },
 }
 
@@ -413,20 +413,20 @@ def _apply_framework_mappings(check: AssessmentCheck) -> AssessmentCheck:
     mapping = FRAMEWORK_MAPPINGS.get(check.check_id)
     if not mapping:
         return check
-    
+
     # Apply base framework mappings
     check.owasp_llm = mapping.get("owasp_llm")
     check.owasp_llm_name = mapping.get("owasp_llm_name")
     check.soc2_controls = mapping.get("soc2_controls", [])
     check.cwe = mapping.get("cwe")
     check.mitre = mapping.get("mitre")
-    
+
     # Apply CVSS score based on status (only for failed checks)
     if check.status == "critical" and mapping.get("cvss_critical"):
         check.cvss_score = mapping["cvss_critical"]
     elif check.status == "warning" and mapping.get("cvss_warning"):
         check.cvss_score = mapping["cvss_warning"]
-    
+
     return check
 
 
@@ -966,7 +966,7 @@ def _check_stability_score(behavioral_result: BehavioralAnalysisResult) -> Asses
             'shortfall': round(0.80 - score, 3)
         },
         recommendations=[
-            f"Improve system prompt and add guardrails (stability: {round(score * 100)}%)"
+            f"Make your system prompt more accurate and reduce the context window size to promote greater stability (stability: {round(score * 100)}%)"
         ]
     )
     return _apply_framework_mappings(check)
@@ -1394,7 +1394,7 @@ def check_privacy_compliance(
     """
     if pii_result is None:
         return None
-    
+
     # If PII analysis is disabled, return None (category won't appear)
     if pii_result.disabled:
         return None
@@ -1464,7 +1464,7 @@ def generate_security_report(
         "critical_issues": sum(cat.critical_checks for cat in categories.values()),
         "warnings": sum(cat.warning_checks for cat in categories.values())
     }
-    
+
     # Add PII disabled status if applicable
     if pii_result and pii_result.disabled:
         summary["pii_disabled"] = True

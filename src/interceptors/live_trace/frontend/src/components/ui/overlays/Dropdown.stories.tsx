@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent } from 'storybook/test';
 import styled from 'styled-components';
-import { MoreVertical, Edit, Copy, Trash, Settings } from 'lucide-react';
+import { MoreVertical, Edit, Copy, Trash, Settings, FileText, Code, ChevronDown } from 'lucide-react';
 import { Dropdown } from './Dropdown';
 import { Button } from '../core/Button';
 
@@ -119,5 +119,31 @@ export const KeyboardNavigation: Story = {
     await expect(canvas.getByRole('menu')).toBeInTheDocument();
     await userEvent.keyboard('{ArrowDown}');
     await userEvent.keyboard('{Escape}');
+  },
+};
+
+export const WithSectionHeaders: Story = {
+  args: {
+    trigger: (
+      <Button variant="primary">
+        Export <ChevronDown size={14} />
+      </Button>
+    ),
+    items: [
+      { id: 'summary-header', label: 'Summary', header: true },
+      { id: 'summary-md', label: 'Markdown', icon: <Code size={14} />, onClick: fn() },
+      { id: 'summary-html', label: 'HTML', icon: <FileText size={14} />, onClick: fn() },
+      { id: 'divider', label: '', divider: true },
+      { id: 'full-header', label: 'Full Report', header: true },
+      { id: 'full-md', label: 'Markdown (coming soon)', icon: <Code size={14} />, disabled: true },
+      { id: 'full-html', label: 'HTML (coming soon)', icon: <FileText size={14} />, disabled: true },
+    ],
+    align: 'right',
+  },
+  play: async ({ canvas }) => {
+    const trigger = canvas.getByText('Export');
+    await userEvent.click(trigger);
+    await expect(canvas.getByText('Summary')).toBeInTheDocument();
+    await expect(canvas.getByText('Full Report')).toBeInTheDocument();
   },
 };

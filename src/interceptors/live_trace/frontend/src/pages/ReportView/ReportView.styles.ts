@@ -13,21 +13,20 @@ export const ErrorContainer = styled.div`
   color: ${({ theme }) => theme.colors.red};
 `;
 
-export const BackButton = styled.button`
+export const BackLink = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing[2]};
-  padding: ${({ theme }) => theme.spacing[2]} ${({ theme }) => theme.spacing[3]};
+  gap: ${({ theme }) => theme.spacing[1]};
+  padding: 0;
+  margin-bottom: ${({ theme }) => theme.spacing[3]};
   background: transparent;
-  border: 1px solid ${({ theme }) => theme.colors.borderSubtle};
-  border-radius: ${({ theme }) => theme.radii.md};
-  color: ${({ theme }) => theme.colors.white70};
+  border: none;
+  color: ${({ theme }) => theme.colors.white50};
   font-size: 13px;
   cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
+  transition: color ${({ theme }) => theme.transitions.fast};
 
   &:hover {
-    border-color: ${({ theme }) => theme.colors.cyan};
     color: ${({ theme }) => theme.colors.white};
   }
 `;

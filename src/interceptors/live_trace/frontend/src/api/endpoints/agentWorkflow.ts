@@ -405,6 +405,7 @@ export interface BusinessImpactCategory {
   risk_level: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
   description: string;
   affected_components?: string[];
+  finding_count?: number;
 }
 
 export interface BusinessImpact {
