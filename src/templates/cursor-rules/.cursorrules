@@ -5,7 +5,7 @@ Agent Inspector MCP endpoint at `http://localhost:7100/mcp` provides security an
 - **Proxy:** `http://localhost:4000` (point your agent here)
 - **Dashboard/MCP:** `http://localhost:7100`
 
-## Available MCP Tools (13 total)
+## Available MCP Tools (14 total)
 
 ### Analysis Tools
 - `get_security_patterns` - Retrieve OWASP LLM Top 10 patterns
@@ -20,6 +20,7 @@ Agent Inspector MCP endpoint at `http://localhost:7100/mcp` provides security an
 - `get_fix_template` - Get remediation template for a finding type
 
 ### Agent Workflow Lifecycle Tools
+- `list_workflows` - List all workflows with stats (agents, sessions, findings, gate status)
 - `get_agent_workflow_state` - Check what analysis exists (static/dynamic/both)
 - `get_tool_usage_summary` - Get tool usage patterns from dynamic sessions
 - `get_agent_workflow_correlation` - Correlate static findings with dynamic runtime

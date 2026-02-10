@@ -330,6 +330,14 @@ MCP_TOOLS: List[Dict[str, Any]] = [
     },
     # ==================== Workflow Query Tools ====================
     {
+        "name": "list_workflows",
+        "description": "List all agent workflows with comprehensive stats. Returns workflow IDs, names, agent/session counts, finding counts, recommendation counts, gate status, and last activity timestamps.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {}
+        }
+    },
+    {
         "name": "get_workflow_agents",
         "description": "List all agents in a workflow with their system prompts, session counts, and last seen time. Returns the last 10 sessions across all agents in the workflow.",
         "inputSchema": {
